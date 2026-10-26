@@ -282,7 +282,7 @@ public static class ScenarioMeasurement
             ms.Length > 0 ? ms.Average() : 0, Percentile(ms, 0.50), Percentile(ms, 0.95), Percentile(ms, 0.99),
             ms.Length > 0 ? ms[^1] : 0, ms.Length > 0 ? overBudget * 100d / ms.Length : 0,
             timing.Gen0, timing.Gen1, timing.Gen2, pauseMs, wallMs > 0 ? pauseMs * 100d / wallMs : 0,
-            RuntimeStamp.Current());
+            RuntimeStamp.Current(), scenario.Notes(world));
     }
 
     private static T[] Sorted<T>(T[] values)

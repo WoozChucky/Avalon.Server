@@ -13,7 +13,8 @@ namespace Avalon.World.Auras;
 /// names (#1178), which its damage ticks take, and the ability's metadata (#1178), whose base and tags a ticking aura's
 /// total is rolled from when it is applied; the aura system drops it then, so a held aura keeps no metadata. None for an
 /// aura no ability applied (an item's, a script's): no ability and nothing to fit, threat 1, no heal threat, no gain, no
-/// type, nothing to roll from.
+/// type, nothing to roll from. <see cref="CannotCrit" /> (#1180) marks a Resonance proc's aura, whose ticks never crit:
+/// its snapshot keeps a crit chance of 0.
 /// </summary>
 public readonly record struct AuraSource(
     AbilityId? AbilityId,
@@ -22,7 +23,8 @@ public readonly record struct AuraSource(
     uint PowerGainPerHit,
     AbilityAffects? Affects = null,
     DamageType? DamageType = null,
-    AbilityMetadata? Ability = null)
+    AbilityMetadata? Ability = null,
+    bool CannotCrit = false)
 {
     public static AuraSource None => new(null, 1f, 0f, 0u);
 

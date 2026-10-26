@@ -14,13 +14,14 @@ namespace Avalon.World.Testing.Scenarios;
 /// <param name="TotalAllocatedBytes">Every thread's bytes over the timing phase (informational: other threads count too).</param>
 /// <param name="TicksOverBudgetPercent">The share of timed ticks longer than one 60 Hz tick (16.7 ms).</param>
 /// <param name="GcPausePercent">The share of the timing phase's wall time spent in GC pauses.</param>
+/// <param name="Notes">What the scenario reports beside the figures (<see cref="IScenario.Notes" />); null for nothing.</param>
 public sealed record ScenarioReport(
     string Scenario, int Players, int Instances,
     long BytesPerWindow, double BytesPerPlayerPerTick,
     double BytesPerTickMean, long BytesPerTickP95, long BytesPerTickMax, long TotalAllocatedBytes,
     double TickMsMean, double TickMsP50, double TickMsP95, double TickMsP99, double TickMsMax, double TicksOverBudgetPercent,
     int Gen0, int Gen1, int Gen2, double GcPauseMs, double GcPausePercent,
-    RuntimeStamp Runtime)
+    RuntimeStamp Runtime, string? Notes = null)
 {
     /// <summary>How reports and the allocation baseline are written and read: camelCase, indented, <c>\n</c> line ends.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web)

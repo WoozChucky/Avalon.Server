@@ -21,6 +21,7 @@ using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Items;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
@@ -66,7 +67,7 @@ public class SimulatorParityShould
             .Load(s_forestWarrior.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i)).ToArray());
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
-            ResonanceTable.Empty, CurrentValues.Refill, Data.Combat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         warrior.Character.Spells.Load(abilities.Select(a => (IAbility)AbilityTestData.Game(a)).ToArray());
         return warrior;
     }
@@ -271,7 +272,7 @@ public class SimulatorParityShould
         real.Character.PowerType = PowerType.Mana;
         Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
-            ResonanceTable.Empty, CurrentValues.Refill, Data.Combat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         real.Character.Spells.Load([AbilityTestData.Game(Row(211))]);
         real.Character.CurrentPower = StartMana;
 
@@ -558,7 +559,7 @@ public class SimulatorParityShould
         real.Character.PowerType = PowerType.Mana;
         Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
-            ResonanceTable.Empty, CurrentValues.Refill, Data.Combat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         real.Character.Spells.Load([AbilityTestData.Game(renew)]);
 
         var simCleric = SimPlayer.Create(Data, CharacterClass.Cleric, Level, []);
@@ -621,7 +622,7 @@ public class SimulatorParityShould
             AuraSchedule.Start(s_clockStart, 30000, 0), 30000, s_clockStart.UtcDateTime), s_clockStart);
         Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
-            ResonanceTable.Empty, CurrentValues.KeepShare, Data.Combat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, Data.Combat.Formula));
 
         var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
         sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0), 0));

@@ -264,3 +264,23 @@ holds (the union of their bits), never from the catalog:
   duration.
 - **Breaking early.** A crowd-control aura can end before its time, by chance, when its holder takes damage or once
   per second held (the catalog's break chances). It arrives as an ordinary `Removed` entry.
+
+## 11. Resonance effect auras (#1180)
+
+Worn gear applies auras too: a theme's Resonance effects ([item modifiers](item-modifiers.md#resonance-themes)) fire on
+the wearer's hits, critical hits, kills, hits taken, evaded hits and broken wards, and each applies an aura, ids 16-44
+(Burning, Chilled, Rimebound, Jolt, Regrowth, Rootsurge, Guard, Barbs, Bleeding, Tailwind, Slipstream, Veiled, Lucid;
+[auras](auras.md#resonance-effects-1180) has every row). **No packet, field or enum is new.**
+
+- **The auras** are in `schema/auras/aura-catalog-v1.json` like every other, and the effects that apply them in
+  `schema/items/item-modifier-catalog-v1.json` (`themes[].effects`: count, trigger, chance, cooldown, `auraId`, target,
+  chain, life threshold, damage type). Every tier of a family shares one icon (`burning`, `chilled`, ...).
+- **Applications, renewals and expiry** arrive as `SMSG_AURA_UPDATE` and `SMSG_AURA_LIST` entries (sections 3 and 4),
+  with the wearer as `CasterGuid`: on the unit it hit or that struck it for a harmful one, on the wearer for a helpful
+  one. A chain (Storm's jolt) is one entry on each creature it reaches, from the same caster in the same tick.
+- **Ticks** arrive on the damage and heal packets with `AuraId` and no `AbilityId` (section 5). They never crit. Jolt
+  and Barbs last 200 ms with one tick at their end: a client sees each as one hit 0.2 s after its `Applied` entry,
+  then a `Removed` entry.
+- **A resisted Rimebound** (a creature immune to roots, or a character on its fourth root inside the diminishing
+  window, section 10) is the Immune hit of 0 (`HitResult.Immune`) with no `AbilityId`, from the wearer, sent to whoever
+  would have seen the hit.

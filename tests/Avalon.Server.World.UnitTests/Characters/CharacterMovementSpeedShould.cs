@@ -10,6 +10,7 @@ using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
+using Avalon.World.Items;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
@@ -57,7 +58,7 @@ public class CharacterMovementSpeedShould
         Assert.Equal(4f, character.GetMovementSpeed());
 
         Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find,
-            ResonanceTable.Empty, CurrentValues.EnterWorld, s_seeded));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld, s_seeded));
 
         Assert.Equal(4f, character.GetMovementSpeed());
     }
@@ -98,17 +99,17 @@ public class CharacterMovementSpeedShould
     {
         CharacterEntity character = New();
         Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find,
-            ResonanceTable.Empty, CurrentValues.EnterWorld, s_seeded));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld, s_seeded));
 
         character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Feet, s_swiftBoots)]);
         Assert.Equal(4f, character.GetMovementSpeed());
         Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find,
-            ResonanceTable.Empty, CurrentValues.KeepShare, s_seeded));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, s_seeded));
         Assert.Equal(4.4f, character.GetMovementSpeed(), precision: 5);
 
         character.Container(InventoryType.Equipment).Load([]);
         Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find,
-            ResonanceTable.Empty, CurrentValues.KeepShare, s_seeded));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, s_seeded));
         Assert.Equal(4f, character.GetMovementSpeed(), precision: 5);
     }
 

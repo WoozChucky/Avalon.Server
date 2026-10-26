@@ -3,8 +3,10 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Doodads;
+using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
@@ -118,6 +120,13 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
         }
     }
 
+    /// <summary>
+    /// The Resonance effects of this generation (#1180 part A2), keyed by the themes of <see cref="Modifiers" />; an Auras
+    /// reload replaces them with the same rows held against its auras (<see cref="AurasPatch.Effects" />). Not part of
+    /// <see cref="Generation" />: no name is worked out from them.
+    /// </summary>
+    public ResonanceEffectCatalog Effects { get; init; } = ResonanceEffectCatalog.Empty;
+
     /// <summary>The template of that id, or null: by key, where a reader walked the templates.</summary>
     public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
 
@@ -132,9 +141,11 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     /// logged and left out whole, with its links, so the world never makes a copy of it, rather than kept with its links
     /// or base stats stripped (a stat-less unique, a unique standing in its line as a base, a chest without armour, a base
     /// without its implicit). A Unique template that links nothing is kept: one whose modifier the catalog refused has its
-    /// drops removed by the roll.
+    /// drops removed by the roll. The Resonance effects (#1180 part A2) are held to their rules against
+    /// <paramref name="auras" />, the aura rows read in the same prepare (<see cref="ResonanceEffectCatalog" />).
     /// </summary>
-    public static ItemsPatch Build(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers, ILogger logger)
+    public static ItemsPatch Build(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers,
+        IReadOnlyCollection<ItemThemeEffect> effects, AuraCatalog auras, ILogger logger)
     {
         HashSet<ulong> refused = [];
         void Judge(ItemTemplate template, string? reason)
@@ -166,9 +177,13 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
                           ?? ItemBaseStatRules.NamedBaseProblem(unique, named));
         }
 
+        var catalog = new ResonanceEffectCatalog(effects, auras, logger);
         return refused.Count == 0
-            ? new ItemsPatch(templates, modifiers)
-            : new ItemsPatch([.. templates.Where(t => !refused.Contains(t.Id.Value))], modifiers.WithoutLinksOf(refused));
+            ? new ItemsPatch(templates, modifiers) { Effects = catalog }
+            : new ItemsPatch([.. templates.Where(t => !refused.Contains(t.Id.Value))], modifiers.WithoutLinksOf(refused))
+            {
+                Effects = catalog,
+            };
     }
 
     /// <summary>
@@ -245,7 +260,8 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
             (int)kind >= 0 && (int)kind < _byKind.Length ? _byKind[(int)kind] : [];
     }
 
-    public override string Describe() => $"{Templates.Count} item templates, {Modifiers.Count} item modifiers";
+    public override string Describe() =>
+        $"{Templates.Count} item templates, {Modifiers.Count} item modifiers, {Effects.Effects.Count} Resonance effects";
 }
 
 public sealed record ProgressionPatch(
@@ -325,9 +341,21 @@ public sealed record QuestsPatch(Quests.QuestCatalog Catalog) : StaticDataPatch(
 /// snapshot and stacks it was applied with; one whose template this patch drops expires on its next tick. An ability's
 /// aura link is checked by the Abilities area against the auras its own prepare reads.
 /// </summary>
-public sealed record AurasPatch(Auras.AuraCatalog Catalog) : StaticDataPatch(ReloadArea.Auras)
+public sealed record AurasPatch(AuraCatalog Catalog) : StaticDataPatch(ReloadArea.Auras)
 {
-    public override string Describe() => Catalog.Describe();
+    /// <summary>
+    /// The live Resonance effects (#1180 part A2) held against these auras (<see cref="ResonanceEffectCatalog.Against" />):
+    /// published with them in place of <see cref="Replaces" />, so an aura edit that breaks an effect's rules (a stun on
+    /// Rimebound, a periodic heal on Guard) leaves that effect out from the next firing, and every kept effect's source is
+    /// built from its aura as it now is. Null when no items generation was loaded to hold them against.
+    /// </summary>
+    public ResonanceEffectCatalog? Effects { get; init; }
+
+    /// <summary>The effect catalog <see cref="Effects" /> was built from: the live one, when this patch was prepared.</summary>
+    public ResonanceEffectCatalog? Replaces { get; init; }
+
+    public override string Describe() =>
+        Effects is null ? Catalog.Describe() : $"{Catalog.Describe()}, {Effects.Effects.Count} Resonance effects";
 }
 
 /// <summary>

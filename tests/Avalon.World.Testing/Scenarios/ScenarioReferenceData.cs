@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Avalon.Common.ValueObjects;
+using Avalon.Database;
 using Avalon.Database.World;
 using Avalon.Database.World.Extensions;
 using Avalon.Database.World.Repositories;
@@ -152,26 +153,7 @@ public sealed class ScenarioReferenceData
         var scripts = new ScriptManager(NullLoggerFactory.Instance);
         scripts.Load();
 
-        var data = new StaticData(
-            repositories.GetRequiredService<ICharacterCreateInfoRepository>(),
-            repositories.GetRequiredService<IClassLevelStatRepository>(),
-            repositories.GetRequiredService<IItemTemplateRepository>(),
-            repositories.GetRequiredService<IItemModifierRepository>(),
-            repositories.GetRequiredService<IAbilityTemplateRepository>(),
-            repositories.GetRequiredService<ICharacterLevelExperienceRepository>(),
-            repositories.GetRequiredService<ICreatureTemplateRepository>(),
-            repositories.GetRequiredService<ICreatureBaseStatRepository>(),
-            repositories.GetRequiredService<ICreatureRarityModifierRepository>(),
-            repositories.GetRequiredService<ILocalizedTextRepository>(),
-            repositories.GetRequiredService<IDialogueRepository>(),
-            repositories.GetRequiredService<ILootTableRepository>(),
-            NullLoggerFactory.Instance,
-            repositories.GetRequiredService<IVendorStockRepository>(),
-            repositories.GetRequiredService<ICombatDataRepository>(),
-            repositories.GetRequiredService<IQuestRepository>(),
-            scripts,
-            repositories.GetRequiredService<IAuraTemplateRepository>(),
-            repositories.GetRequiredService<IDoodadTemplateRepository>());
+        StaticData data = NewData(repositories, scripts, repositories.GetRequiredService<IAuraTemplateRepository>());
         data.LoadAsync().GetAwaiter().GetResult();
 
         var chunks = new ChunkLibrary(NullLoggerFactory.Instance, repositories.GetRequiredService<IServiceScopeFactory>());
@@ -267,9 +249,60 @@ public sealed class ScenarioReferenceData
         return ordered[^1].MaxDepth is { } last ? $"end at depth {last}" : null;
     }
 
+    /// <summary>
+    /// A loaded StaticData of its own over this reference data's database and scripts, whose aura rows each read passes
+    /// through <paramref name="auras" /> first (the read's own copies, which it may change): for a test that reloads an
+    /// area, which <see cref="Data" />, shared by every scenario and test, must never see.
+    /// </summary>
+    public async Task<StaticData> NewDataAsync(
+        Func<IReadOnlyCollection<AuraTemplate>, IReadOnlyCollection<AuraTemplate>> auras)
+    {
+        StaticData data = NewData(_repositories, Scripts,
+            new EditedAuras(_repositories.GetRequiredService<IAuraTemplateRepository>(), auras));
+        await data.LoadAsync();
+        return data;
+    }
+
+    private static StaticData NewData(ServiceProvider repositories, IScriptManager scripts, IAuraTemplateRepository auras) =>
+        new(
+            repositories.GetRequiredService<ICharacterCreateInfoRepository>(),
+            repositories.GetRequiredService<IClassLevelStatRepository>(),
+            repositories.GetRequiredService<IItemTemplateRepository>(),
+            repositories.GetRequiredService<IItemModifierRepository>(),
+            repositories.GetRequiredService<IAbilityTemplateRepository>(),
+            repositories.GetRequiredService<ICharacterLevelExperienceRepository>(),
+            repositories.GetRequiredService<ICreatureTemplateRepository>(),
+            repositories.GetRequiredService<ICreatureBaseStatRepository>(),
+            repositories.GetRequiredService<ICreatureRarityModifierRepository>(),
+            repositories.GetRequiredService<ILocalizedTextRepository>(),
+            repositories.GetRequiredService<IDialogueRepository>(),
+            repositories.GetRequiredService<ILootTableRepository>(),
+            NullLoggerFactory.Instance,
+            repositories.GetRequiredService<IVendorStockRepository>(),
+            repositories.GetRequiredService<ICombatDataRepository>(),
+            repositories.GetRequiredService<IQuestRepository>(),
+            scripts,
+            auras,
+            repositories.GetRequiredService<IDoodadTemplateRepository>());
+
     /// <summary>The repositories' contexts, each over its own connection to the named in-memory database.</summary>
     private sealed class SqliteWorldDatabase(DbContextOptions<WorldDbContext> options) : IDbContextFactory<WorldDbContext>
     {
         public WorldDbContext CreateDbContext() => new(options);
+    }
+
+    /// <summary>The database's aura rows, each whole read passed through an edit.</summary>
+    private sealed class EditedAuras(
+        IAuraTemplateRepository rows, Func<IReadOnlyCollection<AuraTemplate>, IReadOnlyCollection<AuraTemplate>> edit)
+        : IAuraTemplateRepository
+    {
+        public async Task<IReadOnlyCollection<AuraTemplate>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            edit(await rows.GetAllAsync(cancellationToken));
+
+        public Task<PagedResult<AuraTemplate>> PaginateAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+            rows.PaginateAsync(page, pageSize, cancellationToken);
+
+        public Task<AuraTemplate?> FindByIdAsync(AuraId id, CancellationToken cancellationToken = default) =>
+            rows.FindByIdAsync(id, cancellationToken);
     }
 }

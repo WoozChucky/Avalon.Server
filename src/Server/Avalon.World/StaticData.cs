@@ -8,6 +8,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Doodads;
+using Avalon.World.Items;
 using Avalon.World.Localization;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
@@ -109,12 +110,28 @@ public class StaticData(
                     await ReadAurasAsync(NullLoggerFactory.Instance, ct)));
 
             case ReloadArea.Auras:
-                return new AurasPatch(await ReadAurasAsync(loggerFactory, ct));
+            {
+                // The live Resonance effects (#1180 part A2) are held against the auras read here, and published with
+                // them: an aura edit (which reloads this area alone) never leaves an effect the rules refuse, or a source
+                // built from the aura as it was, active until the next /reload items. Reloads run one at a time
+                // (ReferenceDataReloader), so no items generation lands between this read and the apply.
+                AuraCatalog auras = await ReadAurasAsync(loggerFactory, ct);
+                ResonanceEffectCatalog? live = _items?.Effects;
+                return new AurasPatch(auras)
+                {
+                    Effects = live?.Against(auras, loggerFactory.CreateLogger<ItemsPatch>()),
+                    Replaces = live,
+                };
+            }
 
             case ReloadArea.Items:
+                // The Resonance effects (#1180 part A2) are checked against the auras read here, never the ones applied.
+                // That catalog is thrown away, so it logs nothing: the Auras area reports its own refusals.
                 return ItemsPatch.Build(
                     (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(),
                     await itemModifierRepository.GetCatalogAsync(ct),
+                    await itemModifierRepository.GetThemeEffectsAsync(ct),
+                    await ReadAurasAsync(NullLoggerFactory.Instance, ct),
                     loggerFactory.CreateLogger<ItemsPatch>());
 
             case ReloadArea.Progression:
@@ -232,6 +249,10 @@ public class StaticData(
                 break;
             case AurasPatch p:
                 _auras = p;
+                // The items generation keeps its templates and modifiers and takes the effects held against these auras,
+                // unless an items load replaced the effects they were built from (never, while reloads run one at a time).
+                if (p.Effects is { } effects && _items is { } items && ReferenceEquals(items.Effects, p.Replaces))
+                    _items = items with { Effects = effects };
                 break;
             case DoodadsPatch p:
                 _doodads = p;
@@ -356,6 +377,12 @@ public class StaticData(
     /// The modifier catalog (#1179), the same generation as the item templates: a /reload items replaces both together.
     /// </summary>
     public ItemModifierCatalog ItemModifiers => _items!.Modifiers;
+
+    /// <summary>
+    /// The Resonance effects (#1180 part A2), the same generation as the modifier catalog whose themes they key: a
+    /// /reload items replaces both together, and a /reload auras replaces the effects alone, held against its auras.
+    /// </summary>
+    public ResonanceEffectCatalog ResonanceEffects => _items!.Effects;
 
     /// <summary>
     /// The item templates and the modifier catalog as one generation (#1179): what a roll of a made item reads, taken once

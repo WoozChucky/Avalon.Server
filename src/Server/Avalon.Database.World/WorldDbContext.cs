@@ -71,6 +71,7 @@ public class WorldDbContext : DbContext
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
     public DbSet<ItemTemplateBaseStat> ItemTemplateBaseStats { get; set; } = null!;
     public DbSet<ItemTheme> ItemThemes { get; set; } = null!;
+    public DbSet<ItemThemeEffect> ItemThemeEffects { get; set; } = null!;
     public DbSet<ItemModifierGroup> ItemModifierGroups { get; set; } = null!;
     public DbSet<ItemModifier> ItemModifiers { get; set; } = null!;
     public DbSet<ItemModifierStat> ItemModifierStats { get; set; } = null!;
@@ -139,6 +140,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<ItemTemplate>());
         Configure(modelBuilder.Entity<ItemTemplateBaseStat>());
         Configure(modelBuilder.Entity<ItemTheme>());
+        Configure(modelBuilder.Entity<ItemThemeEffect>());
         Configure(modelBuilder.Entity<ItemModifierGroup>());
         Configure(modelBuilder.Entity<ItemModifier>());
         Configure(modelBuilder.Entity<ItemModifierStat>());
@@ -1810,6 +1812,40 @@ public class WorldDbContext : DbContext
     }
 
     /// <summary>
+    /// The Resonance effects (#1180 part A2): a balance table, one row per theme, count and trigger, each with a literal id.
+    /// The rules that span tables (a wearer's aura helpful and any other harmful, a damage type exactly on an aura that
+    /// deals damage) are ResonanceEffectCatalog's and SeedIntegrityShould's. Trigger 1 Hit to 6 WardBroken; Target 1
+    /// Wearer, 2 HitTarget, 3 Attacker, and only a HitTarget row chains; DamageType Physical 0 to Blight 4.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemThemeEffect> builder)
+    {
+        builder.ToTable("ItemThemeEffects", t =>
+        {
+            t.HasCheckConstraint("CK_ItemThemeEffects_Count", "\"Count\" >= 1");
+            t.HasCheckConstraint("CK_ItemThemeEffects_Trigger", "\"Trigger\" BETWEEN 1 AND 6");
+            t.HasCheckConstraint("CK_ItemThemeEffects_Target", "\"Target\" BETWEEN 1 AND 3");
+            t.HasCheckConstraint("CK_ItemThemeEffects_ChancePct", "\"ChancePct\" > 0 AND \"ChancePct\" <= 100");
+            t.HasCheckConstraint("CK_ItemThemeEffects_CooldownMs", "\"CooldownMs\" > 0");
+            t.HasCheckConstraint("CK_ItemThemeEffects_ChainTargets",
+                "\"ChainTargets\" >= 0 AND (\"ChainTargets\" = 0 OR \"Target\" = 2)");
+            t.HasCheckConstraint("CK_ItemThemeEffects_AtOrBelowLifePct",
+                "\"AtOrBelowLifePct\" IS NULL OR (\"AtOrBelowLifePct\" > 0 AND \"AtOrBelowLifePct\" <= 100)");
+            t.HasCheckConstraint("CK_ItemThemeEffects_DamageType",
+                "\"DamageType\" IS NULL OR \"DamageType\" BETWEEN 0 AND 4");
+        });
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.AuraId).HasConversion(v => v.Value, v => new AuraId(v)).IsRequired();
+        builder.Property(e => e.DamageType).HasConversion<short>();
+        builder.HasIndex(e => new { e.ThemeId, e.Count, e.Trigger }).IsUnique()
+            .HasDatabaseName("IX_ItemThemeEffects_Theme_Count_Trigger");
+        builder.HasOne<ItemTheme>().WithMany().HasForeignKey(e => e.ThemeId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AuraTemplate>().WithMany().HasForeignKey(e => e.AuraId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(ResonanceSeed.Effects());
+    }
+
+    /// <summary>
     /// The modifier catalog's groups (#1179): one row per exclusive group, an affix family (each element of a split family
     /// its own), a unique, or an implicit stat whose tiers the bases link. A code and an element name one group; uniques and
     /// implicits have neither, so the unique index covers the coded rows only. A theme (#1180) sits on exactly the prefix
@@ -3380,6 +3416,9 @@ public class WorldDbContext : DbContext
                 control: CrowdControl.Root, breakOnDamage: 25f, breakPerSecond: 0.5f),
             Aura(15, "Silenced", AuraKind.Harmful, 3000, 0, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1,
                 control: CrowdControl.Silence));
+
+        // Auras 16-44 are the Resonance effects' (#1180 part A2), seeded with their effects.
+        builder.HasData(ResonanceSeed.Auras());
     }
 
     /// <summary>
@@ -3438,6 +3477,7 @@ public class WorldDbContext : DbContext
             new AuraStatModifier { AuraId = 9, Stat = AuraStat.IncreasedHealing, Kind = AuraModifierKind.Flat, Value = 10f },
             new AuraStatModifier { AuraId = 10, Stat = AuraStat.MovementSpeed, Kind = AuraModifierKind.Flat, Value = -15f },
             new AuraStatModifier { AuraId = 10, Stat = AuraStat.Armor, Kind = AuraModifierKind.Increased, Value = -10f });
+        builder.HasData(ResonanceSeed.AuraModifiers());
     }
 
     /// <summary>

@@ -19,6 +19,10 @@ internal sealed class ScriptedCombatRandom : ICombatRandom
     /// <summary>Every (min, max) a weapon roll was drawn over, in order.</summary>
     public List<(long Min, long Max)> WeaponRolls { get; } = [];
 
+    /// <summary>
+    /// Every chance roll asked for, scripted or not: an unscripted one throws, and a caller that contains the throw (a
+    /// Resonance effect's) still shows the draw here.
+    /// </summary>
     public int DoublesDrawn { get; private set; }
 
     public ScriptedCombatRandom Doubles(params double[] doubles)
@@ -39,9 +43,9 @@ internal sealed class ScriptedCombatRandom : ICombatRandom
 
     public double NextDouble()
     {
+        DoublesDrawn++;
         if (!_doubles.TryDequeue(out double value))
             throw new InvalidOperationException("a combat roll was drawn that the test did not script");
-        DoublesDrawn++;
         return value;
     }
 

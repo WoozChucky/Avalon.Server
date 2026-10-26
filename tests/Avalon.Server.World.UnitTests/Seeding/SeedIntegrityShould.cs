@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Accounts;
@@ -932,19 +934,24 @@ public class SeedIntegrityShould
         Assert.Equal((control, breakOnDamage, breakPerSecond), (a.Control, a.BreakOnDamagePct, a.BreakPerSecondPct));
     }
 
+    /// <summary>
+    /// The eight modifiers of the auras before the Resonance effects', and 26 more on the effect auras (16-44, #1180 part
+    /// A2), which <see cref="Seed_each_themes_effects_as_the_design_sets_them" /> holds one by one.
+    /// </summary>
     [Fact]
-    public void Seed_exactly_eight_aura_modifiers()
+    public void Seed_exactly_the_designs_aura_modifiers()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
+        Assert.Equal(34, context.AuraStatModifiers.Count());
         Assert.Equal(
             [(3u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), (5u, AuraStat.Armor, AuraModifierKind.Increased, 20f),
              (7u, AuraStat.Armor, AuraModifierKind.Increased, -25f), (8u, AuraStat.MaxHealth, AuraModifierKind.Increased, 10f),
              (9u, AuraStat.IncreasedDamage, AuraModifierKind.Flat, 10f), (9u, AuraStat.IncreasedHealing, AuraModifierKind.Flat, 10f),
              (10u, AuraStat.Armor, AuraModifierKind.Increased, -10f), (10u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -15f)],
-            context.AuraStatModifiers.AsNoTracking().AsEnumerable().OrderBy(m => m.AuraId.Value).ThenBy(m => m.Stat)
-                .Select(m => (m.AuraId.Value, m.Stat, m.Kind, m.Value)));
+            context.AuraStatModifiers.AsNoTracking().AsEnumerable().Where(m => m.AuraId.Value < 16)
+                .OrderBy(m => m.AuraId.Value).ThenBy(m => m.Stat).Select(m => (m.AuraId.Value, m.Stat, m.Kind, m.Value)));
     }
 
     /// <summary>
@@ -2133,7 +2140,7 @@ public class SeedIntegrityShould
     /// unused). And the eight Resonance themes (#1180: Ember, Rime, Storm, Wild, Iron, Thorn, Gale and Veil, ids 1 to 8),
     /// one on every prefix and suffix group and none on a unique or implicit group (<see
     /// cref="Theme_each_affix_family_as_the_design_places_it" /> holds which). The catalog loads all of it without leaving
-    /// any out.
+    /// any out, and so does the Resonance effect catalog with the 29 effect rows against the seeded auras (#1180 part A2).
     /// </summary>
     [Fact]
     public async Task Seed_the_catalog_whole()
@@ -2151,6 +2158,14 @@ public class SeedIntegrityShould
         Assert.Equal(
             new[] { (1, "Ember"), (2, "Rime"), (3, "Storm"), (4, "Wild"), (5, "Iron"), (6, "Thorn"), (7, "Gale"), (8, "Veil") },
             themes.Select(t => (t.Id, t.Name)));
+
+        // The Resonance effects (#1180 part A2): 29 rows over the 15 auras before them and their own 29.
+        var effects = context.ItemThemeEffects.AsNoTracking().OrderBy(e => e.Id).ToList();
+        HashSet<uint> auraIds = [.. context.AuraTemplates.AsNoTracking().AsEnumerable().Select(a => a.Id.Value)];
+        Assert.Equal(Enumerable.Range(1, 29), effects.Select(e => e.Id));
+        Assert.Equal(44, auraIds.Count);
+        Assert.All(effects, e => Assert.True(themes.Any(t => t.Id == e.ThemeId) && auraIds.Contains(e.AuraId.Value),
+            $"effect {e.Id} names theme {e.ThemeId} and aura {e.AuraId.Value}"));
 
         int Count(ItemModifierKind kind) => groups.Count(g => g.Kind == kind);
         Assert.Equal((76, 28, 17, 5, 26), (groups.Count, Count(ItemModifierKind.Prefix), Count(ItemModifierKind.Suffix),
@@ -2212,10 +2227,18 @@ public class SeedIntegrityShould
         Assert.DoesNotContain(modifiers, m => m.Id is >= 224 and <= 283);
         Assert.DoesNotContain(groups, g => g.Id is >= 50 and <= 109);
 
-        ItemModifierCatalog catalog = ItemsPatch.Build(templates.Values, await new ItemModifierRepository(database,
-            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), NullLogger.Instance).Modifiers;
+        // The seeded effect rows, held to their rules against the seeded aura rows, leave nothing out (#1180 part A2).
+        var repository = new ItemModifierRepository(database, NullLoggerFactory.Instance);
+        var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
+            static _ => null, NullLoggerFactory.Instance);
+        var log = new TestLog();
+        var items = ItemsPatch.Build(templates.Values, await repository.GetCatalogAsync(CancellationToken.None),
+            await repository.GetThemeEffectsAsync(CancellationToken.None), auras, log);
+        ItemModifierCatalog catalog = items.Modifiers;
+        Assert.Empty(log.Errors);
         Assert.Equal(218, catalog.Count);
         Assert.All(links, l => Assert.Equal(l.ModifierId, Assert.Single(catalog.LinkedTo(l.TemplateId)).Id));
+        Assert.Equal(effects.Select(e => e.Id), items.Effects.Effects.Select(e => e.Id));
     }
 
     [Theory]
@@ -2337,6 +2360,147 @@ public class SeedIntegrityShould
         Assert.Equal((theme, families), (context.ItemThemes.AsNoTracking().Single(t => t.Id == themeId).Name,
             string.Join(" ", themed.Select(g => g.Element is { } element ? $"{g.Code} {element}" : g.Code))));
         Assert.True(slots.Count >= 4, $"{theme} rolls in {slots.Count} worn slots: {string.Join(" ", slots.Order())}");
+    }
+
+    /// <summary>
+    /// #1180 part A2: each theme's Resonance effects as the design sets them, one row per theme, its effects in id order.
+    /// Each is written as its count, trigger, chance, cooldown, target, the units it chains to and the life it fires at or
+    /// below, then its aura: name, duration, and for a ticking aura its tick, what the ticks do, their base and damage
+    /// type; its stacking, its control, and its stat modifiers by stat (every one Flat).
+    /// </summary>
+    [Theory]
+    [InlineData("Ember",
+        "2 Hit 20% 2s HitTarget: Burning I 4s/1s Damage 16 Fire Independent; "
+        + "3 Hit 25% 2s HitTarget: Burning II 4s/1s Damage 22 Fire Independent; "
+        + "4 Hit 30% 2s HitTarget: Burning III 4s/1s Damage 28 Fire Independent")]
+    [InlineData("Rime",
+        "2 Hit 20% 3s HitTarget: Chilled I 3s Refresh MovementSpeed -15; "
+        + "3 Hit 25% 3s HitTarget: Chilled II 3s Refresh MovementSpeed -20 AttackSpeed -8; "
+        + "4 Hit 30% 3s HitTarget: Chilled III 3s Refresh MovementSpeed -25 AttackSpeed -12; "
+        + "4 Crit 25% 10s HitTarget: Rimebound 1s Refresh Root")]
+    [InlineData("Storm",
+        "2 Crit 100% 2s HitTarget: Jolt I 0.2s/0.2s Damage 14 Lightning Independent; "
+        + "3 Crit 100% 2s HitTarget +1: Jolt II 0.2s/0.2s Damage 18 Lightning Independent; "
+        + "4 Crit 100% 2s HitTarget +2: Jolt III 0.2s/0.2s Damage 22 Lightning Independent")]
+    [InlineData("Wild",
+        "2 Kill 100% 4s Wearer: Regrowth I 4s/1s Heal 16 Refresh; "
+        + "3 Kill 100% 4s Wearer: Regrowth II 4s/1s Heal 24 Refresh; "
+        + "4 Kill 100% 4s Wearer: Regrowth III 4s/1s Heal 32 Refresh; "
+        + "4 Struck 100% 20s Wearer at 35%: Rootsurge 3s/1s Heal 48 Refresh")]
+    [InlineData("Iron",
+        "2 Struck 20% 6s Wearer: Guard I 4s Refresh Armor 15 BlockPct 2; "
+        + "3 Struck 25% 6s Wearer: Guard II 4s Refresh Armor 25 BlockPct 4; "
+        + "4 Struck 30% 6s Wearer: Guard III 4s Refresh Armor 35 BlockPct 5 MaxWard 25")]
+    [InlineData("Thorn",
+        "2 Struck 100% 2s Attacker: Barbs I 0.2s/0.2s Damage 5 Physical Independent; "
+        + "3 Struck 100% 2s Attacker: Barbs II 0.2s/0.2s Damage 8 Physical Independent; "
+        + "4 Struck 100% 2s Attacker: Barbs III 0.2s/0.2s Damage 10 Physical Independent; "
+        + "4 Crit 100% 4s HitTarget: Bleeding 4s/1s Damage 20 Physical Independent")]
+    [InlineData("Gale",
+        "2 Kill 100% 5s Wearer: Tailwind I 4s Refresh MovementSpeed 10; "
+        + "3 Kill 100% 5s Wearer: Tailwind II 4s Refresh MovementSpeed 12 AttackSpeed 5 CastSpeed 5; "
+        + "4 Kill 100% 5s Wearer: Tailwind III 5s Refresh MovementSpeed 15 AttackSpeed 8 CastSpeed 8; "
+        + "4 Evaded 100% 8s Wearer: Slipstream 2s Refresh MovementSpeed 20")]
+    [InlineData("Veil",
+        "2 WardBroken 100% 12s Wearer: Veiled I 3s Refresh Evasion 60; "
+        + "3 WardBroken 100% 12s Wearer: Veiled II 3s Refresh Evasion 100 MovementSpeed 10; "
+        + "4 WardBroken 100% 12s Wearer: Veiled III 4s Refresh Evasion 150 MovementSpeed 15; "
+        + "4 Crit 100% 8s Wearer: Lucid 4s Refresh CastSpeed 10")]
+    public void Seed_each_themes_effects_as_the_design_sets_them(string theme, string effects)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        int themeId = context.ItemThemes.AsNoTracking().Single(t => t.Name == theme).Id;
+        var auras = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).AsEnumerable().ToDictionary(a => a.Id.Value);
+
+        static string Seconds(uint ms) => (ms / 1000.0).ToString("0.###", CultureInfo.InvariantCulture);
+        static string Number(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+        string Written(ItemThemeEffect e)
+        {
+            AuraTemplate a = auras[e.AuraId.Value];
+            var text = new StringBuilder();
+            text.Append(CultureInfo.InvariantCulture, $"{e.Count} {e.Trigger} {Number(e.ChancePct)}% {Seconds(e.CooldownMs)}s {e.Target}");
+            if (e.ChainTargets > 0)
+                text.Append(CultureInfo.InvariantCulture, $" +{e.ChainTargets}");
+            if (e.AtOrBelowLifePct is { } life)
+                text.Append(CultureInfo.InvariantCulture, $" at {Number(life)}%");
+            text.Append(CultureInfo.InvariantCulture, $": {a.Name} {Seconds(a.DurationMs)}s");
+            if (a.TickIntervalMs > 0)
+            {
+                text.Append(CultureInfo.InvariantCulture,
+                    $"/{Seconds(a.TickIntervalMs)}s {a.PeriodicKind} {Number(a.PeriodicBase)}");
+                if (e.DamageType is { } type)
+                    text.Append(CultureInfo.InvariantCulture, $" {type}");
+            }
+
+            text.Append(CultureInfo.InvariantCulture, $" {a.Stacking}");
+            if (a.Control != CrowdControl.None)
+                text.Append(CultureInfo.InvariantCulture, $" {a.Control}");
+            foreach (AuraStatModifier m in a.Modifiers.OrderBy(m => m.Stat))
+            {
+                Assert.Equal(AuraModifierKind.Flat, m.Kind);
+                text.Append(CultureInfo.InvariantCulture, $" {m.Stat} {Number(m.Value)}");
+            }
+
+            return text.ToString();
+        }
+
+        Assert.Equal(effects, string.Join("; ", context.ItemThemeEffects.AsNoTracking().Where(e => e.ThemeId == themeId)
+            .OrderBy(e => e.Id).AsEnumerable().Select(Written)));
+    }
+
+    /// <summary>
+    /// #1180 part A2: the design's limits on every Resonance effect (its section 2.4). Each theme has its rows at the
+    /// counts 2, 3 and 4 and no other; an effect on the wearer is helpful and one on another unit harmful; no cooldown is
+    /// under 2 s, and none on the wearer shorter than its own aura, so a buff never stays up for good; no effect stuns; a
+    /// damage type exactly on the damaging rows (Ember's Fire, Storm's Lightning, Thorn's Physical); no effect aura runs a
+    /// script or draws on its source's roll (a PeriodicEffectiveness of 0: the effect's synthetic source has none); only
+    /// Storm chains; a kill buffs the wearer, Thorn's struck rows answer the attacker and every other harmful row lands on
+    /// the hit target; and only Rootsurge waits for low life.
+    /// </summary>
+    [Fact]
+    public void Keep_every_resonance_effect_inside_the_designs_limits()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var themes = context.ItemThemes.AsNoTracking().ToDictionary(t => t.Id, t => t.Name);
+        var auras = context.AuraTemplates.AsNoTracking().AsEnumerable().ToDictionary(a => a.Id.Value);
+        var effects = context.ItemThemeEffects.AsNoTracking().OrderBy(e => e.Id).ToList();
+        Dictionary<string, DamageType> damageTypes = new()
+        {
+            ["Ember"] = DamageType.Fire,
+            ["Storm"] = DamageType.Lightning,
+            ["Thorn"] = DamageType.Physical,
+        };
+
+        Assert.All(themes.Values, theme => Assert.Equal(new[] { 2, 3, 4 },
+            effects.Where(e => themes[e.ThemeId] == theme).Select(e => e.Count).Distinct().Order()));
+        Assert.All(effects, e =>
+        {
+            string theme = themes[e.ThemeId];
+            AuraTemplate aura = auras[e.AuraId.Value];
+            bool wearer = e.Target == ResonanceTarget.Wearer;
+            string row = $"effect {e.Id} ({theme} {e.Count} {e.Trigger}, {aura.Name})";
+
+            Assert.True(aura.Kind == (wearer ? AuraKind.Helpful : AuraKind.Harmful), $"{row} is {aura.Kind}");
+            Assert.True(e.CooldownMs >= 2000 && (!wearer || e.CooldownMs >= aura.DurationMs),
+                $"{row} waits {e.CooldownMs} ms for an aura of {aura.DurationMs} ms");
+            Assert.False(aura.Control.HasFlag(CrowdControl.Stun), $"{row} stuns");
+            Assert.True((aura.PeriodicKind == AuraPeriodicKind.Damage) == (e.DamageType is not null),
+                $"{row} ticks {aura.PeriodicKind} with damage type {e.DamageType?.ToString() ?? "none"}");
+            if (e.DamageType is { } type)
+                Assert.True(damageTypes.TryGetValue(theme, out DamageType want) && want == type, $"{row} deals {type}");
+            Assert.True(aura.ScriptName is null, $"{row} runs the script {aura.ScriptName}");
+            Assert.True(aura.PeriodicEffectiveness == 0f, $"{row} draws {aura.PeriodicEffectiveness} % of its source's roll");
+            Assert.True(e.ChainTargets == 0 || theme == "Storm", $"{row} chains");
+            ResonanceTarget? expected = e.Trigger == ResonanceTrigger.Kill ? ResonanceTarget.Wearer
+                : theme == "Thorn" && e.Trigger == ResonanceTrigger.Struck ? ResonanceTarget.Attacker
+                : wearer ? null
+                : ResonanceTarget.HitTarget;
+            Assert.True(expected is null || e.Target == expected, $"{row} targets {e.Target}, not {expected}");
+            Assert.True((aura.Name == "Rootsurge") == (e.AtOrBelowLifePct is not null), $"{row} fires at {e.AtOrBelowLifePct}% life");
+        });
     }
 
     /// <summary>
@@ -2490,7 +2654,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
         var templates = context.ItemTemplates.AsNoTracking().ToList();
         var items = ItemsPatch.Build(templates, await new ItemModifierRepository(database,
-            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), NullLogger.Instance);
+            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), [], AuraCatalog.Empty, NullLogger.Instance);
 
         string[][] rings =
         [

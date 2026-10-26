@@ -61,6 +61,20 @@ public sealed class AuraSystem
     private readonly List<List<ActiveAura>> _ending = [];
     private int _endingDepth;
 
+    // The pool of copies (#1180 part A2): every copy this system made (ActiveAura.Pool, its token) that is removed from a
+    // unit here waits in _removed until the next pass starts, when no walk, hook or caller of the tick it was removed in can still
+    // be reading it, and then joins _free, its references let go, which every new aura placed here is taken from before
+    // one is made. So a placement allocates nothing once the pool holds as many copies as this instance's units shed
+    // between two passes, and a copy is never reused while anything that saw it removed is still running. A copy made
+    // elsewhere (by another instance, or restored at login) is left to the collector, so the pool never holds more copies
+    // than this instance itself had made, its own peak: a long-lived town ending copies its visitors bring keeps none.
+    private readonly List<ActiveAura> _removed = [];
+    private readonly Stack<ActiveAura> _free = new();
+
+    // What each copy made here names as its pool (ActiveAura.Pool): an empty object of this system's own, so a copy that
+    // outlives this instance elsewhere holds no reference to it.
+    private readonly object _poolToken = new();
+
     // A tick that throws, logged at most once per ThrottledErrorLog.Interval for each aura; a unit's pass that throws
     // outside its ticks (a stats refresh while its auras end), likewise for each unit.
     private readonly Dictionary<uint, ThrottledErrorLog> _tickFailures = [];
@@ -164,7 +178,19 @@ public sealed class AuraSystem
         if (source.Affects is { } affects && AuraRules.FitProblem(affects, template) is { } misfit)
         {
             if (ShouldLogRefusal("misfit", template.Id.Value))
-                _logger.LogWarning("Ability {AbilityId} applies no aura: {Problem}", source.AbilityId?.Value, misfit);
+            {
+                // A source with no ability (#1180: a Resonance effect's) is named by its aura, never as an ability.
+                if (source.AbilityId is { } ability)
+                {
+                    _logger.LogWarning("Ability {AbilityId} applies no aura: {Problem}", ability.Value, misfit);
+                }
+                else
+                {
+                    _logger.LogWarning("Aura {AuraId} '{AuraName}' is not applied: it is {Kind}, which its source cannot place on a {Affects} target",
+                        template.Id.Value, template.Name, template.Kind, affects);
+                }
+            }
+
             return AuraApplyResult.Refused;
         }
 
@@ -221,7 +247,7 @@ public sealed class AuraSystem
         // changes it. With no caster there is no source to draw on.
         AttackerCombat casterCombat = caster is null ? default : CombatService.AttackerFor(caster);
         AuraSnapshot snapshot = AuraRules.Snapshot(template, casterCombat, caster is null ? null : source.Ability,
-            HitResolver.TypeOf(source.DamageType, casterCombat), _combat.Random);
+            HitResolver.TypeOf(source.DamageType, casterCombat), _combat.Random, source.CannotCrit);
         // The metadata has done its work: the aura keeps its source without it, so it holds no ability for its life.
         AuraApplyResult result = Place(target, auras, held, template, casterGuid, source with { Ability = null }, snapshot,
             placedMs, scaled, now);
@@ -312,8 +338,8 @@ public sealed class AuraSystem
         }
         else
         {
-            held = new ActiveAura(template, casterGuid, source, 1, snapshot,
-                AuraSchedule.Start(now, durationMs, template.TickIntervalMs), durationMs, now.UtcDateTime);
+            held = Take(template, casterGuid, source, snapshot, AuraSchedule.Start(now, durationMs, template.TickIntervalMs),
+                durationMs, now.UtcDateTime);
             auras.Add(held, now);
             RefreshStats(target, template);
             RunHook(target, held, "OnApply", static (s, c, _) => s.OnApply(c));
@@ -325,6 +351,38 @@ public sealed class AuraSystem
             Remove(target, held, AuraRemoveReason.Script);
 
         return result;
+    }
+
+    /// <summary>A new copy of one stack: a pooled one placed again when the pool has one, else a new one.</summary>
+    private ActiveAura Take(AuraTemplate template, ObjectGuid casterGuid, AuraSource source, AuraSnapshot snapshot,
+        AuraSchedule schedule, uint durationMs, DateTime appliedAt)
+    {
+        if (!_free.TryPop(out ActiveAura? aura))
+        {
+            return new ActiveAura(template, casterGuid, source, 1, snapshot, schedule, durationMs, appliedAt)
+            {
+                Pool = _poolToken,
+            };
+        }
+
+        aura.Reuse(template, casterGuid, source, 1, snapshot, schedule, durationMs, appliedAt);
+        return aura;
+    }
+
+    /// <summary>
+    /// The copies removed since the last pass join the pool, each letting go of what it referenced: called as a pass
+    /// starts, outside every walk and hook, so nothing still reads one of them.
+    /// </summary>
+    private void PoolRemoved()
+    {
+        for (int i = 0; i < _removed.Count; i++)
+        {
+            ActiveAura aura = _removed[i];
+            aura.Clear();
+            _free.Push(aura);
+        }
+
+        _removed.Clear();
     }
 
     /// <summary>
@@ -343,6 +401,7 @@ public sealed class AuraSystem
     /// </summary>
     public void Update()
     {
+        PoolRemoved();
         if (!_roster.CollectHolders(_holders))
             return;
 
@@ -711,12 +770,21 @@ public sealed class AuraSystem
     /// <summary>
     /// Ends one aura on <paramref name="unit" />, for <paramref name="reason" />, then tells its script. Nothing if it no
     /// longer holds it, so its script hears of it once however often removal is reached (a hook that kills while its
-    /// aura ends included).
+    /// aura ends included). A copy this system made goes back to its pool once, here, and is placed again no sooner than
+    /// after the next pass starts; one made elsewhere is left to the collector. The caller may still read it until its own
+    /// call returns, but must not keep it.
     /// </summary>
     public void Remove(IUnit unit, ActiveAura aura, AuraRemoveReason reason)
     {
         if (AuraHolders.Of(unit) is not { } auras || !auras.Remove(aura, _time.GetUtcNow()))
             return;
+
+        if (ReferenceEquals(aura.Pool, _poolToken))
+        {
+            Debug.Assert(!aura.Returned, "An aura removed from its unit was already given back to the pool");
+            aura.Returned = true;
+            _removed.Add(aura);
+        }
 
         try
         {

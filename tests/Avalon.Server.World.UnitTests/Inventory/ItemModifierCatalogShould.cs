@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
+using Avalon.World.Auras;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -115,7 +116,7 @@ public class ItemModifierCatalogShould
                 new ItemTemplateModifier { TemplateId = pair.Key, Index = (byte)index, ModifierId = modifier })),
         ];
         var patch = ItemsPatch.Build(templates,
-            new ItemModifierCatalog([prefix, unique, @implicit], rows, NullLogger.Instance), NullLogger.Instance);
+            new ItemModifierCatalog([prefix, unique, @implicit], rows, NullLogger.Instance), [], AuraCatalog.Empty, NullLogger.Instance);
         ItemModifierCatalog catalog = patch.Modifiers;
 
         // A template whose links break its rarity is left out whole, never kept with its links stripped, and the unique
@@ -183,7 +184,8 @@ public class ItemModifierCatalogShould
         ];
         var log = new TestLog();
 
-        var patch = ItemsPatch.Build([sword, broken], new ItemModifierCatalog([unique, @implicit], links, NullLogger.Instance), log);
+        var patch = ItemsPatch.Build([sword, broken], new ItemModifierCatalog([unique, @implicit], links, NullLogger.Instance), [],
+            AuraCatalog.Empty, log);
 
         Assert.Null(patch.Find(new ItemTemplateId(Subject)));
         Assert.NotNull(patch.Find(new ItemTemplateId(CommonTemplate)));

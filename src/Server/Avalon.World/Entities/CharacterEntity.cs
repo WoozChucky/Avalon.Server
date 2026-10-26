@@ -385,6 +385,14 @@ public partial class CharacterEntity : ICharacter
     internal ResonanceInputs ResonanceCountedFrom { get; } = new();
 
     /// <summary>
+    /// The Resonance effects <see cref="Resonance" /> makes active (#1180 part A2), with their trigger mask and the
+    /// character's cooldowns: rebuilt by a stats refresh whose counts were counted again or whose effect catalog changed,
+    /// read by the hit path. Made once with the character; its arrays grow only when a rebuild needs more. World-side,
+    /// never on ICharacter, and never saved. Tick thread only.
+    /// </summary>
+    internal ResonanceProcs ResonanceProcs { get; } = new();
+
+    /// <summary>
     /// The Resonance counts the character sheet last sent (#1180), made once as <see cref="Resonance" /> is: a sheet is
     /// sent when they differ. World-side and never saved; a new session starts with none.
     /// </summary>
@@ -623,6 +631,12 @@ public partial class CharacterEntity : ICharacter
     }
 
     public void MarkCombat() => _lastCombatTime = _time.GetUtcNow().UtcDateTime;
+
+    /// <summary>
+    /// When <see cref="MarkCombat" /> last stamped it, on its clock: the hit or dodge that just stamped it hands this to
+    /// its Resonance effects (#1180 part A2), so their cooldowns read no clock of their own. World-side only.
+    /// </summary>
+    internal DateTime CombatMarkedAt => _lastCombatTime;
 
     /// <summary>
     /// Adds <paramref name="amount" /> to the current power, capped at the maximum (#526). Only a pool a

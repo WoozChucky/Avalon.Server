@@ -11,6 +11,7 @@ using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Maps;
 using Avalon.World.Testing;
@@ -46,7 +47,8 @@ public class AuraStatsIntegrationShould
         CharacterEntity warrior = TestCharacters.New(905_101);
         warrior.Container(InventoryType.Equipment).Load([TestCharacters.Item(3, s_plate)]);
         Assert.True(CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors,
-            id => id == s_plate.Id ? s_plate : null, ResonanceTable.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
+            id => id == s_plate.Id ? s_plate : null, ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld,
+            TestCombat.Formula));
         return warrior;
     }
 
@@ -58,7 +60,7 @@ public class AuraStatsIntegrationShould
 
         warrior.Auras.Add(Held(AuraTestData.Fortified()), s_t0);
         CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors, id => id == s_plate.Id ? s_plate : null,
-            ResonanceTable.Empty, CurrentValues.KeepShare, TestCombat.Formula);
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, TestCombat.Formula);
 
         Assert.Equal(38u, warrior.Stats!.Value.Armor);   // round(32 x 1.2)
         Assert.True(warrior.SaveState.StatsDirty);
@@ -89,7 +91,11 @@ public class AuraStatsIntegrationShould
     /// every measured refresh counts again (a refresh over unchanged gear and table would keep the counts): first over
     /// two reads of the seeded table taken in turn, then, after a reload to more themes than the seed has, with ids far
     /// from their slots, with the main hand swapped between swords of different themes. The one refresh that meets the
-    /// larger table reallocates the counts, and every one after it reuses them.
+    /// larger table reallocates the counts, and every one after it reuses them. #1180 part A2: nor do the active effects
+    /// each of those counts rebuilds. The plate's suffix puts the warrior at Thorn 2, so over the seeded effects it holds
+    /// Barbs I (effect 18, on Struck) through every window; over the larger table, whose themes no effect names, it holds
+    /// none. Then a catalog of three effects for Iron at 2 needs more slots than the warrior ever had: the one refresh that
+    /// meets it grows them, and every rebuild after it reuses them.
     /// </summary>
     [Fact]
     public async Task Refresh_a_geared_characters_stats_for_its_auras_without_allocating()
@@ -99,9 +105,10 @@ public class AuraStatsIntegrationShould
         InventoryItem sword = TestCharacters.Item(EquipmentSlots.MainHand, s_sword);
         int iron = CatalogKeys.ModifierId("P12 T9");
         int thorn = CatalogKeys.ModifierId("P1 T9");
+        int thornSuffix = CatalogKeys.ModifierId("S9 T9");
         int ember = CatalogKeys.ModifierId("P2 T9");
         InventoryItem ironSword = TestCharacters.Item(EquipmentSlots.MainHand, s_sword);
-        warrior.ItemModifiers.Load([Copy(plate, iron), Copy(sword, thorn, ember), Copy(ironSword, iron)]);
+        warrior.ItemModifiers.Load([Copy(plate, iron, thornSuffix), Copy(sword, thorn, ember), Copy(ironSword, iron)]);
         warrior.Container(InventoryType.Equipment).Load([plate, sword]);
         AuraTemplate emboldened = AuraTestData.Fortified();
         emboldened.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.IncreasedDamage, Kind = AuraModifierKind.Flat, Value = 10f });
@@ -116,15 +123,18 @@ public class AuraStatsIntegrationShould
         // table each time makes every refresh in the windows count again.
         ResonanceTable seeded = await ItemModifierRepositories.SeededResonance();
         ResonanceTable seededAgain = await ItemModifierRepositories.SeededResonance();
+        ResonanceEffectCatalog effects = ItemModifierRepositories.SeededEffects();
+        ResonanceProcs procs = TestCharacters.ResonanceProcsOf(warrior);
         int refreshes = 0;
         long allocated = ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
-            factors, Worn, refreshes++ % 2 == 0 ? seeded : seededAgain, CurrentValues.KeepShare, formula));
+            factors, Worn, refreshes++ % 2 == 0 ? seeded : seededAgain, effects, CurrentValues.KeepShare, formula));
 
         Assert.Equal(0, allocated);
         Assert.Equal(1.2d, warrior.Stats!.Value.Offence.More(OffenceStat.Fire), precision: 6);
         Assert.Equal(
-            [.. new[] { "Ember", "Iron", "Thorn" }.Select(name => new ThemeCount(ThemeId(name), 1)).OrderBy(pair => pair.ThemeId)],
+            [new ThemeCount(ThemeId("Ember"), 1), new ThemeCount(ThemeId("Iron"), 1), new ThemeCount(ThemeId("Thorn"), 2)],
             Pairs(warrior));
+        Assert.Equal("18 | Struck", Active(procs));
 
         // A reload to twenty themes, 1000-1019, one prefix row each; the worn affixes' rows are themed 1019, 1000 and 1007.
         Dictionary<int, int> worn = new() { [1019] = iron, [1000] = thorn, [1007] = ember };
@@ -144,10 +154,11 @@ public class AuraStatsIntegrationShould
             }),
         ];
         ResonanceTable reloaded = new ItemModifierCatalog(rows, [], NullLogger.Instance).Resonance;
-        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, CurrentValues.KeepShare, formula);
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, effects, CurrentValues.KeepShare, formula);
 
         Assert.Equal(20, TestCharacters.ResonanceOf(warrior).Table.Count);
         Assert.Equal([new ThemeCount(1000, 1), new ThemeCount(1007, 1), new ThemeCount(1019, 1)], Pairs(warrior));
+        Assert.Equal(" | None", Active(procs));
 
         // Over the larger table, the main hand swapped in turn for a sword of other themes before each refresh: the gear
         // moved, so every refresh in the windows counts again, into the counts the reload sized.
@@ -156,12 +167,36 @@ public class AuraStatsIntegrationShould
         Assert.Equal(0, ThreadAllocations.FewestOfThreeWindows(10, () =>
         {
             equipment.Put(swaps++ % 2 == 0 ? ironSword : sword);
-            CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, CurrentValues.KeepShare, formula);
+            CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, effects, CurrentValues.KeepShare,
+                formula);
         }));
 
         equipment.Put(ironSword);
-        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, CurrentValues.KeepShare, formula);
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, effects, CurrentValues.KeepShare, formula);
         Assert.Equal([new ThemeCount(1019, 2)], Pairs(warrior));
+        Assert.Equal(" | None", Active(procs));
+
+        // Back on the seeded table, the plate and the Iron sword make Iron 2, where a catalog built here has three effects:
+        // more slots than any rebuild before needed. The first refresh back counts again over the seeded effects; the next,
+        // over the same table and gear, counts nothing again, so only the new catalog rebuilds the slots, growing them
+        // outside the windows; the windows reuse them.
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, seeded, effects, CurrentValues.KeepShare, formula);
+        AuraTemplate guard = AuraTestData.Fortified();
+        ResonanceTrigger[] triggers = [ResonanceTrigger.Struck, ResonanceTrigger.Evaded, ResonanceTrigger.WardBroken];
+        var grown = new ResonanceEffectCatalog(
+        [
+            .. triggers.Select((trigger, i) => new ItemThemeEffect
+            {
+                Id = i + 1, ThemeId = ThemeId("Iron"), Count = 2, Trigger = trigger, ChancePct = 100f, CooldownMs = 2000,
+                AuraId = guard.Id, Target = ResonanceTarget.Wearer,
+            }),
+        ], new AuraCatalog([guard], static _ => null, NullLoggerFactory.Instance), NullLogger.Instance);
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, seeded, grown, CurrentValues.KeepShare, formula);
+        Assert.Equal(3, procs.Count);
+
+        Assert.Equal(0, ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
+            factors, Worn, refreshes++ % 2 == 0 ? seeded : seededAgain, grown, CurrentValues.KeepShare, formula)));
+        Assert.Equal("1, 2, 3 | Struck, Evaded, WardBroken", Active(procs));
 
         // Each affix with its seeded line's low end as its one value.
         static ItemInstance Copy(InventoryItem item, params int[] modifierIds) => new()
@@ -180,6 +215,10 @@ public class AuraStatsIntegrationShould
         };
 
         static int ThemeId(string name) => ItemModifierSeed.Themes().Single(theme => theme.Name == name).Id;
+
+        // The active effects' ids, by slot, then the mask.
+        static string Active(ResonanceProcs procs) =>
+            $"{string.Join(", ", Enumerable.Range(0, procs.Count).Select(slot => procs.EffectAt(slot).Id))} | {procs.Mask}";
 
         static List<ThemeCount> Pairs(CharacterEntity character)
         {

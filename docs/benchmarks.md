@@ -100,6 +100,7 @@ DOTNET_TieredCompilation=0 dotnet run -c Release --project tools/Avalon.Benchmar
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRollerBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ResonanceProcBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 
 # Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
@@ -2026,6 +2027,23 @@ counts, never per tick or per hit, and since the same wave a refresh counts only
 (`ResonanceInputs`, [world simulation](world-simulation.md)): an aura's or a level-up's refresh keeps the counts, at one
 reference compare per worn item.
 
+**Resonance effects (#1180, part A2).** A refresh that recounted, or that sees a new effect catalog, also rebuilds the
+character's procs (`ResonanceProcs.Rebuild`, into arrays the character reuses). `CharacterStatsRefresh` does that after
+the calculation, not `CharacterStatsCalculator.Calculate`, so these rows measure the calculation alone and should not
+move; the refresh with its rebuild is held to 0 B by `AuraStatsIntegrationShould`, whose windows recount and rebuild on
+every refresh. One run beside the Resonance proc benchmark, at `c0b905e5d` (out of process, ten warmups, twenty
+iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.403 / runtime 10.0.14, Release),
+2026-10-25:
+
+| Operation | Mean / min / median | Allocated |
+|---|---:|---:|
+| `ItemStatsBenchmarks.Calculate` | 321.1 / 311.3 / 317.1 ns (± 9.0 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateModified` | 680.1 / 658.8 / 680.1 ns (± 12.9 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateThemed` | 863.8 / 850.5 / 861.0 ns (± 9.6 ns) | 0 B |
+
+Nothing allocates. `Calculate` and `CalculateModified` read where part A1 left them (318 and 716 ns), within the
+noise of two runs, and `CalculateThemed` came out unimodal this time, its minimum and median beside A1's.
+
 ### Item roller — `Benchmarks/ItemRollerBenchmarks.cs` (#1179)
 
 Making one copy of an item with its modifiers (`ItemRoller`, [item modifiers](item-modifiers.md)), which runs once per
@@ -2091,6 +2109,61 @@ different rare: the seed moved with the draw order, so its affixes and its name 
 rare is about three times faster than the first run above: each affix now picks among the few families the chest's
 narrower slots allow (part B2's starting-zone values), not the old catalog's; the runs differ in method too, so that is
 direction, not a measurement of the change.
+
+### Resonance procs — `Benchmarks/ResonanceProcBenchmarks.cs` (#1180)
+
+What Resonance effects (#1180 part A2, [world simulation](world-simulation.md)) add to a direct hit. Every row is a
+level 1 warrior's raw hit of 10 (`CombatService.ApplyDamage`) on a dummy creature at `uint.MaxValue` health with no
+script, through a real `MapInstance` over the scenario reference data (`ScenarioReferenceData`): its combat service,
+its Resonance check, its `ResonanceDispatcher` and its aura system.
+
+- `Hit_NoResonance` (the baseline): a warrior with no theme, whose hit tests its empty mask and reports nothing.
+- `Hit_ThemedOnCooldown`: a warrior at Ember 4 and Thorn 4 (the `forest-resonance` kit,
+  `ScenarioWorld.WearResonanceKit`), whose hit matches Ember's Hit effect (Burning III, 30 %, 2 s) while its cooldown
+  runs: one call to the instance, one read of the world's effect catalog with its reference compare, and a compare of
+  the cooldown against the time the hit already read for its combat stamp; no clock read and no chance drawn.
+- `Hit_ThemedFiring`: the same warrior with the clock stepped 2 s before every hit, so every hit draws the chance,
+  fires, spends the cooldown and renews the dummy's Burning III (a fresh snapshot and schedule on the copy it holds).
+
+The instance draws from a benchmark-local random that always answers 0.15 (no evasion, block or crit, and Ember's
+30 % fires), on a benchmark-local clock that moves only when told, so the firing row's step is a field write. Since
+the final review a firing reads no clock of its own (it is handed the hit's combat stamp, the clock read every hit
+already makes), so the stepped clock no longer hides a production cost in the on-cooldown row: what it leaves out is
+only the stamp's own read, which the baseline row pays too. Setup fails the run unless a first firing hit leaves the
+dummy holding the warrior's Burning III after four draws, and an on-cooldown hit then draws three and changes no aura;
+cleanup fails it if the dummy died or lost the aura. One run, at `d46a334e0` (out of process, ten warmups, twenty
+iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, runtime 10.0.14, Release), 2026-10-26:
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ResonanceProcBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Operation | Mean (± StdDev) | Allocated |
+|---|---:|---:|
+| `Hit_NoResonance` (baseline) | 99.81 ns (± 1.70 ns) | 0 B |
+| `Hit_ThemedOnCooldown` | 107.55 ns (± 1.25 ns) | 0 B |
+| `Hit_ThemedFiring` | 287.20 ns (± 9.90 ns) | 0 B |
+
+**Nothing allocates on any row**, the firing one included: a proc that renews a held copy allocates nothing. Nor does
+one that places a new copy, once warm: the copy comes from the instance's aura pool, which every removal feeds at the
+next aura pass ([auras](auras.md), `ResonanceProcsShould.Allocate_nothing_per_hit_nor_when_a_proc_places_a_new_aura`;
+the first run of this section, before the pool, read 424 B for such a placement, a new copy's `ActiveAura` and the
+lists of a creature that had held none). The cooldowns, at least 2 s and one per theme and trigger, bound placements
+to 1 plus the effect's chain targets per theme and trigger per 2 s per character (a Storm 4 crit places up to three).
+
+**On cooldown, a hit costs 7.7 ns more than one with no Resonance**, well inside the 30 ns bar, and the run is
+unimodal (the first run, at `c0b905e5d`, was bimodal on a loaded machine: 133.9 ns mean, 94.4 ns minimum, and read a
+clock per matching hit). The firing row puts one renewal of a held aura, with the chance's draw and the spend, at about
+190 ns above the baseline. These are once per direct hit on a themed character, never per tick.
+
+**Per window in a fight.** `forest-resonance`, the themed copy of `forest-combat`
+([scenario baseline](#scenario-baseline)), reads 15,961 B per window where `forest-combat` reads 14,122 B in the same
+runner pass (Release, at `d46a334e0`), **+1,839 B per window**; it read 16,467 B against 14,145 B (+2,322 B) before the
+pool. That is not the procs' cost alone: the themed fight is a different fight (in a probe of the two, 128 kills
+against 121 and 3 deaths against 4). The scenario counts its firings in the measured minute, 152 (44 Hit, 21 Crit,
+27 Kill, 51 Struck, 3 Evaded, 6 WardBroken: about 2.5 a window), and prints them beside its figures; its check floors
+them at 75. The hits themselves, on cooldown or renewing, allocate nothing (above), and the pool took about 500 B a
+window off the themed fight, and about 20 B off the unthemed one.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -4205,6 +4278,7 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 | `town-social` | 1 town | 30 | A town at its cap (`MaxPlayers`, 30) walking `town-walk`'s circle with no creatures, in ten parties of three that keep changing, and chatting, through the real party and chat handlers: in every second a party's leader leaves, is invited back and accepts, one player says a line to the town, one whispers, one speaks to its party and one runs `/ignorelist`. See [The town-social scenario](#the-town-social-scenario) (#972). |
 | `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
 | `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 33, 46, 56 and 36 (1 to 4 until #1109, then 45, 46, 15 and 36 until its tree walls, then 33, 46, 15 and 36 until #1113), each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 325, 226, 198 and 231 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a cleric. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach and in sight casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a cleric heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
+| `forest-resonance` | 4 forests | 12 | `forest-combat`'s fight with every fighter in Resonance gear (#1180 part A2). Before its bag is filled, each is refreshed wearing four pieces (helmet 36, ring 68 on both fingers, amulet 69), each with one T9 affix of each of its class's two themes (warrior Iron and Thorn, wizard Ember and Veil, hunter Storm and Gale, cleric Wild and Rime), so both its themes stand at 4 and it runs their count-4 rows; across the roster that is every count-4 row, 13 of the 29 effect rows. Its procs fire through the real `ResonanceDispatcher` and place their auras through the real aura system. It keeps `forest-combat`'s floors and adds one: across the roster, Hit, Crit, Kill and Struck effects must each have fired (a slot holding a cooldown). `ForestCombatScenario.TriggersFired` reports those and Evaded and WardBroken too, which are not floored; the runner prints none of them. |
 | `town-doodads` | 1 town | 30 | `town-walk`'s circle with no creatures, among 40 doodads on a ring 20 m from its centre: 20 without rules and 20 behind a NotStarted quest gate, which every other player has taken, so half the views refuse them. Every view decision lists the ungated ones by distance alone and the gated ones by the answer the view holds (`CharacterCharacterGameState.Sees`); the scenario checks that each view holds exactly the doodads its rules allow. |
 
 No scenario was reduced in size: `many-instances` takes 1 to 8 s for its 600 warm-up ticks and windows (5 to 7 s with
@@ -4456,13 +4530,19 @@ with the committed figure, in every build (Debug and Release, see below) and for
   smallest, 24 B, is 1,440 B per window).
   `town-doodads` reads 0 from its first entry (doodads S1, 2026-10-18), its row added alone, with no other row
   regenerated: a view decision over 40 doodads, half of them gated, allocates nothing.
+  `forest-resonance` reads 15,961 B per window since #1180 part A2's last commits, which pool `ActiveAura` (16,467 B
+  from its first entry, its row then added alone); the file was regenerated once for it, and `forest-combat` moved with
+  it (below), no other row (the procs' share is in [Resonance procs](#resonance-procs--benchmarksresonanceprocbenchmarkscs-1180)).
   `town-social` reads 728 B per window since #973 (3,904 B from #972), all of it its events' own, one of each kind a
   window ([a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)): the floor decides for it too (1% is
   7 B), so it fails above 984 B, and one more 40 B enumerator on each of its seven events (280 B) fails it. Its Debug
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,374 B per window since #1179 part B, whose equipment drops roll their copies
+  `forest-combat` is the largest unthemed figure (14,122 B per window since #1180 part A2, regenerated with
+  `forest-resonance`: the committed 14,337 B had been stale since #1208 on main, whose unidentified drops are never
+  worn, so the fight equips less (14,145 B measured at `e6235f72b`), and `ActiveAura` pooling takes about 20 B more;
+  14,337 B from #1179 part B2 (#1200); 14,374 B since #1179 part B, whose equipment drops roll their copies
   when they drop; 13,983 B from #1179 part A; 14,447 B from #1178, whose evasion and creature defences change
   which hits land, so the fight goes differently; 13,805 B from #1168, which merges two fights a character and a
   creature bring together, moving their threat lists with nothing seeded, so the fight goes differently; 13,649 B from

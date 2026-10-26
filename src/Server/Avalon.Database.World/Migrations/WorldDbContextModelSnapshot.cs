@@ -16,7 +16,7 @@ namespace Avalon.Database.World.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -1727,6 +1727,188 @@ namespace Avalon.Database.World.Migrations
                             Stat = (byte)1,
                             Kind = (byte)2,
                             Value = -10f
+                        },
+                        new
+                        {
+                            AuraId = 19L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = -15f
+                        },
+                        new
+                        {
+                            AuraId = 20L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = -20f
+                        },
+                        new
+                        {
+                            AuraId = 20L,
+                            Stat = (byte)30,
+                            Kind = (byte)1,
+                            Value = -8f
+                        },
+                        new
+                        {
+                            AuraId = 21L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = -25f
+                        },
+                        new
+                        {
+                            AuraId = 21L,
+                            Stat = (byte)30,
+                            Kind = (byte)1,
+                            Value = -12f
+                        },
+                        new
+                        {
+                            AuraId = 30L,
+                            Stat = (byte)1,
+                            Kind = (byte)1,
+                            Value = 15f
+                        },
+                        new
+                        {
+                            AuraId = 30L,
+                            Stat = (byte)6,
+                            Kind = (byte)1,
+                            Value = 2f
+                        },
+                        new
+                        {
+                            AuraId = 31L,
+                            Stat = (byte)1,
+                            Kind = (byte)1,
+                            Value = 25f
+                        },
+                        new
+                        {
+                            AuraId = 31L,
+                            Stat = (byte)6,
+                            Kind = (byte)1,
+                            Value = 4f
+                        },
+                        new
+                        {
+                            AuraId = 32L,
+                            Stat = (byte)1,
+                            Kind = (byte)1,
+                            Value = 35f
+                        },
+                        new
+                        {
+                            AuraId = 32L,
+                            Stat = (byte)6,
+                            Kind = (byte)1,
+                            Value = 5f
+                        },
+                        new
+                        {
+                            AuraId = 32L,
+                            Stat = (byte)15,
+                            Kind = (byte)1,
+                            Value = 25f
+                        },
+                        new
+                        {
+                            AuraId = 37L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = 10f
+                        },
+                        new
+                        {
+                            AuraId = 38L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = 12f
+                        },
+                        new
+                        {
+                            AuraId = 38L,
+                            Stat = (byte)30,
+                            Kind = (byte)1,
+                            Value = 5f
+                        },
+                        new
+                        {
+                            AuraId = 38L,
+                            Stat = (byte)31,
+                            Kind = (byte)1,
+                            Value = 5f
+                        },
+                        new
+                        {
+                            AuraId = 39L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = 15f
+                        },
+                        new
+                        {
+                            AuraId = 39L,
+                            Stat = (byte)30,
+                            Kind = (byte)1,
+                            Value = 8f
+                        },
+                        new
+                        {
+                            AuraId = 39L,
+                            Stat = (byte)31,
+                            Kind = (byte)1,
+                            Value = 8f
+                        },
+                        new
+                        {
+                            AuraId = 40L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = 20f
+                        },
+                        new
+                        {
+                            AuraId = 41L,
+                            Stat = (byte)5,
+                            Kind = (byte)1,
+                            Value = 60f
+                        },
+                        new
+                        {
+                            AuraId = 42L,
+                            Stat = (byte)5,
+                            Kind = (byte)1,
+                            Value = 100f
+                        },
+                        new
+                        {
+                            AuraId = 42L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = 10f
+                        },
+                        new
+                        {
+                            AuraId = 43L,
+                            Stat = (byte)5,
+                            Kind = (byte)1,
+                            Value = 150f
+                        },
+                        new
+                        {
+                            AuraId = 43L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = 15f
+                        },
+                        new
+                        {
+                            AuraId = 44L,
+                            Stat = (byte)31,
+                            Kind = (byte)1,
+                            Value = 10f
                         });
                 });
 
@@ -2063,6 +2245,499 @@ namespace Avalon.Database.World.Migrations
                             Kind = (byte)2,
                             MaxStacks = 1L,
                             Name = "Silenced",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 16L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "burning",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Burning I",
+                            PeriodicBase = 16f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 1000L
+                        },
+                        new
+                        {
+                            Id = 17L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "burning",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Burning II",
+                            PeriodicBase = 22f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 1000L
+                        },
+                        new
+                        {
+                            Id = 18L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "burning",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Burning III",
+                            PeriodicBase = 28f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 1000L
+                        },
+                        new
+                        {
+                            Id = 19L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)0,
+                            DurationMs = 3000L,
+                            Icon = "chilled",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Chilled I",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 20L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)0,
+                            DurationMs = 3000L,
+                            Icon = "chilled",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Chilled II",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 21L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)0,
+                            DurationMs = 3000L,
+                            Icon = "chilled",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Chilled III",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 22L,
+                            BreakOnDamagePct = 25f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)2,
+                            DurationMs = 1000L,
+                            Icon = "rimebound",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Rimebound",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 23L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 200L,
+                            Icon = "jolt",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Jolt I",
+                            PeriodicBase = 14f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 200L
+                        },
+                        new
+                        {
+                            Id = 24L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 200L,
+                            Icon = "jolt",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Jolt II",
+                            PeriodicBase = 18f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 200L
+                        },
+                        new
+                        {
+                            Id = 25L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 200L,
+                            Icon = "jolt",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Jolt III",
+                            PeriodicBase = 22f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 200L
+                        },
+                        new
+                        {
+                            Id = 26L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "regrowth",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Regrowth I",
+                            PeriodicBase = 16f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)2,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 1000L
+                        },
+                        new
+                        {
+                            Id = 27L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "regrowth",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Regrowth II",
+                            PeriodicBase = 24f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)2,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 1000L
+                        },
+                        new
+                        {
+                            Id = 28L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "regrowth",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Regrowth III",
+                            PeriodicBase = 32f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)2,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 1000L
+                        },
+                        new
+                        {
+                            Id = 29L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 3000L,
+                            Icon = "rootsurge",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Rootsurge",
+                            PeriodicBase = 48f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)2,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 1000L
+                        },
+                        new
+                        {
+                            Id = 30L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "guard",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Guard I",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 31L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "guard",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Guard II",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 32L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "guard",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Guard III",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 33L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 200L,
+                            Icon = "barbs",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Barbs I",
+                            PeriodicBase = 5f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 200L
+                        },
+                        new
+                        {
+                            Id = 34L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 200L,
+                            Icon = "barbs",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Barbs II",
+                            PeriodicBase = 8f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 200L
+                        },
+                        new
+                        {
+                            Id = 35L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 200L,
+                            Icon = "barbs",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Barbs III",
+                            PeriodicBase = 10f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 200L
+                        },
+                        new
+                        {
+                            Id = 36L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "bleeding",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Bleeding",
+                            PeriodicBase = 20f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)1,
+                            Stacking = (byte)3,
+                            TickIntervalMs = 1000L
+                        },
+                        new
+                        {
+                            Id = 37L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "tailwind",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Tailwind I",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 38L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "tailwind",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Tailwind II",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 39L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 5000L,
+                            Icon = "tailwind",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Tailwind III",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 40L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 2000L,
+                            Icon = "slipstream",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Slipstream",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 41L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 3000L,
+                            Icon = "veiled",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Veiled I",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 42L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 3000L,
+                            Icon = "veiled",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Veiled II",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 43L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "veiled",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Veiled III",
+                            PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
+                            PeriodicKind = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 44L,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
+                            DurationMs = 4000L,
+                            Icon = "lucid",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Lucid",
                             PeriodicBase = 0f,
                             PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
@@ -17550,6 +18225,430 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemThemeEffect", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<float?>("AtOrBelowLifePct")
+                        .HasColumnType("real");
+
+                    b.Property<long>("AuraId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ChainTargets")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("ChancePct")
+                        .HasColumnType("real");
+
+                    b.Property<long>("CooldownMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("integer");
+
+                    b.Property<short?>("DamageType")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Target")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("ThemeId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("Trigger")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuraId");
+
+                    b.HasIndex("ThemeId", "Count", "Trigger")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ItemThemeEffects_Theme_Count_Trigger");
+
+                    b.ToTable("ItemThemeEffects", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemThemeEffects_AtOrBelowLifePct", "\"AtOrBelowLifePct\" IS NULL OR (\"AtOrBelowLifePct\" > 0 AND \"AtOrBelowLifePct\" <= 100)");
+
+                            t.HasCheckConstraint("CK_ItemThemeEffects_ChainTargets", "\"ChainTargets\" >= 0 AND (\"ChainTargets\" = 0 OR \"Target\" = 2)");
+
+                            t.HasCheckConstraint("CK_ItemThemeEffects_ChancePct", "\"ChancePct\" > 0 AND \"ChancePct\" <= 100");
+
+                            t.HasCheckConstraint("CK_ItemThemeEffects_CooldownMs", "\"CooldownMs\" > 0");
+
+                            t.HasCheckConstraint("CK_ItemThemeEffects_Count", "\"Count\" >= 1");
+
+                            t.HasCheckConstraint("CK_ItemThemeEffects_DamageType", "\"DamageType\" IS NULL OR \"DamageType\" BETWEEN 0 AND 4");
+
+                            t.HasCheckConstraint("CK_ItemThemeEffects_Target", "\"Target\" BETWEEN 1 AND 3");
+
+                            t.HasCheckConstraint("CK_ItemThemeEffects_Trigger", "\"Trigger\" BETWEEN 1 AND 6");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            AuraId = 16L,
+                            ChainTargets = 0,
+                            ChancePct = 20f,
+                            CooldownMs = 2000L,
+                            Count = 2,
+                            DamageType = (short)1,
+                            Target = (byte)2,
+                            ThemeId = 1,
+                            Trigger = (byte)1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            AuraId = 17L,
+                            ChainTargets = 0,
+                            ChancePct = 25f,
+                            CooldownMs = 2000L,
+                            Count = 3,
+                            DamageType = (short)1,
+                            Target = (byte)2,
+                            ThemeId = 1,
+                            Trigger = (byte)1
+                        },
+                        new
+                        {
+                            Id = 3,
+                            AuraId = 18L,
+                            ChainTargets = 0,
+                            ChancePct = 30f,
+                            CooldownMs = 2000L,
+                            Count = 4,
+                            DamageType = (short)1,
+                            Target = (byte)2,
+                            ThemeId = 1,
+                            Trigger = (byte)1
+                        },
+                        new
+                        {
+                            Id = 4,
+                            AuraId = 19L,
+                            ChainTargets = 0,
+                            ChancePct = 20f,
+                            CooldownMs = 3000L,
+                            Count = 2,
+                            Target = (byte)2,
+                            ThemeId = 2,
+                            Trigger = (byte)1
+                        },
+                        new
+                        {
+                            Id = 5,
+                            AuraId = 20L,
+                            ChainTargets = 0,
+                            ChancePct = 25f,
+                            CooldownMs = 3000L,
+                            Count = 3,
+                            Target = (byte)2,
+                            ThemeId = 2,
+                            Trigger = (byte)1
+                        },
+                        new
+                        {
+                            Id = 6,
+                            AuraId = 21L,
+                            ChainTargets = 0,
+                            ChancePct = 30f,
+                            CooldownMs = 3000L,
+                            Count = 4,
+                            Target = (byte)2,
+                            ThemeId = 2,
+                            Trigger = (byte)1
+                        },
+                        new
+                        {
+                            Id = 7,
+                            AuraId = 22L,
+                            ChainTargets = 0,
+                            ChancePct = 25f,
+                            CooldownMs = 10000L,
+                            Count = 4,
+                            Target = (byte)2,
+                            ThemeId = 2,
+                            Trigger = (byte)2
+                        },
+                        new
+                        {
+                            Id = 8,
+                            AuraId = 23L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 2000L,
+                            Count = 2,
+                            DamageType = (short)3,
+                            Target = (byte)2,
+                            ThemeId = 3,
+                            Trigger = (byte)2
+                        },
+                        new
+                        {
+                            Id = 9,
+                            AuraId = 24L,
+                            ChainTargets = 1,
+                            ChancePct = 100f,
+                            CooldownMs = 2000L,
+                            Count = 3,
+                            DamageType = (short)3,
+                            Target = (byte)2,
+                            ThemeId = 3,
+                            Trigger = (byte)2
+                        },
+                        new
+                        {
+                            Id = 10,
+                            AuraId = 25L,
+                            ChainTargets = 2,
+                            ChancePct = 100f,
+                            CooldownMs = 2000L,
+                            Count = 4,
+                            DamageType = (short)3,
+                            Target = (byte)2,
+                            ThemeId = 3,
+                            Trigger = (byte)2
+                        },
+                        new
+                        {
+                            Id = 11,
+                            AuraId = 26L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 4000L,
+                            Count = 2,
+                            Target = (byte)1,
+                            ThemeId = 4,
+                            Trigger = (byte)3
+                        },
+                        new
+                        {
+                            Id = 12,
+                            AuraId = 27L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 4000L,
+                            Count = 3,
+                            Target = (byte)1,
+                            ThemeId = 4,
+                            Trigger = (byte)3
+                        },
+                        new
+                        {
+                            Id = 13,
+                            AuraId = 28L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 4000L,
+                            Count = 4,
+                            Target = (byte)1,
+                            ThemeId = 4,
+                            Trigger = (byte)3
+                        },
+                        new
+                        {
+                            Id = 14,
+                            AtOrBelowLifePct = 35f,
+                            AuraId = 29L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 20000L,
+                            Count = 4,
+                            Target = (byte)1,
+                            ThemeId = 4,
+                            Trigger = (byte)4
+                        },
+                        new
+                        {
+                            Id = 15,
+                            AuraId = 30L,
+                            ChainTargets = 0,
+                            ChancePct = 20f,
+                            CooldownMs = 6000L,
+                            Count = 2,
+                            Target = (byte)1,
+                            ThemeId = 5,
+                            Trigger = (byte)4
+                        },
+                        new
+                        {
+                            Id = 16,
+                            AuraId = 31L,
+                            ChainTargets = 0,
+                            ChancePct = 25f,
+                            CooldownMs = 6000L,
+                            Count = 3,
+                            Target = (byte)1,
+                            ThemeId = 5,
+                            Trigger = (byte)4
+                        },
+                        new
+                        {
+                            Id = 17,
+                            AuraId = 32L,
+                            ChainTargets = 0,
+                            ChancePct = 30f,
+                            CooldownMs = 6000L,
+                            Count = 4,
+                            Target = (byte)1,
+                            ThemeId = 5,
+                            Trigger = (byte)4
+                        },
+                        new
+                        {
+                            Id = 18,
+                            AuraId = 33L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 2000L,
+                            Count = 2,
+                            DamageType = (short)0,
+                            Target = (byte)3,
+                            ThemeId = 6,
+                            Trigger = (byte)4
+                        },
+                        new
+                        {
+                            Id = 19,
+                            AuraId = 34L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 2000L,
+                            Count = 3,
+                            DamageType = (short)0,
+                            Target = (byte)3,
+                            ThemeId = 6,
+                            Trigger = (byte)4
+                        },
+                        new
+                        {
+                            Id = 20,
+                            AuraId = 35L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 2000L,
+                            Count = 4,
+                            DamageType = (short)0,
+                            Target = (byte)3,
+                            ThemeId = 6,
+                            Trigger = (byte)4
+                        },
+                        new
+                        {
+                            Id = 21,
+                            AuraId = 36L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 4000L,
+                            Count = 4,
+                            DamageType = (short)0,
+                            Target = (byte)2,
+                            ThemeId = 6,
+                            Trigger = (byte)2
+                        },
+                        new
+                        {
+                            Id = 22,
+                            AuraId = 37L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 5000L,
+                            Count = 2,
+                            Target = (byte)1,
+                            ThemeId = 7,
+                            Trigger = (byte)3
+                        },
+                        new
+                        {
+                            Id = 23,
+                            AuraId = 38L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 5000L,
+                            Count = 3,
+                            Target = (byte)1,
+                            ThemeId = 7,
+                            Trigger = (byte)3
+                        },
+                        new
+                        {
+                            Id = 24,
+                            AuraId = 39L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 5000L,
+                            Count = 4,
+                            Target = (byte)1,
+                            ThemeId = 7,
+                            Trigger = (byte)3
+                        },
+                        new
+                        {
+                            Id = 25,
+                            AuraId = 40L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 8000L,
+                            Count = 4,
+                            Target = (byte)1,
+                            ThemeId = 7,
+                            Trigger = (byte)5
+                        },
+                        new
+                        {
+                            Id = 26,
+                            AuraId = 41L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 12000L,
+                            Count = 2,
+                            Target = (byte)1,
+                            ThemeId = 8,
+                            Trigger = (byte)6
+                        },
+                        new
+                        {
+                            Id = 27,
+                            AuraId = 42L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 12000L,
+                            Count = 3,
+                            Target = (byte)1,
+                            ThemeId = 8,
+                            Trigger = (byte)6
+                        },
+                        new
+                        {
+                            Id = 28,
+                            AuraId = 43L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 12000L,
+                            Count = 4,
+                            Target = (byte)1,
+                            ThemeId = 8,
+                            Trigger = (byte)6
+                        },
+                        new
+                        {
+                            Id = 29,
+                            AuraId = 44L,
+                            ChainTargets = 0,
+                            ChancePct = 100f,
+                            CooldownMs = 8000L,
+                            Count = 4,
+                            Target = (byte)1,
+                            ThemeId = 8,
+                            Trigger = (byte)2
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.LocalizedText", b =>
                 {
                     b.Property<int>("Id")
@@ -21517,6 +22616,21 @@ namespace Avalon.Database.World.Migrations
                         .WithMany()
                         .HasForeignKey("TemplateId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemThemeEffect", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.AuraTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("AuraId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.ItemTheme", null)
+                        .WithMany()
+                        .HasForeignKey("ThemeId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

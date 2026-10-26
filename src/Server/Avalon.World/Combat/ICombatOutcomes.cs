@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Combat;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;
 
@@ -75,4 +76,16 @@ public interface ICombatOutcomes
     /// per hit or tick: each aura it holds rolls its chance to break on damage.
     /// </summary>
     void DamageTaken(IUnit unit);
+
+    /// <summary>
+    /// A Resonance trigger (#1180 part A2) happened to <paramref name="wearer" />, whose active effects listen for at
+    /// least one of <paramref name="fired" />: its effects of those triggers fire, by their cooldowns and chances.
+    /// <paramref name="other" /> is the event's other unit: the unit a direct hit landed on (Hit, Crit), the creature
+    /// killed (Kill), or the attacker (Struck, Evaded, WardBroken). Only a direct hit, a dodge of one and a creature's
+    /// kill report it, a killing tick's included: an aura's tick fires no direct-hit trigger, so no proc's damage feeds
+    /// another proc. Reported only for a match, so a hit with no matching effect costs a mask test. <paramref name="now" />
+    /// is the container's clock as the event read it (a hit's or a dodge's combat stamp on the wearer), which the
+    /// effects' cooldowns are checked and spent against, so a firing reads no clock of its own.
+    /// </summary>
+    void ResonanceFired(CharacterEntity wearer, ResonanceTriggers fired, IUnit other, DateTime now);
 }
