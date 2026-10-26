@@ -111,9 +111,11 @@ public sealed class ItemModifierCatalog
     /// <summary>
     /// The accepted row one tier better than <paramref name="modifier" /> in its own group (#1180): of the same
     /// <see cref="ItemModifier.GroupId" />, the largest <see cref="ItemModifier.Tier" /> below its own (tiers count down,
-    /// T1 the best), the lowest id among equals. Null for an untiered row, a row the catalog does not hold, and the best
-    /// tier of its group. Worked out when the catalog is built, so asking allocates nothing. It knows nothing of item
-    /// levels: the wake decides whether the row is within an item's reach.
+    /// T1 the best), the lowest id among the rows of that tier that roll on every base kind <paramref name="modifier" />
+    /// rolls on, so a rise never lands on a row the item's base could not roll. Null for an untiered row, a row the
+    /// catalog does not hold, the best tier of its group, and a row whose next tier rolls on fewer kinds (it polishes
+    /// instead). Worked out when the catalog is built, so asking allocates nothing. It knows nothing of item levels: the
+    /// wake decides whether the row is within an item's reach.
     /// </summary>
     public ItemModifier? NextTier(ItemModifier modifier) => _nextTier.GetValueOrDefault(modifier.Id);
 
@@ -146,8 +148,8 @@ public sealed class ItemModifierCatalog
 
     /// <summary>
     /// For each tiered row, the next better row of its group (<see cref="NextTier" />). Each group's rows are sorted best
-    /// tier first, then by id; where the tier changes, the tier just passed is the next better one for every row of the
-    /// new tier, and its first row, the lowest id, is the one named. The best tier has none.
+    /// tier first, then by id; for a row, the tier just before its own is the next better one, and that tier's first row
+    /// rolling on every kind the row rolls on, the lowest id, is the one named. The best tier has none.
     /// </summary>
     private static Dictionary<int, ItemModifier> NextTiers(IEnumerable<ItemModifier> accepted)
     {
@@ -155,22 +157,39 @@ public sealed class ItemModifierCatalog
         foreach (IGrouping<int, ItemModifier> group in accepted.Where(m => m.Tier is not null).GroupBy(m => m.GroupId))
         {
             ItemModifier[] sorted = [.. group.OrderBy(m => m.Tier).ThenBy(m => m.Id)];
-            ItemModifier? better = null;
-            int firstOfTier = 0;
+            int betterStart = -1, tierStart = 0;
             for (int i = 1; i < sorted.Length; i++)
             {
                 if (sorted[i].Tier != sorted[i - 1].Tier)
-                {
-                    better = sorted[firstOfTier];
-                    firstOfTier = i;
-                }
+                    (betterStart, tierStart) = (tierStart, i);
 
-                if (better is not null)
-                    next[sorted[i].Id] = better;
+                if (betterStart < 0)
+                    continue;
+
+                for (int b = betterStart; b < tierStart; b++)
+                {
+                    if (RollsOnEveryKindOf(sorted[b], sorted[i]))
+                    {
+                        next[sorted[i].Id] = sorted[b];
+                        break;
+                    }
+                }
             }
         }
 
         return next;
+    }
+
+    /// <summary>Whether <paramref name="candidate" /> weighs above 0 on every base kind <paramref name="row" /> does.</summary>
+    private static bool RollsOnEveryKindOf(ItemModifier candidate, ItemModifier row)
+    {
+        foreach (ItemModifierWeight weight in row.Weights)
+        {
+            if (weight.Weight > 0 && WeightOn(candidate, weight.BaseKind) <= 0)
+                return false;
+        }
+
+        return true;
     }
 
     private static int WeightOn(ItemModifier modifier, ItemBaseKind kind)
