@@ -71,11 +71,12 @@ public sealed class ActiveAura
     public DateTimeOffset NextBreakRollAt { get; internal set; }
 
     /// <summary>
-    /// The aura system that made it and pools it, set once when it made it; null for a copy made anywhere else (restored at
-    /// login), which no pool takes back. A copy is pooled only by its own instance, so a long-lived instance that ends
-    /// copies made elsewhere (a town ending a forest's buffs) never keeps them.
+    /// The token of the aura system that made it and pools it (an empty object of that system's own, which references
+    /// nothing, so a copy carried into another instance never keeps its old one alive), set once when it was made; null
+    /// for a copy made anywhere else (restored at login), which no pool takes back. A copy is pooled only by its own
+    /// instance, so a long-lived instance that ends copies made elsewhere (a town ending a forest's buffs) never keeps them.
     /// </summary>
-    internal AuraSystem? Pool { get; init; }
+    internal object? Pool { get; init; }
 
     /// <summary>Removed and given back to its aura system's pool, until the pool hands it out again.</summary>
     internal bool Returned { get; set; }

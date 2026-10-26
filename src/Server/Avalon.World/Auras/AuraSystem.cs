@@ -61,8 +61,8 @@ public sealed class AuraSystem
     private readonly List<List<ActiveAura>> _ending = [];
     private int _endingDepth;
 
-    // The pool of copies (#1180 part A2): every copy this system made (ActiveAura.Pool) that is removed from a unit here
-    // waits in _removed until the next pass starts, when no walk, hook or caller of the tick it was removed in can still
+    // The pool of copies (#1180 part A2): every copy this system made (ActiveAura.Pool, its token) that is removed from a
+    // unit here waits in _removed until the next pass starts, when no walk, hook or caller of the tick it was removed in can still
     // be reading it, and then joins _free, its references let go, which every new aura placed here is taken from before
     // one is made. So a placement allocates nothing once the pool holds as many copies as this instance's units shed
     // between two passes, and a copy is never reused while anything that saw it removed is still running. A copy made
@@ -70,6 +70,10 @@ public sealed class AuraSystem
     // than this instance itself had made, its own peak: a long-lived town ending copies its visitors bring keeps none.
     private readonly List<ActiveAura> _removed = [];
     private readonly Stack<ActiveAura> _free = new();
+
+    // What each copy made here names as its pool (ActiveAura.Pool): an empty object of this system's own, so a copy that
+    // outlives this instance elsewhere holds no reference to it.
+    private readonly object _poolToken = new();
 
     // A tick that throws, logged at most once per ThrottledErrorLog.Interval for each aura; a unit's pass that throws
     // outside its ticks (a stats refresh while its auras end), likewise for each unit.
@@ -357,7 +361,7 @@ public sealed class AuraSystem
         {
             return new ActiveAura(template, casterGuid, source, 1, snapshot, schedule, durationMs, appliedAt)
             {
-                Pool = this,
+                Pool = _poolToken,
             };
         }
 
@@ -775,7 +779,7 @@ public sealed class AuraSystem
         if (AuraHolders.Of(unit) is not { } auras || !auras.Remove(aura, _time.GetUtcNow()))
             return;
 
-        if (ReferenceEquals(aura.Pool, this))
+        if (ReferenceEquals(aura.Pool, _poolToken))
         {
             Debug.Assert(!aura.Returned, "An aura removed from its unit was already given back to the pool");
             aura.Returned = true;
