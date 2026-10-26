@@ -2454,9 +2454,10 @@ public class SeedIntegrityShould
     /// #1180 part A2: the design's limits on every Resonance effect (its section 2.4). Each theme has its rows at the
     /// counts 2, 3 and 4 and no other; an effect on the wearer is helpful and one on another unit harmful; no cooldown is
     /// under 2 s, and none on the wearer shorter than its own aura, so a buff never stays up for good; no effect stuns; a
-    /// damage type exactly on the damaging rows (Ember's Fire, Storm's Lightning, Thorn's Physical); only Storm chains;
-    /// a kill buffs the wearer, Thorn's struck rows answer the attacker and every other harmful row lands on the hit
-    /// target; and only Rootsurge waits for low life.
+    /// damage type exactly on the damaging rows (Ember's Fire, Storm's Lightning, Thorn's Physical); no effect aura runs a
+    /// script or draws on its source's roll (a PeriodicEffectiveness of 0: the effect's synthetic source has none); only
+    /// Storm chains; a kill buffs the wearer, Thorn's struck rows answer the attacker and every other harmful row lands on
+    /// the hit target; and only Rootsurge waits for low life.
     /// </summary>
     [Fact]
     public void Keep_every_resonance_effect_inside_the_designs_limits()
@@ -2489,7 +2490,9 @@ public class SeedIntegrityShould
             Assert.True((aura.PeriodicKind == AuraPeriodicKind.Damage) == (e.DamageType is not null),
                 $"{row} ticks {aura.PeriodicKind} with damage type {e.DamageType?.ToString() ?? "none"}");
             if (e.DamageType is { } type)
-                Assert.Equal((theme, damageTypes.GetValueOrDefault(theme, (DamageType)(-1))), (theme, type));
+                Assert.True(damageTypes.TryGetValue(theme, out DamageType want) && want == type, $"{row} deals {type}");
+            Assert.True(aura.ScriptName is null, $"{row} runs the script {aura.ScriptName}");
+            Assert.True(aura.PeriodicEffectiveness == 0f, $"{row} draws {aura.PeriodicEffectiveness} % of its source's roll");
             Assert.True(e.ChainTargets == 0 || theme == "Storm", $"{row} chains");
             ResonanceTarget? expected = e.Trigger == ResonanceTrigger.Kill ? ResonanceTarget.Wearer
                 : theme == "Thorn" && e.Trigger == ResonanceTrigger.Struck ? ResonanceTarget.Attacker

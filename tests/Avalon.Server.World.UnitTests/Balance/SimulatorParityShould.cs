@@ -1,4 +1,3 @@
-using Avalon.World.Items;
 using System.Reflection;
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
@@ -22,6 +21,7 @@ using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Items;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;

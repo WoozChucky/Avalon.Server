@@ -177,7 +177,10 @@ public class AuraStatsIntegrationShould
         Assert.Equal(" | None", Active(procs));
 
         // Back on the seeded table, the plate and the Iron sword make Iron 2, where a catalog built here has three effects:
-        // more slots than any rebuild before needed. The one refresh outside the windows grows them; the windows reuse them.
+        // more slots than any rebuild before needed. The first refresh back counts again over the seeded effects; the next,
+        // over the same table and gear, counts nothing again, so only the new catalog rebuilds the slots, growing them
+        // outside the windows; the windows reuse them.
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, seeded, effects, CurrentValues.KeepShare, formula);
         AuraTemplate guard = AuraTestData.Fortified();
         ResonanceTrigger[] triggers = [ResonanceTrigger.Struck, ResonanceTrigger.Evaded, ResonanceTrigger.WardBroken];
         var grown = new ResonanceEffectCatalog(
