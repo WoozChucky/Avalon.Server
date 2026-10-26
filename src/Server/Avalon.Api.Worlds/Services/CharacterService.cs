@@ -207,6 +207,8 @@ public class CharacterService : ICharacterService
                 })],
             Identified = identified,
             Attuned = instance is not null && (instance.Flags & ItemInstanceFlags.Attuned) != 0,
+            // Tainted shows; the instability that made it never does, to any caller (#1180).
+            Tainted = instance?.Tainted ?? false,
         };
     }
 
@@ -229,9 +231,10 @@ public class CharacterService : ICharacterService
                 // Only on the lines the read shows, so an unidentified copy names no theme of an affix it hides (#1180).
                 ThemeId = m.Row?.Group.ThemeId,
                 // The same: an unidentified copy's sealed affix is hidden with its progress and threshold (#1180), and
-                // whatever wrote a seal, no line of an unidentified copy carries one. As of the last save.
+                // whatever wrote a seal or an imprint, no line of an unidentified copy carries one. As of the last save.
                 SealProgress = identified ? m.Rolled.SealProgress : null,
                 SealThreshold = identified && m.Rolled.Sealed ? ItemAwakening.Threshold(instance.ItemLevel) : null,
+                Imprinted = identified && m.Rolled.Imprinted,
                 Values = m.Rolled.Values
                     .OrderBy(v => v.Index)
                     .Select(v => new CharacterInventoryModifierValueDto

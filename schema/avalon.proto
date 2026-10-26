@@ -558,6 +558,7 @@ message ItemModifierDto {
    repeated ItemModifierValueDto Values = 2;
    optional uint32 SealProgress = 3;
    optional uint32 SealThreshold = 4;
+   bool Imprinted = 5;
 }
 message ItemModifierValueDto {
    ItemStat Stat = 1;
@@ -604,6 +605,7 @@ message ItemSlotDto {
    optional string Name = 11;
    repeated ItemBaseStatDto BaseStats = 12;
    bool Identified = 13;
+   bool Tainted = 14;
 }
 enum ItemStat {
    ItemStat_Stamina = 0;
@@ -1597,6 +1599,7 @@ message TradeItemDto {
    optional string Name = 8;
    repeated ItemBaseStatDto BaseStats = 9;
    bool Identified = 10;
+   bool Tainted = 11;
 }
 enum TradeResult {
    TradeResult_Unknown = 0;

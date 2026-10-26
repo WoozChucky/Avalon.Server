@@ -34,6 +34,8 @@
     <ProjectReference Include="..\..\src\Server\Avalon.Api\Avalon.Api.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Database\Avalon.Database.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
+    <!-- The modding API, for ApiContractShould's guard that no client-facing type names instability (#1180). -->
+    <ProjectReference Include="..\..\src\Server\Avalon.World.Public\Avalon.World.Public.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
   </ItemGroup>
 

@@ -23,6 +23,12 @@ public class ItemModifierDto
     /// is, null otherwise.
     /// </summary>
     [ProtoMember(4)] public uint? SealThreshold { get; set; }
+
+    /// <summary>
+    /// Whether the affix was imprinted from a glyph (#1180) rather than rolled with its item. Shown only on a line the
+    /// client is shown, so an unidentified copy never sends it.
+    /// </summary>
+    [ProtoMember(5)] public bool Imprinted { get; set; }
 }
 
 /// <summary>

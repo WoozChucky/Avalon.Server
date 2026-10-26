@@ -77,7 +77,8 @@ public sealed class ItemModifierDtoPool
     /// client is shown: every one of an identified copy, and an unidentified copy's implicit lines only (#1179,
     /// <see cref="ItemVisibility.Shows" />), each looked up once in <paramref name="catalog" />, and only for an
     /// unidentified copy. The list to send, null for none, with the one it replaced kept here. Every member of a kept
-    /// entry is written, its seal included (#1180), so an entry an earlier sealed row filled shows an awake row as awake.
+    /// entry is written, its seal and its imprint included (#1180), so an entry an earlier sealed or imprinted row filled
+    /// shows an awake or rolled row as such.
     /// </summary>
     /// <param name="itemLevel">The copy's item level: the threshold a sealed affix it shows wakes at (#1180).</param>
     public List<ItemModifierDto>? Refill(List<ItemModifierDto>? current, IReadOnlyList<ItemInstanceModifier> modifiers,
@@ -98,7 +99,7 @@ public sealed class ItemModifierDtoPool
 
             ItemModifierDto entry = target[at++];
             entry.ModifierId = (uint)shown.ModifierId;
-            ItemModifierDtoMapper.FillSeal(entry, shown, identified, itemLevel);
+            ItemModifierDtoMapper.FillSealAndImprint(entry, shown, identified, itemLevel);
             RefillValues(entry.Values, shown.Values);
         }
 
