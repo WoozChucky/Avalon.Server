@@ -53,8 +53,9 @@ public interface IItemRoller
 /// are handed out at the roll, so nothing is renamed when the copy is added. Stateless past its settings, so one serves
 /// every thread. The draws come in one order, which the scripted tests follow: a drop's line (only a drop of a kind with
 /// several lines), the rarity, the base stats in ItemBaseStat order, the implicit's values by line, the affix count, then
-/// per affix one weighted pick and its values by line (the low end, then the high), and last a rare's two words. A unique
-/// draws its base's base stats and implicit, then its own lines' values.
+/// per affix one weighted pick and its values by line (the low end, then the high), then a rare's two words, and last a
+/// rare's seal (#1180: only a rare with a prefix or suffix, and only at a Game:Items:SealedRarePct strictly between 0 and
+/// 100). A unique draws its base's base stats and implicit, then its own lines' values.
 /// </summary>
 public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOptions<GameConfiguration> options)
     : IItemRoller
@@ -71,6 +72,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
     private static readonly List<ItemInstanceModifier> s_none = [];
 
     private readonly CreatureRarityOdds _odds = options.Value.Items.Rarity;
+    private readonly double _sealedRarePct = options.Value.Items.SealedRarePct;
 
     public RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemsPatch items)
     {
@@ -214,7 +216,9 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
 
     /// <summary>
     /// A base's copy at <paramref name="rarity" />: its base stats, its implicit, then (Magic or Rare) its affixes, then a
-    /// rare's name. The list is sized for the most the rarity can carry, so it never grows.
+    /// rare's name and, at Game:Items:SealedRarePct, the seal on its best affix (#1180, <see cref="SealIndex" />). The list
+    /// is sized for the most the rarity can carry, so it never grows. A boss kill's re-roll as Rare comes here again, so it
+    /// draws its own seal.
     /// </summary>
     private RolledItem RollBase(ItemTemplate template, ItemBaseKind kind, ItemRarity rarity, ushort itemLevel,
         ItemModifierCatalog catalog, ItemInstanceId instanceId)
@@ -236,10 +240,59 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
             int count = rarity == ItemRarity.Magic ? (int)random.NextInt64(1, 3) : (int)random.NextInt64(3, 7);
             RollAffixes(modifiers, instanceId, catalog.CandidatesFor(kind), count, room, itemLevel);
             if (rarity == ItemRarity.Rare)
+            {
                 rareName = RareNames.Draw(kind, random);
+                if (modifiers.Count > links.Count && DrawSeal())
+                    modifiers[SealIndex(modifiers, links.Count, catalog)].SealProgress = 0;
+            }
         }
 
         return new RolledItem(instanceId, template.Id, rarity, itemLevel, rareName, baseStats, modifiers);
+    }
+
+    /// <summary>
+    /// Whether a rare seals (#1180): never at a Game:Items:SealedRarePct of 0 and always at 100, neither with a draw, so
+    /// those shares leave every seeded roll after it as it was; between them, one draw of [0, 100) below the share.
+    /// </summary>
+    private bool DrawSeal() =>
+        _sealedRarePct > 0 && (_sealedRarePct >= 100 || random.NextDouble() * 100 < _sealedRarePct);
+
+    /// <summary>
+    /// The index of the affix a rare seals (#1180), among its prefixes and suffixes, from <paramref name="firstAffix" />
+    /// on: the lowest tier number (the best tier); among equals, the highest roll of its first stat line within that
+    /// line's range, <c>(value - min) / (max - min)</c>, or 1 for a range of one value, an "adds" line's two ends summed
+    /// against its two ranges summed; among equals still, the lowest ordinal, which is the list's order. Rolls are compared
+    /// by cross-multiplying in 64 bits, never in floating point, so equal rolls tie exactly. No draw, no allocation.
+    /// </summary>
+    private static int SealIndex(List<ItemInstanceModifier> modifiers, int firstAffix, ItemModifierCatalog catalog)
+    {
+        int best = -1;
+        byte bestTier = 0;
+        long bestRolled = 0, bestRange = 1;
+        for (int i = firstAffix; i < modifiers.Count; i++)
+        {
+            ItemInstanceModifier row = modifiers[i];
+
+            // The row was just picked from this catalog's candidates, every one a tiered prefix or suffix.
+            ItemModifier modifier = catalog.Find(row.ModifierId)!;
+            byte tier = modifier.Tier ?? byte.MaxValue;
+            ItemModifierStat line = modifier.Stats[0];
+            ItemInstanceModifierValue value = row.Values[0];
+            long rolled = value.Value - (long)line.Min, range = line.Max - (long)line.Min;
+            if (line.Min2 is { } min2 && line.Max2 is { } max2)
+            {
+                rolled += value.Value2.GetValueOrDefault() - (long)min2;
+                range += max2 - (long)min2;
+            }
+
+            if (range <= 0)
+                (rolled, range) = (1, 1);
+
+            if (best < 0 || tier < bestTier || (tier == bestTier && rolled * bestRange > bestRolled * range))
+                (best, bestTier, bestRolled, bestRange) = (i, tier, rolled, range);
+        }
+
+        return best;
     }
 
     /// <summary>

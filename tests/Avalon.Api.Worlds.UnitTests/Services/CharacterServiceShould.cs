@@ -311,12 +311,16 @@ public sealed class CharacterServiceShould : IDisposable
     private static ItemInstance Saved(ItemTemplate template,
         params (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values) => Saved(template, default, values);
 
+    private static ItemInstance Saved(ItemTemplate template, ItemBaseStats baseStats,
+        params (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values) =>
+        Saved(template, baseStats, sealedOrdinal: null, values);
+
     /// <summary>
     /// A saved copy of <paramref name="template" /> as the Character database loads it: a row per base stat it rolled,
-    /// and one modifier per value with its value.
+    /// and one modifier per value with its value, the one at <paramref name="sealedOrdinal" /> sealed (#1180).
     /// </summary>
-    private static ItemInstance Saved(ItemTemplate template, ItemBaseStats baseStats,
-        params (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values)
+    private static ItemInstance Saved(ItemTemplate template, ItemBaseStats baseStats, int? sealedOrdinal,
+        (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values)
     {
         var id = new ItemInstanceId(Guid.CreateVersion7());
         List<ItemInstanceBaseStat> rows = [];
@@ -339,6 +343,7 @@ public sealed class CharacterServiceShould : IDisposable
                     ItemInstanceId = id,
                     ModifierId = 1,
                     Ordinal = (byte)ordinal,
+                    SealProgress = ordinal == sealedOrdinal ? 0 : null,
                     Values =
                     [
                         new ItemInstanceModifierValue
@@ -359,12 +364,14 @@ public sealed class CharacterServiceShould : IDisposable
     /// 700 ms: Cleave rolls 3..7 at 315 % effectiveness and 80.5 % increased physical attack damage, 17..39. With the same
     /// ring on both fingers (10 % increased physical damage each), both count, as in the world: 100.5 %, 18..44. With the
     /// sword's own added fire 2..5 and a Copper Band's added physical damage to attacks 1..3, each read from its saved
-    /// instance's modifiers: 29..72.
+    /// instance's modifiers: 29..72. With the sword's added fire sealed (#1180), it adds nothing, on either side: the
+    /// starter gear's 17..39.
     /// </summary>
     [Theory]
     [InlineData("starter gear", 17u, 39u)]
     [InlineData("two rings", 18u, 44u)]
     [InlineData("a modified sword and a global ring", 29u, 72u)]
+    [InlineData("a sword whose added fire is sealed", 17u, 39u)]
     public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character(string gear, uint min, uint max)
     {
         var id = new CharacterId(42);
@@ -396,6 +403,9 @@ public sealed class CharacterServiceShould : IDisposable
             case "a modified sword and a global ring":
                 worn.Add(Saved(templates[32], s_rolledSword, (Avalon.Domain.World.StatType.AddedFireDamage, 2, 5)));
                 worn.Add(Saved(templates[68], (Avalon.Domain.World.StatType.AddedPhysicalDamageToAttacks, 1, 3)));
+                break;
+            case "a sword whose added fire is sealed":
+                worn.Add(Saved(templates[32], s_rolledSword, sealedOrdinal: 0, [(Avalon.Domain.World.StatType.AddedFireDamage, 2, 5)]));
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(gear), gear, null);

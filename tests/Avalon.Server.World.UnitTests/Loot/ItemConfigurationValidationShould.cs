@@ -5,7 +5,8 @@ namespace Avalon.Server.World.UnitTests.Loot;
 
 /// <summary>
 /// Game:Items (#1179) out of range stops the start: rarity odds that cannot be drawn, a sale below the sell price, an
-/// unidentified sale outside 0-100 percent, an identify cost above the gold cap.
+/// unidentified sale outside 0-100 percent, an identify cost above the gold cap, a sealed-rare share outside 0-100
+/// percent (#1180).
 /// </summary>
 public class ItemConfigurationValidationShould
 {
@@ -20,11 +21,21 @@ public class ItemConfigurationValidationShould
     [InlineData(22.0, 3.0, 2, true, 0)]
     [InlineData(22.0, 3.0, 2, true, 50, 9_999_999_999UL)]
     [InlineData(22.0, 3.0, 2, false, 50, 10_000_000_000UL)]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, -0.1)]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 100.1)]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, double.NaN)]
+    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 0.0)]
+    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 100.0)]
     public void Refuse_game_items_settings_out_of_range(
         double magicPct, double rarePct, int magicSellFactor, bool accepted, int unidentifiedSellPercent = 50,
-        ulong identifyCost = 0)
+        ulong identifyCost = 0, double sealedRarePct = 5)
     {
-        var items = new ItemConfiguration { UnidentifiedSellPercent = unidentifiedSellPercent, IdentifyCost = identifyCost };
+        var items = new ItemConfiguration
+        {
+            UnidentifiedSellPercent = unidentifiedSellPercent,
+            IdentifyCost = identifyCost,
+            SealedRarePct = sealedRarePct,
+        };
         items.Rarity.Elite = new RarityOdds { MagicPct = magicPct, RarePct = rarePct };
         items.SellFactor.Magic = magicSellFactor;
 
