@@ -159,7 +159,7 @@ public sealed class AwakeningMeter
         Connection = null;
     }
 
-    /// <summary>The flush took the character off the queue: work found from now on queues it again.</summary>
+    /// <summary>The flush is done with the character: work found from now on queues it again.</summary>
     internal void Dequeued() => _queued = false;
 
     /// <summary>Puts the character on its queue when it has work, is in the world and is not queued already.</summary>

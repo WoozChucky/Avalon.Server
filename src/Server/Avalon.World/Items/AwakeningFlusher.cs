@@ -30,14 +30,18 @@ public sealed class AwakeningFlusher(ICharacterEconomy economy, ILogger logger)
 
     /// <summary>
     /// Flushes <paramref name="character" />, taken off its queue: nothing for one that left the world since it was
-    /// queued. Work left undone by a throw (progress not yet sent) queues it again for the next tick.
+    /// queued. It stays marked queued until the flush ends, so the settle's own marks queue nothing; it is queued again
+    /// only for work still pending then (a refresh after a wake that finds a seal still worn, or progress a throw left
+    /// unsent), for the next tick.
     /// </summary>
     public void Flush(CharacterEntity character, StaticData data)
     {
         AwakeningMeter meter = character.Awakening;
-        meter.Dequeued();
         if (meter.Connection is not { } connection || character.Data is null)
+        {
+            meter.Dequeued();
             return;
+        }
 
         try
         {
@@ -59,6 +63,7 @@ public sealed class AwakeningFlusher(ICharacterEconomy economy, ILogger logger)
         }
         finally
         {
+            meter.Dequeued();
             meter.QueueIfPending();
         }
     }

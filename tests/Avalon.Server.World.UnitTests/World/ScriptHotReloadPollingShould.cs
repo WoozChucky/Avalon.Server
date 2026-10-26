@@ -60,13 +60,14 @@ public class ScriptHotReloadPollingShould
     /// A loaded world polling <paramref name="reloader" />. Its instances come from
     /// <paramref name="chunkLayoutFactory" /> for the templates <paramref name="mapManager" /> lists
     /// (none when omitted), and scripts a reload builds get a null logger factory. The world logs to
-    /// <paramref name="loggerFactory" /> and holds <paramref name="parties" /> when given.
+    /// <paramref name="loggerFactory" /> and holds <paramref name="parties" /> and the Awakening queue
+    /// <paramref name="awakening" /> when given.
     /// </summary>
     internal static async Task<Avalon.World.World> BuildWorldAsync(
         IScriptHotReloader reloader, int intervalSeconds,
         IAvalonMapManager? mapManager = null, IChunkLayoutInstanceFactory? chunkLayoutFactory = null,
         Avalon.World.Parties.PartyService? parties = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null,
-        Avalon.World.Threading.TickThreadGuard? tickThread = null)
+        Avalon.World.Threading.TickThreadGuard? tickThread = null, Avalon.World.Items.AwakeningQueue? awakening = null)
     {
         IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -153,7 +154,8 @@ public class ScriptHotReloadPollingShould
             localizedText,
             reloader,
             Substitute.For<IChunkLibrary>(),
-            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), parties: parties, tickThread: tickThread);
+            dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), parties: parties, tickThread: tickThread,
+            awakening: awakening);
 
         await world.LoadAsync(CancellationToken.None);
         return world;

@@ -11,6 +11,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.Server.World.UnitTests.Seeding;
+using Avalon.Server.World.UnitTests.World;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
@@ -26,6 +27,8 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
+using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -354,6 +357,44 @@ public class AwakeningShould
         Assert.Empty(sent);
         Assert.True(draws.Exhausted);
         Assert.True(character.SaveState.TakeMarks().Items[amulet.InstanceId].Modifiers);
+    }
+
+    /// <summary>
+    /// The production wiring (#1180): the world's spawn attaches a wearer to its Awakening queue, so the tick's stage
+    /// visits it and sends through its connection; leaving the world detaches it, so its meter queues it no more. The
+    /// wearer is due from the refresh that counted its seal (an amulet at 10 of item level 1's 50), and a kill's point
+    /// settles to 11.
+    /// </summary>
+    [Fact]
+    public async Task Queue_a_wearer_for_the_tick_only_while_the_world_holds_it()
+    {
+        using MapInstance instance = TestMapInstances.BuildCasting(out _, world: MapInstanceClients.NewWorld(Data),
+            random: _random, time: _clock, parties: _parties.Parties);
+        CharacterEntity wearer = TestCharacters.New(1180_821, time: _clock);
+        ItemInstanceId amulet = Dress(instance, wearer, progress: 10)[0];
+        var queue = new AwakeningQueue();
+        Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
+            Substitute.For<IScriptHotReloader>(), intervalSeconds: 60, awakening: queue);
+        AwakeningStage stage = Stage(new ScriptedLootRandom([])) with { Queue = queue };
+        var sent = new List<OutboundPacket>();
+        IWorldConnection connection = Recording(wearer, sent);
+
+        world.SpawnInInstance(connection, Substitute.For<IMapInstance>());
+        Assert.Equal([wearer], queue.Take().ToArray());
+        stage.Flusher.Flush(wearer, Data);
+        Assert.Empty(sent);
+
+        // In the world: a kill queues it, and the tick sends the settled bar through its connection.
+        TestCharacters.AwakeningOf(wearer).AddKill(1);
+        stage.Tick();
+        Assert.Equal([((uint)EquipmentSlots.Neck, amulet.Value, 11u)],
+            Assert.Single(TestTown.Read<SAwakeningProgressPacket>(sent, NetworkPacketType.SMSG_AWAKENING_PROGRESS))
+                .Items.Select(entry => (entry.EquipmentSlot, entry.ItemInstanceId, entry.Progress)));
+
+        // Gone: a kill credited after the leave queues nothing.
+        await world.LeaveWorldAsync(connection);
+        TestCharacters.AwakeningOf(wearer).AddKill(1);
+        Assert.True(queue.Take().IsEmpty);
     }
 
     /// <summary>
