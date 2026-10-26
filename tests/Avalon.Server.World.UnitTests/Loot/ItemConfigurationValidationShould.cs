@@ -1,4 +1,5 @@
 using Avalon.World.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.World.UnitTests.Loot;
@@ -7,7 +8,8 @@ namespace Avalon.Server.World.UnitTests.Loot;
 /// Game:Items (#1179) out of range stops the start: rarity odds that cannot be drawn, a sale below the sell price, an
 /// unidentified sale outside 0-100 percent, an identify cost above the gold cap, a sealed-rare share outside 0-100
 /// percent (#1180), and Awakening settings out of range: a creature weight outside 0-10000, a negative level gap, a
-/// tier-up chance outside 0-100 percent (#1180).
+/// tier-up chance outside 0-100 percent (#1180), and imprint settings out of range: a cost for no tier 1-9 or above the
+/// gold cap, instability bounds outside 0 &lt;= min &lt;= max &lt;= 100 (#1180 part C).
 /// </summary>
 public class ItemConfigurationValidationShould
 {
@@ -33,9 +35,18 @@ public class ItemConfigurationValidationShould
     [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, "TierUpChancePct 100.5")]
     [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, "TierUpChancePct NaN")]
     [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, "Weights:Boss 10000")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "ImprintCost:0 5")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "ImprintCost:10 5")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "ImprintCost:7 10000000000")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Imprint:InstabilityMinPct -1")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Imprint:InstabilityMaxPct 101")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Imprint:InstabilityMinPct 50, InstabilityMaxPct 40")]
+    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "Imprint:InstabilityMinPct 0, InstabilityMaxPct 0")]
+    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "Imprint:InstabilityMinPct 100, InstabilityMaxPct 100")]
+    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "ImprintCost:7 300")]
     public void Refuse_game_items_settings_out_of_range(
         double magicPct, double rarePct, int magicSellFactor, bool accepted, int unidentifiedSellPercent = 50,
-        ulong identifyCost = 0, double sealedRarePct = 5, string? awakening = null)
+        ulong identifyCost = 0, double sealedRarePct = 5, string? awakening = null, string? imprint = null)
     {
         var items = new ItemConfiguration
         {
@@ -71,8 +82,32 @@ public class ItemConfigurationValidationShould
                 throw new ArgumentOutOfRangeException(nameof(awakening), awakening, null);
         }
 
-        ValidateOptionsResult result = new ItemConfigurationValidation().Validate(null, new GameConfiguration { Items = items });
+        // An imprint row goes through the configuration binder, as Game:Items does at startup, so a cost keyed by a tier
+        // the binder reads as a byte, and the binder merging configured costs into the seeded ones, are what is checked.
+        var game = new GameConfiguration { Items = items };
+        if (imprint is not null)
+            new ConfigurationBuilder().AddInMemoryCollection(Settings(imprint)).Build().Bind(game);
+
+        ValidateOptionsResult result = new ItemConfigurationValidation().Validate(null, game);
 
         Assert.Equal(accepted, result.Succeeded);
+        if (imprint == "ImprintCost:7 300")
+            Assert.Equal(new Dictionary<byte, ulong> { [9] = 25, [8] = 75, [7] = 300 }, game.Items.ImprintCost);
+    }
+
+    /// <summary>
+    /// "ImprintCost:7 300" as Items:ImprintCost:7 = 300; "Imprint:InstabilityMinPct 50, InstabilityMaxPct 40" as both keys
+    /// under Items:Imprint, the section named once.
+    /// </summary>
+    private static IEnumerable<KeyValuePair<string, string?>> Settings(string imprint)
+    {
+        string[] pairs = imprint.Split(", ");
+        string section = pairs[0][..pairs[0].IndexOf(':')];
+        foreach (string pair in pairs)
+        {
+            string[] parts = pair.Split(' ');
+            string key = parts[0].StartsWith(section + ':', StringComparison.Ordinal) ? parts[0] : $"{section}:{parts[0]}";
+            yield return new KeyValuePair<string, string?>($"Items:{key}", parts[1]);
+        }
     }
 }

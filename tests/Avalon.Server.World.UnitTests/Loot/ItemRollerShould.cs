@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World;
 using Avalon.World.Configuration;
@@ -34,9 +35,16 @@ public class ItemRollerShould
     private static ItemModifierCatalog Catalog => s_items.Modifiers;
 
     // The seal's share is 0 unless a test sets it, so every other scripted roll draws exactly what it always did.
-    private static ItemRoller Roller(ILootRandom random, double sealedRarePct = 0) =>
-        new(random, new ItemIdAllocator(),
-            Options.Create(new GameConfiguration { Items = new ItemConfiguration { SealedRarePct = sealedRarePct } }));
+    private static ItemRoller Roller(ILootRandom random, double sealedRarePct = 0, int instabilityMin = 20,
+        int instabilityMax = 45) =>
+        new(random, new ItemIdAllocator(), Options.Create(new GameConfiguration
+        {
+            Items = new ItemConfiguration
+            {
+                SealedRarePct = sealedRarePct,
+                Imprint = new ImprintConfiguration { InstabilityMinPct = instabilityMin, InstabilityMaxPct = instabilityMax },
+            },
+        }));
 
     private static ItemTemplate Template(ulong id) => s_items.Find(new ItemTemplateId(id))!;
 
@@ -353,6 +361,95 @@ public class ItemRollerShould
         ItemInstanceModifierValue value = Assert.Single(woken.Row.Values);
         Assert.Equal(expected, $"{woken.Outcome} {woken.Row.ModifierId} {value.Value}..{value.Value2}");
         Assert.Equal((sealedRow.Id, (int?)null), (woken.Row.Id, woken.Row.SealProgress));
+    }
+
+    /// <summary>
+    /// #1180 part C (C-R13, Review Focus 3): an imprint appends the glyph's row and draws its instability, one integer within
+    /// Game:Items:Imprint's bounds every time, even when they are equal; a total of 100 or more bricks the item. Only then,
+    /// each prefix and suffix in ordinal order, the imprinted one included, draws its tier among the weakest three its
+    /// family offers within the item level (no draw when only one is), then its values; the implicit is kept. Each row
+    /// imprints the glyph S14 T9 onto a rare plate chest carrying its implicit, a sealed P12 T9 at 17 and S1 T9, every draw
+    /// scripted, so an extra or missing one fails. <paramref name="expected" /> is "{instability} {bricked|kept}: {each
+    /// row's key in ordinal order, sealed and imprinted as DescribeRolls marks them}".
+    /// </summary>
+    [Theory]
+    [InlineData("20/45, from 0, the draw 30: kept, one draw",
+        "30 kept: implicit IncreasedMaximumLife T8 | P12 T9 sealed 17 | S1 T9 | S14 T9 imprinted")]
+    [InlineData("from 70, the draw 29: 99, kept",
+        "99 kept: implicit IncreasedMaximumLife T8 | P12 T9 sealed 17 | S1 T9 | S14 T9 imprinted")]
+    [InlineData("from 70, the draw 30: 100, bricked at item level 9, each affix a tier draw then its values",
+        "100 bricked: implicit IncreasedMaximumLife T8 | P12 T7 sealed 17 | S1 T8 | S14 T9 imprinted")]
+    [InlineData("from 70, the draw 30, at item level 3: only T9 allowed, no tier draws, values only",
+        "100 bricked: implicit IncreasedMaximumLife T8 | P12 T9 sealed 17 | S1 T9 | S14 T9 imprinted")]
+    [InlineData("45/45, from 0: still one draw",
+        "45 kept: implicit IncreasedMaximumLife T8 | P12 T9 sealed 17 | S1 T9 | S14 T9 imprinted")]
+    public void Imprint_a_glyph_and_brick_at_the_instability_limit(string @case, string expected)
+    {
+        (int min, int max, ushort instability, ushort itemLevel, long[] integers) = @case switch
+        {
+            "20/45, from 0, the draw 30: kept, one draw" => (20, 45, (ushort)0, (ushort)9, (long[])[30]),
+            "from 70, the draw 29: 99, kept" => (20, 45, (ushort)70, (ushort)9, [29]),
+            // P12 to its index 2 (T7, 3-4), S1 to 1 (T8, 2), S14 to 0 (T9, 1-2): each tier, then its value.
+            "from 70, the draw 30: 100, bricked at item level 9, each affix a tier draw then its values" =>
+                (20, 45, (ushort)70, (ushort)9, [30, 2, 4, 1, 2, 0, 2]),
+            "from 70, the draw 30, at item level 3: only T9 allowed, no tier draws, values only" =>
+                (20, 45, (ushort)70, (ushort)3, [30, 2, 1, 1]),
+            "45/45, from 0: still one draw" => (45, 45, (ushort)0, (ushort)9, [45]),
+            _ => throw new ArgumentOutOfRangeException(nameof(@case), @case, null),
+        };
+        ItemTemplate chest = Template(13);
+        ItemBaseKind kind = chest.BaseKind!.Value;
+        var target = new ItemInstanceId(Guid.CreateVersion7());
+        ItemInstanceModifier Row(ItemInstanceId item, string key, byte ordinal, int value)
+        {
+            ItemModifierStat line = Catalog.Find(CatalogKeys.ModifierId(key))!.Stats.Single();
+            return TestModifiers.Modifier(item, CatalogKeys.ModifierId(key), ordinal, (line.Index, line.Stat, value, null));
+        }
+
+        ItemInstanceModifier sealedRow = Row(target, "P12 T9", 1, 2);
+        sealedRow.SealProgress = 17;
+        List<ItemInstanceModifier> rows =
+            [Row(target, "implicit IncreasedMaximumLife T8", 0, 2), sealedRow, Row(target, "S1 T9", 2, 1)];
+        ItemInstanceModifier glyphRow = Row(new ItemInstanceId(Guid.CreateVersion7()), "S14 T9", 0, 2);
+        string before = TestModifiers.DescribeRolls(rows);
+        var script = new ScriptedLootRandom([], integers);
+
+        ImprintedRows imprinted = Roller(script, instabilityMin: min, instabilityMax: max)
+            .Imprint(rows, glyphRow, target, kind, itemLevel, instability, Catalog);
+
+        Assert.True(script.Exhausted, "the imprint left scripted draws unused");
+        IReadOnlyList<ItemInstanceModifier> result = imprinted.Modifiers;
+        string keys = string.Join(" | ", result.Select(m =>
+            KeyOf(m.ModifierId) + (m.SealProgress is { } n ? $" sealed {n}" : "") + (m.Imprinted ? " imprinted" : "")));
+        Assert.Equal(expected, $"{imprinted.Instability} {(imprinted.Bricked ? "bricked" : "kept")}: {keys}");
+        Assert.Equal(before, TestModifiers.DescribeRolls(rows)); // the target's own rows are never written
+        Assert.NotSame(rows, result);
+        ItemInstanceModifier added = result[^1];
+        Assert.Equal((target, (byte)3, true, (int?)null),
+            (added.ItemInstanceId, added.Ordinal, added.Imprinted, added.SealProgress));
+        Assert.DoesNotContain(added.Id, rows.Select(m => m.Id).Append(glyphRow.Id));
+        if (!imprinted.Bricked)
+        {
+            Assert.Equal((min, max + 1L), script.LastIntegerRange!.Value);
+            Assert.Equal(rows, result.Take(3)); // the same rows, kept as they were
+            Assert.Equal([.. glyphRow.Values.Select(v => (v.Index, v.Stat, v.Value, v.Value2))],
+                added.Values.Select(v => (v.Index, v.Stat, v.Value, v.Value2)));
+            return;
+        }
+
+        Assert.Same(rows[0], result[0]);
+        Assert.Equal(rows.Select(m => (m.Id, m.Ordinal)).Append((added.Id, (byte)3)), result.Select(m => (m.Id, m.Ordinal)));
+        Assert.Equal((int?)17, result[1].SealProgress);
+        Span<int> offered = stackalloc int[ItemModifierCatalog.BrickTierCount];
+        foreach (ItemInstanceModifier row in result.Skip(1))
+        {
+            Assert.DoesNotContain(row, rows);
+            Assert.Equal(target, row.ItemInstanceId);
+            ItemModifier rolledAs = Catalog.Find(row.ModifierId)!;
+            int n = Catalog.BrickTiers(rolledAs, kind, itemLevel, offered);
+            Assert.Contains(row.ModifierId, offered[..n].ToArray());
+            AssertValuesWithinLines(rolledAs, row);
+        }
     }
 
     [Fact]

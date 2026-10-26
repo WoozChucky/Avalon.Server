@@ -2747,6 +2747,14 @@ public class SeedIntegrityShould
         var items = ItemsPatch.Build(templates, await new ItemModifierRepository(database,
             NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), [], AuraCatalog.Empty, NullLogger.Instance);
         Assert.Same(glyph, items.Glyph);
+
+        // Every tier a seeded affix can carry onto a glyph has a default imprint cost, which configuration can change but
+        // never remove (C-R6).
+        Dictionary<byte, ulong> costs = new ItemConfiguration().ImprintCost;
+        Assert.All(ItemModifierSeed.Modifiers().Select(m => items.Modifiers.Find(m.Id)!)
+                .Where(m => m.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix),
+            affix => Assert.True(costs.ContainsKey(affix.Tier!.Value),
+                $"modifier {affix.Id}'s tier {affix.Tier} has no Game:Items:ImprintCost"));
     }
 
     /// <summary>
@@ -2973,6 +2981,45 @@ public class SeedIntegrityShould
         }
 
         Assert.True(raised > 0, "no seeded affix rose a tier at any item level");
+    }
+
+    /// <summary>
+    /// #1180 part C (C-R14): a brick rerolls every seeded prefix and suffix within its family's three weakest tiers and its
+    /// item's level. For each row, each base kind it weighs above 0 on, and each item level from its own to 10, the catalog
+    /// offers at least one row, each of the same group, of one of the group's three largest tier numbers, at most one per
+    /// tier, within the item level and weighing above 0 on the kind.
+    /// </summary>
+    [Fact]
+    public async Task Brick_every_seeded_affix_within_its_familys_three_weakest_tiers_and_its_item_level()
+    {
+        ItemModifierCatalog catalog = await ItemModifierRepositories.SeededCatalog();
+        ItemModifier[] seeded = [.. ItemModifierSeed.Modifiers().Select(m => catalog.Find(m.Id)!)
+            .Where(m => m.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix)];
+        int[] offered = new int[ItemModifierCatalog.BrickTierCount];
+        foreach (ItemModifier row in seeded)
+        {
+            byte[] weakest = [.. seeded.Where(m => m.GroupId == row.GroupId).Select(m => m.Tier!.Value).Distinct()
+                .OrderDescending().Take(ItemModifierCatalog.BrickTierCount)];
+            foreach (ItemModifierWeight weight in row.Weights.Where(w => w.Weight > 0))
+            {
+                for (ushort itemLevel = row.RequiredItemLevel; itemLevel <= 10; itemLevel++)
+                {
+                    int n = catalog.BrickTiers(row, weight.BaseKind, itemLevel, offered);
+
+                    Assert.True(n >= 1, $"{row.Id} on {weight.BaseKind} at item level {itemLevel} is offered no tier");
+                    ItemModifier[] tiers = [.. offered.Take(n).Select(id => catalog.Find(id)!)];
+                    Assert.All(tiers, tier =>
+                    {
+                        Assert.Equal(row.GroupId, tier.GroupId);
+                        Assert.Contains(tier.Tier!.Value, weakest);
+                        Assert.True(tier.RequiredItemLevel <= itemLevel, $"{tier.Id} needs item level {tier.RequiredItemLevel}");
+                        Assert.True(tier.Weights.Any(w => w.BaseKind == weight.BaseKind && w.Weight > 0),
+                            $"{tier.Id} does not roll on {weight.BaseKind}");
+                    });
+                    Assert.Equal(n, tiers.Select(tier => tier.Tier).Distinct().Count());
+                }
+            }
+        }
     }
 
     /// <summary>

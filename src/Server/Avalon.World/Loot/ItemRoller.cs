@@ -59,10 +59,32 @@ public interface IItemRoller
     /// whose ends sum higher is kept, the old one on a tie.
     /// </summary>
     AwakenedModifier Awaken(ItemInstanceModifier sealedRow, ushort itemLevel, ItemModifierCatalog catalog);
+
+    /// <summary>
+    /// Imprints <paramref name="glyphRow" />, a glyph's one row, onto <paramref name="targetRows" />, the rows of
+    /// <paramref name="target" />, an item of <paramref name="kind" /> at <paramref name="itemLevel" /> holding
+    /// <paramref name="instability" /> (#1180 part C), over <paramref name="catalog" />. A new list holds the target's rows in
+    /// their order, then the glyph row's copy (<see cref="ItemInstanceModifier.CopyAs" />) under a new id, at the next
+    /// ordinal after the highest, imprinted; neither the target's list nor any of its rows is written. Then one draw,
+    /// uniform within Game:Items:Imprint's bounds, even when they are equal, is added to the total, which bricks the item at
+    /// <see cref="ItemInstability.BrickAt" /> or more. Only then, each prefix and suffix in the list's order, the imprinted
+    /// one included, rerolls into one of the rows <see cref="ItemModifierCatalog.BrickTiers" /> offers: its tier drawn
+    /// among them (no draw when only one is offered), then its values as a roll makes them, as a new row keeping its id,
+    /// item, ordinal, seal and imprinted mark. A row offered none, an implicit and a row the catalog no longer holds are
+    /// kept, the same objects.
+    /// </summary>
+    ImprintedRows Imprint(IReadOnlyList<ItemInstanceModifier> targetRows, ItemInstanceModifier glyphRow,
+        ItemInstanceId target, ItemBaseKind kind, ushort itemLevel, ushort instability, ItemModifierCatalog catalog);
 }
 
 /// <summary>A sealed affix as it woke (#1180): its new row and how it woke.</summary>
 public readonly record struct AwakenedModifier(ItemInstanceModifier Row, AwakeningOutcome Outcome);
+
+/// <summary>
+/// An imprint's outcome (#1180 part C): the item's new modifier list, its new instability total, and whether that total
+/// bricked it. The total is World-side only: never sent, shown, logged or exported.
+/// </summary>
+public readonly record struct ImprintedRows(List<ItemInstanceModifier> Modifiers, ushort Instability, bool Bricked);
 
 /// <summary>
 /// <see cref="IItemRoller" /> over the loot random and the server's id allocator: the copy's id and each modifier's id
@@ -72,7 +94,9 @@ public readonly record struct AwakenedModifier(ItemInstanceModifier Row, Awakeni
 /// per affix one weighted pick and its values by line (the low end, then the high), then a rare's two words, and last a
 /// rare's seal (#1180: only a rare with a prefix or suffix, and only at a Game:Items:SealedRarePct strictly between 0 and
 /// 100). A unique draws its base's base stats and implicit, then its own lines' values. A wake (#1180) draws its tier-up
-/// chance, then a rise's or a polish's values by line.
+/// chance, then a rise's or a polish's values by line. An imprint (#1180 part C) draws its instability, and only when that
+/// bricks the item, per prefix and suffix in ordinal order its tier (only when more than one is offered), then its values
+/// by line.
 /// </summary>
 public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOptions<GameConfiguration> options)
     : IItemRoller
@@ -91,6 +115,8 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
     private readonly CreatureRarityOdds _odds = options.Value.Items.Rarity;
     private readonly double _sealedRarePct = options.Value.Items.SealedRarePct;
     private readonly double _tierUpChancePct = options.Value.Items.Awakening.TierUpChancePct;
+    private readonly int _instabilityMinPct = options.Value.Items.Imprint.InstabilityMinPct;
+    private readonly int _instabilityMaxPct = options.Value.Items.Imprint.InstabilityMaxPct;
 
     public RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemsPatch items)
     {
@@ -500,6 +526,63 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
         }
 
         return values;
+    }
+
+    public ImprintedRows Imprint(IReadOnlyList<ItemInstanceModifier> targetRows, ItemInstanceModifier glyphRow,
+        ItemInstanceId target, ItemBaseKind kind, ushort itemLevel, ushort instability, ItemModifierCatalog catalog)
+    {
+        var modifiers = new List<ItemInstanceModifier>(targetRows.Count + 1);
+        int highest = -1;
+        for (int i = 0; i < targetRows.Count; i++)
+        {
+            modifiers.Add(targetRows[i]);
+            highest = Math.Max(highest, targetRows[i].Ordinal);
+        }
+
+        modifiers.Add(glyphRow.CopyAs(itemIds.NextModifierId(), target, (byte)(highest + 1), imprinted: true));
+
+        int total = instability + Uniform(_instabilityMinPct, _instabilityMaxPct);
+        bool bricked = total >= ItemInstability.BrickAt;
+        if (bricked)
+        {
+            Span<int> offered = stackalloc int[ItemModifierCatalog.BrickTierCount];
+            for (int i = 0; i < modifiers.Count; i++)
+                modifiers[i] = Bricked(modifiers[i], kind, itemLevel, catalog, offered);
+        }
+
+        return new ImprintedRows(modifiers, (ushort)total, bricked);
+    }
+
+    /// <summary>
+    /// <paramref name="row" /> as a brick leaves it: a prefix or suffix offered a row by
+    /// <see cref="ItemModifierCatalog.BrickTiers" /> becomes a new row of the offered tier it draws (no draw when only one
+    /// is offered), its values rolled within that tier, keeping its id, item, ordinal, seal and imprinted mark; any other
+    /// row is returned as it was.
+    /// </summary>
+    private ItemInstanceModifier Bricked(ItemInstanceModifier row, ItemBaseKind kind, ushort itemLevel,
+        ItemModifierCatalog catalog, Span<int> offered)
+    {
+        if (catalog.Find(row.ModifierId) is not { Group.Kind: ItemModifierKind.Prefix or ItemModifierKind.Suffix } modifier)
+            return row;
+
+        int n = catalog.BrickTiers(modifier, kind, itemLevel, offered);
+        if (n == 0)
+            return row;
+
+        // The offered ids are rows of this catalog, so each is found.
+        ItemModifier picked = catalog.Find(offered[n == 1 ? 0 : (int)random.NextInt64(0, n)])!;
+        var rerolled = new ItemInstanceModifier
+        {
+            Id = row.Id,
+            ItemInstanceId = row.ItemInstanceId,
+            ModifierId = picked.Id,
+            Ordinal = row.Ordinal,
+            Values = new List<ItemInstanceModifierValue>(picked.Stats.Count),
+            SealProgress = row.SealProgress,
+            Imprinted = row.Imprinted,
+        };
+        RollValues(rerolled, picked);
+        return rerolled;
     }
 
     private static ItemModifierStat? LineAt(ItemModifier modifier, byte index)

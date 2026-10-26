@@ -5,8 +5,9 @@ namespace Avalon.World.Configuration;
 
 /// <summary>
 /// Game:Items (#1179): the odds of a made item's rarity, what a sale pays for each rarity and while unidentified, what
-/// identifying an item costs, the share of rares that drop sealed and what fills their bars (#1180), tunable without a migration like the
-/// other loot knobs. Read at startup; a value out of range stops the start (<see cref="ItemConfigurationValidation" />).
+/// identifying an item costs, the share of rares that drop sealed and what fills their bars (#1180), what an imprint costs
+/// and the instability it adds (#1180 part C), tunable without a migration like the other loot knobs. Read at startup; a
+/// value out of range stops the start (<see cref="ItemConfigurationValidation" />).
 /// </summary>
 public sealed class ItemConfiguration
 {
@@ -39,8 +40,18 @@ public sealed class ItemConfiguration
     public AwakeningConfiguration Awakening { get; set; } = new();
 
     /// <summary>
+    /// Game:Items:ImprintCost:{tier} (#1180 part C): the gold imprinting a glyph costs, by its modifier's tier rank (T9 the
+    /// weakest), each at most Game:MaxGold. The binder merges configured tiers into these, so configuration can change a
+    /// seeded tier's cost, or add a tier, but never remove one; a key outside 1-9 names no tier and stops the start.
+    /// </summary>
+    public Dictionary<byte, ulong> ImprintCost { get; set; } = new() { [9] = 25, [8] = 75, [7] = 200 };
+
+    /// <summary>Game:Items:Imprint (#1180 part C): the bounds of the instability one imprint adds.</summary>
+    public ImprintConfiguration Imprint { get; set; } = new();
+
+    /// <summary>
     /// Null when every setting is in range, else a message naming the first one that is not. <paramref name="maxGold" /> is
-    /// Game:MaxGold, which bounds the identify cost.
+    /// Game:MaxGold, which bounds the identify cost and each imprint cost.
     /// </summary>
     public string? Problem(ulong maxGold)
     {
@@ -82,7 +93,25 @@ public sealed class ItemConfiguration
         if (Awakening is null)
             return "Game:Items:Awakening must be set";
 
-        return Awakening.Problem();
+        if (Awakening.Problem() is { } awakening)
+            return awakening;
+
+        if (ImprintCost is null)
+            return "Game:Items:ImprintCost must be set";
+
+        foreach ((byte tier, ulong cost) in ImprintCost)
+        {
+            if (tier is < 1 or > 9)
+                return $"Game:Items:ImprintCost:{tier} names no tier 1-9";
+
+            if (cost > maxGold)
+                return $"Game:Items:ImprintCost:{tier} must be at most Game:MaxGold, {maxGold} (was {cost})";
+        }
+
+        if (Imprint is null)
+            return "Game:Items:Imprint must be set";
+
+        return Imprint.Problem();
     }
 }
 
