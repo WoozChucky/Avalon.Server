@@ -79,6 +79,7 @@ public class AwakeningShould
     [InlineData("a solo kill of a Normal creature in one hit, then the tick's flush", 2)]
     [InlineData("an Elite with no script, which ignores the hit", 0)]
     [InlineData("an unidentified copy worn, a solo Normal kill", 0)]
+    [InlineData("a tainted sealed amulet worn, a solo Normal kill", 17)]
     public void Fill_the_bar_from_kills_and_damage_while_worn(string @case, int expected)
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, world: MapInstanceClients.NewWorld(Data),
@@ -231,6 +232,17 @@ public class AwakeningShould
                 break;
             }
 
+            case "a tainted sealed amulet worn, a solo Normal kill":
+            {
+                // A Tainted copy (#1180 part C) keeps its bar where it stood, frozen: never counted, never queued.
+                sealedItems = Dress(instance, wearer, progress: 17, tainted: true);
+                Creature foe = Foe(instance, 1180_994, CreatureRarity.Normal, health: 100);
+                combat.ApplyDamage(wearer, foe, 1000);
+                Assert.Equal(0u, foe.CurrentHealth);
+                Assert.Equal((0, 0L), (TestCharacters.AwakeningOf(wearer).SealedWorn, TestCharacters.AwakeningOf(wearer).PendingMilli));
+                break;
+            }
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(@case), @case, null);
         }
@@ -260,8 +272,8 @@ public class AwakeningShould
     /// The wake (#1180), through the tick's Awakening flush over the seeded catalog: an identified rare amulet worn on Neck
     /// carrying an awake "S1 T9" (Thorn) and a sealed "S5 Fire" row of the case's tier, item level and progress. A full
     /// bar wakes: as it was on a missed draw (the default 20 %), one tier better when that tier's item level is within the
-    /// item's plus 3, and otherwise polished, each value rolled again within its tier and the higher kept.
-    /// <paramref name="expected" /> is the row as "{key} {outcome} {values}", or "sealed" when nothing woke.
+    /// item's plus 3, and otherwise polished, each value rolled again within its tier and the higher kept. A Tainted copy's
+    /// full bar never wakes (#1180 part C). <paramref name="expected" /> is the row as "{key} {outcome} {values}", or "sealed" when nothing woke.
     /// </summary>
     [Theory]
     [InlineData("T9 at item level 1 at 50, the draw 0.2 misses", "S5 Fire T9 Woken 1")]
@@ -273,6 +285,7 @@ public class AwakeningShould
     [InlineData("one point short", "sealed")]
     [InlineData("in the bag at its threshold", "sealed")]
     [InlineData("already attuned, at its threshold, a miss", "S5 Fire T9 Woken 1")]
+    [InlineData("tainted, at its threshold", "sealed")]
     public void Wake_at_the_threshold_through_the_tick_flush(string @case, string expected)
     {
         // No roll makes a T8 seal at item level 1 today (T8 needs 4); the row holds the reach rule for later tiers.
@@ -287,6 +300,7 @@ public class AwakeningShould
             "one point short" => new("T9", 1, 49, 1, [], []),
             "in the bag at its threshold" => new("T9", 1, 50, 1, [], [], InBag: true),
             "already attuned, at its threshold, a miss" => new("T9", 1, 50, 1, [0.5], [], Attuned: true),
+            "tainted, at its threshold" => new("T9", 1, 50, 1, [], [], Tainted: true),
             _ => throw new ArgumentOutOfRangeException(nameof(@case), @case, null),
         };
 
@@ -299,6 +313,7 @@ public class AwakeningShould
             Rarity = ItemRarity.Rare,
             ItemLevel = setup.ItemLevel,
             Flags = setup.Attuned ? ItemInstanceFlags.Attuned : ItemInstanceFlags.None,
+            Tainted = setup.Tainted,
         };
         ItemInstanceModifier awake = TestModifiers.Modifier(amulet.InstanceId, CatalogKeys.ModifierId("S1 T9"), 0,
             (0, StatType.Strength, 1, null));
@@ -472,17 +487,18 @@ public class AwakeningShould
     }
 
     private sealed record WakeCase(string Tier, ushort ItemLevel, int Progress, int Value, double[] Doubles, long[] Integers,
-        bool InBag = false, bool Attuned = false);
+        bool InBag = false, bool Attuned = false, bool Tainted = false);
 
     /// <summary>
     /// <paramref name="character" />, at level 10, wearing (or holding in its bag) an identified rare amulet of
     /// <paramref name="itemLevel" /> with "S5 Fire T9" sealed at <paramref name="progress" />, and a second such piece
     /// (a ring on Finger1) when <paramref name="twoItems" /> says; its stats refreshed as it enters the world, which counts
     /// the worn seals, and joined to the instance. Answers the sealed items' ids. Unidentified when
-    /// <paramref name="identified" /> says so, which the equip rule never lets a character wear.
+    /// <paramref name="identified" /> says so, which the equip rule never lets a character wear; Tainted when
+    /// <paramref name="tainted" /> says so.
     /// </summary>
     private static ItemInstanceId[] Dress(MapInstance instance, CharacterEntity character, ushort itemLevel = 1,
-        int progress = 0, bool inBag = false, bool twoItems = false, bool identified = true)
+        int progress = 0, bool inBag = false, bool twoItems = false, bool identified = true, bool tainted = false)
     {
         character.Level = WearerLevel;
         ItemModifierStat line = ItemModifierSeed.Stats().Where(l => l.ModifierId == s_sealedAffix).OrderBy(l => l.Index).First();
@@ -492,7 +508,7 @@ public class AwakeningShould
         InventoryItem[] pieces =
         [
             .. kit.Select(piece => TestCharacters.Item(piece.Slot, Data.FindItemTemplate(new ItemTemplateId(piece.Template))!,
-                identified: identified) with { Rarity = ItemRarity.Rare, ItemLevel = itemLevel }),
+                identified: identified) with { Rarity = ItemRarity.Rare, ItemLevel = itemLevel, Tainted = tainted }),
         ];
         character.ItemModifiers.Load(
         [

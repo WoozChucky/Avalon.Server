@@ -123,7 +123,7 @@ public static class TradeRules
             }
 
             items[i] = new CarriedItem(held, offer.Character.ItemModifiers.BaseStatsOf(held.InstanceId),
-                offer.Character.ItemModifiers.Of(held.InstanceId));
+                offer.Character.ItemModifiers.Of(held.InstanceId), offer.Character.ItemModifiers.InstabilityOf(held.InstanceId));
         }
 
         return items;

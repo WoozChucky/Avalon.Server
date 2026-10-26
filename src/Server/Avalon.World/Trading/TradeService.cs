@@ -590,6 +590,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             entry.BaseStats = _modifierDtos.RefillBaseStats(entry.BaseStats, in held.BaseStats);
             entry.Name = held.Name;
             entry.Identified = item.Identified;
+            entry.Tainted = item.Tainted;
             items.Add(entry);
         }
 

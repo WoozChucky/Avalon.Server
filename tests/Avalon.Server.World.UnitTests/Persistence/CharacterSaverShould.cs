@@ -634,12 +634,12 @@ public sealed class CharacterSaverShould : IDisposable
                 new TradeRecordItem
                 {
                     ItemInstanceId = aItem.InstanceId, GiverCharacterId = a.Data.Id, TemplateId = aItem.TemplateId, Count = aItem.Count,
-                    Identified = aItem.Identified,
+                    Identified = aItem.Identified, Instability = 0, Tainted = aItem.Tainted,
                 },
                 new TradeRecordItem
                 {
                     ItemInstanceId = bItem.InstanceId, GiverCharacterId = b.Data.Id, TemplateId = bItem.TemplateId, Count = bItem.Count,
-                    Identified = bItem.Identified,
+                    Identified = bItem.Identified, Instability = 0, Tainted = bItem.Tainted,
                 },
             ],
         };

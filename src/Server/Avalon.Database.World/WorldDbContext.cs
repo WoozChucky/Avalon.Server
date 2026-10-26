@@ -1722,6 +1722,26 @@ public class WorldDbContext : DbContext
 
         SeedForestStorylineItems(builder);
         SeedForestChainItems(builder);
+
+        // Item 152 (#1180 part C): the Glyph, the one template every glyph is a copy of. A glyph is one affix kept from an
+        // item destroyed at the Resonance Workbench, carried as its copy's one modifier row, so the template links none and
+        // has no base stats. It never stacks, and sells and buys for nothing, so a vendor refuses it; it can be destroyed.
+        // The world finds it by its subclass (ItemsPatch.Glyph), never by this id.
+        builder.HasData(new ItemTemplate
+        {
+            Id = 152,
+            Name = "Glyph",
+            Class = ItemClass.Crafting,
+            SubClass = ItemSubClass.Glyph,
+            Flags = ItemTemplateFlags.None,
+            MaxStackSize = 1,
+            DisplayId = 152,
+            Rarity = ItemRarity.Common,
+            BaseKind = null,
+            Slot = null,
+            BuyPrice = 0,
+            SellPrice = 0,
+        });
     }
 
     /// <summary>
@@ -3573,7 +3593,7 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// Doodads: interactable world objects (chests, barrels, shrines, fountains, quest objects). Reference data; the
     /// world's doodad catalog validates it on load. Interaction 0 None, 1 Click; UseLimit 1 OncePerInstance, 2 Unlimited;
-    /// SpentLook 1 ShowUsed, 2 Despawn; Collision 0 None, 1 Box; Service null or 1 Identify; the gate conditions 1 NotStarted, 2 OnObjective,
+    /// SpentLook 1 ShowUsed, 2 Despawn; Collision 0 None, 1 Box; Service null or 1 Workbench; the gate conditions 1 NotStarted, 2 OnObjective,
     /// 3 Completed, 4 NotCompleted. The gate quest and objective ids are plain columns, no foreign key, so seed order
     /// never trips them; the catalog checks them. Every check reads the same on Postgres and on the SQLite the tests
     /// build the model on, and an upper bound refuses NaN too, which Postgres sorts above every number.
@@ -3656,10 +3676,10 @@ public class WorldDbContext : DbContext
             CaravanDoodad(6, "Notice Board", "town-kit", "avalon_notice_board", "avalon_notice_board_pinned", 0,
                 usable: (9, 902)));
 
-        // The Resonance Workbench (#1179), in Glimmerdell's market: a click opens the client's identify window, and each
-        // identify request names it and is checked against its range. Clicked, never spent, walk-through (its box is the
-        // town piece's, as the notice board's), with no script, loot or gate, so it is never hidden. An Unlimited doodad
-        // never shows its spent look; the column is not nullable, so it holds ShowUsed.
+        // The Resonance Workbench (#1179), in Glimmerdell's market: a click opens the client's Workbench window, and each
+        // request (identify, extract, imprint) names it and is checked against its range. Clicked, never spent,
+        // walk-through (its box is the town piece's, as the notice board's), with no script, loot or gate, so it is never
+        // hidden. An Unlimited doodad never shows its spent look; the column is not nullable, so it holds ShowUsed.
         builder.HasData(new DoodadTemplate
         {
             Id = 7,
@@ -3673,7 +3693,7 @@ public class WorldDbContext : DbContext
             UseLimit = DoodadUseLimit.Unlimited,
             SpentLook = DoodadSpentLook.ShowUsed,
             Collision = DoodadCollision.None,
-            Service = DoodadService.Identify,
+            Service = DoodadService.Workbench,
         });
     }
 

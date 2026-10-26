@@ -41,6 +41,8 @@ public class MapSessionFilterShould
     [InlineData(NetworkPacketType.CMSG_ITEM_DESTROY)]
     [InlineData(NetworkPacketType.CMSG_ITEM_USE)]
     [InlineData(NetworkPacketType.CMSG_ITEM_IDENTIFY)]
+    [InlineData(NetworkPacketType.CMSG_ITEM_EXTRACT)]
+    [InlineData(NetworkPacketType.CMSG_ITEM_IMPRINT)]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUY)]
     [InlineData(NetworkPacketType.CMSG_VENDOR_SELL)]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK)]

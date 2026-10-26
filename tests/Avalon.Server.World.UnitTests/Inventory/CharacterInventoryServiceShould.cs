@@ -576,5 +576,9 @@ public class CharacterInventoryServiceShould
 
         public AwakenedModifier Awaken(ItemInstanceModifier sealedRow, ushort itemLevel, ItemModifierCatalog catalog) =>
             inner.Awaken(sealedRow, itemLevel, catalog);
+
+        public ImprintedRows Imprint(IReadOnlyList<ItemInstanceModifier> targetRows, ItemInstanceModifier glyphRow,
+            ItemInstanceId target, ItemBaseKind kind, ushort itemLevel, ushort instability, ItemModifierCatalog catalog) =>
+            inner.Imprint(targetRows, glyphRow, target, kind, itemLevel, instability, catalog);
     }
 }

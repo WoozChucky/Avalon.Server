@@ -8,7 +8,10 @@ using Avalon.World.Reload;
 
 namespace Avalon.World.Inventory;
 
-/// <summary>One item on the wire, the same for the login snapshot, the per-tick update, a refusal and the bank.</summary>
+/// <summary>
+/// One item on the wire, the same for the login snapshot, the per-tick update, a refusal, the bank and the buyback list:
+/// whether it is Tainted (#1180), and never its instability.
+/// </summary>
 public static class ItemSlotDtoMapper
 {
     /// <summary>
@@ -76,5 +79,6 @@ public static class ItemSlotDtoMapper
             Name = name,
             BaseStats = baseStats,
             Identified = item.Identified,
+            Tainted = item.Tainted,
         };
 }

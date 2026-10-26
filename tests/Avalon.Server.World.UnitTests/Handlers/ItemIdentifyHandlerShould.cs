@@ -240,14 +240,14 @@ public class ItemIdentifyHandlerShould
         {
             var id = new ItemInstanceId(Guid.CreateVersion7());
             var item = new InventoryItem(Slot, id, s_chest.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Magic, 9, null,
-                identified);
+                identified, Tainted: false);
             return new CarriedItem(item, new ItemBaseStats { Armour = 8 },
             [
                 Modifier(id, CatalogKeys.ModifierId("implicit IncreasedMaximumLife T9"), 0,
                     (0, StatType.IncreasedMaximumLife, 2, null)),
                 Modifier(id, CatalogKeys.ModifierId("P11 T7"), 1, (0, StatType.Health, 5, null)),
                 Modifier(id, CatalogKeys.ModifierId("S14 T9"), 2, (0, StatType.IncreasedMaximumLife, 1, null)),
-            ]);
+            ], 0);
         }
     }
 }

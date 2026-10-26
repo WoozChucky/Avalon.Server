@@ -58,7 +58,7 @@ public static class TradeSaveBatch
         {
             InventoryItem item = carried.Item;
             landing.Add(item.Slot);
-            upsertItems.Add(CharacterSaveSnapshot.ItemRow(item, row.Id, now));
+            upsertItems.Add(CharacterSaveSnapshot.ItemRow(item, row.Id, now, carried.Instability));
             upsertSlots.Add(new CharacterInventory
             {
                 CharacterId = row.Id,

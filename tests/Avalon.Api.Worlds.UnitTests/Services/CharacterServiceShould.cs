@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Avalon.Api.Contract;
 using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Services;
@@ -52,7 +54,8 @@ public sealed class CharacterServiceShould : IDisposable
     /// base stat; the rings carry none. An unidentified rare chest shows its rarity, item level, armour and implicit, and
     /// neither its prefix, its suffix nor its name, to every caller. Each rare chest's prefix is sealed (#1180): the
     /// identified one shows the seal's progress and the threshold for its item level, the unidentified one neither. Only
-    /// the attuned ring reads attuned.
+    /// the attuned ring reads attuned. The identified rare chest bricked (#1180): it reads Tainted and its imprinted suffix
+    /// reads imprinted, and its instability, 130, appears nowhere in the read.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
@@ -100,6 +103,12 @@ public sealed class CharacterServiceShould : IDisposable
         static ItemInstanceModifier SealedAt(int progress, ItemInstanceModifier row)
         {
             row.SealProgress = progress;
+            return row;
+        }
+
+        static ItemInstanceModifier Imprinted(ItemInstanceModifier row)
+        {
+            row.Imprinted = true;
             return row;
         }
 
@@ -157,10 +166,12 @@ public sealed class CharacterServiceShould : IDisposable
                 Identified = true,
                 Id = sealedChestId, TemplateId = new ItemTemplateId(37), CharacterId = id, Count = 1,
                 Rarity = Avalon.Common.ItemRarity.Rare, ItemLevel = 12, RareName = "Grave Hide",
+                Tainted = true, Instability = 130,
                 Modifiers =
                 [
                     SealedAt(5, Rolled(sealedChestId, Seeded("P11", null, 7), 1, (0, Avalon.Domain.World.StatType.Health, 5, null))),
                     Rolled(sealedChestId, chestLife, 0, (0, Avalon.Domain.World.StatType.IncreasedMaximumLife, 2, null)),
+                    Imprinted(Rolled(sealedChestId, Seeded("S14", null, 9), 2, (0, Avalon.Domain.World.StatType.IncreasedMaximumLife, 1, null))),
                 ],
             },
         });
@@ -226,10 +237,25 @@ public sealed class CharacterServiceShould : IDisposable
         // #1180: the identified rare chest's sealed prefix shows its 5 points and the 160 it wakes at (item level 12:
         // 40 + 120), its implicit no seal; the unidentified chest hides its sealed prefix with its numbers.
         CharacterInventoryItemDto sealedChest = Assert.Single(inventory.Items, i => i.ItemId == sealedChestId.Value);
-        Assert.Equal([(chestLife, (int?)null, (int?)null), (Seeded("P11", null, 7), 5, 160)],
+        Assert.Equal([(chestLife, (int?)null, (int?)null), (Seeded("P11", null, 7), 5, 160), (Seeded("S14", null, 9), null, null)],
             sealedChest.Modifiers.Select(m => (m.ModifierId, m.SealProgress, m.SealThreshold)));
         Assert.All(rareChest.Modifiers, m => Assert.Equal(((int?)null, (int?)null), (m.SealProgress, m.SealThreshold)));
         Assert.Equal([itemId.Value], inventory.Items.Where(i => i.Attuned).Select(i => i.ItemId));
+
+        // #1180: only the bricked chest reads Tainted, and only its imprinted suffix reads imprinted.
+        Assert.Equal([sealedChestId.Value], inventory.Items.Where(i => i.Tainted).Select(i => i.ItemId));
+        Assert.Equal([(sealedChestId.Value, Seeded("S14", null, 9))], inventory.Items
+            .SelectMany(i => i.Modifiers.Where(m => m.Imprinted).Select(m => (i.ItemId, m.ModifierId))));
+
+        // Its instability is never sent (#1180): not as a member, not as its number, under the API's JSON options. A
+        // Guid's groups are 4 hex digits or more, so "130" standing alone is no part of an item's id.
+        string json = JsonSerializer.Serialize(inventory, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        });
+        Assert.DoesNotContain("instab", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(@"\b130\b", json);
     }
 
     /// <summary>A seeded Resonance theme's id, by its name (#1180): no test holds an id.</summary>

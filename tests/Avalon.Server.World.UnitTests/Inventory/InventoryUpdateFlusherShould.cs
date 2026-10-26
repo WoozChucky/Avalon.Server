@@ -156,7 +156,7 @@ public class InventoryUpdateFlusherShould
 
         InventoryFor(character).TryRemove(banked.InstanceId, 1);
         InventoryFor(character).TryAddInstance(new CarriedItem(rare, default,
-            [TestModifiers.Modifier(rare.InstanceId, 203, 0, (0, StatType.AddedFireDamage, 3, 7))]));
+            [TestModifiers.Modifier(rare.InstanceId, 203, 0, (0, StatType.AddedFireDamage, 3, 7))], 0));
         InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         InventorySlotUpdateDto slot = Assert.Single(Read(Assert.Single(_sent)).Slots);

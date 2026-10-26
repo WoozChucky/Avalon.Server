@@ -243,6 +243,8 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                     ItemLevel = 9,
                     RareName = "Thorn Bite",
                     Identified = false,
+                    Instability = 120,
+                    Tainted = true,
                     BaseStats =
                     [
                         new TradeRecordItemBaseStat { TradeId = tradeId, ItemInstanceId = sword.Id, Stat = ItemBaseStat.DamageMax, Value = 9 },
@@ -258,6 +260,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                             Ordinal = 0,
                             ModifierId = 202,
                             SealProgress = 17,
+                            Imprinted = true,
                             Values =
                             [
                                 new TradeRecordItemModifierValue
@@ -286,13 +289,13 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                 .Include(i => i.Modifiers).ThenInclude(m => m.Values)
                 .Include(i => i.BaseStats)
                 .SingleAsync(i => i.TradeId == record.Id);
-            Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9, "Thorn Bite", false),
-                (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel, moved.RareName, moved.Identified));
+            Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9, "Thorn Bite", false, (ushort)120, true),
+                (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel, moved.RareName, moved.Identified, moved.Instability, moved.Tainted));
             Assert.Equal([(ItemBaseStat.DamageMin, 4), (ItemBaseStat.DamageMax, 9)],
                 moved.BaseStats.OrderBy(s => s.Stat).Select(s => (s.Stat, s.Value)));
             TradeRecordItemModifier modifier = Assert.Single(moved.Modifiers);
-            Assert.Equal((modifierId, (byte)0, 202, (int?)17),
-                (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId, modifier.SealProgress));
+            Assert.Equal((modifierId, (byte)0, 202, (int?)17, true),
+                (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId, modifier.SealProgress, modifier.Imprinted));
             Assert.Equal([(StatType.AddedFireDamage, 2, (int?)5), (StatType.Strength, 4, null)],
                 modifier.Values.OrderBy(v => v.Index).Select(v => (v.Stat, v.Value, v.Value2)));
         }
@@ -304,17 +307,21 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     /// likewise, one row per stat however often they are written. An item the save does not rewrite keeps its modifiers,
     /// their values and its base stats. A rare item keeps the name its roll gave it (#1179), and only a rare one may carry
     /// a name (CK_ItemInstances_RareName). Whether it is identified is written as the item holds it, and a common copy is
-    /// never unidentified (CK_ItemInstances_Identified).
+    /// never unidentified (CK_ItemInstances_Identified). Its instability, its Tainted flag and each row's Imprinted flag
+    /// (#1180) are written as held, and an item is Tainted exactly when its instability reached the brick.
     /// </summary>
     [Fact]
     public async Task Replace_an_items_modifier_rows_by_id_in_its_save()
     {
         CharacterRow row = await SeedCharacterAsync(1);
         ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Rare, itemLevel: 7, rareName: "Thorn Bite", identified: false);
+        item.Instability = 130;   // #1180: bricked, so Tainted (CK_ItemInstances_Tainted)
+        item.Tainted = true;
         ItemInstance untouched = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 4);
         ItemInstanceModifier a = Modifier(item.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
         a.SealProgress = 0;   // every seal starts at 0 (B-R4): the check accepts it
         ItemInstanceModifier b = Modifier(item.Id, 10103, 1, Value(0, StatType.Strength, 8, null));
+        b.Imprinted = true;
         ItemInstanceModifier other = Modifier(untouched.Id, 10103, 0, Value(0, StatType.Strength, 5, null));
         await _saves.WriteAsync([Batch(row, upsertItems: [item, untouched],
             upsertSlots: [Slot(row.Id, 0, item.Id), Slot(row.Id, 1, untouched.Id)],
@@ -325,6 +332,8 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Equal((ItemRarity.Rare, (ushort)7, "Thorn Bite", false), (saved.Rarity, saved.ItemLevel, saved.RareName, saved.Identified));
         Assert.Equal(Describe(a, b), Describe([.. saved.Modifiers]));
         Assert.Equal([0, null], saved.Modifiers.OrderBy(m => m.Ordinal).Select(m => m.SealProgress));
+        Assert.Equal(((ushort)130, true), (saved.Instability, saved.Tainted));
+        Assert.Equal([false, true], saved.Modifiers.OrderBy(m => m.Ordinal).Select(m => m.Imprinted));
         Assert.Equal([(ItemBaseStat.Armour, 9), (ItemBaseStat.BlockChance, 6)], BaseStatsOf(saved));
 
         ItemInstanceModifier kept = Modifier(item.Id, 202, 1, Value(0, StatType.AddedFireDamage, 3, 6), a.Id);
@@ -352,6 +361,19 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         await Assert.ThrowsAnyAsync<DbUpdateException>(() => _saves.WriteAsync(
             [Batch(row, upsertItems: [unidentifiedCommon], upsertSlots: [Slot(row.Id, 2, unidentifiedCommon.Id)])]));
 
+        // #1180: an item is Tainted exactly when its instability reached the brick (CK_ItemInstances_Tainted).
+        ItemInstance[] mistainted = [Item(row.Id, count: 1), Item(row.Id, count: 1)];
+        (mistainted[0].Instability, mistainted[0].Tainted) = (99, true);
+        (mistainted[1].Instability, mistainted[1].Tainted) = (100, false);
+        foreach (ItemInstance wrong in mistainted)
+        {
+            await Assert.ThrowsAnyAsync<DbUpdateException>(() => _saves.WriteAsync(
+                [Batch(row, upsertItems: [wrong], upsertSlots: [Slot(row.Id, 2, wrong.Id)])]));
+        }
+
+        Assert.False(await read.ItemInstances.AsNoTracking().AnyAsync(i => i.Id == mistainted[0].Id || i.Id == mistainted[1].Id));
+        Assert.False(await read.CharacterInventory.AsNoTracking().AnyAsync(s => s.Slot == 2));
+
         // #1180: a seal's progress is never negative (CK_ItemInstanceModifiers_SealProgress), and an item carries at most
         // one seal (IX_ItemInstanceModifiers_Sealed). Either refuses the whole save.
         ItemInstanceModifier Row(ItemInstanceModifier like, int? sealProgress)
@@ -375,6 +397,20 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Equal(Describe(added, kept), Describe([.. unchanged.Modifiers]));
         Assert.All(unchanged.Modifiers, m => Assert.Null(m.SealProgress));
         Assert.Equal([(ItemBaseStat.Armour, 11)], BaseStatsOf(unchanged));
+
+        // C-R16: one save may move the seal between two rows of one item. The row losing it is cleared in its own
+        // statement before the row gaining it is written, so the one-seal index never sees two, whichever row's id is the
+        // lower: the seal goes to kept, then back to added, each through a fresh pair of rows.
+        (int? Added, int? Kept)[] seals = [(0, null), (null, 3), (3, null)];
+        foreach ((int? addedSeal, int? keptSeal) in seals)
+        {
+            await _saves.WriteAsync([Batch(row,
+                upsertItems: [Item(row.Id, count: 1, item.Id, ItemRarity.Rare, 7, "Thorn Bite")],
+                modifiers: Write([BaseStat(item.Id, ItemBaseStat.Armour, 11)], Row(added, addedSeal), Row(kept, keptSeal)))]);
+
+            ItemInstance moved = await SavedAsync(row.Id, item.Id);
+            Assert.Equal([addedSeal, keptSeal], moved.Modifiers.OrderBy(m => m.Ordinal).Select(m => m.SealProgress));
+        }
     }
 
     /// <summary>

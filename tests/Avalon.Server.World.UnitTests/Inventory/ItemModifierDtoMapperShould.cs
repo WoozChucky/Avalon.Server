@@ -31,7 +31,8 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 /// What a client is told of an unidentified copy (#1179), on every message that describes one: its template, rarity,
 /// item level, base stats and implicit line, and none of its prefixes, suffixes (a sealed one's progress and threshold
 /// included, #1180), a unique's own line or its name. Each path builds its real message and reads it back off the wire,
-/// over the seeded templates and catalog.
+/// over the seeded templates and catalog. An identified copy shows an imprinted affix as imprinted, and its Tainted mark on
+/// the slot and trade paths (#1180).
 /// </summary>
 public class ItemModifierDtoMapperShould
 {
@@ -42,7 +43,7 @@ public class ItemModifierDtoMapperShould
     /// <summary>A copy as one message showed it: modifiers and base stats as lines, null for none.</summary>
     private sealed record Seen(
         ulong TemplateId, ItemRarity Rarity, uint ItemLevel, bool Identified, string? Name, string? Modifiers,
-        string? BaseStats);
+        string? BaseStats, bool Tainted);
 
     [Theory]
     [InlineData("snapshot")]
@@ -58,8 +59,8 @@ public class ItemModifierDtoMapperShould
     [InlineData("identified, buyback")]
     public void Hide_an_unidentified_items_affixes_and_name_on_every_path(string path)
     {
-        // The chest's prefix is sealed (#1180): identified, it shows the seal's progress and threshold; unidentified, it
-        // sends neither the sealed line nor its numbers.
+        // The chest's prefix is sealed and its suffix imprinted (#1180): identified, it shows the seal's progress and
+        // threshold, the imprint and its Tainted mark; unidentified, it sends neither affix nor their numbers.
         bool identified = path.StartsWith("identified", StringComparison.Ordinal);
         CarriedItem chest = Chest(identified);
 
@@ -67,14 +68,15 @@ public class ItemModifierDtoMapperShould
             chest);
 
         Assert.Equal(identified
-            ? new Seen(s_chest.Id.Value, ItemRarity.Rare, 9, true, "Moss Shell", Lines(chest.Modifiers, 9), "Armour 8")
-            : new Seen(s_chest.Id.Value, ItemRarity.Rare, 9, false, null, Lines([chest.Modifiers[0]], 9), "Armour 8"),
+            ? new Seen(s_chest.Id.Value, ItemRarity.Rare, 9, true, "Moss Shell", Lines(chest.Modifiers, 9), "Armour 8", true)
+            : new Seen(s_chest.Id.Value, ItemRarity.Rare, 9, false, null, Lines([chest.Modifiers[0]], 9), "Armour 8", false),
             seen);
     }
 
     /// <summary>
     /// A pooled entry is written whole (#1180): one a sealed row filled, refilled once that row has woken (an awake copy
-    /// in its place, as a wake replaces the item's list), carries no seal, so a client never shows a woken affix sealed.
+    /// in its place, as a wake replaces the item's list), carries no seal, so a client never shows a woken affix sealed;
+    /// and one an imprinted row filled, refilled with a row that is not, reads not imprinted.
     /// </summary>
     [Fact]
     public void Clear_a_reused_entrys_seal_when_it_shows_an_awake_row()
@@ -88,13 +90,17 @@ public class ItemModifierDtoMapperShould
         ItemInstanceModifier awake = chest.Modifiers[1].CopyRow();
         awake.SealProgress = null;
         awake.Values = chest.Modifiers[1].Values;
-        List<ItemInstanceModifier> woken = [chest.Modifiers[0], awake, chest.Modifiers[2]];
+        ItemInstanceModifier plain = chest.Modifiers[2].CopyRow();
+        plain.Imprinted = false;
+        plain.Values = chest.Modifiers[2].Values;
+        List<ItemInstanceModifier> woken = [chest.Modifiers[0], awake, plain];
 
         List<ItemModifierDto>? refilled = pool.Refill(entry, woken, s_data.Items.Modifiers, identified: true,
             chest.Item.ItemLevel);
 
         Assert.Same(entry, refilled);
-        Assert.Equal(Lines(woken, 9), Lines(RoundTrip(new ItemSlotDto { Modifiers = refilled }).Modifiers));
+        List<ItemModifierDto> shown = RoundTrip(new ItemSlotDto { Modifiers = refilled }).Modifiers!;
+        Assert.Equal(Lines(woken, 9), Lines(shown));
     }
 
     /// <summary>
@@ -107,31 +113,34 @@ public class ItemModifierDtoMapperShould
         CarriedItem unidentified = Signet(identified: false);
         CarriedItem identified = Signet(identified: true);
         var hidden = new Seen(s_signet.Id.Value, ItemRarity.Unique, 5, false, null, Lines([unidentified.Modifiers[0]], 5),
-            null);
+            null, false);
 
         Assert.Equal(hidden, Show("update", unidentified));
         Assert.Equal(hidden, Show("trade", unidentified));
-        Assert.Equal(new Seen(s_signet.Id.Value, ItemRarity.Unique, 5, true, null, Lines(identified.Modifiers, 5), null),
+        Assert.Equal(new Seen(s_signet.Id.Value, ItemRarity.Unique, 5, true, null, Lines(identified.Modifiers, 5), null, false),
             Show("update", identified));
     }
 
     /// <summary>
-    /// A rare Ironbound Chestguard: its implicit, a prefix sealed with 17 points (#1180) and a suffix, and its rolled
-    /// armour.
+    /// A rare Ironbound Chestguard: its implicit, a prefix sealed with 17 points (#1180) and an imprinted suffix, and its
+    /// rolled armour. Identified, it is Tainted (#1180).
     /// </summary>
     private static CarriedItem Chest(bool identified)
     {
         var id = new ItemInstanceId(Guid.CreateVersion7());
         var item = new InventoryItem(0, id, s_chest.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Rare, 9, "Moss Shell",
-            identified);
+            identified, Tainted: identified);
         ItemInstanceModifier sealedPrefix = Modifier(id, CatalogKeys.ModifierId("P11 T7"), 1, (0, StatType.Health, 5, null));
         sealedPrefix.SealProgress = 17;
+        ItemInstanceModifier imprintedSuffix = Modifier(id, CatalogKeys.ModifierId("S14 T9"), 2,
+            (0, StatType.IncreasedMaximumLife, 1, null));
+        imprintedSuffix.Imprinted = true;
         return new CarriedItem(item, new ItemBaseStats { Armour = 8 },
         [
             Modifier(id, CatalogKeys.ModifierId("implicit IncreasedMaximumLife T9"), 0, (0, StatType.IncreasedMaximumLife, 2, null)),
             sealedPrefix,
-            Modifier(id, CatalogKeys.ModifierId("S14 T9"), 2, (0, StatType.IncreasedMaximumLife, 1, null)),
-        ]);
+            imprintedSuffix,
+        ], 0);
     }
 
     /// <summary>A Thornheart Signet: its base's implicit, then its own line, and no base stats.</summary>
@@ -139,7 +148,7 @@ public class ItemModifierDtoMapperShould
     {
         var id = new ItemInstanceId(Guid.CreateVersion7());
         var item = new InventoryItem(0, id, s_signet.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Unique, 5, null,
-            identified);
+            identified, Tainted: false);
         return new CarriedItem(item, default,
         [
             Modifier(id, CatalogKeys.ModifierId("implicit AddedLightningDamageToAttacks T8"), 0,
@@ -147,7 +156,7 @@ public class ItemModifierDtoMapperShould
             Modifier(id, CatalogKeys.ModifierId("unique 65"), 1,
                 (0, StatType.Health, 5, null), (1, StatType.AddedPhysicalDamageToAttacks, 1, 3),
                 (2, StatType.CritMultiplier, 4, null)),
-        ]);
+        ], 0);
     }
 
     /// <summary>The copy as <paramref name="path" />'s message carries it to a client.</summary>
@@ -258,29 +267,32 @@ public class ItemModifierDtoMapperShould
     };
 
     private static Seen Of(ItemSlotDto slot) => new(slot.ItemTemplateId, slot.Rarity, slot.ItemLevel, slot.Identified,
-        slot.Name, Lines(slot.Modifiers), Lines(slot.BaseStats));
+        slot.Name, Lines(slot.Modifiers), Lines(slot.BaseStats), slot.Tainted);
 
     private static Seen Of(TradeItemDto item) => new(item.ItemTemplateId, item.Rarity, item.ItemLevel, item.Identified,
-        item.Name, Lines(item.Modifiers), Lines(item.BaseStats));
+        item.Name, Lines(item.Modifiers), Lines(item.BaseStats), item.Tainted);
 
-    /// <summary>A drop carries no Identified (it is exactly Common) and no name.</summary>
+    /// <summary>A drop carries no Identified (it is exactly Common), no name and no Tainted mark (it is a fresh roll).</summary>
     private static Seen Of(LootDropDto drop) => new(drop.ItemTemplateId!.Value, drop.Rarity, drop.ItemLevel,
-        drop.Rarity == ItemRarity.Common, null, Lines(drop.Modifiers), Lines(drop.BaseStats));
+        drop.Rarity == ItemRarity.Common, null, Lines(drop.Modifiers), Lines(drop.BaseStats), false);
 
     private static string? Lines(List<ItemModifierDto>? modifiers) => modifiers is null
         ? null
         : string.Join(" | ", modifiers.Select(m =>
             $"{m.ModifierId}: " + string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value}..{v.Value2}")) +
-            (m.SealProgress is null && m.SealThreshold is null ? "" : $" sealed {m.SealProgress}/{m.SealThreshold}")));
+            (m.SealProgress is null && m.SealThreshold is null ? "" : $" sealed {m.SealProgress}/{m.SealThreshold}") +
+            (m.Imprinted ? " imprinted" : "")));
 
     /// <summary>
     /// The rows of a copy of <paramref name="itemLevel" /> as <see cref="Lines(List{ItemModifierDto})" /> words a
-    /// message's: a sealed row with its progress and its threshold (" sealed 17/130" at item level 9, 40 + 90).
+    /// message's: a sealed row with its progress and its threshold (" sealed 17/130" at item level 9, 40 + 90), and an
+    /// imprinted row marked " imprinted" (#1180).
     /// </summary>
     private static string Lines(IReadOnlyList<ItemInstanceModifier> modifiers, ushort itemLevel) =>
         string.Join(" | ", modifiers.Select(m =>
             $"{m.ModifierId}: " + string.Join(", ", m.Values.Select(v => $"{(ItemStat)v.Stat} {v.Value}..{v.Value2}")) +
-            (m.SealProgress is { } progress ? $" sealed {progress}/{ItemAwakening.Threshold(itemLevel)}" : "")));
+            (m.SealProgress is { } progress ? $" sealed {progress}/{ItemAwakening.Threshold(itemLevel)}" : "") +
+            (m.Imprinted ? " imprinted" : "")));
 
     private static string? Lines(List<ItemBaseStatDto>? baseStats) =>
         baseStats is null ? null : string.Join(", ", baseStats.Select(b => $"{b.Stat} {b.Value}"));

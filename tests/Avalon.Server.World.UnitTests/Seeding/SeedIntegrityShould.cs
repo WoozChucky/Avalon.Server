@@ -2093,8 +2093,8 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1179: the one service doodad is the Resonance Workbench, an Identify doodad clicked within 5 m, never spent and
-    /// walk-through (its box is the town piece's), placed once, in Glimmerdell; the catalog loads it as Identify.
+    /// #1179: the one service doodad is the Resonance Workbench, a Workbench doodad clicked within 5 m, never spent and
+    /// walk-through (its box is the town piece's), placed once, in Glimmerdell; the catalog loads it as Workbench.
     /// </summary>
     [Fact]
     public void Seed_one_resonance_workbench_in_glimmerdell()
@@ -2103,7 +2103,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         DoodadTemplate t = Assert.Single(context.DoodadTemplates.AsNoTracking().AsEnumerable(), d => d.Service is not null);
-        Assert.Equal(("Resonance Workbench", "props-kit", "Workbench", DoodadService.Identify),
+        Assert.Equal(("Resonance Workbench", "props-kit", "Workbench", DoodadService.Workbench),
             (t.Name, t.ModelKit, t.ModelKey, t.Service));
         Assert.Equal(((string?)null, (string?)null, (string?)null, (string?)null),
             (t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip));
@@ -2116,7 +2116,7 @@ public class SeedIntegrityShould
 
         // Load_every_seeded_doodad_through_the_catalog_without_refusing_any holds that none is refused; this, its service.
         Assert.True(SeededDoodadCatalog(context).TryGet(t.Id, out DoodadTemplateView? view));
-        Assert.Equal(DoodadService.Identify, view.Service);
+        Assert.Equal(DoodadService.Workbench, view.Service);
     }
 
     /// <summary>The seeded doodads loaded as the world loads them, against the seeded loot, auras, quests and scripts.</summary>
@@ -2725,6 +2725,39 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
+    /// #1180 part C (C-R1, C-R2): the Glyph is one seeded template, a Common crafting item of its own subclass that never
+    /// stacks, sells or buys for nothing (so a vendor refuses it) and can be destroyed; it is no base, carries no base
+    /// stats and links no modifier, since each glyph's one modifier row is its own. The patch finds it by subclass.
+    /// </summary>
+    [Fact]
+    public async Task Seed_the_glyph_as_one_crafting_template_and_price_every_tier_it_can_carry()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var templates = context.ItemTemplates.AsNoTracking().ToList();
+
+        ItemTemplate glyph = Assert.Single(templates, t => t.SubClass == ItemSubClass.Glyph);
+        Assert.Equal((ItemClass.Crafting, ItemRarity.Common, 1u, 0u, 0u),
+            (glyph.Class, glyph.Rarity, glyph.MaxStackSize, glyph.SellPrice, glyph.BuyPrice));
+        Assert.False(glyph.Flags.HasFlag(ItemTemplateFlags.NoDestroy));
+        Assert.Equal(((ItemBaseKind?)null, (ItemSlotType?)null), (glyph.BaseKind, glyph.Slot));
+        Assert.Empty(glyph.BaseStats);
+        Assert.DoesNotContain(context.ItemTemplateModifiers.AsNoTracking().ToList(), l => l.TemplateId.Value == glyph.Id.Value);
+
+        var items = ItemsPatch.Build(templates, await new ItemModifierRepository(database,
+            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), [], AuraCatalog.Empty, NullLogger.Instance);
+        Assert.Same(glyph, items.Glyph);
+
+        // Every tier a seeded affix can carry onto a glyph has a default imprint cost, which configuration can change but
+        // never remove (C-R6).
+        Dictionary<byte, ulong> costs = new ItemConfiguration().ImprintCost;
+        Assert.All(ItemModifierSeed.Modifiers().Select(m => items.Modifiers.Find(m.Id)!)
+                .Where(m => m.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix),
+            affix => Assert.True(costs.ContainsKey(affix.Tier!.Value),
+                $"modifier {affix.Id}'s tier {affix.Tier} has no Game:Items:ImprintCost"));
+    }
+
+    /// <summary>
     /// #1179 (decisions 12-16, Review Focus 5): one full best-in-slot level-10 set stays within the content table's
     /// ceilings, worked out from the seed the way its budget check counts it. Every slot (head, shoulders, chest, hands,
     /// legs, feet, amulet, two rings, two trinkets, and the hands' best of a one-handed weapon with an off-hand or a
@@ -2948,6 +2981,46 @@ public class SeedIntegrityShould
         }
 
         Assert.True(raised > 0, "no seeded affix rose a tier at any item level");
+    }
+
+    /// <summary>
+    /// #1180 part C (C-R14): a brick rerolls every seeded prefix and suffix within its family's three weakest tiers and its
+    /// item's level. For each row, each base kind it weighs above 0 on, and each item level from its own to 10, the catalog
+    /// offers at least one row (a brick offered none fails rather than keep the tier), and exactly these, weakest first:
+    /// for each of the group's three largest tier numbers holding a row within the item level and weighing above 0 on the
+    /// kind, the lowest id of such rows.
+    /// </summary>
+    [Fact]
+    public async Task Brick_every_seeded_affix_within_its_familys_three_weakest_tiers_and_its_item_level()
+    {
+        ItemModifierCatalog catalog = await ItemModifierRepositories.SeededCatalog();
+        ItemModifier[] seeded = [.. ItemModifierSeed.Modifiers().Select(m => catalog.Find(m.Id)!)
+            .Where(m => m.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix)];
+        int[] offered = new int[ItemModifierCatalog.BrickTierCount];
+        foreach (ItemModifier row in seeded)
+        {
+            byte[] weakest = [.. seeded.Where(m => m.GroupId == row.GroupId).Select(m => m.Tier!.Value).Distinct()
+                .OrderDescending().Take(ItemModifierCatalog.BrickTierCount)];
+            foreach (ItemModifierWeight weight in row.Weights.Where(w => w.Weight > 0))
+            {
+                for (ushort itemLevel = row.RequiredItemLevel; itemLevel <= 10; itemLevel++)
+                {
+                    int n = catalog.BrickTiers(row, weight.BaseKind, itemLevel, offered);
+
+                    Assert.True(n >= 1, $"{row.Id} on {weight.BaseKind} at item level {itemLevel} is offered no tier");
+                    int[] expected =
+                    [
+                        .. weakest.Select(tier => seeded
+                                .Where(m => m.GroupId == row.GroupId && m.Tier == tier && m.RequiredItemLevel <= itemLevel
+                                            && m.Weights.Any(w => w.BaseKind == weight.BaseKind && w.Weight > 0))
+                                .Select(m => (int?)m.Id)
+                                .Min())
+                            .OfType<int>(),
+                    ];
+                    Assert.Equal(expected, offered[..n]);
+                }
+            }
+        }
     }
 
     /// <summary>

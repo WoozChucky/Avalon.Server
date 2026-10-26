@@ -49,6 +49,19 @@ public class ItemInstance : IDbEntity<ItemInstanceId>
     /// </summary>
     public required bool Identified { get; set; }
 
+    /// <summary>
+    /// The hidden running total of every imprint's instability roll (#1180), 0 on a copy never imprinted. World-side only:
+    /// never sent to a client, shown over REST, logged or exported. At <see cref="ItemInstability.BrickAt" /> the copy
+    /// bricks, so it never passes 199 (CK_ItemInstances_Instability holds it at 0 or more).
+    /// </summary>
+    public ushort Instability { get; set; }
+
+    /// <summary>
+    /// Whether the copy bricked (#1180): visible, and never modified or attuned again. True exactly when
+    /// <see cref="Instability" /> is at least <see cref="ItemInstability.BrickAt" /> (CK_ItemInstances_Tainted).
+    /// </summary>
+    public bool Tainted { get; set; }
+
     public DateTime UpdatedAt { get; set; }
 
     /// <summary>

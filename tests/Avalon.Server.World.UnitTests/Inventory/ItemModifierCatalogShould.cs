@@ -213,7 +213,8 @@ public class ItemModifierCatalogShould
         ];
         var log = new TestLog();
 
-        var patch = ItemsPatch.Build([sword, broken], new ItemModifierCatalog([unique, @implicit], links, NullLogger.Instance), [],
+        // With the one Glyph template a sound patch holds (#1180 part C), so the breach is the only error.
+        var patch = ItemsPatch.Build([sword, broken, TestStaticData.Glyph()], new ItemModifierCatalog([unique, @implicit], links, NullLogger.Instance), [],
             AuraCatalog.Empty, log);
 
         Assert.Null(patch.Find(new ItemTemplateId(Subject)));

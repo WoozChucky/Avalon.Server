@@ -93,7 +93,7 @@ public class InventoryFlushBenchmarks
             if (!Rolled)
             {
                 held[slot] = new InventoryItem(slot, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, 5, 0,
-                    ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, Identified: true);
+                    ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, Identified: true, Tainted: false);
                 continue;
             }
 
@@ -101,7 +101,7 @@ public class InventoryFlushBenchmarks
             // A plain copy is always identified; a magic one as the parameter says.
             bool identified = Identified || copy.Rarity == ItemRarity.Common;
             held[slot] = new InventoryItem(slot, copy.InstanceId, copy.TemplateId, 1, 0, ItemInstanceFlags.None,
-                copy.Rarity, copy.ItemLevel, copy.RareName, identified);
+                copy.Rarity, copy.ItemLevel, copy.RareName, identified, Tainted: false);
             var baseStats = new List<ItemInstanceBaseStat>();
             foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
                 baseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = copy.InstanceId, Stat = stat, Value = value });

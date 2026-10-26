@@ -82,6 +82,7 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     private readonly KeyedRows<ulong, ItemTemplate> _templates = Keyed(Templates);
     private readonly ItemModifierCatalog _modifiers = Modifiers;
     private readonly BaseLines _lines = BaseLines.Of(Templates, Modifiers);
+    private readonly ItemTemplate? _glyph = GlyphOf(Templates);
 
     /// <summary>
     /// This patch's stamp (#1179), unique in the process and never 0: what a name worked out from it is keyed by
@@ -116,6 +117,7 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
         {
             _templates = Keyed(value);
             _lines = BaseLines.Of(value, _modifiers);
+            _glyph = GlyphOf(value);
             Generation = NextGeneration();
         }
     }
@@ -126,6 +128,13 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     /// <see cref="Generation" />: no name is worked out from them.
     /// </summary>
     public ResonanceEffectCatalog Effects { get; init; } = ResonanceEffectCatalog.Empty;
+
+    /// <summary>
+    /// The template every glyph is a copy of (#1180 part C): the lowest-id template whose subclass is
+    /// <see cref="ItemSubClass.Glyph" />, or null when the patch holds none. Worked out when the templates are set; nothing
+    /// finds it by its id.
+    /// </summary>
+    public ItemTemplate? Glyph => _glyph;
 
     /// <summary>The template of that id, or null: by key, where a reader walked the templates.</summary>
     public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
@@ -141,7 +150,8 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     /// logged and left out whole, with its links, so the world never makes a copy of it, rather than kept with its links
     /// or base stats stripped (a stat-less unique, a unique standing in its line as a base, a chest without armour, a base
     /// without its implicit). A Unique template that links nothing is kept: one whose modifier the catalog refused has its
-    /// drops removed by the roll. The Resonance effects (#1180 part A2) are held to their rules against
+    /// drops removed by the roll. A patch kept with no Glyph template, or more than one, is logged at Error (#1180 part C;
+    /// <see cref="Glyph" />). The Resonance effects (#1180 part A2) are held to their rules against
     /// <paramref name="auras" />, the aura rows read in the same prepare (<see cref="ResonanceEffectCatalog" />).
     /// </summary>
     public static ItemsPatch Build(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers,
@@ -177,6 +187,15 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
                           ?? ItemBaseStatRules.NamedBaseProblem(unique, named));
         }
 
+        // Extraction makes its glyphs of the one Glyph template (#1180 part C): without it the Workbench extracts nothing,
+        // and with more than one the lowest id stands. Counted as Glyph finds them: a template without an id is none.
+        int glyphs = templates.Count(t => t is { SubClass: ItemSubClass.Glyph, Id: { } id } && !refused.Contains(id.Value));
+        if (glyphs != 1)
+        {
+            logger.LogError("The item templates hold {Count} Glyph templates, not one: {Outcome}", glyphs,
+                glyphs == 0 ? "nothing can be extracted" : "the lowest id is used");
+        }
+
         var catalog = new ResonanceEffectCatalog(effects, auras, logger);
         return refused.Count == 0
             ? new ItemsPatch(templates, modifiers) { Effects = catalog }
@@ -209,6 +228,10 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     public IReadOnlyList<IReadOnlyList<ItemTemplate>> LinesOf(ItemBaseKind kind) => _lines.Of(kind);
 
     private static long NextGeneration() => Interlocked.Increment(ref s_lastGeneration);
+
+    private static ItemTemplate? GlyphOf(IReadOnlyCollection<ItemTemplate> templates) =>
+        templates.Where(template => template is { SubClass: ItemSubClass.Glyph, Id: not null })
+            .MinBy(template => template.Id.Value);
 
     private static KeyedRows<ulong, ItemTemplate> Keyed(IReadOnlyCollection<ItemTemplate> templates) =>
         KeyedRows<ulong, ItemTemplate>.Over(templates, static template => template.Id?.Value);

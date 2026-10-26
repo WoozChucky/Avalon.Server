@@ -3410,6 +3410,23 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "baseStats": []
+    },
+    {
+      "id": 152,
+      "name": "Glyph",
+      "class": 4,
+      "subClass": 401,
+      "flags": 0,
+      "stackable": false,
+      "isTwoHanded": false,
+      "maxStackSize": 1,
+      "displayId": 152,
+      "rarity": 0,
+      "buyPrice": 0,
+      "sellPrice": 0,
+      "allowedClasses": [],
+      "requiresAnyAttribute": false,
+      "baseStats": []
     }
   ]
 }

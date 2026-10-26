@@ -5,7 +5,8 @@ namespace Avalon.World.Inventory;
 
 /// <summary>
 /// An item's modifiers and base stats on the wire (#1179), the same for a slot, a trade window entry and a drop. An
-/// unidentified copy sends its base stats and its implicit lines, and none of its prefixes, suffixes or unique lines.
+/// unidentified copy sends its base stats and its implicit lines, and none of its prefixes, suffixes or unique lines. A
+/// shown line says whether it was imprinted (#1180); an item's instability is never sent.
 /// </summary>
 public static class ItemModifierDtoMapper
 {
@@ -50,7 +51,7 @@ public static class ItemModifierDtoMapper
             // The entry's own list, sized once: replacing it would throw away the one its initializer made.
             ItemInstanceModifier modifier = modifiers[i];
             var dto = new ItemModifierDto { ModifierId = (uint)modifier.ModifierId };
-            FillSeal(dto, modifier, identified, itemLevel);
+            FillSealAndImprint(dto, modifier, identified, itemLevel);
             dto.Values.Capacity = modifier.Values.Count;
             for (int v = 0; v < modifier.Values.Count; v++)
             {
@@ -79,14 +80,17 @@ public static class ItemModifierDtoMapper
     }
 
     /// <summary>
-    /// A shown modifier's seal (#1180), written over whatever <paramref name="target" /> held: its progress and the
-    /// threshold for <paramref name="itemLevel" /> on a sealed row of an identified copy, and neither on an awake one, so
-    /// a reused entry never keeps an earlier row's seal. The caller has already asked <see cref="ItemVisibility.Shows" />,
-    /// and a sealed affix is a prefix or a suffix, which an unidentified copy never shows; an unidentified copy still
-    /// sends no seal on any line it shows, whatever wrote the seal.
+    /// A shown modifier's seal and imprint (#1180), written over whatever <paramref name="target" /> held: its progress and
+    /// the threshold for <paramref name="itemLevel" /> on a sealed row of an identified copy, and neither on an awake one,
+    /// and whether an identified copy's row was imprinted, so a reused entry never keeps an earlier row's seal or imprint.
+    /// The caller has already asked <see cref="ItemVisibility.Shows" />, and a sealed or imprinted affix is a prefix or a
+    /// suffix, which an unidentified copy never shows; an unidentified copy still sends neither on any line it shows,
+    /// whatever wrote them.
     /// </summary>
-    internal static void FillSeal(ItemModifierDto target, ItemInstanceModifier modifier, bool identified, ushort itemLevel)
+    internal static void FillSealAndImprint(ItemModifierDto target, ItemInstanceModifier modifier, bool identified, ushort itemLevel)
     {
+        target.Imprinted = identified && modifier.Imprinted;
+
         if (identified && modifier.SealProgress is { } progress)
         {
             target.SealProgress = (uint)progress;

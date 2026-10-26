@@ -299,6 +299,24 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_ITEM_EXTRACT",
+      "opcode": 8324,
+      "hex": "0x2084",
+      "message": "CItemExtractPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_ITEM_IMPRINT",
+      "opcode": 8325,
+      "hex": "0x2085",
+      "message": "CItemImprintPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_VENDOR_BUY",
       "opcode": 8336,
       "hex": "0x2090",
@@ -888,6 +906,24 @@
       "opcode": 12436,
       "hex": "0x3094",
       "message": "SItemAwakenedPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_ITEM_EXTRACT_RESULT",
+      "opcode": 12437,
+      "hex": "0x3095",
+      "message": "SItemExtractResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_ITEM_IMPRINT_RESULT",
+      "opcode": 12438,
+      "hex": "0x3096",
+      "message": "SItemImprintResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

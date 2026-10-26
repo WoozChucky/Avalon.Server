@@ -56,10 +56,10 @@ internal static class TestCharacters
     public static InventoryItem Item(byte slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0,
         bool identified = true) =>
         new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, template.Rarity, 1,
-            RareName: null, identified, charges);
+            RareName: null, identified, Tainted: false, charges);
 
     /// <summary>The item outside a container with no rolled rows, as a sale or a trade carries it (#1179).</summary>
-    public static CarriedItem Carried(InventoryItem item) => new(item, default, []);
+    public static CarriedItem Carried(InventoryItem item) => new(item, default, [], 0);
 
     /// <summary>
     /// An inventory over this catalogue, or over <paramref name="find" /> when given one, and over the modifier catalog

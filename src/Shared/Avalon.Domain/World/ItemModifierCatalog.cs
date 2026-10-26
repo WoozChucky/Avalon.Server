@@ -24,6 +24,9 @@ public readonly record struct ItemModifierCandidate(ItemModifier Modifier, int W
 /// </summary>
 public sealed class ItemModifierCatalog
 {
+    /// <summary>How many of a family's weakest tiers a brick rerolls into (#1180 part C): <see cref="BrickTiers" />.</summary>
+    public const int BrickTierCount = 3;
+
     private static readonly int s_kinds = Enum.GetValues<ItemBaseKind>().Max(kind => (int)kind) + 1;
 
     private readonly Dictionary<int, ItemModifier> _modifiers;
@@ -32,6 +35,10 @@ public sealed class ItemModifierCatalog
 
     // Each tiered row's next better row of its own group (#1180), by the row's id: a row with none has no entry.
     private readonly Dictionary<int, ItemModifier> _nextTier;
+
+    // Each prefix and suffix group's rows of its BrickTierCount weakest tiers (#1180 part C), by the group's id, sorted by
+    // tier, the weakest (the largest number) first, then by id.
+    private readonly Dictionary<int, ItemModifier[]> _brickRows;
 
     public ItemModifierCatalog(
         IReadOnlyCollection<ItemModifier> modifiers, IReadOnlyCollection<ItemTemplateModifier> links, ILogger logger)
@@ -50,6 +57,7 @@ public sealed class ItemModifierCatalog
 
         Resonance = new ResonanceTable(_modifiers.Values);
         _nextTier = NextTiers(_modifiers.Values);
+        _brickRows = BrickRows(_modifiers.Values);
 
         _links = [];
         foreach (IGrouping<ulong, ItemTemplateModifier> template in links
@@ -84,6 +92,7 @@ public sealed class ItemModifierCatalog
     {
         _modifiers = from._modifiers;
         _nextTier = from._nextTier;
+        _brickRows = from._brickRows;
         _candidates = from._candidates;
         Resonance = from.Resonance;
         _links = links;
@@ -118,6 +127,38 @@ public sealed class ItemModifierCatalog
     /// wake decides whether the row is within an item's reach.
     /// </summary>
     public ItemModifier? NextTier(ItemModifier modifier) => _nextTier.GetValueOrDefault(modifier.Id);
+
+    /// <summary>
+    /// The rows a brick may reroll <paramref name="modifier" /> into on an item of <paramref name="kind" /> at
+    /// <paramref name="itemLevel" /> (#1180 part C), written into <paramref name="modifierIds" />, which holds at least
+    /// <see cref="BrickTierCount" />: of the <see cref="BrickTierCount" /> weakest tiers the catalog holds for its
+    /// <see cref="ItemModifier.GroupId" /> (the largest <see cref="ItemModifier.Tier" /> numbers), weakest first, one id per
+    /// tier, the lowest of that tier weighing above 0 on <paramref name="kind" /> whose required item level is at most
+    /// <paramref name="itemLevel" />. A tier with no such row is skipped. Answers how many it wrote: 0 for a group that is
+    /// not a prefix or suffix, or one the catalog does not hold. Worked out per group when the catalog is built, so asking
+    /// allocates nothing.
+    /// </summary>
+    public int BrickTiers(ItemModifier modifier, ItemBaseKind kind, ushort itemLevel, Span<int> modifierIds)
+    {
+        if (!_brickRows.TryGetValue(modifier.GroupId, out ItemModifier[]? rows))
+            return 0;
+
+        int written = 0;
+        byte? done = null;
+        foreach (ItemModifier row in rows)
+        {
+            if (row.Tier == done || row.RequiredItemLevel > itemLevel || WeightOn(row, kind) <= 0)
+                continue;
+
+            modifierIds[written++] = row.Id;
+            done = row.Tier;
+        }
+
+        return written;
+    }
+
+    /// <summary>Whether <paramref name="modifier" /> weighs above 0 on <paramref name="kind" />: whether it rolls there.</summary>
+    public bool RollsOn(ItemModifier modifier, ItemBaseKind kind) => WeightOn(modifier, kind) > 0;
 
     /// <summary>The modifiers every copy of the template rolls, in link order; empty when it links none.</summary>
     public IReadOnlyList<ItemModifier> LinkedTo(ItemTemplateId template) =>
@@ -179,6 +220,19 @@ public sealed class ItemModifierCatalog
 
         return next;
     }
+
+    /// <summary>
+    /// For each prefix and suffix group, its rows of its <see cref="BrickTierCount" /> weakest tiers (<see cref="BrickTiers" />),
+    /// sorted weakest tier first, then by id, so a tier's rows sit together and its lowest id comes first.
+    /// </summary>
+    private static Dictionary<int, ItemModifier[]> BrickRows(IEnumerable<ItemModifier> accepted) => accepted
+        .Where(m => m.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix)
+        .GroupBy(m => m.GroupId)
+        .ToDictionary(group => group.Key, group =>
+        {
+            HashSet<byte> weakest = [.. group.Select(m => m.Tier!.Value).Distinct().OrderDescending().Take(BrickTierCount)];
+            return group.Where(m => weakest.Contains(m.Tier!.Value)).OrderByDescending(m => m.Tier).ThenBy(m => m.Id).ToArray();
+        });
 
     /// <summary>Whether <paramref name="candidate" /> weighs above 0 on every base kind <paramref name="row" /> does.</summary>
     private static bool RollsOnEveryKindOf(ItemModifier candidate, ItemModifier row)

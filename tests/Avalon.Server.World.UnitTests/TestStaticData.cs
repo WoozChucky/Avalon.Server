@@ -1,3 +1,5 @@
+using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;
@@ -46,6 +48,20 @@ internal sealed record TestStaticDataRepositories(
 /// </summary>
 internal static class TestStaticData
 {
+    /// <summary>
+    /// A fresh Glyph template (#1180 part C), the one a sound item patch holds: a test whose world loads items and asks
+    /// that nothing was logged at Error passes it among its templates.
+    /// </summary>
+    public static ItemTemplate Glyph() => new()
+    {
+        Id = new ItemTemplateId(7900),
+        Name = "Glyph",
+        Class = ItemClass.Crafting,
+        SubClass = ItemSubClass.Glyph,
+        MaxStackSize = 1,
+        Rarity = ItemRarity.Common,
+    };
+
     public static Task<StaticData> LoadAsync(
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? items = null,

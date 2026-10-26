@@ -112,6 +112,37 @@ public interface IInventoryService
     /// does, as after every gear change.
     /// </summary>
     AwakenedItem? TryAwaken(byte equipmentSlot);
+
+    /// <summary>
+    /// Extracts one affix of the item in <paramref name="bagSlot" /> as a glyph (#1180 part C): the item is destroyed,
+    /// marked Removed with its rolled rows leaving the store, and in its slot is a new copy of the patch's Glyph template:
+    /// count 1, Magic, identified, Attuned (so bound), its item level the affix's required item level, holding one row, a
+    /// copy of the affix under a new row id at ordinal 0, unsealed and not imprinted. The glyph and its row are marked New
+    /// for the next save, and the slot is recorded for the client. False, changing nothing, unless the slot holds an item
+    /// Items.ItemModification.Allowed accepts, not offered in a trade, carrying an awake prefix or suffix row of
+    /// <paramref name="modifierId" /> in the current catalog, and the patch holds a Glyph template. The glyph is built in
+    /// full before the item is destroyed. It checks nothing else: ExtractRules decides the request (the Workbench, the base
+    /// and its rarity) first.
+    /// </summary>
+    bool TryExtract(byte bagSlot, int modifierId);
+
+    /// <summary>
+    /// Imprints the glyph in <paramref name="glyphSlot" /> onto the item in <paramref name="targetSlot" /> (#1180 part C):
+    /// IItemRoller.Imprint makes the item's new modifier list (its rows, then the glyph's row copied under a new id at the
+    /// next ordinal, imprinted) and its new instability, which becomes the item's in the store, marked for the next save;
+    /// the glyph is destroyed, marked Removed. When the new total bricks the item, its affixes were rerolled among their
+    /// weakest tiers, and the item is replaced Tainted with Attuned cleared, never modified or bound again; otherwise it
+    /// is replaced Attuned, or, already Attuned, only its slot is recorded for the client. All or nothing: every roll, the
+    /// new list and the item's new flags are made before anything is written, and only they may throw, so a throw always
+    /// comes before the first write and changes nothing; the writes cannot throw, and the store's replace and the item's
+    /// Tainted are written together, so no item holds a bricking total untainted. Answers Bricked or Ok; null, changing
+    /// nothing, unless both slots are held and differ, the glyph is a glyph holding one row of a tiered prefix or suffix
+    /// the catalog holds, and the item is one Items.ItemModification.Allowed accepts of a rolled base, carrying rolled
+    /// rows. It checks nothing else: ImprintRules decides the request (the Workbench, a trade's lock, the rarity, the room,
+    /// the group, the base kind, the item level and the gold) first, and the caller spends the gold, giving it back on a
+    /// null or a throw. It never logs or throws with the item's instability in a message.
+    /// </summary>
+    ItemImprintResult? TryImprint(byte glyphSlot, byte targetSlot);
 }
 
 /// <summary>A wake <see cref="IInventoryService.TryAwaken" /> made (#1180): the slot, the row's catalog modifier now, and how it woke.</summary>

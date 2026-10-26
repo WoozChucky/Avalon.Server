@@ -74,6 +74,7 @@ variant populated
           field 3 Value2 : int? = -3
       field 3 SealProgress : uint? = 7
       field 4 SealThreshold : uint? = 42
+      field 5 Imprinted : bool = true
     element 1
       field 1 ModifierId : uint = 1000000
       field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -87,6 +88,7 @@ variant populated
           field 3 Value2 : int? = -3
       field 3 SealProgress : uint? = 1000000
       field 4 SealThreshold : uint? = 19
+      field 5 Imprinted : bool = true
   field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
     element 0
       field 1 Stat : BaseStat = DamageMax (5)
@@ -94,18 +96,18 @@ variant populated
     element 1
       field 1 Stat : BaseStat = DamageMin (4)
       field 2 Value : int = -262144
-  bytes 166
+  bytes 170
     08 07 12 0f 0d b0 0f a1 b3 15 00 00 10 c0 1d b0
     0f a1 b3 18 80 d0 ac f3 0e 20 2a 28 13 30 2a 38
-    e8 07 40 02 48 80 d0 ac f3 0e 52 2b 08 07 12 11
+    e8 07 40 02 48 80 d0 ac f3 0e 52 2d 08 07 12 11
     08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff
     01 12 10 08 13 10 e8 07 18 fd ff ff ff ff ff ff
-    ff ff 01 18 07 20 2a 52 2f 08 c0 84 3d 12 11 08
-    0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01
-    12 10 08 13 10 e8 07 18 fd ff ff ff ff ff ff ff
-    ff 01 18 c0 84 3d 20 13 62 0d 08 05 10 f7 ff ff
-    ff ff ff ff ff ff 01 62 0d 08 04 10 80 80 f0 ff
-    ff ff ff ff ff 01
+    ff ff 01 18 07 20 2a 28 01 52 31 08 c0 84 3d 12
+    11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff
+    ff 01 12 10 08 13 10 e8 07 18 fd ff ff ff ff ff
+    ff ff ff 01 18 c0 84 3d 20 13 28 01 62 0d 08 05
+    10 f7 ff ff ff ff ff ff ff ff 01 62 0d 08 04 10
+    80 80 f0 ff ff ff ff ff ff 01
 
 variant maxima
   field 1 LootGuid : ulong = 18446744073709551615
@@ -138,6 +140,7 @@ variant maxima
           field 3 Value2 : int? = 2147483647
       field 3 SealProgress : uint? = 4294967295
       field 4 SealThreshold : uint? = 4294967295
+      field 5 Imprinted : bool = true
     element 1
       field 1 ModifierId : uint = 4294967295
       field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -155,6 +158,7 @@ variant maxima
           field 3 Value2 : int? = 2147483647
       field 3 SealProgress : uint? = 4294967295
       field 4 SealThreshold : uint? = 4294967295
+      field 5 Imprinted : bool = true
     element 2
       field 1 ModifierId : uint = 4294967295
       field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -172,6 +176,7 @@ variant maxima
           field 3 Value2 : int? = 2147483647
       field 3 SealProgress : uint? = 4294967295
       field 4 SealThreshold : uint? = 4294967295
+      field 5 Imprinted : bool = true
   field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
     element 0
       field 1 Stat : BaseStat = AttackTime (6)
@@ -182,27 +187,27 @@ variant maxima
     element 2
       field 1 Stat : BaseStat = AttackTime (6)
       field 2 Value : int = 2147483647
-  bytes 314
+  bytes 320
     08 ff ff ff ff ff ff ff ff ff 01 12 0f 0d ff ff
     7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 18 ff ff ff
     ff ff ff ff ff ff 01 20 ff ff ff ff 0f 28 ff ff
     ff ff ff ff ff ff ff 01 30 ff ff ff ff 0f 38 ff
     ff ff ff ff ff ff ff 7f 40 03 48 ff ff ff ff 0f
-    52 42 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff
+    52 44 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff
     ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff
     ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff
     ff 07 18 ff ff ff ff 07 18 ff ff ff ff 0f 20 ff
-    ff ff ff 0f 52 42 08 ff ff ff ff 0f 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 18 ff ff ff
-    ff 0f 20 ff ff ff ff 0f 52 42 08 ff ff ff ff 0f
-    12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff 07
-    12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff 07
-    12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff 07
-    18 ff ff ff ff 0f 20 ff ff ff ff 0f 62 08 08 06
+    ff ff ff 0f 28 01 52 44 08 ff ff ff ff 0f 12 0e
+    08 35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e
+    08 35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e
+    08 35 10 ff ff ff ff 07 18 ff ff ff ff 07 18 ff
+    ff ff ff 0f 20 ff ff ff ff 0f 28 01 52 44 08 ff
+    ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 18 ff ff ff ff 0f 20 ff ff ff ff 0f
+    28 01 62 08 08 06 10 ff ff ff ff 07 62 08 08 06
     10 ff ff ff ff 07 62 08 08 06 10 ff ff ff ff 07
-    62 08 08 06 10 ff ff ff ff 07
 
 variant minima
   field 1 LootGuid : ulong = 0
@@ -227,6 +232,7 @@ variant minima
           field 3 Value2 : int? = -2147483648
       field 3 SealProgress : uint? = 0
       field 4 SealThreshold : uint? = 0
+      field 5 Imprinted : bool = false
   field 12 BaseStats : List<ItemBaseStatDto> = 1 element
     element 0
       field 1 Stat : BaseStat = Armour (0)
@@ -265,6 +271,7 @@ variant varint-edges
           field 3 Value2 : int? = 16384
       field 3 SealProgress : uint? = 2097151
       field 4 SealThreshold : uint? = 16383
+      field 5 Imprinted : bool = true
     element 1
       field 1 ModifierId : uint = 2097152
       field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -278,6 +285,7 @@ variant varint-edges
           field 3 Value2 : int? = 16384
       field 3 SealProgress : uint? = 268435456
       field 4 SealThreshold : uint? = 2097152
+      field 5 Imprinted : bool = true
   field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
     element 0
       field 1 Stat : BaseStat = <not a declared member> (7)
@@ -285,16 +293,16 @@ variant varint-edges
     element 1
       field 1 Stat : BaseStat = <not a declared member> (7)
       field 2 Value : int = 2097152
-  bytes 140
+  bytes 144
     08 ff ff ff 7f 12 0f 0d 00 00 80 00 15 00 00 80
     00 1d 00 00 80 00 18 80 01 20 ff 7f 28 80 80 01
-    30 7f 38 7f 40 04 48 ff 7f 52 24 08 ff 7f 12 0b
+    30 7f 38 7f 40 04 48 ff 7f 52 26 08 ff 7f 12 0b
     08 36 10 ff ff ff 7f 18 ff ff 7f 12 0b 08 36 10
-    80 80 80 01 18 80 80 01 18 ff ff 7f 20 ff 7f 52
-    2a 08 80 80 80 01 12 0b 08 36 10 ff ff ff 7f 18
-    ff ff 7f 12 0b 08 36 10 80 80 80 01 18 80 80 01
-    18 80 80 80 80 01 20 80 80 80 01 62 06 08 07 10
-    ff ff 7f 62 07 08 07 10 80 80 80 01
+    80 80 80 01 18 80 80 01 18 ff ff 7f 20 ff 7f 28
+    01 52 2c 08 80 80 80 01 12 0b 08 36 10 ff ff ff
+    7f 18 ff ff 7f 12 0b 08 36 10 80 80 80 01 18 80
+    80 01 18 80 80 80 80 01 20 80 80 80 01 28 01 62
+    06 08 07 10 ff ff 7f 62 07 08 07 10 80 80 80 01
 
 variant float-specials
   field 1 LootGuid : ulong = 7
@@ -323,6 +331,7 @@ variant float-specials
           field 3 Value2 : int? = -3
       field 3 SealProgress : uint? = 7
       field 4 SealThreshold : uint? = 42
+      field 5 Imprinted : bool = true
     element 1
       field 1 ModifierId : uint = 1000000
       field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -336,6 +345,7 @@ variant float-specials
           field 3 Value2 : int? = -3
       field 3 SealProgress : uint? = 1000000
       field 4 SealThreshold : uint? = 19
+      field 5 Imprinted : bool = true
   field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
     element 0
       field 1 Stat : BaseStat = DamageMax (5)
@@ -343,15 +353,15 @@ variant float-specials
     element 1
       field 1 Stat : BaseStat = DamageMin (4)
       field 2 Value : int = -262144
-  bytes 166
+  bytes 170
     08 07 12 0f 0d 01 00 00 00 15 ff ff 7f 00 1d ff
     ff 7f 7f 18 80 d0 ac f3 0e 20 2a 28 13 30 2a 38
-    e8 07 40 02 48 80 d0 ac f3 0e 52 2b 08 07 12 11
+    e8 07 40 02 48 80 d0 ac f3 0e 52 2d 08 07 12 11
     08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff
     01 12 10 08 13 10 e8 07 18 fd ff ff ff ff ff ff
-    ff ff 01 18 07 20 2a 52 2f 08 c0 84 3d 12 11 08
-    0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01
-    12 10 08 13 10 e8 07 18 fd ff ff ff ff ff ff ff
-    ff 01 18 c0 84 3d 20 13 62 0d 08 05 10 f7 ff ff
-    ff ff ff ff ff ff 01 62 0d 08 04 10 80 80 f0 ff
-    ff ff ff ff ff 01
+    ff ff 01 18 07 20 2a 28 01 52 31 08 c0 84 3d 12
+    11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff
+    ff 01 12 10 08 13 10 e8 07 18 fd ff ff ff ff ff
+    ff ff ff 01 18 c0 84 3d 20 13 28 01 62 0d 08 05
+    10 f7 ff ff ff ff ff ff ff ff 01 62 0d 08 04 10
+    80 80 f0 ff ff ff ff ff ff 01

@@ -283,7 +283,7 @@ public class StaticDataReloadShould
         List<QuestTemplate> quests = Quests.QuestTestData.Chain();
         List<CreatureTemplate> creatures = Quests.QuestTestData.Creatures();
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            items: Quests.QuestTestData.Items,
+            items: () => [.. Quests.QuestTestData.Items(), TestStaticData.Glyph()],
             creatures: () => creatures,
             nodes: () => Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget),
             quests: Quests.QuestRepositories.Of(() => quests),
@@ -306,7 +306,7 @@ public class StaticDataReloadShould
     {
         List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            items: Quests.QuestTestData.Items,
+            items: () => [.. Quests.QuestTestData.Items(), TestStaticData.Glyph()],
             creatures: Quests.QuestTestData.Creatures,
             nodes: () => nodes,
             quests: Quests.QuestRepositories.Of(Quests.QuestTestData.Chain),
@@ -331,7 +331,7 @@ public class StaticDataReloadShould
         var log = new TestLog();
         List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
         var data = TestStaticData.Repositories(
-            items: Quests.QuestTestData.Items,
+            items: () => [.. Quests.QuestTestData.Items(), TestStaticData.Glyph()],
             creatures: Quests.QuestTestData.Creatures,
             nodes: () => nodes,
             quests: Quests.QuestRepositories.Of(Quests.QuestTestData.Chain),
@@ -359,7 +359,7 @@ public class StaticDataReloadShould
         var log = new TestLog();
         List<DialogueNode> nodes = Quests.QuestTestData.Roots(Quests.QuestTestData.Giver, Quests.QuestTestData.Ender, Quests.QuestTestData.TalkTarget);
         var data = TestStaticData.Repositories(
-            items: Quests.QuestTestData.Items,
+            items: () => [.. Quests.QuestTestData.Items(), TestStaticData.Glyph()],
             creatures: Quests.QuestTestData.Creatures,
             nodes: () => nodes,
             quests: Quests.QuestRepositories.Of(Quests.QuestTestData.Chain),
@@ -391,6 +391,7 @@ public class StaticDataReloadShould
         var log = new TestLog();
         List<DoodadTemplate> doodads = Quests.QuestTestData.QuestDoodads();
         var data = TestStaticData.Repositories(
+            items: () => [TestStaticData.Glyph()],
             creatures: Quests.QuestTestData.Creatures,
             nodes: () => Quests.QuestTestData.Roots(Quests.QuestTestData.Giver),
             quests: Quests.QuestRepositories.Of(() =>

@@ -33,10 +33,10 @@ public sealed class Doodad : IWorldObject
         Position = position;
         Orientation = new Vector3(0f, yawDegrees, 0f);
 
-        // A solid doodad is never hidden, and an Identify one (#1179) never hidden or gated: the catalog refuses a gated
+        // A solid doodad is never hidden, and a Workbench one (#1179) never hidden or gated: the catalog refuses a gated
         // template of either, and a spawn's gate on one is dropped here too, so no placement path can make an unseen
         // wall or a Workbench that will not open.
-        if (!template.Solid && template.Service != DoodadService.Identify)
+        if (!template.Solid && template.Service != DoodadService.Workbench)
         {
             VisibleGate = visibleGate ?? template.Visible;
             UsableGate = usableGate ?? template.Usable;

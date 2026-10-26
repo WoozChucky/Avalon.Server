@@ -16661,6 +16661,21 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 0L,
                             SubClass = 300
+                        },
+                        new
+                        {
+                            Id = 152m,
+                            AllowedClasses = new byte[0],
+                            BuyPrice = 0L,
+                            Class = 4,
+                            DisplayId = 152L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Glyph",
+                            Rarity = (byte)0,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 0L,
+                            SubClass = 401
                         });
                 });
 

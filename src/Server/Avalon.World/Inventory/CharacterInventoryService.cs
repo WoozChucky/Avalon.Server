@@ -78,7 +78,7 @@ public sealed class CharacterInventoryService(
             {
                 Create(InventoryType.Bag, new InventoryItem(slot, itemIds.Next(), templateId, take,
                     ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None, template!.Rarity,
-                    ItemInstanceDefaults.InitialItemLevel(template), RareName: null, Identified: true));
+                    ItemInstanceDefaults.InitialItemLevel(template), RareName: null, Identified: true, Tainted: false));
             }
 
             remaining -= take;
@@ -189,8 +189,9 @@ public sealed class CharacterInventoryService(
         SettleIfWorn(slot.Container);
         if (count == item.Count)
         {
-            (ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers) = Delete(slot.Container, item);
-            return new CarriedItem(item, baseStats, modifiers);
+            (ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers, ushort instability) =
+                Delete(slot.Container, item);
+            return new CarriedItem(item, baseStats, modifiers, instability);
         }
 
         // #1179: an item carrying rolled rows (modifiers or base stats) is one of a kind and never splits, as the move
@@ -202,7 +203,7 @@ public sealed class CharacterInventoryService(
         }
 
         Replace(slot.Container, item with { Count = item.Count - count });
-        return new CarriedItem(item with { InstanceId = itemIds.Next(), Count = count }, default, []);
+        return new CarriedItem(item with { InstanceId = itemIds.Next(), Count = count }, default, [], 0);
     }
 
     public InventoryAddResult TryAddInstance(CarriedItem carried)
@@ -219,7 +220,7 @@ public sealed class CharacterInventoryService(
         if (IsUnique(item.TemplateId) && OwnedOrIncoming(item.TemplateId) + item.Count > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
 
-        Create(InventoryType.Bag, item with { Slot = slot }, carried.BaseStats, carried.Modifiers);
+        Create(InventoryType.Bag, item with { Slot = slot }, carried.BaseStats, carried.Modifiers, carried.Instability);
 
         // Its rows may be gone (a sale saved before the buyback deleted them, modifiers, base stats and all), so the save
         // that upserts it writes them again.
@@ -246,7 +247,7 @@ public sealed class CharacterInventoryService(
             return InventoryAddResult.UniqueAlreadyOwned;
 
         // Its rolled rows unmarked: the paired save wrote them as this character's.
-        Create(InventoryType.Bag, item with { Slot = bagSlot }, carried.BaseStats, carried.Modifiers);
+        Create(InventoryType.Bag, item with { Slot = bagSlot }, carried.BaseStats, carried.Modifiers, carried.Instability);
         return InventoryAddResult.Ok;
     }
 
@@ -304,6 +305,84 @@ public sealed class CharacterInventoryService(
             owner.ClientChanges.RecordSlot(InventoryType.Equipment, equipmentSlot);
 
         return new AwakenedItem(equipmentSlot, woken.Row.ModifierId, woken.Outcome);
+    }
+
+    public bool TryExtract(byte bagSlot, int modifierId)
+    {
+        // A stack offered in a trade is Locked here too, as every removal by id is, whoever calls this.
+        if (!Bag.TryGet(bagSlot, out InventoryItem item) || !ItemModification.Allowed(item)
+            || owner.Locks.IsLocked(item.InstanceId))
+        {
+            return false;
+        }
+
+        ItemsPatch items = currentItems();
+        if (items.Glyph is not { } glyphTemplate
+            || ExtractRules.ExtractableRow(owner.ItemModifiers.Of(item.InstanceId), modifierId, items.Modifiers,
+                out ItemModifier? modifier) is not { } row)
+        {
+            return false;
+        }
+
+        // The glyph and its row are made in full before the item goes: whatever throws here leaves the item as it was.
+        ItemInstanceId glyphId = itemIds.Next();
+        List<ItemInstanceModifier> glyphRows = [row.CopyAs(itemIds.NextModifierId(), glyphId, 0, imprinted: false)];
+        var glyph = new InventoryItem(bagSlot, glyphId, glyphTemplate.Id, 1,
+            ItemInstanceDefaults.InitialDurability(glyphTemplate), ItemInstanceFlags.Attuned, ItemRarity.Magic,
+            modifier!.RequiredItemLevel, RareName: null, Identified: true, Tainted: false);
+
+        // The item's delete takes its slot and its store entry; the glyph then fills the same slot, so no free slot is
+        // needed, and the slot's mark nets to Changed.
+        Delete(InventoryType.Bag, item);
+        owner.ItemModifiers.PutMade(glyphId, default, glyphRows);
+        owner.SaveState.ItemModifiersChanged(glyphId);
+        Create(InventoryType.Bag, glyph);
+        return true;
+    }
+
+    public ItemImprintResult? TryImprint(byte glyphSlot, byte targetSlot)
+    {
+        CharacterInventoryContainer bag = Bag;
+        if (glyphSlot == targetSlot || !bag.TryGet(glyphSlot, out InventoryItem glyph)
+            || !bag.TryGet(targetSlot, out InventoryItem target) || !ItemModification.Allowed(target)
+            || !owner.ItemModifiers.IsOneOfAKind(target.InstanceId))
+        {
+            return null;
+        }
+
+        ItemsPatch items = currentItems();
+        if (ImprintRules.GlyphAffix(owner, glyph, items, out ItemInstanceModifier glyphRow) is null
+            || items.Find(target.TemplateId) is not { } template || !ItemRoller.IsRolledBase(template))
+        {
+            return null;
+        }
+
+        // All or nothing: every roll is made first, with the new list and the item's new flags, and only these steps may
+        // throw (the roller, a brick offered no tier among them), so a throw always comes before the first write and
+        // leaves the glyph and the item as they were. A bricked item is Tainted and never bound again; any other imprint
+        // binds it.
+        ImprintedRows imprinted = roller.Imprint(owner.ItemModifiers.Of(target.InstanceId), glyphRow, target.InstanceId,
+            template.BaseKind!.Value, target.ItemLevel, owner.ItemModifiers.InstabilityOf(target.InstanceId),
+            items.Modifiers);
+        InventoryItem? changed = imprinted.Bricked
+            ? target with { Tainted = true, Flags = target.Flags & ~ItemInstanceFlags.Attuned }
+            : (target.Flags & ItemInstanceFlags.Attuned) == 0
+                ? target with { Flags = target.Flags | ItemInstanceFlags.Attuned }
+                : null;
+
+        // The writes, none of which can throw: the store's replace (its refusals are ruled out: the item has an entry,
+        // checked above, and the roller's list is always new) and the item's Tainted in one step, so no item ever holds a
+        // bricking total untainted (the container's Put refuses only a slot past its end, and this one was just found
+        // held); then the save and client marks, dictionary writes; then the glyph's delete, a slot just found held.
+        owner.ItemModifiers.ReplaceModifiers(target.InstanceId, imprinted.Modifiers, imprinted.Instability);
+        if (changed is { } item)
+            Replace(InventoryType.Bag, item);
+        else
+            owner.ClientChanges.RecordSlot(InventoryType.Bag, targetSlot);
+
+        owner.SaveState.ItemModifiersChanged(target.InstanceId);
+        Delete(InventoryType.Bag, glyph);
+        return imprinted.Bricked ? ItemImprintResult.Bricked : ItemImprintResult.Ok;
     }
 
     /// <summary>
@@ -494,7 +573,7 @@ public sealed class CharacterInventoryService(
     {
         Create(InventoryType.Bag, new InventoryItem(slot, rolled.InstanceId, rolled.TemplateId, 1,
             ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel,
-            rolled.RareName, identified));
+            rolled.RareName, identified, Tainted: false));
         if (!rolled.HasRolledRows)
             return;
 
@@ -514,13 +593,13 @@ public sealed class CharacterInventoryService(
     }
 
     /// <summary>
-    /// An instance arriving in the slot with its rolled rows: <paramref name="baseStats" /> and
-    /// <paramref name="modifiers" /> enter the store with it.
+    /// An instance arriving in the slot with its rolled rows: <paramref name="baseStats" />, <paramref name="modifiers" />
+    /// and the <paramref name="instability" /> their imprints added (#1180) enter the store with it.
     /// </summary>
     private void Create(InventoryType container, InventoryItem item, in ItemBaseStats baseStats,
-        IReadOnlyList<ItemInstanceModifier> modifiers)
+        IReadOnlyList<ItemInstanceModifier> modifiers, ushort instability)
     {
-        owner.ItemModifiers.Put(item.InstanceId, baseStats, modifiers);
+        owner.ItemModifiers.Put(item.InstanceId, baseStats, modifiers, instability);
         Create(container, item);
     }
 
@@ -541,9 +620,11 @@ public sealed class CharacterInventoryService(
         owner.ClientChanges.RecordSlot(container, item.Slot);
     }
 
-    /// <summary>The instance leaves the character: its rolled rows leave the store with it, and are returned.</summary>
-    private (ItemBaseStats BaseStats, IReadOnlyList<ItemInstanceModifier> Modifiers) Delete(InventoryType container,
-        InventoryItem item)
+    /// <summary>
+    /// The instance leaves the character: its rolled rows and its instability leave the store with it, and are returned.
+    /// </summary>
+    private (ItemBaseStats BaseStats, IReadOnlyList<ItemInstanceModifier> Modifiers, ushort Instability) Delete(
+        InventoryType container, InventoryItem item)
     {
         owner.Container(container).Remove(item.Slot);
         owner.SaveState.ItemRemoved(item.InstanceId);

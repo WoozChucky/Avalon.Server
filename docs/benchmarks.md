@@ -102,6 +102,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Interest
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRollerBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ResonanceProcBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AwakeningMeterBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorkbenchRequestBenchmarks*" "*InventoryFlushBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 
 # Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
@@ -2218,6 +2219,67 @@ amulet's first settle leaves in `SaveStateTracker`, which the scenario, having n
 `forest-combat` from 14,119 to 14,127 B across passes), so the packets allocate nothing per send. The settles, from
 reused state, and the hits allocate nothing (above). The scenario's fighters gained 518 points in the measured minute
 (between 27 and 55 each), and its check floors every fighter's gain above 0.
+
+### Workbench requests — `Benchmarks/WorkbenchRequestBenchmarks.cs` (#1180)
+
+What a refused request at the Resonance Workbench costs (#1180 part C, [extraction and
+imprinting](inventory-and-saves.md#extraction-and-imprinting-1180-part-c)). A client can send these at will and no
+scenario sends them, so a refusal must change nothing and allocate nothing beyond its pooled reply. Each row is one
+request through its real handler (production's `CharacterEconomy`, so the inventory service and the wallet it keeps for
+the character are in the figure), the Workbench's shared prefix against a real `MapInstance` holding the seeded
+Workbench in range, and its own rules over the scenario reference data (`ScenarioReferenceData`), to its one reply. The
+character holds, in its Bag, an identified magic plate chest (template 37) at item level 10 carrying its implicit and
+"P11 T7", and an "S14 T9" glyph, with no gold.
+
+- `Refused_identify` (the baseline, #1179): names the chest, answered `AlreadyIdentified`.
+- `Refused_extract`: names the chest's implicit, walks every extract rule to `NotExtractable`, where the row walk finds
+  the implicit and refuses it, and is answered `NotExtractable`.
+- `Refused_imprint`: imprints the glyph onto the chest, which has room for it, walks every imprint rule (room, group,
+  base kind, item level, the cost lookup) and is answered at the last, `NotEnoughGold` (a T9 glyph costs 25).
+
+Setup fails the run unless each row's first call is answered once, with its intended result, read back from the reply
+the connection was sent; cleanup fails it unless the items, the gold and the pending client changes are as setup left
+them. One run with `InventoryFlushBenchmarks` (below), at `3f42ad77a` plus the benchmark (out of process, ten warmups,
+twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.403 / runtime 10.0.14,
+Release), 2026-10-26:
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorkbenchRequestBenchmarks*" "*InventoryFlushBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Operation | Mean (± StdDev) | Allocated |
+|---|---:|---:|
+| `Refused_identify` (baseline) | 92.78 ns (± 1.54 ns) | 0 B |
+| `Refused_extract` | 110.89 ns (± 1.17 ns) | 0 B |
+| `Refused_imprint` | 141.25 ns (± 2.98 ns) | 0 B |
+
+**No refusal allocates.** An extract refusal costs about 18 ns over the identify baseline (its walk over the chest's
+rows and a catalog lookup), and an imprint refusal about 48 ns (two Bag slots, the glyph's catalog row, two counts
+over the target's rows, the base-kind weight, the cost lookup and the wallet's check). Both are request-time, never
+per tick or per hit. `InventoryAllocationShould.Answer_workbench_requests_allocating_nothing` pins the same 0 B in the
+World suite. The rules read no instability, so a target near the brick is refused at the same cost.
+
+**The inventory flush (part C).** `InventoryItem` gains `Tainted`, `ItemSlotDto` gains `Tainted` (field 14) and
+`ItemModifierDto` gains `Imprinted` (field 5), filled with the seal (`FillSealAndImprint`). The same run:
+
+| Changed slots | Items | `Flusher`, allocated, unidentified / identified | `Flusher`, mean, unidentified / identified | `Unpooled`, allocated, unidentified / identified |
+|---:|---|---:|---:|---:|
+| 0 | gold only | 0 B / 0 B | 123.7 / 120.4 ns | 24 B / 24 B |
+| 1 | potions | 152 B / 152 B | 289.2 / 299.9 ns (± 20 ns) | 152 B / 152 B |
+| 1 | chests with base stats and modifiers | 152 B / 152 B | 571.3 / 607.7 ns | 472 B / 472 B |
+| 8 | potions | 1,048 B / 1,048 B | 1,355.4 / 1,341.8 ns | 1,048 B / 1,048 B |
+| 8 | chests with base stats and modifiers | 1,048 B / 1,048 B | 3,500.8 / 4,128.0 ns | 3,608 B / 4,928 B |
+| 30 | potions | 3,864 B / 3,864 B | 4,829.1 (± 507 ns) / 4,429.2 ns | 3,864 B / 3,864 B |
+| 30 | chests with base stats and modifiers | 3,864 B / 3,864 B | 11,837.4 (± 592 ns) / 15,532.2 ns | 13,464 B / 18,680 B |
+
+**The flush allocates exactly what it did** at #1179 part C (the [inventory section](#inventory-update-and-item-requests--benchmarksinventoryflushbenchmarkscs-benchmarksitemrequestbenchmarkscs-883)'s
+table): 152 B, 1,048 B and 3,864 B at 1, 8 and 30 slots. The new `bool` fits the slot entry's padding, and the pool's
+modifier entries are reused. Only `Unpooled`, which builds every modifier entry afresh and is not production's path,
+grows by 16 B per modifier entry (472 B against 456 B at one chest): the entry crossed an 8-byte boundary. The means
+are one run and that record predates part B's seal fields. Most rows read within a few percent of it, some lower (8
+identified chests 4,128.0 against 4,248.2 ns, 30 unidentified 11,837.4 against 12,571.4 ns). Thirty identified chests
+read 15,532.2 against 13,650.0 ns (+14 %), while eight identified chests read lower, so this run does not show a cost
+per modifier entry. It was not re-run (one targeted run).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

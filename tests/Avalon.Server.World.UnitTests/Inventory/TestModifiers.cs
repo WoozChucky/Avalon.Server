@@ -28,22 +28,24 @@ internal static class TestModifiers
         string.Join(" | ", modifiers.Select(m => $"{m.Id} {Rolled(m)}"));
 
     /// <summary>
-    /// What <see cref="Describe" /> says, without the ids and with a sealed row's progress (#1180): what a trade record
-    /// keeps of each modifier.
+    /// What <see cref="Describe" /> says, without the ids and with a sealed row's progress and an imprinted row's mark
+    /// (#1180): what a trade record keeps of each modifier.
     /// </summary>
     public static string DescribeRolls(IReadOnlyList<ItemInstanceModifier> modifiers) =>
-        string.Join(" | ", modifiers.Select(m => Rolled(m) + Seal(m.SealProgress)));
+        string.Join(" | ", modifiers.Select(m => Rolled(m) + Seal(m.SealProgress) + Imprint(m.Imprinted)));
 
     /// <summary>A trade record's copy of an item's modifiers, in ordinal order, as the overload above words the item's own.</summary>
     public static string DescribeRolls(IEnumerable<TradeRecordItemModifier> modifiers) => string.Join(" | ", modifiers
         .OrderBy(m => m.Ordinal)
         .Select(m => Line(m.ModifierId, m.Ordinal, m.Values.OrderBy(v => v.Index).Select(v => (v.Index, v.Stat, v.Value, v.Value2)))
-            + Seal(m.SealProgress)));
+            + Seal(m.SealProgress) + Imprint(m.Imprinted)));
 
     private static string Rolled(ItemInstanceModifier m) =>
         Line(m.ModifierId, m.Ordinal, m.Values.Select(v => (v.Index, v.Stat, v.Value, v.Value2)));
 
     private static string Seal(int? progress) => progress is { } n ? $" sealed {n}" : "";
+
+    private static string Imprint(bool imprinted) => imprinted ? " imprinted" : "";
 
     private static string Line(int modifierId, byte ordinal, IEnumerable<(byte Index, StatType Stat, int Value, int? Value2)> values) =>
         $"{modifierId}@{ordinal}: " + string.Join(", ", values.Select(v => $"{v.Index} {v.Stat} {v.Value}..{v.Value2}"));

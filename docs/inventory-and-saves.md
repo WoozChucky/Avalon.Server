@@ -60,18 +60,19 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   a swap with the worn item, an item use, a two-hander over a worn off hand, a second copy of a UniqueEquipped
   template), and it can be moved in the Bag, banked, traded, destroyed and sold (for `Game:Items:UnidentifiedSellPercent`
   of its price, [vendors](#inventory-gold-and-character-saves)).
-- **The Workbench.** The Resonance Workbench is doodad template 7, the one seeded doodad whose `Service` is `Identify`,
+- **The Workbench.** The Resonance Workbench is doodad template 7, the one seeded doodad whose `Service` is `Workbench`,
   placed in Glimmerdell's market (`MapDoodadSpawns` row 2, [doodads](doodads.md)). A click on it goes through
   `CMSG_INTERACT` and `DoodadUseService` like any click (it ends the user's casts and arrival protection) and does
-  nothing else on the server: the client opens its identify window when the player clicks a doodad whose catalog
+  nothing else on the server: the client opens its Workbench window when the player clicks a doodad whose catalog
   `service` is 1. No window state is held: each request names the Workbench and is checked against it on its own.
 - **The request.** `CMSG_ITEM_IDENTIFY` (`0x2083`, `CItemIdentifyPacket`: `RequestId`, `WorkbenchGuid`, `BagSlot`),
   accepted by `MapSessionFilter`, identifies one Bag item; an "identify all" is the client sending one request per item.
   `ItemIdentifyHandler` answers each with exactly one `SMSG_ITEM_IDENTIFY_RESULT` (`0x3092`,
   `SItemIdentifyResultPacket`: `RequestId`, `ItemIdentifyResult`), and a connection with no character gets nothing
-  (logged at Debug). `IdentifyRules.Decide`, which reads and never changes, asks in this order: `Dead` (1); `Stunned`
-  (2, `ControlGates.CanAct`); `NotFound` (3: no instance, no doodad of that guid in it, a despawned one, or one whose
-  template's service is not Identify); `TooFar` (4: beyond the Workbench's `InteractionRange`, 5 m, written so a
+  (logged at Debug). `IdentifyRules.Decide`, which reads and never changes, asks in this order, its first four the
+  Workbench's shared prefix (`WorkbenchRules.Access`, which extraction and imprinting ask too, #1180 part C): `Dead`
+  (1); `Stunned` (2, `ControlGates.CanAct`); `NotFound` (3: no instance, no doodad of that guid in it, a despawned one,
+  or one whose template's service is not Workbench); `TooFar` (4: beyond the Workbench's `InteractionRange`, 5 m, written so a
   position that is not a number is beyond it; a doodad has no conversation to leash, so walking away after opening the
   window is caught by the next request); `NoItem` (5: nothing in that Bag slot, a slot past the Bag included);
   `AlreadyIdentified` (6); `Locked` (7: the item is offered in a trade); `NotEnoughGold` (8: only when the cost is above
@@ -105,7 +106,7 @@ this section is how the world holds, saves, sends and wakes it.
   the bank keeps the rows where they are. A new owner goes on from the same point when it wears the item.
 - **The meter, and the one in-place write.** Each character has an `AwakeningMeter` (`CharacterEntity.Awakening`,
   World-side and `internal`, never on `ICharacter`, never saved): `SealedWorn`, the sealed rows `Awakening.Fills`
-  accepts (a seal on an identified copy) on the items in the Equipment container, counted again by every stats refresh
+  accepts (a seal on an identified copy that is not Tainted, `ItemModification.Allowed`, #1180 part C) on the items in the Equipment container, counted again by every stats refresh
   that counts Resonance again (an item put on or taken off, a wake, a reload), with the Equipment slots they are in,
   kept so the settle, the wake check and the progress packet visit only those (found again after an Equipment change);
   `PendingMilli`, the points earned and not yet settled, in thousandths; and two bits, `Due` (the tick's flush must
@@ -163,3 +164,123 @@ this section is how the world holds, saves, sends and wakes it.
   `sealProgress` and `sealThreshold` (both null on an awake line, and on every line of an unidentified copy), the bar
   as the character's last save left it, and each item `attuned`. `/stats` leaves a sealed affix out of the stats and the Resonance counts, through the same `ItemLines`
   and per-item count the world uses ([multi-world API](api-worlds.md)).
+
+## Extraction and imprinting (#1180 part C)
+
+What can be extracted, what a glyph is, the imprint rules, instability, the brick and Tainted items are in [item
+modifiers](item-modifiers.md#extraction); this section is how the world decides, applies, holds, saves and sends them.
+
+- **The Workbench's three requests.** Identification, extraction and imprinting are all requests at the Resonance
+  Workbench, each in `MapSessionFilter`, handled on the tick in the map pass, each answered with exactly one result
+  (a connection with no character gets nothing, logged at Debug), and none holding window state. Each first passes the
+  Workbench's shared prefix, `WorkbenchRules.Access` (`WorkbenchAccess`, World-side and not on the wire: `Dead`;
+  `Stunned`, `ControlGates.CanAct`; `NotFound`, no instance, no doodad of that guid in it, a despawned one or one whose
+  service is not `Workbench`; `TooFar`, beyond its `InteractionRange`, a distance that is not a number included), which
+  each request's rules map to its own result with a `switch`. Then its own rules, which read and never change. **A
+  refusal changes nothing and allocates nothing** beyond its pooled reply
+  (`InventoryAllocationShould.Answer_workbench_requests_allocating_nothing`, and `WorkbenchRequestBenchmarks`,
+  [benchmarks](benchmarks.md)).
+- **Extract.** `CMSG_ITEM_EXTRACT` (`0x2084`, `CItemExtractPacket`: `RequestId` 1, `WorkbenchGuid` 2, `BagSlot` 3,
+  `ModifierId` 4, the catalog modifier of the affix to keep), answered by `ItemExtractHandler` with
+  `SMSG_ITEM_EXTRACT_RESULT` (`0x3095`, `SItemExtractResultPacket`: `RequestId`, `ItemExtractResult`).
+  `ExtractRules.Decide` asks, in order: the prefix, `Dead` 1, `Stunned` 2, `NotFound` 3, `TooFar` 4; `NoItem` 5 (nothing
+  in that Bag slot, a slot past the Bag included); `Unidentified` 6; `Locked` 7 (offered in a trade); `Tainted` 8;
+  `NotExtractable` 9, for any of: its template is gone or is not a rolled base (`ItemRoller.IsRolledBase`, which leaves
+  out uniques and glyphs), the copy is not Magic or Rare, the template is `NoDestroy`, the item carries no row of that
+  modifier (an id above `int.MaxValue` names none), the row's catalog modifier is gone or is not a prefix or suffix, the
+  row is sealed, or the items patch holds no Glyph template. It costs no gold. On `Ok` (0) the handler calls
+  `IInventoryService.TryExtract(bagSlot, modifierId)`; a failure after the rules allowed it is a bug, logged at Error
+  and answered `InternalError` (10), and leaves the item as it was.
+- **`TryExtract`.** It answers false and changes nothing unless the Bag slot holds an item `ItemModification.Allowed`
+  accepts (identified and not Tainted), not offered in a trade (it asks `Locks` itself, as every removal by id does,
+  whoever calls it), carrying an awake prefix or suffix row of that modifier in the current catalog
+  (`ExtractRules.ExtractableRow`, the rules' own check, which also hands back the catalog row), and the patch holds a
+  Glyph template. It builds the glyph in full first (a new item id; the affix's row copied by
+  `ItemInstanceModifier.CopyAs` under a new row id from `IItemIdAllocator.NextModifierId`, ordinal 0, unsealed, not
+  imprinted; the copy Magic, identified, `Attuned`, count 1, its template's initial durability, its item level the
+  modifier's `RequiredItemLevel`), so whatever throws leaves the item as it was. Then it deletes the item (marked
+  Removed, its store entry taken: rows, base stats, instability and all), puts the glyph's row in the store (`PutMade`,
+  marked for the save) and creates the glyph **in the same Bag slot**: no free slot is needed, the slot's save mark nets
+  to Changed, and the cascade from the old item's delete makes the slot's upsert an insert. The glyph reaches the client
+  in the tick's `SMSG_INVENTORY_UPDATE`.
+- **Imprint.** `CMSG_ITEM_IMPRINT` (`0x2085`, `CItemImprintPacket`: `RequestId` 1, `WorkbenchGuid` 2, `GlyphBagSlot` 3,
+  `TargetBagSlot` 4), answered by `ItemImprintHandler` with `SMSG_ITEM_IMPRINT_RESULT` (`0x3096`,
+  `SItemImprintResultPacket`: `RequestId`, `ItemImprintResult`). `ImprintRules.Decide` asks, in order: the prefix,
+  `Dead` 1, `Stunned` 2, `NotFound` 3, `TooFar` 4; `NoGlyph` 5 (the glyph slot is empty or past the Bag, its template is
+  gone or not a glyph, it holds other than exactly one row, or that row's catalog modifier is gone, untiered, or not a
+  prefix or suffix); `NoItem` 6 (the target slot is empty or past the Bag); `Locked` 7 (the target is offered in a
+  trade); `Unidentified` 8; `WrongRarity` 9 (not Magic or Rare, or its template is gone or not a rolled base, which
+  catches a glyph as the target, and so the glyph's own slot); `Tainted` 10; `NoRoom` 11 (the target's rows of the
+  glyph's kind, counted through the catalog with a sealed affix included, already fill its rarity's room, Magic 1,
+  Rare 3); `GroupTaken` 12 (it carries an affix row of the glyph modifier's group); `WrongSlot` 13 (the glyph's modifier
+  never rolls on the target's base kind, `ItemModifierCatalog.RollsOn`); `ItemLevelTooLow` 14 (the target's item level
+  is below the glyph modifier's `RequiredItemLevel`); `InternalError` 17 when `Game:Items:ImprintCost` holds no cost for
+  the glyph modifier's tier (a reload added a tier with no configuration), which the handler logs at Error as "the
+  glyph's tier has no Game:Items:ImprintCost", before any gold; `NotEnoughGold` 15 (the cost is above 0 and
+  `IWallet.CanSpend` refuses it; the wallet leaves out gold a trade holds). Rows the catalog no longer holds count toward
+  neither room nor group. **No rule reads instability**, so no refusal says anything of it. On `Ok` the handler spends
+  the cost through `IWallet.TrySpend` (nothing at 0), then calls `IInventoryService.TryImprint(glyphSlot, targetSlot)`
+  and answers what it returns, `Ok` (0) or `Bricked` (16), a success too. An imprint is all or nothing. When
+  `TryImprint` answers null or throws after the rules allowed it, it has written nothing (it throws only before its
+  first write, below), and the handler catches the throw, gives the cost back through `IWallet.TryAddGold`, logs at
+  Error (generated `[LoggerMessage]` methods, naming the request, the cost and the refund's result, and the exception
+  for a throw, never the total) and answers `InternalError` 17, its one reply: the request changed nothing, gold
+  included. A brick that finds an affix offered no tier is such a throw.
+- **`TryImprint`.** It answers null and changes nothing unless both slots are held and differ, the glyph is a glyph
+  holding one row of a tiered prefix or suffix the catalog holds (`ImprintRules.GlyphAffix`, the rules' own check), and
+  the target is an item `ItemModification.Allowed` accepts of a rolled base, carrying rolled rows (an entry in the
+  store, which every rolled base has). Otherwise `IItemRoller.Imprint` makes the target's new modifier list (its rows,
+  then the glyph's row copied by `CopyAs` under a new row id at the next ordinal after the highest, flagged
+  `Imprinted`), draws the instability and, when the total bricks the item, rerolls its affixes as new row objects ([item
+  modifiers](item-modifiers.md#extraction)); neither the held list nor any row in it is written. The item's new flags
+  are made too: a bricked item `Tainted` with `Attuned` cleared; any other `Attuned`, or, already attuned, unchanged.
+  These rolls and builds are the only steps that may throw, so any throw comes before the first write. Only then does it
+  write, and no write can throw: the new list and total **replace** the item's
+  (`ItemModifierStore.ReplaceModifiers(item, list, instability)`, whose refusals, an item without an entry and the list
+  it holds, are ruled out) and, in the same step with nothing between them that can throw, the item is replaced with its
+  new flags (an unchanged one only has its slot recorded for the client), so no item ever holds a bricking total
+  untainted (the container's `Put` refuses only a slot past its end, and this one was just found held); the item is
+  marked for the save (dictionary writes), and last the glyph is deleted (marked Removed), from a slot just found held.
+  It answers `Bricked` or `Ok`. It never logs, and never throws with the total in a message. The item, the emptied glyph
+  slot and the gold reach the client in the tick's `SMSG_INVENTORY_UPDATE`; the brick itself is told only by the
+  `Bricked` answer.
+- **The columns** (Character migration `AddImprintsAndInstability`). `ItemInstances.Instability` (`smallint NOT NULL`,
+  `ushort` in the domain as `ItemLevel` is; `CK_ItemInstances_Instability`: `"Instability" >= 0`), the hidden running
+  total; `ItemInstances.Tainted` (`boolean NOT NULL`), held equal to the brick by `CK_ItemInstances_Tainted`:
+  `"Tainted" = ("Instability" >= 100)` (100 is `ItemInstability.BrickAt`); and `ItemInstanceModifiers.Imprinted`
+  (`boolean NOT NULL`, no index: nothing counts imprints). The trade record mirrors all three
+  (`TradeRecordItems.Instability` and `Tainted`, `required` on the record as `Identified` is, with
+  `CK_TradeRecordItems_Instability` and `CK_TradeRecordItems_Tainted`, and `TradeRecordItemModifiers.Imprinted`). The
+  migration adds each with a default of 0 or false, which only fills the rows that exist, and then drops the defaults,
+  as the model declares none, so no insert can leave a column out. The total cannot pass 199: a total below
+  100 plus one draw of at most 100, after which a Tainted item is never imprinted again.
+- **Where instability lives in memory.** Only World-side: on the item's `ItemModifierStore` entry, beside its rolled
+  rows (`InstabilityOf(item)`, 0 for an item without an entry; `Load` reads the column; `Put` takes it; both throw for a
+  total above 0 with no rolled rows, since an imprinted item always carries its imprint, rather than drop a total every
+  later save would need; `Take` returns it), and on `CarriedItem` (its fourth member, `Instability`, with no default, so
+  no path drops it silently) while the item is out of every container: taken out for a sale and kept for the buyback, or
+  planned into a trade (`TradeRules.ItemsInPlace`, `TradeService.Completion`). It is never on `InventoryItem`, the
+  modding API's view. `Tainted` is a visible fact of the copy, on `InventoryItem` (World.Public, read-only, a positional
+  member with no default, so every copy built states it and none rebuilt untaints an item), which `InventoryAssembler`
+  reads from the row. So both travel with the copy wherever `Identified` does: a save writes them
+  (`CharacterSaveSnapshot.ItemRow`, with the store's total), a trade's paired save (`TradeSaveBatch`, from the carried
+  item) and its record (`TradeService.AddItems`) keep them and each row's `Imprinted` (`CopyRow` copies it), a sale and
+  its buyback carry them, and the bank moves the copy within the character, so its store entry never leaves.
+- **A seal that moves is cleared first.** No part C path moves a seal (a brick keeps every row's id and progress, and
+  an imprinted or glyph row is never sealed), but the save is made safe for a later one: `CharacterSaveRepository`'s
+  rewrite pass, for each batch with modifier writes, first clears the stored seals in its own statement
+  (`ExecuteUpdateAsync`, `SealProgress = NULL` on stored rows whose id the batch writes unsealed and whose stored seal
+  is set, of the items whose new rows hold a seal), before the tracked updates set any new seal, so a seal moving
+  between two rows of one item never meets the one-seal index twice. One statement per batch, and only when an item
+  whose new rows hold a seal also has a row written unsealed: a seal on a row outside the new set went with the deletes
+  before it, and an item that keeps no seal has its rows written null by the tracked updates alone.
+- **The messages.** `ItemSlotDto.Tainted` (14) and `TradeItemDto.Tainted` (11) say whether a copy is Tainted, on every
+  path an item travels (the login snapshot, inventory updates, item replies, the bank, the buyback list, the trade
+  window). `ItemModifierDto.Imprinted` (5) is set on an imprinted line of an identified copy the client is shown, and
+  false otherwise; a reused pooled entry always overwrites it. A ground drop is a fresh roll, never Tainted or
+  imprinted. Nothing on the wire carries the total.
+- **REST.** The inventory read gives each item `tainted` and each modifier line it shows `imprinted` (false on every
+  line of an unidentified copy), as the character's last save left them ([multi-world API](api-worlds.md#routes)). The
+  read loads the `ItemInstance` entity, `Instability` included, and maps none of it: no DTO carries the total, for any
+  caller, staff included. `ApiContractShould.Name_instability_on_no_client_facing_type` holds that no packet, REST
+  contract or modding-API type names it.

@@ -424,8 +424,8 @@ public sealed partial class TradeService
                 continue;
 
             // The item at its planned slot, with what the giver's take-out handed over: the paired save wrote both.
-            InventoryAddResult added = inventory.TryAddInstanceAt(new CarriedItem(item, handed.BaseStats, handed.Modifiers),
-                item.Slot);
+            InventoryAddResult added = inventory.TryAddInstanceAt(
+                new CarriedItem(item, handed.BaseStats, handed.Modifiers, handed.Instability), item.Slot);
             if (added != InventoryAddResult.Ok)
             {
                 logger.LogCritical(
@@ -514,6 +514,8 @@ public sealed partial class TradeService
                 ItemLevel = item.ItemLevel,
                 RareName = item.RareName,
                 Identified = item.Identified,
+                Instability = carried.Instability,
+                Tainted = item.Tainted,
             };
 
             foreach ((ItemBaseStat stat, int value) in carried.BaseStats)
@@ -537,6 +539,7 @@ public sealed partial class TradeService
                     Ordinal = modifier.Ordinal,
                     ModifierId = modifier.ModifierId,
                     SealProgress = modifier.SealProgress,
+                    Imprinted = modifier.Imprinted,
                 };
 
                 foreach (ItemInstanceModifierValue value in modifier.Values)

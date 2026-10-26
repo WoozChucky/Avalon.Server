@@ -215,9 +215,9 @@ public class TradeServiceShould
         [
             Modifier(rare.InstanceId, 10103, 0, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null)),
             Modifier(rare.InstanceId, 203, 1, (0, StatType.AddedFireDamage, 3, 7)),
-        ])));
+        ], 0)));
         Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(magic, default,
-            [Modifier(magic.InstanceId, 204, 0, (0, StatType.AddedColdDamage, 2, 5))])));
+            [Modifier(magic.InstanceId, 204, 0, (0, StatType.AddedColdDamage, 2, 5))], 0)));
         w.Open(a, b);
 
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));

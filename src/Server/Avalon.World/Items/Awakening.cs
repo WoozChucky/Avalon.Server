@@ -14,12 +14,13 @@ namespace Avalon.World.Items;
 public static class Awakening
 {
     /// <summary>
-    /// Whether <paramref name="row" /> of <paramref name="item" /> fills from kills and damage: a seal on an identified
-    /// copy. Every count, settle, wake and progress packet asks this, so it is the one place a seal that must never fill
-    /// or wake is told apart. An unidentified copy (the equip rule keeps one out of the Equipment, should one ever be
-    /// there) neither fills nor tells its owner that it is sealed.
+    /// Whether <paramref name="row" /> of <paramref name="item" /> fills from kills and damage: a seal on a copy
+    /// <see cref="ItemModification.Allowed" /> accepts, identified and not Tainted. Every count, settle, wake and progress
+    /// packet asks this, so it is the one place a seal that must never fill or wake is told apart. An unidentified copy
+    /// (the equip rule keeps one out of the Equipment, should one ever be there) neither fills nor tells its owner that it
+    /// is sealed; a Tainted copy's seal (#1180 part C) keeps the progress it had, frozen, and never wakes.
     /// </summary>
-    public static bool Fills(in InventoryItem item, ItemInstanceModifier row) => item.Identified && row.Sealed;
+    public static bool Fills(in InventoryItem item, ItemInstanceModifier row) => ItemModification.Allowed(item) && row.Sealed;
 
     /// <summary>Whether <paramref name="row" /> fills and its bar reached the threshold of <paramref name="item" />'s item level.</summary>
     public static bool ReadyToWake(in InventoryItem item, ItemInstanceModifier row) =>

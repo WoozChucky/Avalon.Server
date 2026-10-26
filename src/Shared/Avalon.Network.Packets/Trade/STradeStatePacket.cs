@@ -48,6 +48,12 @@ public class TradeItemDto
     /// line, and no other modifier and no name, to its owner and its partner alike.
     /// </summary>
     [ProtoMember(10)] public bool Identified { get; set; }
+
+    /// <summary>
+    /// Whether the copy is Tainted (#1180): an imprint bricked it, rerolling its affixes low, and it can never be modified
+    /// or attuned again. How close an untainted copy is to bricking is never sent.
+    /// </summary>
+    [ProtoMember(11)] public bool Tainted { get; set; }
 }
 
 /// <summary>One side of a trade: its items in trade-slot order, its gold, and whether it confirmed this revision.</summary>

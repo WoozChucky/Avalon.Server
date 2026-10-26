@@ -2,6 +2,8 @@ using System.Collections;
 using System.Reflection;
 using Avalon.Api.Contract;
 using Avalon.Common;
+using Avalon.Network.Packets.Character;
+using Avalon.World.Public.Characters;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Contracts;
@@ -45,6 +47,143 @@ public class ApiContractShould
         }
 
         Assert.Empty(offenders);
+    }
+
+    /// <summary>
+    /// An item's instability is never sent or shown (#1180): no client learns how close an item is to bricking. No packet
+    /// (<see cref="ItemSlotDto" />'s assembly), REST contract (<see cref="CharacterInventoryDto" />'s) or modding-API type
+    /// (<see cref="InventoryItem" />'s) names it, and neither does any Avalon type those reach through a base type, an
+    /// interface, a reachable member's type, a parameter's or a return type, a generic argument or an element (an
+    /// Avalon.Common enum such as <see cref="ItemInstanceFlags" /> among them): not as a type, a property, a field, an
+    /// enum value, a method, or a constructor or method parameter (a record's positional members among them), under
+    /// "instab" or "unstab" in any case. A member the serializers reach without its being public (a protobuf or JSON
+    /// attribute on a private one) counts as public.
+    /// </summary>
+    [Fact]
+    public void Name_instability_on_no_client_facing_type()
+    {
+        const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance |
+            BindingFlags.Static | BindingFlags.DeclaredOnly;
+        List<string> offenders = [];
+
+        var queue = new Queue<Type>(new[] { typeof(CharacterInventoryDto), typeof(ItemSlotDto), typeof(InventoryItem) }
+            .Select(anchor => anchor.Assembly)
+            .Distinct()
+            .SelectMany(assembly => assembly.GetTypes()));
+        var seen = new HashSet<Type>(queue);
+        while (queue.TryDequeue(out Type? type))
+        {
+            if (Hides(type.Name))
+            {
+                offenders.Add(type.FullName!);
+            }
+
+            // An inherited member is declared on its base, so the bases and interfaces are walked too; each type is
+            // queued once, so the walk ends.
+            if (type.BaseType is { } baseType)
+            {
+                Walk(baseType);
+            }
+
+            foreach (Type contract in type.GetInterfaces())
+            {
+                Walk(contract);
+            }
+
+            foreach (MemberInfo member in type.GetMembers(Declared).Where(Reachable))
+            {
+                // A property's accessors are named by the property, which is listed itself.
+                if (member is not MethodInfo { IsSpecialName: true } && Hides(member.Name))
+                {
+                    offenders.Add($"{type.Name}.{member.Name}");
+                }
+
+                foreach (Type reached in TypesOf(member))
+                {
+                    Walk(reached);
+                }
+
+                if (member is not MethodBase method)
+                {
+                    continue;
+                }
+
+                foreach (ParameterInfo parameter in method.GetParameters().Where(p => Hides(p.Name)))
+                {
+                    offenders.Add(method.IsConstructor
+                        ? $"{type.Name}.{parameter.Name}"
+                        : $"{type.Name}.{method.Name}.{parameter.Name}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "Instability must reach no client (#1180), yet these name it: " + string.Join(", ", offenders.Distinct()));
+
+        // Queues each Avalon type a reached type is made of, once.
+        void Walk(Type reached)
+        {
+            if (reached.IsGenericParameter)
+            {
+                return;
+            }
+
+            if (reached.HasElementType && reached.GetElementType() is { } element)
+            {
+                Walk(element);
+                return;
+            }
+
+            if (reached.IsGenericType)
+            {
+                foreach (Type argument in reached.GetGenericArguments())
+                {
+                    Walk(argument);
+                }
+
+                reached = reached.GetGenericTypeDefinition();
+            }
+
+            if (reached.Assembly.GetName().Name?.StartsWith("Avalon.", StringComparison.Ordinal) == true && seen.Add(reached))
+            {
+                queue.Enqueue(reached);
+            }
+        }
+    }
+
+    private static bool Hides(string? name) =>
+        name is not null && (name.Contains("Instab", StringComparison.OrdinalIgnoreCase) ||
+                             name.Contains("Unstab", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The types a member exposes: its own, a method's return and parameter types, a nested type itself.</summary>
+    private static IEnumerable<Type> TypesOf(MemberInfo member) => member switch
+    {
+        FieldInfo field => [field.FieldType],
+        PropertyInfo property => [property.PropertyType],
+        EventInfo e when e.EventHandlerType is { } handler => [handler],
+        MethodInfo method => [method.ReturnType, .. method.GetParameters().Select(p => p.ParameterType)],
+        ConstructorInfo constructor => constructor.GetParameters().Select(p => p.ParameterType),
+        Type nested => [nested],
+        _ => [],
+    };
+
+    /// <summary>
+    /// A member a client or a modder can reach: a public one, or one a serializer writes by attribute whatever its access.
+    /// </summary>
+    private static bool Reachable(MemberInfo member)
+    {
+        bool isPublic = member switch
+        {
+            FieldInfo field => field.IsPublic,
+            MethodBase method => method.IsPublic,
+            PropertyInfo property => property.GetMethod?.IsPublic == true || property.SetMethod?.IsPublic == true,
+            EventInfo e => e.AddMethod?.IsPublic == true,
+            Type nested => nested.IsNestedPublic,
+            _ => false,
+        };
+
+        return isPublic || member.GetCustomAttributes(inherit: false).Any(attribute =>
+            attribute.GetType().Name is "ProtoMemberAttribute" or "JsonIncludeAttribute" or "JsonPropertyNameAttribute");
     }
 
     /// <summary>

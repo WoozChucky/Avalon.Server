@@ -46,6 +46,7 @@ public class InventoryAssemblerShould
         var id = Guid.NewGuid();
         ItemInstance instance = Instance(id, template: 4242, count: 7, durability: 33);
         instance.Charges = 6;
+        instance.Tainted = true;
 
         IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble(
             [Row(InventoryType.Bag, 3, id)],
@@ -58,6 +59,7 @@ public class InventoryAssemblerShould
         Assert.Equal(7u, item.Count);
         Assert.Equal(33u, item.Durability);
         Assert.Equal(6u, item.Charges);
+        Assert.True(item.Tainted);
     }
 
     /// <summary>

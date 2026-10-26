@@ -39,6 +39,11 @@ public sealed class CharacterInventoryItemDto
     /// Whether this copy is attuned (#1180): one of its affixes has woken, and it can no longer be traded.
     /// </summary>
     public bool Attuned { get; set; }
+    /// <summary>
+    /// Whether this copy is Tainted (#1180): an imprint bricked it, rerolling its affixes low, and it can never be modified
+    /// or attuned again. How close an untainted copy is to bricking is never shown.
+    /// </summary>
+    public bool Tainted { get; set; }
 }
 
 /// <summary>One base stat an item copy rolled (#1179): its own number, which its local modifiers scale.</summary>
@@ -72,6 +77,11 @@ public sealed class CharacterInventoryModifierDto
     /// is, null otherwise.
     /// </summary>
     public int? SealThreshold { get; set; }
+    /// <summary>
+    /// Whether the affix was imprinted from a glyph (#1180) rather than rolled with its item: set only on a line the read
+    /// shows, so an unidentified copy never reports one.
+    /// </summary>
+    public bool Imprinted { get; set; }
 }
 
 /// <summary>One rolled number of an item's modifier: the stat it gives and how much (#1179).</summary>
