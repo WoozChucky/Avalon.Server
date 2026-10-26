@@ -363,6 +363,25 @@ singletons as in every host. Only their context factories differ in the API, whi
   `dotnet ef database update AddResonanceEffects` against its World database, which deletes template 152. The two
   databases share no foreign key, so a glyph already made stays in its owner's items, naming a template the older
   build does not hold. No world or API does that by itself.
+  **Migration order, #1181 (part A).** Mana for every class is not additive (no backward compatibility, owner,
+  2026-10-23). A world's World database migrates through `ManaFormula`, then `CostsInMana`. `ManaFormula` adds
+  `CombatFormula.ManaBase` and `ManaPerLevel` (`bigint`, seeded 100 and 8) and `ManaPerIntellect` (`real`, seeded 4)
+  with their checks `CK_CombatFormula_ManaBase`, `_ManaPerLevel` and `_ManaPerIntellect`, which the API reads (the
+  worlds service loads the formula row for a character's advertised ability amounts), and drops the table
+  `ClassStatFactors` and the column `ClassLevelStats.BaseMana`, which only the world reads. `CostsInMana` drops
+  `AbilityTemplates.CostPowerType` and `PowerGainPerHit`, with their checks `CK_AbilityTemplates_CostPowerType` and
+  `CK_AbilityTemplates_PowerGainPerHit_NonNegative`, which the released API maps, and moves item 2, the Mana Potion, to
+  the cooldown group `mana-potion`. There is no Character migration. Each world applies both at its start, before it
+  serves (`WorldStartup`). The order is: the worlds go first, each migrating at its next start (start any stopped world
+  once, so it migrates too), and then the API release with the change is cut. The released API is broken in between,
+  as the owner accepted for #1178 part B: an older API reading a migrated world fails with Postgres 42703 on the
+  dropped ability columns, so every ability template read fails (the worlds service's ability template list, get and
+  `PUT`, the public ability tooltips and link previews, and a character's abilities). An API with the change reading a
+  world that has not migrated fails the same way on the formula's new columns: a character's abilities. To roll a
+  world back to a build without the change, run `dotnet ef database update AddGlyphTemplate` against its World
+  database: it restores `ClassStatFactors`, `ClassLevelStats.BaseMana`, `CostPowerType` and `PowerGainPerHit` with
+  their seed values and checks, puts the Mana Potion back in the `potion` group, and drops the three formula columns.
+  No world or API does that by itself.
 
 ## How a request reaches its world
 

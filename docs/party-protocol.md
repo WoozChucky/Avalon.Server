@@ -121,7 +121,8 @@ handover's "X is now the party leader." line).
 ## 4. Member status
 
 `SMSG_PARTY_MEMBER_STATUS` carries one member's pools: health and its maximum, power and its maximum, the
-power type, and whether it is dead.
+power type, and whether it is dead. Power is mana and the power type `Mana` for every character (#1181);
+`Fury` and `Energy` stay in the enum (append-only) but are never sent.
 - Only about members in **your own instance** (`SameInstance`), never about yourself (your own values come
   on your character's state stream).
 - Sent when a value changes, at most once every 250 ms per member; the latest values follow as soon as the

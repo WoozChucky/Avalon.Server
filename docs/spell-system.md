@@ -32,8 +32,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Name` | string | | Display name. |
 | `CastTime` | uint | ms | 0 is instant; above 0 the cast waits in the queue first. |
 | `Cooldown` | uint | ms | Time before the skill can be cast again, before cooldown recovery (or, for a basic Spell, cast speed). 0 for a basic Attack, which its weapon paces (#1178, §3). |
-| `Cost` | uint | power points | Paid from the pool `CostPowerType` names (see the power rule below). |
-| `CostPowerType` | `PowerType` | | The pool `Cost` is spent from: Mana, Fury or Energy (#652). None only with a cost of 0; the catalog and a check constraint refuse a cost with none. |
+| `Cost` | uint | mana | Spent from the caster's mana, the one pool every class has (#1181; see the power rule below). 0 is free. |
 | `ScriptName` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
@@ -102,18 +101,16 @@ silent case.
 7. **Cooldown**: the skill's own cooldown is running; the answer carries the time left, rounded up.
 8. **RequiresOutOfCombat** / **RequiresInCombat**: the skill's combat flags.
 9. **NoAimPoint**: a cursor skill whose `GroundPos` is missing or has a non-finite component.
-10. **The power rule** (`AbilityCost`, #521 item 2, #652): a cost above 0 is spent from the pool the
-   ability names (`CostPowerType`), and only a caster whose own pool is that one pays it. A caster
-   whose pool is another one, or none, is **WrongPowerType**, however much it holds: a Mana ability
-   given to a Warrior never spends Fury. Too little in the right pool is **NotEnoughPower**. A cost
-   whose row names no pool is **InternalError**, since the player cannot fix it. A cost of 0 needs no
-   pool. Fury is spent like the
-   others but nothing generates it yet (#526): a Warrior enters full and does not regenerate.
+10. **The power rule** (`AbilityCost`, #521 item 2, #1181): a cost of 0 is payable by anyone and needs
+   no pool. A cost above 0 is spent from mana, the one pool every character has: a caster on
+   `PowerType.Mana` holding at least the cost pays it, and anything else is **NotEnoughPower**, too
+   little mana or no pool at all (a creature handed a costed ability).
 11. **The instance**: the caster's instance must exist, and the cast system must accept the cast (its
    script found and built, and the caster's crowd control asked again, #770); otherwise **InternalError**.
 
 `TargetGuid`, a range check and a facing check no longer exist. `TargetNotFound`, `NotFacing` and
-`OutOfRange` stay in the enum (values are append-only) but are never sent.
+`OutOfRange` stay in the enum (values are append-only) but are never sent, and so does `WrongPowerType`
+(14), the refusal of a cost from another pool, gone with the other pools (#1181).
 
 **Aim is captured at cast start.** The handler builds the `AbilityAim` (facing from the caster's
 `Orientation.y`, and the ground point for a cursor skill) before the cast is accepted, and the shape
@@ -449,10 +446,9 @@ within a few percent. A basic Attack's cooldown is its weapon's attack time (`we
 | 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | Spell, Area | 20-31, +0.35 %/level | Lightning |
 | 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | Heal, Area | 30-44 | – |
 
-Costs are paid from the class's pool: Warriors Fury, Wizards and Clerics Mana, Hunters Energy
-(`ClassPowerType`). `SeedIntegrityShould` pins the twelve rows, the class links, the starting skills,
-one script per shape, Mending Circle as the only ally heal, and that every cost is payable by its
-class's pool under the power rule.
+Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twelve rows, the class
+links, the starting skills, one script per shape, Mending Circle as the only ally heal, and that every
+cost is payable under the power rule from a level 1 character's maximum mana.
 
 ## 8b. The creature abilities
 

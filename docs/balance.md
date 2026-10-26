@@ -33,10 +33,10 @@ class parity, level curve, resource flow and levelling pace against `balance/tar
 `--out`); exit 0 no red, 1 red, 2 refused input.
 `SeedSource.Load` reads the seed from `WorldDbContext`'s design-time model (`IDesignTimeModel`, `GetSeedData()`, Npgsql
 with a placeholder string, never connected) into `SeedTables`; `balance/overrides.json` (`"Table.key.Column": value`)
-is applied to a copy of it. It never copies a balance formula: stats, hits, Fury, speeds, costs, power regen, power
-gains and heal caps (`PowerRegen`, `PowerPool`, `HealRules`, see World Simulation) are `Avalon.Combat`, the code the
-world server runs, and so are the checks that validate the data: `AbilityRules`, `CombatDataRules` and
-`CreatureTemplateRules` (and `ClassPowerType`, `Fury.DefaultFromDamageTaken`) in `Avalon.Combat`, which the world's
+is applied to a copy of it. It never copies a balance formula: stats, hits, speeds, costs, mana regeneration, mana
+gains and heal caps (`ManaRegenRates`, `PowerRegen`, `PowerPool`, `HealRules`, see World Simulation) are
+`Avalon.Combat`, the code the world server runs, and so are the checks that validate the data: `AbilityRules`,
+`CombatDataRules` and `CreatureTemplateRules` in `Avalon.Combat`, which the world's
 `AbilityCatalog`, `CombatPatch.Build` and `CreaturesPatch.Validate` delegate to with their exact checks and messages.
 
 The run contract: `Simulation.Run(seed, defaults, request, progress, ct)` returns a `RunResult` (`Status` Done,
@@ -57,9 +57,10 @@ interval, a creature's level range) and the fight's event order are pinned by `S
 ability rolls whether it lands, damage or not (#1164, `CombatRules.Lands` for one without `Damage`; none for an
 `Unavoidable` one), and its aura lands only where it landed, so an aura-only ability's simulated output (Ignite,
 Sundering Howl) drops with the target's chance to evade it. It steps at the server's tick (1/60 s) so cooldowns,
-casts and the event order count as the server's do. Mana and Energy regenerate `stat x coefficient x dt` a tick with
-the fraction of a point carried between ticks (`PowerRegen.Amount`, the caller owning the carry), dropped while a cast
-suppresses regen or the pool cannot regenerate (full included).
+casts and the event order count as the server's do. Every class spends mana (#1181), which regenerates at the in-combat
+rate, `ManaRegenRates.InCombat x dt` a tick (1 % of the maximum a second), with the fraction of a point carried between
+ticks (`PowerRegen.TakeWholePoints`, the caller owning the carry), dropped when the pool cannot regenerate (full
+included); a cast never pauses it.
 `ConfigFiles.Save` writes `scenarios.json`, `targets.json` and `rotations.json` in one canonical JSON form
 (`ConfigFileStore.Write`), and the checked-in files are in that form, so a parse and save round-trips byte for byte.
 Balance tables change only through `HasData` plus a migration (see Commands); `ModelDriftShould` fails when `HasData`
