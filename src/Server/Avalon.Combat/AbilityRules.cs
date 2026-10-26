@@ -2,7 +2,6 @@ using System.Numerics;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
-using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 
@@ -40,13 +39,6 @@ public static class AbilityRules
             if (!float.IsFinite(value) || value < 0f)
                 return $"{name} {value} is not a finite value of 0 or more";
         }
-
-        // #526. A negative gain would drain the caster's pool on every hit; the database refuses it too.
-        if (t.PowerGainPerHit < 0) return $"PowerGainPerHit {t.PowerGainPerHit} is below 0";
-
-        // #652: a cost is spent from the pool the row names, never from whichever pool the caster has.
-        if (!Enum.IsDefined(t.CostPowerType)) return $"unknown cost power type {(int)t.CostPowerType}";
-        if (t.Cost > 0 && t.CostPowerType == PowerType.None) return $"Cost {t.Cost} names no power type to spend it from";
 
         if (!Enum.IsDefined(t.AimMode)) return $"unknown aim mode {(byte)t.AimMode}";
         if (!Enum.IsDefined(t.Shape)) return $"unknown shape {(byte)t.Shape}";

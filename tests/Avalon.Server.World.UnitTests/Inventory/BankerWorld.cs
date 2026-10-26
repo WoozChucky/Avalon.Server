@@ -37,7 +37,6 @@ internal sealed class BankerWorld
         Class = CharacterClass.Warrior,
         Level = 1,
         BaseHp = 130,
-        BaseMana = 0,
         Stamina = 22,
         Strength = 23,
         Agility = 20,

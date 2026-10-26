@@ -57,7 +57,6 @@ public static class PublicMapping
         Id = t.Id.Value,
         Name = t.Name ?? "",
         Cost = t.Cost,
-        CostPowerType = (PowerType)t.CostPowerType,
         Range = (SpellRange)t.Range,
         CastTime = t.CastTime,
         Cooldown = t.Cooldown,

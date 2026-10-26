@@ -59,7 +59,6 @@ public class ItemUseContextShould
     {
         _character.Health = 240;
         _character.CurrentHealth = 100;
-        _character.PowerType = PowerType.Energy;
         _character.Power = 100;
         _character.CurrentPower = 40;
         _character.Position = new Vector3(1, 2, 3);
@@ -69,7 +68,7 @@ public class ItemUseContextShould
         ItemUseContext ctx = Context();
 
         Assert.Equal((NameFor(7), (ushort)1, CharacterClass.Warrior), (ctx.Name, ctx.Level, ctx.Class));
-        Assert.Equal((100u, 240u, PowerType.Energy, 40u, 100u), (ctx.Health, ctx.MaxHealth, ctx.PowerType, ctx.Power, ctx.MaxPower));
+        Assert.Equal((100u, 240u, 40u, 100u), (ctx.Health, ctx.MaxHealth, ctx.Power, ctx.MaxPower));
         Assert.Equal((new Vector3(1, 2, 3), (ushort)2), (ctx.Position, ctx.MapId));
         Assert.Equal((false, true, false, false), (ctx.InTown, ctx.InCombat, ctx.InParty, ctx.ReturningToTown));
     }

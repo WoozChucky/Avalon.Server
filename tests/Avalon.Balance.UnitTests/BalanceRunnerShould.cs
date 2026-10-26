@@ -98,6 +98,6 @@ public class BalanceRunnerShould
         Assert.InRange(row.WinRatePct, 0, 100);
         Assert.True(row.FightSeconds.P10 <= row.FightSeconds.Median && row.FightSeconds.Median <= row.FightSeconds.P90);
         Assert.Equal(5, row.Snapshot.Abilities.Count);
-        Assert.True(row.DamageDealtPerRun.ContainsKey("Cleave"));
+        Assert.True(row.DamageDealtPerRun.ContainsKey("Ground Slam"));
     }
 }

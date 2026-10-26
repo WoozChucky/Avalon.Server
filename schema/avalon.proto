@@ -103,7 +103,6 @@ message AbilityInfo {
    float ProjectileSpeed = 14;
    bool Pierce = 15;
    AbilityAffects Affects = 16;
-   PowerType CostPowerType = 17;
    AbilityAmountKind AmountKind = 18;
    uint32 AmountMin = 19;
    uint32 AmountMax = 20;
@@ -715,6 +714,8 @@ enum ItemStat {
    ItemStat_AddedColdDamageToSpells = 51;
    ItemStat_AddedLightningDamageToSpells = 52;
    ItemStat_IncreasedMaximumLife = 53;
+   ItemStat_IncreasedMaximumMana = 54;
+   ItemStat_IncreasedManaRegeneration = 55;
 }
 enum ItemUseResult {
    ItemUseResult_Unknown = 0;
@@ -1301,6 +1302,8 @@ message SCharacterStatsPacket {
    uint32 AttackTimeMs = 26;
    repeated float IncreasedPct = 27 [packed = false];
    repeated ResonanceDto Resonance = 28;
+   float ManaRegenInCombat = 29;
+   float ManaRegenOutOfCombat = 30;
 }
 message SChatMessagePacket {
    uint64 AccountId = 1;

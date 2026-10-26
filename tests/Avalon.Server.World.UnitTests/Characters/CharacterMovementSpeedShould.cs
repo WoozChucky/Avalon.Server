@@ -32,7 +32,7 @@ public class CharacterMovementSpeedShould
 
     private static readonly ClassLevelStat[] s_warriorRows =
     [
-        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
     ];
 
     private static readonly ItemTemplate s_swiftBoots = new()
@@ -57,7 +57,7 @@ public class CharacterMovementSpeedShould
         CharacterEntity character = New();
         Assert.Equal(4f, character.GetMovementSpeed());
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld, s_seeded));
 
         Assert.Equal(4f, character.GetMovementSpeed());
@@ -98,17 +98,17 @@ public class CharacterMovementSpeedShould
     public void Change_the_speed_at_the_refresh_after_a_gear_change()
     {
         CharacterEntity character = New();
-        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld, s_seeded));
 
         character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Feet, s_swiftBoots)]);
         Assert.Equal(4f, character.GetMovementSpeed());
-        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, s_seeded));
         Assert.Equal(4.4f, character.GetMovementSpeed(), precision: 5);
 
         character.Container(InventoryType.Equipment).Load([]);
-        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, TestCombat.Factors, Find,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_warriorRows, Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, s_seeded));
         Assert.Equal(4f, character.GetMovementSpeed(), precision: 5);
     }

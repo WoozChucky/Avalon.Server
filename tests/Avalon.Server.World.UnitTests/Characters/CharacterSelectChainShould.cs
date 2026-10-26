@@ -624,7 +624,7 @@ public class CharacterSelectChainShould : IDisposable
         StaticData staticData = EmptyStaticData();
 
         IWorld world = Substitute.For<IWorld>();
-        world.Configuration.Returns(new GameConfiguration());   // the select reads Game:FuryDecayPerSecond (#526)
+        world.Configuration.Returns(new GameConfiguration());
         world.InstanceRegistry.Returns(registry);
         world.MapTemplates.Returns(new List<MapTemplate>
         {

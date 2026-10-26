@@ -1,11 +1,13 @@
 using Avalon.Combat;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Loot;
-using Avalon.World.Configuration;
+using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -15,29 +17,26 @@ public class CharacterEntityRegenShould
     // Helper
     // ──────────────────────────────────────────────
 
+    private static readonly DateTimeOffset s_now = new(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
+
     private static CharacterEntity MakeCharacter(
         uint health = 100u,
         uint currentHealth = 50u,
         uint power = 100u,
         uint currentPower = 50u,
         uint stamina = 10u,
-        uint regenStat = 10u,
-        PowerType powerType = PowerType.Mana,
-        RegenConfiguration? config = null,
-        float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond)
+        TimeProvider? clock = null)
     {
         var character = new Character { Id = 1u, Health = (int)health, Power1 = (int)power };
-        var entity = new CharacterEntity(
-            NullLoggerFactory.Instance,
-            character,
-            config ?? new RegenConfiguration(),
-            furyDecayPerSecond: furyDecayPerSecond);
+        var entity = new CharacterEntity(NullLoggerFactory.Instance, character, new RegenConfiguration(), clock);
 
+        entity.PowerType = PowerType.Mana;
+        entity.ApplyStats(new DerivedCharacterStats(MaxHealth: health, MaxPower: power, Stamina: 0, Strength: 0,
+            Agility: 0, Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 0f), CurrentValues.EnterWorld,
+            CombatSeed.Formula());
         entity.CurrentHealth = currentHealth;
         entity.CurrentPower = currentPower;
         entity.Stamina = stamina;
-        entity.RegenStat = regenStat;
-        entity.PowerType = powerType;
         entity.Spells.Load(Array.Empty<IAbility>());
         return entity;
     }
@@ -109,42 +108,58 @@ public class CharacterEntityRegenShould
     }
 
     // ──────────────────────────────────────────────
-    // Power regeneration
+    // Mana regeneration
     // ──────────────────────────────────────────────
 
     /// <summary>
-    /// Only Mana and Energy regenerate. Fury never does (decay is off here: its decay, #526, is
-    /// FuryLifecycleShould's), and neither does a unit with no pool.
+    /// #1181: mana regenerates 4 % of its maximum a second out of combat and 1 % in it, and a cast in progress does not
+    /// pause it; the dead and a full pool regenerate nothing. A maximum of 400 over sixty 1/60 s ticks.
     /// </summary>
     [Theory]
-    [InlineData(PowerType.Mana, 60u)]
-    [InlineData(PowerType.Energy, 60u)]
-    [InlineData(PowerType.Fury, 50u)]
-    [InlineData(PowerType.None, 50u)]
-    public void Update_RegeneratesOnlyManaAndEnergy_OutOfCombat(PowerType powerType, uint expected)
+    [InlineData("out of combat", 100u, 116u)]
+    [InlineData("in combat", 100u, 104u)]
+    [InlineData("casting", 100u, 116u)]
+    [InlineData("dead", 100u, 100u)]
+    [InlineData("full", 400u, 400u)]
+    public void Regenerate_mana_by_its_share_of_the_maximum(string state, uint start, uint expected)
     {
-        var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
-            powerType: powerType, config: config, furyDecayPerSecond: 0f);
+        var clock = new FixedTimeProvider(s_now);
+        CharacterEntity entity = MakeCharacter(power: 400, currentPower: start, clock: clock);
+        switch (state)
+        {
+            case "in combat":
+                entity.MarkCombat();   // the clock is frozen, so the fight never ends
+                break;
+            case "casting":
+                IAbility casting = Substitute.For<IAbility>();
+                casting.Casting.Returns(true);
+                entity.Spells.Load([casting]);
+                break;
+            case "dead":
+                entity.IsDead = true;
+                break;
+        }
 
-        entity.Update(TimeSpan.FromSeconds(1));
+        for (int tick = 0; tick < 60; tick++)
+            entity.Update(TimeSpan.FromSeconds(1d / 60d));
 
-        // RegenStat(10) * coeff(1.0) * dt(1s) = 10 → 50 + 10 = 60
+        if (state == "casting")
+            Assert.True(entity.Spells.IsCasting);
         Assert.Equal(expected, entity.CurrentPower!.Value);
     }
 
     [Fact]
     public void Update_DropsTheCarriedFraction_WhenThePoolIsFull()
     {
-        // Out of combat, 23 x 0.3 = 6.9 a second: one second from 99 fills the pool and leaves 0.9 carried.
-        CharacterEntity entity = MakeCharacter(power: 100, currentPower: 99, regenStat: 23, powerType: PowerType.Mana);
+        // Out of combat, 4 % of 245 = 9.8 a second: one second from 244 fills the pool and leaves 0.8 carried.
+        CharacterEntity entity = MakeCharacter(power: 245, currentPower: 244);
         entity.Update(TimeSpan.FromSeconds(1));
-        Assert.Equal(100u, entity.CurrentPower!.Value);
+        Assert.Equal(245u, entity.CurrentPower!.Value);
 
-        entity.Update(TimeSpan.FromSeconds(1d / 60d));   // full: the 0.9 is dropped, never banked
-        entity.CurrentPower = 50;
-        entity.Update(TimeSpan.FromSeconds(1d / 60d));   // 0.115 owed: no whole point yet (0.9 kept would give 51)
+        entity.Update(TimeSpan.FromSeconds(1d / 60d));   // full: the 0.8 is dropped, never banked
+        entity.CurrentPower = 150;
+        entity.Update(TimeSpan.FromSeconds(0.05));       // 0.49 owed: no whole point yet (0.8 kept would give 151)
 
-        Assert.Equal(50u, entity.CurrentPower!.Value);
+        Assert.Equal(150u, entity.CurrentPower!.Value);
     }
 }

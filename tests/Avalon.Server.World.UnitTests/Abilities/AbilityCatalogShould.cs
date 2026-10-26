@@ -2,7 +2,6 @@ using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
-using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Scripts.Abilities;
@@ -40,7 +39,6 @@ public class AbilityCatalogShould
         { "negative heal threat", "HealThreatPerHp -1 is not a finite value", With(AbilityTestData.HealCircle(1), t => t.HealThreatPerHp = -1f) },
         { "negative damage effectiveness", "DamageEffectiveness -1 is not a finite value", With(AbilityTestData.Cone(1), t => t.DamageEffectiveness = -1f) },
         { "infinite damage effectiveness", $"DamageEffectiveness {float.PositiveInfinity} is not a finite value", With(AbilityTestData.Cone(1), t => t.DamageEffectiveness = float.PositiveInfinity) },
-        { "negative power gain per hit", "PowerGainPerHit -1 is below 0", With(AbilityTestData.Cone(1), t => t.PowerGainPerHit = -1) },
         { "unknown aim mode", "unknown aim mode 9", With(AbilityTestData.Circle(1), t => t.AimMode = (AbilityAimMode)9) },
         { "unknown anchor", "unknown anchor 9", With(AbilityTestData.Circle(1), t => t.Anchor = (AbilityAnchor)9) },
         { "unknown affects", "unknown affects 9", With(AbilityTestData.Circle(1), t => t.Affects = (AbilityAffects)9) },
@@ -61,8 +59,6 @@ public class AbilityCatalogShould
         { "cone on the projectile script", "a cone must use ConeAbilityScript", With(AbilityTestData.Cone(1), t => t.ScriptName = "ProjectileAbilityScript") },
         { "projectile on the circle script", "a projectile must use ProjectileAbilityScript", With(AbilityTestData.Projectile(1), t => t.ScriptName = "CircleAbilityScript") },
         { "unknown shape", "unknown shape 9", With(AbilityTestData.Circle(1), t => t.Shape = (AbilityShape)9) },
-        { "cost with no pool", "Cost 20 names no power type to spend it from", With(AbilityTestData.Circle(1), t => t.Cost = 20) },
-        { "unknown cost pool", "unknown cost power type 9", With(AbilityTestData.Circle(1), t => t.CostPowerType = (PowerType)9) },
     };
 
     [Theory]

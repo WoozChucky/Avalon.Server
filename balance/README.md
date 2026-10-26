@@ -30,8 +30,9 @@ desktop; narrow it with `--class`, `--scenario` and `--runs` while iterating. Th
 ## Files
 
 - `overrides.json`: a flat map `"Table.key.Column": value`, empty on `main`. Tables and keys:
-  `Ability.<id>`, `ClassLevelStat.<Class>.<level>`, `ClassStatFactors.<Class>`, `CombatFormula` (no key),
-  `CreatureBaseStats.<level>`, `CreatureRarityModifiers.<Rarity>`, `CreatureTemplate.<id>`, `Item.<id>`, `Aura.<id>`,
+  `Ability.<id>`, `ClassLevelStat.<Class>.<level>`, `CombatFormula` (no key, which holds the mana terms
+  `ManaBase`, `ManaPerLevel` and `ManaPerIntellect` since #1181), `CreatureBaseStats.<level>`,
+  `CreatureRarityModifiers.<Rarity>`, `CreatureTemplate.<id>`, `Item.<id>`, `Aura.<id>`,
   `AuraStatModifier.<auraId>.<Stat>`.
   Example: `{ "Ability.201.Cost": 18, "CombatFormula.ArmorBase": 60 }`. An unknown table, key or column stops
   the run naming it, as does a key given twice or a computed column; a value the server's validators would refuse
@@ -54,26 +55,26 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
 ## What the simulator models, and what it does not
 
 - Every number comes from the server's code, the rules in `Avalon.Combat`: `CharacterStatsCalculator`,
-  `CreatureStatDeriver`, `HitResolver`, `Haste`, `AbilityCost`, `AbilityAmounts`, `PowerRegen`, `PowerPool` (power
-  gains and which pool a reset empties), `Fury.FromDamageTaken` (Fury from damage taken) and `HealRules` (a heal's
-  cap); the data checks (`AbilityRules`, `CombatDataRules`, `CreatureTemplateRules`) are shared the same way. Only the
-  order of events in a tick is the simulator's own, and `SimulatorParityShould` (World unit tests) pins it against
-  `CombatService` and the cast system.
+  `CreatureStatDeriver`, `HitResolver`, `Haste`, `AbilityCost`, `AbilityAmounts`, `ManaRegenRates` (the mana
+  regeneration rates), `PowerRegen`, `PowerPool` (mana gains) and `HealRules` (a heal's cap); the data checks
+  (`AbilityRules`, `CombatDataRules`, `CreatureTemplateRules`) are shared the same way. Only the order of events
+  in a tick is the simulator's own, and `SimulatorParityShould` (World unit tests) pins it against `CombatService` and
+  the cast system.
 - **Creature kits are a table.** `CreatureKits.ByScript` in Core lists each script's basic, specials and ranged-only
   specials, because Core does not read `Avalon.World`'s scripts. A new or changed creature script needs its row
   updated; `CreatureKitParityShould` (World unit tests) fails when the table and the scripts differ.
-- One step is one server tick (1/60 s). Mana and Energy regenerate at the in-combat rate (`stat x 0.05` a second),
-  the fraction of a point carried between ticks as the server carries it, unless a cast-time cast was in progress
-  within the last 5 s.
+- One step is one server tick (1/60 s). Every class spends mana (#1181), which regenerates at the in-combat rate (1 %
+  of the maximum a second, `ManaRegenRates.InCombat`), the fraction of a point carried between ticks as the server
+  carries it; a cast never pauses it.
 - **Everyone is in melee.** Circles and cones hit every living creature (a cone at most `coneHits` of them), a
   projectile the first (or all when it pierces). There is no movement, so nobody walks, kites or steps out of a
   telegraph.
 - **Projectile travel time is outside the model.** A player's projectile lands at the end of the cast phase of the
   tick it is fired, a creature's one tick later. On the server a projectile flies at its `ProjectileSpeed`, so even
   at melee distance the first one lands a few ticks later than the simulator's.
-- **Combat is continuous.** Health does not regenerate, Mana and Energy regenerate at the in-combat rate, and Fury
-  never decays out of combat, because a fight never leaves combat. That holds while hits land at least every 5 s
-  (the server's combat tag); a kiting player or a ranged opener that leaves gaps longer than that is not modelled.
+- **Combat is continuous.** Health does not regenerate and mana regenerates at the in-combat rate, because a fight
+  never leaves combat. That holds while hits land at least every 5 s (the server's combat tag); a kiting player or a
+  ranged opener that leaves gaps longer than that is not modelled.
 - **Creature wind-ups always land**: nobody dodges a telegraph. Creatures use their script's kit, the first ready
   special whose reach fits, else the basic; the Blightfly never casts Blight Spit, since its script spits only while
   Sting cannot reach, and in melee it always can.
@@ -91,13 +92,13 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
   simulator never falls behind).
 - Not modelled: crowd control (#770: stuns, roots, silences, resistance, diminishing and early breaks; the four
   crowd-control abilities are in no rotation), movement, dodging wind-ups, potions and other consumables, groups, PvP,
-  threat, out-of-combat health regeneration and Fury decay, and the map's experience band.
+  threat, out-of-combat health and mana regeneration, and the map's experience band.
 - A fight ends when the player dies, every creature dies, or at 300 s (a loss).
 
 ## Turning an override into a change
 
 1. Put the new value into the `HasData` call in `src/Server/Avalon.Database.World/WorldDbContext.cs` (or
-   `Seeding/CombatSeed.cs` for the formula and class factors). Never edit balance rows with a raw
+   `Seeding/CombatSeed.cs` for the formula). Never edit balance rows with a raw
    `migrationBuilder.Sql`.
 2. Generate the migration (see CLAUDE.md, "Add a migration"), with a placeholder connection string:
    `Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_only" dotnet ef migrations add <Name> --project src/Server/Avalon.Database.World --startup-project src/Server/Avalon.Api --context WorldDbContext`

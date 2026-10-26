@@ -110,6 +110,15 @@ public class SCharacterStatsPacket : Packet
     /// </summary>
     [ProtoMember(28)] public List<ResonanceDto>? Resonance { get; set; }
 
+    /// <summary>
+    /// Mana regained a second in combat (#1181): a share of the maximum, scaled by the increased mana regeneration worn,
+    /// fixed at each stats refresh. Nothing pauses it after a cast.
+    /// </summary>
+    [ProtoMember(29)] public float ManaRegenInCombat { get; set; }
+
+    /// <summary>Mana regained a second out of combat (#1181), the same way.</summary>
+    [ProtoMember(30)] public float ManaRegenOutOfCombat { get; set; }
+
     public static OutboundPacket Create(SCharacterStatsPacket sheet, PacketEncoder encoder)
         => encoder.Encode(sheet, PacketType, Flags, Protocol);
 }

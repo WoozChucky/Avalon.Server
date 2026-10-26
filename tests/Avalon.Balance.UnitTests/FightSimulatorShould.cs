@@ -97,7 +97,7 @@ public class FightSimulatorShould
         var alpha = SimCreature.Create(Data, Data.Creature(8), 3, 0);   // Howling Roar, 1 s wind-up
         var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, []);
         warrior.Health = warrior.CurrentHealth = 1_000_000;
-        FightSimulator fight = Fight(warrior, Rotation(201), alpha);   // 201 costs Fury the warrior may lack: fine
+        FightSimulator fight = Fight(warrior, Rotation(201), alpha);   // 201 costs mana the warrior may lack: fine
         RunFor(fight, 3);
 
         // A creature queues in the creature pass, after the cast system ran, so its countdown starts next tick.
@@ -105,29 +105,33 @@ public class FightSimulatorShould
         Assert.InRange(roar.FiredSeconds - roar.StartSeconds, 1.0 - 1e-9, 1.0 + 2 * Tick);
     }
 
+    /// <summary>#1181: a cleave that damages three creatures gives no mana; one tick's regeneration is below a point.</summary>
     [Fact]
-    public void Gain_cleaves_fury_for_each_creature_it_damages()
+    public void Gain_no_mana_for_each_creature_a_cleave_damages()
     {
         SimCreature[] pack = [Dummy(4, 0), Dummy(4, 1), Dummy(4, 2)];
         foreach (SimCreature c in pack) Hold(c);
-        FightSimulator fight = Fight(SimPlayer.Create(Data, CharacterClass.Warrior, 1, []), Rotation(200), pack);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        warrior.CurrentPower = 50;
+        FightSimulator fight = Fight(warrior, Rotation(200), pack);
 
         fight.Tick();
 
-        Assert.Equal(24u, fight.Player.CurrentPower);   // 8 x 3
+        Assert.Equal(50u, fight.Player.CurrentPower);
     }
 
+    /// <summary>#1181: damage taken gives no mana.</summary>
     [Fact]
-    public void Gain_fury_from_damage_taken()
+    public void Gain_no_mana_from_damage_taken()
     {
         var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
-        FightSimulator fight = Fight(warrior, Rotation(201), Dummy());   // 201 costs 20 Fury: never cast here
+        warrior.CurrentPower = 10;
+        FightSimulator fight = Fight(warrior, Rotation(201), Dummy());   // 201 costs 20 mana: never cast here
 
         fight.Tick();   // the boar tramples on the first tick
 
-        uint lost = warrior.Health - warrior.CurrentHealth;
-        Assert.True(lost > 0);
-        Assert.Equal(Fury.FromDamageTaken(lost, warrior.Health, warrior.Health, 50f), warrior.CurrentPower);
+        Assert.True(warrior.Health - warrior.CurrentHealth > 0);
+        Assert.Equal(10u, warrior.CurrentPower);
     }
 
     [Fact(Skip = BalancePause.Reason)]
@@ -145,21 +149,23 @@ public class FightSimulatorShould
     [Fact]
     public void Regenerate_mana_at_the_in_combat_rate_carrying_the_fraction()
     {
-        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);   // Intellect 23: 1.15 Mana a second
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);   // 1 % of its maximum a second in combat
+        double rate = wizard.ManaRegen.InCombat;
         wizard.CurrentPower = 10;
         SimCreature dummy = Dummy();
         Hold(dummy);
-        FightSimulator fight = Fight(wizard, Rotation(210), dummy);   // Arcane Bolt: instant, free, never suppresses
+        FightSimulator fight = Fight(wizard, Rotation(210), dummy);   // Arcane Bolt: instant and free
 
-        RunFor(fight, 1 - Tick / 2);    // sixty ticks: 1.15, one point and 0.15 carried
-        Assert.Equal(11u, wizard.CurrentPower);
+        RunFor(fight, 1 - Tick / 2);    // sixty ticks: one second's whole points, the fraction carried
+        Assert.Equal(10u + (uint)Math.Floor(rate + 1e-3), wizard.CurrentPower);
 
-        RunFor(fight, 10 - Tick / 2);   // six hundred ticks: 11.5
-        Assert.Equal(21u, wizard.CurrentPower);
+        RunFor(fight, 10 - Tick / 2);   // six hundred ticks: ten seconds' whole points
+        Assert.Equal(10u + (uint)Math.Floor(10 * rate + 1e-3), wizard.CurrentPower);
     }
 
+    /// <summary>#1181: a cast no longer pauses regeneration: mana comes back during and right after the cast.</summary>
     [Fact]
-    public void Suppress_regen_for_five_seconds_after_a_cast_time_cast()
+    public void Keep_regenerating_through_a_cast_time_cast()
     {
         var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         SimCreature dummy = Dummy();
@@ -168,7 +174,7 @@ public class FightSimulatorShould
 
         RunFor(fight, 2);
 
-        Assert.Equal(wizard.Power - 25u, wizard.CurrentPower);
+        Assert.InRange(wizard.CurrentPower!.Value, wizard.Power!.Value - 25u + 1u, wizard.Power!.Value - 1u);
     }
 
     [Fact]
@@ -176,8 +182,9 @@ public class FightSimulatorShould
     {
         var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
         warrior.Health = warrior.CurrentHealth = uint.MaxValue / 2;
-        // Fury from damage taken is lost / max health x 50: nothing against this much health, so Ground Slam never
-        // becomes affordable and nobody damages the boar.
+        // No mana and no maximum to regenerate towards, so Ground Slam never becomes affordable and nobody damages
+        // the boar.
+        warrior.Power = warrior.CurrentPower = 0;
         FightSimulator fight = Fight(warrior, Rotation(201), Dummy());
 
         FightResult result = fight.Run();
@@ -196,7 +203,8 @@ public class FightSimulatorShould
         Assert.True(result.Won);
         Assert.True(result.Seconds > 0);
         Assert.InRange(result.HealthLeftPct, 0.01, 100);
-        Assert.True(result.DamageDealt["Cleave"] > 0);
+        // #1181: the Warrior enters full, so its first entry, Ground Slam, is paid from the start.
+        Assert.True(result.DamageDealt["Ground Slam"] > 0);
         Assert.True(result.DamageTaken.Keys.All(k => k.StartsWith("Thornback Boar: ", StringComparison.Ordinal)));
     }
 
@@ -206,7 +214,8 @@ public class FightSimulatorShould
         SimCreature dummy = Dummy();
         Hold(dummy);
         var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
-        FightSimulator fight = Fight(warrior, Rotation(201, 200), dummy);   // Ground Slam first, 0 Fury
+        warrior.CurrentPower = 0;
+        FightSimulator fight = Fight(warrior, Rotation(201, 200), dummy);   // Ground Slam first, 0 mana
 
         fight.Tick();
 
@@ -232,7 +241,6 @@ public class FightSimulatorShould
             var fight = new FightSimulator(Data.Combat.Formula, SimPlayer.Create(Data, CharacterClass.Warrior, 1, []),
                 pack, Rotation(200), rng);   // Cleave, a cone: in the melee model it reaches every living creature
             fight.Tick();
-            Assert.Equal(16u, fight.Player.CurrentPower);   // 8 x 2: the corpse was not hit
             return rng.Draws;
         }
 

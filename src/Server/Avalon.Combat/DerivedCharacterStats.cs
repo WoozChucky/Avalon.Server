@@ -13,6 +13,8 @@ namespace Avalon.Combat;
 /// points, before the combat formula's bounds, not saved. MaxWard and Resistances (#1178) are what a full ward
 /// reaches and the resistances before any cap; both are saved, the ward's current value is not. AddedToAttacks and
 /// AddedToSpells (#1179) are the worn items' added damage to attacks and to spells by type, not saved.
+/// IncreasedManaRegenPct (#1181) is the worn increased mana regeneration, in percent, which scales both mana
+/// regeneration rates; not saved.
 /// </summary>
 public readonly record struct DerivedCharacterStats(
     uint MaxHealth,
@@ -31,7 +33,8 @@ public readonly record struct DerivedCharacterStats(
     WeaponDamage Weapon = default,
     OffenceStats Offence = default,
     DamageRanges AddedToAttacks = default,
-    DamageRanges AddedToSpells = default)
+    DamageRanges AddedToSpells = default,
+    float IncreasedManaRegenPct = 0f)
 {
     /// <summary>The Character-DB row, named by its key alone (no navigation), as every save writes it.</summary>
     public CharacterStats ToRow(CharacterId characterId) => new()

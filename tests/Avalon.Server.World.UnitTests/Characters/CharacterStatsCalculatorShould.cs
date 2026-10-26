@@ -26,19 +26,21 @@ public class CharacterStatsCalculatorShould
     }
 
     private static DerivedCharacterStats Calc(ClassLevelStat row, ItemTemplate[] worn)
-        => CharacterStatsCalculator.Calculate(row, Worn.Of(worn), TestCombat.FactorsOf(row.Class), TestCombat.Formula);
+        => CharacterStatsCalculator.Calculate(row, Worn.Of(worn), TestCombat.Formula);
 
     [Theory]
-    [InlineData(CharacterClass.Warrior, 1, 240u, 100u)]
-    [InlineData(CharacterClass.Warrior, 5, 400u, 100u)]
-    [InlineData(CharacterClass.Wizard, 1, 121u, 365u)]
-    [InlineData(CharacterClass.Wizard, 5, 205u, 565u)]
-    [InlineData(CharacterClass.Hunter, 1, 178u, 68u)]
-    [InlineData(CharacterClass.Hunter, 5, 282u, 114u)]
-    [InlineData(CharacterClass.Cleric, 1, 158u, 296u)]
-    [InlineData(CharacterClass.Cleric, 5, 258u, 472u)]
-    [InlineData(CharacterClass.Warrior, 10, 600u, 100u)]
-    [InlineData(CharacterClass.Hunter, 10, 412u, 172u)]
+    [InlineData(CharacterClass.Warrior, 1, 240u, 180u)]
+    [InlineData(CharacterClass.Warrior, 5, 400u, 212u)]
+    [InlineData(CharacterClass.Wizard, 1, 121u, 192u)]
+    [InlineData(CharacterClass.Wizard, 5, 205u, 256u)]
+    [InlineData(CharacterClass.Hunter, 1, 178u, 180u)]
+    [InlineData(CharacterClass.Hunter, 5, 282u, 212u)]
+    [InlineData(CharacterClass.Cleric, 1, 158u, 192u)]
+    [InlineData(CharacterClass.Cleric, 5, 258u, 256u)]
+    [InlineData(CharacterClass.Warrior, 10, 600u, 252u)]
+    [InlineData(CharacterClass.Hunter, 10, 412u, 252u)]
+    [InlineData(CharacterClass.Warrior, 15, 800u, 292u)]
+    [InlineData(CharacterClass.Wizard, 15, 415u, 416u)]
     public void Derive_the_seeded_numbers_for_each_class_with_no_gear(
         CharacterClass @class, ushort level, uint health, uint power)
     {
@@ -62,13 +64,13 @@ public class CharacterStatsCalculatorShould
     {
         ClassLevelStat row = SeededRow(CharacterClass.Warrior, 10);
 
-        Assert.Equal((400u, 0u, 40u, 41u, 33u, 20u),
-            (row.BaseHp, row.BaseMana, row.Stamina, row.Strength, row.Agility, row.Intellect));
+        Assert.Equal((400u, 40u, 41u, 33u, 20u),
+            (row.BaseHp, row.Stamina, row.Strength, row.Agility, row.Intellect));
     }
 
     /// <summary>
     /// #1178: attributes are class-neutral. The same row gives every class the same health (BaseHp plus the formula's
-    /// life per Stamina), crit (the formula's base) and defence; only power still reads the class. A flat
+    /// life per Stamina), crit (the formula's base) and defence, and the same mana (#1181: 100 plus 50 Intellect x 4). A flat
     /// attack speed aura passed to the calculation reaches the offence block once, on top of Agility's.
     /// </summary>
     [Theory]
@@ -91,10 +93,9 @@ public class CharacterStatsCalculatorShould
         var hasted = new AuraStatModifier { Stat = AuraStat.AttackSpeed, Kind = AuraModifierKind.Flat, Value = 10f };
         var auras = AuraStatTotals.Of([hasted], static m => ((IReadOnlyList<AuraStatModifier>)[m], 1u));
 
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, [], TestCombat.FactorsOf(@class),
-            TestCombat.Formula, auras);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, [], TestCombat.Formula, auras);
 
-        Assert.Equal((200u, 5f), (stats.MaxHealth, stats.CritPct));
+        Assert.Equal((200u, 300u, 5f), (stats.MaxHealth, stats.MaxPower, stats.CritPct));
         Assert.Equal((3u, 45u, 12u), (stats.Armor, stats.Evasion, stats.MaxWard));   // 30 x 0.1, 40 x 1.125, 50 x 0.25
         Assert.Equal(4f + 10f, stats.Offence.AttackSpeedPct);
     }
@@ -138,7 +139,7 @@ public class CharacterStatsCalculatorShould
         };
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1),
-            worn, TestCombat.FactorsOf(CharacterClass.Warrior), formula);
+            worn, formula);
 
         Assert.Equal((armor, evasion, ward, 0f), (stats.Armor, stats.Evasion, stats.MaxWard, stats.BlockPct));
         Assert.Equal(new Resistances(fire, 0f, 0f, 0f), stats.Resistances);
@@ -170,7 +171,7 @@ public class CharacterStatsCalculatorShould
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row,
             [.. Enumerable.Repeat(Rolled(amulet, (StatType.Health, gearHealth, null), (StatType.IncreasedMaximumLife, increased, null)), items)],
-            TestCombat.FactorsOf(CharacterClass.Warrior), TestCombat.Formula, auras);
+            TestCombat.Formula, auras);
 
         Assert.Equal(expected, stats.MaxHealth);
     }
@@ -190,27 +191,54 @@ public class CharacterStatsCalculatorShould
     }
 
     [Fact]
-    public void Add_flat_health_damage_and_crit_but_never_change_a_warriors_power()
+    public void Add_flat_health_damage_and_crit()
     {
         DerivedCharacterStats warrior = Calc(
             SeededRow(CharacterClass.Warrior, 1), [EquipTemplates.Chestguard, EquipTemplates.VigorAmulet]);
 
         Assert.Equal(130u + 24u * 5u + 15u, warrior.MaxHealth);
-        Assert.Equal(100u, warrior.MaxPower);
         Assert.Equal(3f, warrior.Offence.Increased(OffenceStat.Fire));
         Assert.Equal(7.0f, warrior.CritPct);
     }
 
-    [Fact]
-    public void Add_flat_power_for_a_class_whose_pool_grows()
+    /// <summary>
+    /// #1181: maximum mana folds as life does. A seeded level-1 Warrior (Intellect 20) has 100 + 20 x 4 = 180. Flat power
+    /// and Intellect (11 x 4 = 44) add to the flat sum, which increased maximum mana then scales, never below 0. Increased
+    /// mana regeneration moves no maximum: it is summed for the regeneration rates. A huge Intellect conversion caps
+    /// the maximum rather than wrapping it.
+    /// </summary>
+    [Theory]
+    [InlineData("nothing", 180u, 0f)]
+    [InlineData("+20 power", 200u, 0f)]
+    [InlineData("+11 Intellect", 224u, 0f)]
+    [InlineData("+50 % increased maximum mana", 270u, 0f)]
+    [InlineData("+20 power and +50 %", 300u, 0f)]
+    [InlineData("-150 %", 0u, 0f)]
+    [InlineData("+25 % increased mana regeneration", 180u, 25f)]
+    [InlineData("a huge Intellect conversion", uint.MaxValue, 0f)]
+    public void Fold_flat_and_increased_maximum_mana_from_gear(string gear, uint maxMana, float increasedRegen)
     {
-        DerivedCharacterStats wizard =
-            Calc(SeededRow(CharacterClass.Wizard, 1), [EquipTemplates.VigorAmulet]);
+        (StatType Stat, int Value)[] lines = gear switch
+        {
+            "nothing" => [],
+            "+20 power" => [(StatType.Power, 20)],
+            "+11 Intellect" => [(StatType.Intellect, 11)],
+            "+50 % increased maximum mana" => [(StatType.IncreasedMaximumMana, 50)],
+            "+20 power and +50 %" => [(StatType.Power, 20), (StatType.IncreasedMaximumMana, 50)],
+            "-150 %" => [(StatType.IncreasedMaximumMana, -150)],
+            "a huge Intellect conversion" => [],
+            _ => [(StatType.IncreasedManaRegeneration, 25)],
+        };
+        var amulet = new ItemTemplate { Name = "Amulet", Slot = ItemSlotType.Neck };
+        CombatFormula formula = TestCombat.Formula;
+        if (gear == "a huge Intellect conversion")
+            formula.ManaPerIntellect = float.MaxValue;
 
-        Assert.Equal(121u + 15u, wizard.MaxHealth);
-        Assert.Equal(365u + 20u, wizard.MaxPower);
-        Assert.Equal(3f, wizard.Offence.Increased(OffenceStat.Fire));
-        Assert.Equal(5f + 2f, wizard.CritPct);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1),
+            lines.Length == 0 ? [] : [Rolled(amulet, [.. lines.Select(l => (l.Stat, l.Value, (int?)null))])],
+            formula);
+
+        Assert.Equal((maxMana, increasedRegen), (stats.MaxPower, stats.IncreasedManaRegenPct));
     }
 
     /// <summary>
@@ -316,7 +344,7 @@ public class CharacterStatsCalculatorShould
         ];
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1), worn,
-            TestCombat.FactorsOf(CharacterClass.Warrior), formula);
+            formula);
 
         double actual = what switch
         {

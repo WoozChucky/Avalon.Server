@@ -23,7 +23,6 @@ public class CharacterStatsRefreshShould
         Class = CharacterClass.Warrior,
         Level = 1,
         BaseHp = 130,
-        BaseMana = 0,
         Stamina = 22,
         Strength = 23,
         Agility = 20,
@@ -35,7 +34,6 @@ public class CharacterStatsRefreshShould
         Class = CharacterClass.Wizard,
         Level = 1,
         BaseHp = 16,
-        BaseMana = 20,
         Stamina = 21,
         Strength = 20,
         Agility = 20,
@@ -47,7 +45,6 @@ public class CharacterStatsRefreshShould
         Class = CharacterClass.Hunter,
         Level = 1,
         BaseHp = 78,
-        BaseMana = 10,
         Stamina = 20,
         Strength = 21,
         Agility = 23,
@@ -62,16 +59,16 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         character.ConsumeDirtyFields();
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, EquipTemplates.Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(240u, character.Health);
         Assert.Equal(240u, character.CurrentHealth);
-        Assert.Equal(100u, character.Power);
-        Assert.Equal(100u, character.CurrentPower);
+        Assert.Equal(180u, character.Power);
+        Assert.Equal(180u, character.CurrentPower);
         Assert.Equal(22u, character.Stamina);
         Assert.Equal(240, character.Data!.Health);
-        Assert.Equal(100, character.Data.Power1);
+        Assert.Equal(180, character.Data.Power1);
         Assert.True(character.SaveState.StatsDirty);
         Assert.Equal(240u, character.Stats!.Value.MaxHealth);
 
@@ -86,17 +83,17 @@ public class CharacterStatsRefreshShould
     public void Keep_the_share_of_health_when_gear_goes_on()
     {
         CharacterEntity character = New();
-        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+        CharacterStatsRefresh.Apply(character, s_rows, EquipTemplates.Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula);
         character.CurrentHealth = 120;
         character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, EquipTemplates.Chestguard)]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, EquipTemplates.Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(250u, character.Health);
         Assert.Equal(125u, character.CurrentHealth);
-        Assert.Equal(100u, character.CurrentPower);
+        Assert.Equal(180u, character.CurrentPower);
     }
 
     /// <summary>Review Focus 5.</summary>
@@ -113,7 +110,7 @@ public class CharacterStatsRefreshShould
         ]);
         character.Container(InventoryType.Bag).Load([Item(0, EquipTemplates.Greatsword)]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, EquipTemplates.Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(25u, character.Stats!.Value.Strength);
@@ -143,7 +140,7 @@ public class CharacterStatsRefreshShould
         ];
 
         CharacterEntity bare = New();
-        CharacterStatsRefresh.Apply(bare, s_rows, TestCombat.Factors, EquipTemplates.Find,
+        CharacterStatsRefresh.Apply(bare, s_rows, EquipTemplates.Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula);
         CharacterEntity character = New();
         InventoryItem helm = Item(EquipmentSlots.Head, helmBase);
@@ -174,7 +171,7 @@ public class CharacterStatsRefreshShould
 
         (uint Armor, uint Min, uint Max, uint Time) Refresh(ItemTemplate helmNow, ItemTemplate swordNow)
         {
-            CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors,
+            CharacterStatsRefresh.Apply(character, s_rows,
                 id => id == helmNow.Id ? helmNow : id == swordNow.Id ? swordNow : null,
                     ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula);
             DerivedCharacterStats stats = character.Stats!.Value;
@@ -227,7 +224,7 @@ public class CharacterStatsRefreshShould
         ]);
         character.Container(InventoryType.Equipment).Load([blade]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows,
             id => id == unique.Id ? unique : id == fireSword.Id ? fireSword : null,
                 ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
@@ -306,7 +303,7 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         Hold(character, items);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, s_equipment.GetValueOrDefault, seeded,
             ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(expected, ResonanceNamed(character));
@@ -363,7 +360,7 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         Hold(character, items);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, s_equipment.GetValueOrDefault, seeded,
             ItemModifierRepositories.SeededEffects(), CurrentValues.Refill, TestCombat.Formula));
 
         ResonanceProcs procs = ResonanceProcsOf(character);
@@ -440,7 +437,7 @@ public class CharacterStatsRefreshShould
             },
         ]);
         character.Container(InventoryType.Equipment).Load([ring]);
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, s_equipment.GetValueOrDefault, seeded,
             ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
         Assert.Equal("Ember 1", ResonanceNamed(character));
 
@@ -465,7 +462,7 @@ public class CharacterStatsRefreshShould
                 throw new ArgumentOutOfRangeException(nameof(change), change, null);
         }
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, find, table, ResonanceEffectCatalog.Empty,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, find, table, ResonanceEffectCatalog.Empty,
             CurrentValues.KeepShare, TestCombat.Formula));
         Assert.Equal(expected, ResonanceNamed(character));
     }
@@ -488,7 +485,7 @@ public class CharacterStatsRefreshShould
         character.Data!.Health = 150;
         character.CurrentHealth = 150;
 
-        Assert.False(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+        Assert.False(CharacterStatsRefresh.Apply(character, s_rows, EquipTemplates.Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(150u, character.Health);
@@ -497,92 +494,27 @@ public class CharacterStatsRefreshShould
         Assert.False(character.SaveState.StatsDirty);
     }
 
+    /// <summary>
+    /// #1181: mana is treated as health is: select and a level-up fill it, a gear change keeps its share (60 of 200 is
+    /// 30 %), and the regeneration rates follow the new maximum, the formula's 100 + 23 x 4 = 192 for a level 1 Wizard.
+    /// That the former Fury and Energy classes enter on mana is pinned at select (<c>CharacterSelectHandlerShould</c>).
+    /// </summary>
     [Theory]
-    [InlineData(CharacterClass.Warrior, 0u)]
-    [InlineData(CharacterClass.Wizard, 23u)]
-    [InlineData(CharacterClass.Hunter, 23u)]
-    public void Regenerate_from_the_class_regen_attribute(CharacterClass @class, uint regen)
+    [InlineData(CurrentValues.EnterWorld, 192u)]
+    [InlineData(CurrentValues.Refill, 192u)]
+    [InlineData(CurrentValues.KeepShare, 58u)]
+    public void Fill_or_keep_the_share_of_mana(CurrentValues current, uint expected)
     {
         CharacterEntity character = New();
-        character.Data!.Class = @class;
+        character.Data!.Class = CharacterClass.Wizard;
+        character.PowerType = Avalon.Network.Packets.State.PowerType.Mana;
+        character.Power = 200;
+        character.CurrentPower = 60;
 
-        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula);
-
-        Assert.Equal(regen, character.RegenStat);
-    }
-
-    /// <summary>A warrior of <see cref="s_warriorLevel1" /> on a Fury pool holding <paramref name="fury" /> of <paramref name="max" />.</summary>
-    private static CharacterEntity FuryWarrior(uint fury, uint max = 100)
-    {
-        CharacterEntity warrior = New();
-        warrior.PowerType = Avalon.Network.Packets.State.PowerType.Fury;
-        warrior.Power = max;
-        warrior.CurrentPower = fury;
-        warrior.CurrentHealth = 1;
-        return warrior;
-    }
-
-    /// <summary>#526: select fills health and the fill-up pools, and a warrior enters with no Fury.</summary>
-    [Fact]
-    public void Enter_The_World_With_No_Fury_And_Full_Mana()
-    {
-        CharacterEntity warrior = FuryWarrior(fury: 30);
-        CharacterEntity wizard = New();
-        wizard.Data!.Class = CharacterClass.Wizard;
-        wizard.PowerType = Avalon.Network.Packets.State.PowerType.Mana;
-        wizard.CurrentPower = 0;
-
-        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
-        Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
-
-        Assert.Equal(0u, warrior.CurrentPower);
-        Assert.Equal(warrior.Health, warrior.CurrentHealth);
-        Assert.True(wizard.Power > 0);
-        Assert.Equal(wizard.Power, wizard.CurrentPower);
-        Assert.Equal(wizard.Health, wizard.CurrentHealth);
-    }
-
-    /// <summary>#526 review focus: a level-up refills health but leaves a warrior's Fury where it was.</summary>
-    [Fact]
-    public void Keep_Fury_On_A_Level_Up_Refill()
-    {
-        CharacterEntity warrior = FuryWarrior(fury: 60);
-
-        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
-
-        Assert.Equal(100u, warrior.Power);
-        Assert.Equal(60u, warrior.CurrentPower);
-        Assert.Equal(240u, warrior.CurrentHealth);
-    }
-
-    [Theory]
-    [InlineData(CurrentValues.Refill)]
-    [InlineData(CurrentValues.KeepShare)]
-    public void Cap_Fury_When_The_Maximum_Shrinks(CurrentValues current)
-    {
-        CharacterEntity warrior = FuryWarrior(fury: 150, max: 200);
-
-        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, EquipTemplates.Find,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, current, TestCombat.Formula));
 
-        Assert.Equal(100u, warrior.Power);
-        Assert.Equal(100u, warrior.CurrentPower);
-    }
-
-    /// <summary>#526: Fury is not a fill-up pool, so a gear change keeps its value, not its share.</summary>
-    [Fact]
-    public void Keep_Fury_On_A_Gear_Change()
-    {
-        CharacterEntity warrior = FuryWarrior(fury: 60, max: 200);
-
-        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, TestCombat.Formula));
-
-        Assert.Equal(100u, warrior.Power);
-        Assert.Equal(60u, warrior.CurrentPower);   // a share would have been 30
+        Assert.Equal(expected, character.CurrentPower);
+        Assert.Equal(ManaRegenRates.Of(new RegenConfiguration(), character.Power!.Value, 0f), ManaRegenOf(character));
     }
 }

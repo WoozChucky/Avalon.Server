@@ -62,7 +62,7 @@ public sealed class ResonanceEffect
             };
 
         // Threat 1 and no heal threat: a proc's damage counts as a plain hit's does, and a self-heal from gear adds none.
-        Source = new AuraSource(null, 1f, 0f, 0u, affects, row.DamageType, Ability: metadata, CannotCrit: true);
+        Source = new AuraSource(null, 1f, 0f, affects, row.DamageType, Ability: metadata, CannotCrit: true);
     }
 
     public int Id { get; }

@@ -403,7 +403,7 @@ Combat keeps the instance's clock (#614): `MapInstance` hands its `TimeProvider`
 registry (each encounter's last damage and end grace), the combat service (when a taunt ends) and the
 threat broadcast throttle, and uses it for its own empty-since time (expiry).
 `CreatureCombatScript` reads the container's to check a taunt, and `CharacterEntity` for the
-player's combat tag and cast-regen suppression. Threat decay runs on the tick's delta.
+player's combat tag and the ward's recharge. Threat decay runs on the tick's delta.
 
 ---
 

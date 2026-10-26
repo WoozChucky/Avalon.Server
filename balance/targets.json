@@ -86,7 +86,6 @@
     "parityWinRatePoints": 10,
     "parityFightLengthPct": 15,
     "resourceScenario": "normal-3",
-    "warriorFirstSpenderSeconds": 4,
     "casterStarvedPct": 10,
     "killsPerLevel": {
       "min": 10,

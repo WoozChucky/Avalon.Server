@@ -70,4 +70,9 @@ public enum ItemStat
 
     // A percentage of increased maximum life: it scales the flat life from base, Stamina and gear (#1179).
     IncreasedMaximumLife = 53,
+
+    // Mana (#1181): a percentage of increased maximum mana, which scales the flat mana from the formula and gear, and a
+    // percentage of increased mana regeneration, which scales both regeneration rates.
+    IncreasedMaximumMana = 54,
+    IncreasedManaRegeneration = 55,
 }

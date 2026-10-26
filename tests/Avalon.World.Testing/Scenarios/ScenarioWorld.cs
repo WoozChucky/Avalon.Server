@@ -92,7 +92,7 @@ public sealed class ScenarioWorld : IDisposable
 
     // The sheet flusher's combat generation, as WorldServer passes it, in a world without reference data to take it
     // from. That world's characters have no Stats, so the flusher returns at its first check and never reads the caps.
-    private static readonly CombatPatch s_combat = new(new CombatFormula(), new Dictionary<CharacterClass, ClassStatFactors>());
+    private static readonly CombatPatch s_combat = new(new CombatFormula());
 
     // The inventory flusher's items generation, as WorldServer passes it, in a world without reference data: nothing there
     // changes an inventory, so the flusher never reads it.
@@ -511,8 +511,8 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// A level 1 character of <paramref name="characterClass" /> on the world's clock, as character creation makes it
-    /// and character select loads it: the class's level 1 stats (health and power at their maximums, a Fury pool
-    /// empty) and its starting abilities from the seed's <see cref="CharacterCreateInfo" />, off cooldown. Its id is
+    /// and character select loads it: the class's level 1 stats (health and mana at their maximums) and its starting
+    /// abilities from the seed's <see cref="CharacterCreateInfo" />, off cooldown. Its id is
     /// the world's next (1, 2, ...); it carries nothing, as a new character's starting items wait in its bag, which no
     /// scenario reads. Only a world with reference data makes one.
     /// </summary>
@@ -526,7 +526,7 @@ public sealed class ScenarioWorld : IDisposable
 
         // CharacterCreateHandler's row.
         CombatPatch combat = data.Combat;
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], combat.Factors[characterClass], combat.Formula);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], combat.Formula);
         uint id = _nextCharacter++;
         var row = new Character
         {
@@ -546,18 +546,17 @@ public sealed class ScenarioWorld : IDisposable
         };
 
         // CharacterSelectHandler's entity, its stats refreshed and its abilities loaded.
-        var character = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), Clock,
-            _world.Configuration.FuryDecayPerSecond)
+        var character = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), Clock)
         {
             Data = row,
             EnteredWorld = Clock.GetUtcNow().UtcDateTime,
             RequiredExperience = data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == row.Level)?.Experience ?? 0,
         };
         character.CurrentHealth = character.Health;
-        character.PowerType = ClassPowerType.Of(characterClass);
-        character.CurrentPower = character.PowerType == PowerType.Fury ? 0u : character.Power;
+        character.PowerType = PowerType.Mana;
+        character.CurrentPower = character.Power;
         if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
-            throw new InvalidOperationException($"The seed has no stats or stat factors for {characterClass}");
+            throw new InvalidOperationException($"The seed has no stats for {characterClass}");
 
         var abilities = new List<IAbility>(createInfo.StartingSpells.Count);
         foreach (AbilityId abilityId in createInfo.StartingSpells)
@@ -615,7 +614,7 @@ public sealed class ScenarioWorld : IDisposable
         character.ItemModifiers.Load(instances);
         character.Container(InventoryType.Equipment).Load(worn);
         if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
-            throw new InvalidOperationException($"The seed has no stats or stat factors for {character.Class}");
+            throw new InvalidOperationException($"The seed has no stats for {character.Class}");
     }
 
     /// <summary>
@@ -650,7 +649,7 @@ public sealed class ScenarioWorld : IDisposable
                 RareName: "Dusk Knot", Identified: true, Tainted: false),
         ]);
         if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
-            throw new InvalidOperationException($"The seed has no stats or stat factors for {character.Class}");
+            throw new InvalidOperationException($"The seed has no stats for {character.Class}");
 
         return character.ItemModifiers.Of(id).Single(row => row.Sealed);
     }

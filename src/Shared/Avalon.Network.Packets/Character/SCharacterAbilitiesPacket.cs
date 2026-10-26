@@ -2,7 +2,6 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Serialization;
-using Avalon.Network.Packets.State;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Character;
@@ -45,12 +44,6 @@ public class AbilityInfo
     [ProtoMember(14)] public float ProjectileSpeed { get; set; }
     [ProtoMember(15)] public bool Pierce { get; set; }
     [ProtoMember(16)] public AbilityAffects Affects { get; set; }
-
-    /// <summary>
-    /// The pool <see cref="Cost" /> is spent from (#652); None for a cost of 0. A caster whose pool is another one
-    /// cannot cast the ability, and is refused with WrongPowerType.
-    /// </summary>
-    [ProtoMember(17)] public PowerType CostPowerType { get; set; }
 
     /// <summary>
     /// What <see cref="AmountMin" /> and <see cref="AmountMax" /> are (#669): Damage or Healing per unit hit, or

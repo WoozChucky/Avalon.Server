@@ -4,7 +4,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
-using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Combat;
 using Avalon.Server.World.UnitTests.Instances;
@@ -68,14 +67,13 @@ public class CreatureCastShould
         return row;
     }
 
-    /// <summary>A 1 s wind-up, a 5 m circle on the creature, with a cost a creature never pays.</summary>
+    /// <summary>A 1 s wind-up, a 5 m circle on the creature, with a cost a creature never pays: it has no mana.</summary>
     private static AbilityTemplate Roar()
     {
         AbilityTemplate row = AbilityTestData.Circle(s_roarId.Value, radius: 5f);
         row.CastTime = 1000;
         row.Cooldown = 15000;
         row.Cost = 30;
-        row.CostPowerType = PowerType.Mana;   // a creature pays it from no pool at all
         row.AllowedClasses = [];
         return row;
     }

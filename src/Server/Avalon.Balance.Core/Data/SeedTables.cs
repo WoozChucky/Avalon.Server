@@ -9,7 +9,6 @@ public sealed class SeedTables
 {
     public required List<AbilityTemplate> AbilityTemplates { get; init; }
     public required List<ClassLevelStat> ClassLevelStats { get; init; }
-    public required List<ClassStatFactors> ClassStatFactors { get; init; }
     public required List<CombatFormula> CombatFormulas { get; init; }
     public required List<CreatureBaseStat> CreatureBaseStats { get; init; }
     public required List<CreatureRarityModifier> CreatureRarityModifiers { get; init; }
@@ -32,7 +31,6 @@ public sealed class SeedTables
     {
         AbilityTemplates = CloneRows(AbilityTemplates),
         ClassLevelStats = CloneRows(ClassLevelStats),
-        ClassStatFactors = CloneRows(ClassStatFactors),
         CombatFormulas = CloneRows(CombatFormulas),
         CreatureBaseStats = CloneRows(CreatureBaseStats),
         CreatureRarityModifiers = CloneRows(CreatureRarityModifiers),

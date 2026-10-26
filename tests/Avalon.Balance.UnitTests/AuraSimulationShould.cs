@@ -191,7 +191,7 @@ public class AuraSimulationShould
         uint armour = warrior.Defence.Armor;
 
         warrior.Auras.Add(new SimAura(data.Auras[new AuraId(9905)], warrior, 1, default,
-            AuraSchedule.Start(FightSimulator.Epoch, 30000, 0), 0));
+            AuraSchedule.Start(FightSimulator.Epoch, 30000, 0)));
         warrior.ApplyAuraStats(data);
         Assert.Equal(armour + 50, warrior.Defence.Armor);
 
@@ -214,7 +214,7 @@ public class AuraSimulationShould
             new AuraStatModifier { AuraId = ward.Id, Stat = AuraStat.MaxHealth, Kind = AuraModifierKind.Increased, Value = 100f },
         ];
 
-        boar.Auras.Add(new SimAura(ward, boar, 1, default, AuraSchedule.Start(FightSimulator.Epoch, 30000, 0), 0));
+        boar.Auras.Add(new SimAura(ward, boar, 1, default, AuraSchedule.Start(FightSimulator.Epoch, 30000, 0)));
         boar.ApplyAuraStats();
         Assert.Equal(armour + 50, boar.Defence.Armor);
         Assert.Equal(health * 2, boar.Health);

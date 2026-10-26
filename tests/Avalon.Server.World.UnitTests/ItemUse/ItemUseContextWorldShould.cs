@@ -111,7 +111,6 @@ public class ItemUseContextWorldShould
             MapInstanceClient user = Join(instance, 7);
             AbilityTemplate row = AbilityTestData.Circle(1);
             row.Cost = 30;
-            row.CostPowerType = PowerType.Mana;
             GameAbility held = AbilityTestData.Game(row);
             user.Character.Spells.Load([held]);
             user.Character.PowerType = PowerType.Mana;

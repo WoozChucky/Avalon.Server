@@ -40,7 +40,7 @@
       "baseStats": [],
       "useScript": "RestorePower",
       "useCooldownMs": 30000,
-      "useCooldownGroup": "potion",
+      "useCooldownGroup": "mana-potion",
       "useValue": 30
     },
     {

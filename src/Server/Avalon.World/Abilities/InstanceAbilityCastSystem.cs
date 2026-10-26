@@ -149,7 +149,7 @@ public class InstanceAbilityCastSystem(
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
-            CombatLog.QueuedCastRefused(_logger, cost, ability.AbilityId, caster.PowerType);
+            CombatLog.QueuedCastRefused(_logger, cost, ability.AbilityId);
             return false;
         }
 
@@ -206,7 +206,7 @@ public class InstanceAbilityCastSystem(
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
-            CombatLog.InstantCastRefused(_logger, cost, ability.AbilityId, caster.PowerType);
+            CombatLog.InstantCastRefused(_logger, cost, ability.AbilityId);
             return false;
         }
 

@@ -129,9 +129,11 @@ public static partial class LinkPreviewText
     /// One item stat as the tooltip writes it (#1189): armour as a plain <c>8 Armor</c>; the <c>…Pct</c> stats, the
     /// resistances, the crit multiplier, attack, cast and movement speed and cooldown recovery as percent points
     /// (<c>+2% Crit</c>, <c>+5% Fire Resistance</c>, <c>+5% Movement Speed</c>); the <c>Increased…</c> stats as
-    /// <c>+10% increased Fire Damage</c> (increased maximum life as <c>+5% increased Health</c>), and the item-local ones
-    /// (#1179) alike (<c>+5% increased Armor</c>, <c>+5% increased Attack Speed</c>); added damage as <c>Adds 5 Fire Damage</c>, <c>Adds 5 Cold Damage to Attacks</c> or <c>Adds 5
-    /// Lightning Damage to Spells</c>; the rest, Evasion and Ward among them, as a plain rating (<c>+12 Evasion</c>).
+    /// <c>+10% increased Fire Damage</c> (increased maximum life as <c>+5% increased Health</c>, and maximum mana as
+    /// <c>+5% increased Mana</c>), and the item-local ones (#1179) alike (<c>+5% increased Armor</c>,
+    /// <c>+5% increased Attack Speed</c>); added damage as <c>Adds 5 Fire Damage</c>, <c>Adds 5 Cold Damage to Attacks</c>
+    /// or <c>Adds 5 Lightning Damage to Spells</c>; the rest, Evasion and Ward among them, as a plain rating
+    /// (<c>+12 Evasion</c>).
     /// A negative value keeps its own sign (<c>-3% Cold Resistance</c>), and armour never gets a plus. The Dashboard's
     /// packages/shared/src/items/stat-wording.json holds a row for every stat; both sides test against it (#460).
     /// </summary>
@@ -205,8 +207,9 @@ public static partial class LinkPreviewText
         string name = type.ToString();
         if (type == StatType.Armor) return $"{amount} Armor";
         string signed = negative ? amount : $"+{amount}";
-        // The shared wording calls life Health (#1179).
+        // The shared wording calls life Health (#1179), and maximum mana Mana alike (#1181).
         if (type == StatType.IncreasedMaximumLife) return $"{signed}% increased Health";
+        if (type == StatType.IncreasedMaximumMana) return $"{signed}% increased Mana";
         if (name.EndsWith("Pct", StringComparison.Ordinal)) return $"{signed}% {SplitWords(name[..^3])}";
         if (name.EndsWith("Resistance", StringComparison.Ordinal) || IsPercentPoints(type))
             return $"{signed}% {SplitWords(name)}";
@@ -235,9 +238,7 @@ public static partial class LinkPreviewText
             or StatType.MovementSpeed;
 
     private static string Cost(PublicAbilityDto ability) =>
-        ability.Cost == 0
-            ? "Free"
-            : $"{Num(ability.Cost)} {(ability.CostPowerType is PowerType.Mana or PowerType.Fury or PowerType.Energy ? ability.CostPowerType.ToString() : "power")}";
+        ability.Cost == 0 ? "Free" : $"{Num(ability.Cost)} Mana";
 
     /// <summary>
     /// Milliseconds as <c>1.5 sec</c>, as the tooltip writes them: to the hundredth, a half rounded up (<c>1005</c> is

@@ -57,7 +57,7 @@ public class AuraApplyShould
         blightfly.DamageMin = 4;
         blightfly.DamageMax = 8;
         CharacterEntity target = h.Player(909_190);
-        var spit = new AuraSource(null, 1f, 0f, 0u,
+        var spit = new AuraSource(null, 1f, 0f,
             Ability: new Avalon.World.Public.Abilities.AbilityMetadata { Name = "Spit", Tags = AbilityTags.Attack | AbilityTags.Projectile });
 
         Assert.Equal(AuraApplyResult.Applied, h.Auras.Apply(blightfly, target, new AuraId(907), spit));
@@ -82,7 +82,7 @@ public class AuraApplyShould
         CharacterEntity target = h.Player(909_191);
         h.Auras.Apply(null, target, new AuraId(905), AuraSource.None);
 
-        var spit = new AuraSource(null, 1f, 0f, 0u,
+        var spit = new AuraSource(null, 1f, 0f,
             Ability: new Avalon.World.Public.Abilities.AbilityMetadata { Name = "Spit", Tags = AbilityTags.Attack | AbilityTags.Projectile });
         Assert.Equal(AuraApplyResult.Refused, h.Auras.Apply(blightfly, target, new AuraId(907), spit));
 
@@ -353,7 +353,7 @@ public class AuraApplyShould
         Creature corpse = _h.Creature(909_950);
         corpse.CurrentHealth = 0;
         AuraTemplate bleed = AuraTestData.Bleed();
-        var fromAnAbility = new AuraSource(new AbilityId(203), 1f, 0f, 0u, AbilityAffects.Hostile);
+        var fromAnAbility = new AuraSource(new AbilityId(203), 1f, 0f, AbilityAffects.Hostile);
         var renew = new AuraId(904);
         AuraId[] harmful = [new AuraId(901), new AuraId(902)];
         Creature[] creatures = [.. dying, .. resetting];

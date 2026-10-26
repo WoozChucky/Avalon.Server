@@ -129,7 +129,6 @@ public class PublicMappingShould
             Id = new AbilityId(210),
             Name = "Cleave",
             Cost = 20,
-            CostPowerType = Avalon.Network.Packets.State.PowerType.Fury,
             CastTime = 1500,
             Cooldown = 800,
             Range = Avalon.World.Public.Enums.SpellRange.Melee,
@@ -144,7 +143,6 @@ public class PublicMappingShould
         PublicAbilityDto dto = cleave.ToPublicDto();
 
         Assert.Equal((210u, "Cleave", 20u, 800u), (dto.Id, dto.Name, dto.Cost, dto.Cooldown));
-        Assert.Equal(Avalon.Api.Contract.PowerType.Fury, dto.CostPowerType);
         Assert.Equal(kind, dto.AmountKind);
         Assert.Equal(Avalon.Api.Contract.SpellRange.Melee, dto.Range);
         Assert.Equal(1500u, dto.CastTime);
@@ -167,7 +165,6 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.ItemBaseStat), typeof(Avalon.Network.Packets.Items.BaseStat))]
     [InlineData(typeof(Avalon.Domain.World.ItemBaseStat), typeof(Avalon.Api.Contract.ItemBaseStat))]
     [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]
-    [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]
     [InlineData(typeof(Avalon.Network.Packets.Abilities.AbilityAmountKind), typeof(Avalon.Api.Contract.AbilityAmountKind))]
     [InlineData(typeof(Avalon.Domain.World.ItemTemplateFlags), typeof(Avalon.Api.Contract.ItemTemplateFlags))]

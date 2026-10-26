@@ -189,11 +189,12 @@ Item scripts can do more than the seeded items do. What a client sees of each:
 |---|---|---|---|---|---|
 | Health Potion | 1 | none | 30 s, group `potion` | Restores 30 % of maximum health. | At full health: "You are already at full health." |
 | Greater Health Potion | 56 | none | 30 s, group `potion` | Restores 60 % of maximum health. | As the Health Potion. |
-| Mana Potion | 2 | none | 30 s, group `potion` | Restores 30 % of maximum Mana or Energy. | For Fury or no pool: "You cannot drink this."; at full: "Your mana is already full." / "Your energy is already full." |
+| Mana Potion | 2 | none | 30 s, group `mana-potion` | Restores 30 % of maximum mana. Every class can drink it (#1181). | At full mana: "Your mana is already full." |
 | Town Portal Scroll | 3 | 3 s | 30 s, its own | Moves its reader to the town of the current map, as a respawn resolves it. | In a town: "You are already in town."; while a return or another move is under way: "You are already on your way to town." |
 
 Each consumes one item. Amounts are `floor(maximum × percent / 100)`, a fixed amount with no crit and no scaling,
-never above the maximum. The three potions share the `potion` cooldown: drinking any of them rests all three. The
-Town Portal Scroll can be read in combat; its reader leaves its fight on the way, and the scroll is spent once the
+never above the maximum. The Health and Greater Health Potions share the `potion` cooldown: drinking either rests
+both. The Mana Potion has its own, `mana-potion` (#1181), so drinking a health potion leaves it ready, and the
+reverse. The Town Portal Scroll can be read in combat; its reader leaves its fight on the way, and the scroll is spent once the
 move starts. A reader who dies before arriving arrives in town revived, as a respawn would. While the return is
 under way a portal entry is refused with `MoveInProgress` (section 7). The forest scrolls (items 9-11) have no use: they answer `NotUsable`.

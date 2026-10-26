@@ -338,12 +338,11 @@ public class HitResultSendShould
         ScriptedCombatRandom rng = new ScriptedCombatRandom(0.99, 0.99, 0.99, 0.0, 0.99, 0.99, 0.99).Longs(10, 10, 10);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, random: rng);
         MapInstanceClient warrior = At(instance, 506_361, Vector3.zero);
-        warrior.Character.PowerType = PowerType.Fury;
+        warrior.Character.PowerType = PowerType.Mana;
         warrior.Character.Power = 100;
         warrior.Character.CurrentPower = 0;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
         AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f).Dealing(10);
-        cleave.PowerGainPerHit = 8;
         warrior.Character.Spells.Load([AbilityTestData.Game(cleave)]);
         AddCreature(instance, 506_861, new Vector3(0f, 0f, 1.0f), evasion: 10000);
         AddCreature(instance, 506_862, new Vector3(0f, 0f, 1.6f), evasion: 10000);
@@ -354,6 +353,5 @@ public class HitResultSendShould
         List<SUnitDamagePacket> hits = UnitHits(warrior);
         Assert.Equal([HitResult.None, HitResult.Dodged, HitResult.None], hits.Select(h => h.Result));
         Assert.Equal([10u, 0u, 10u], hits.Select(h => h.Damage));
-        Assert.Equal(16u, warrior.Character.CurrentPower);
     }
 }

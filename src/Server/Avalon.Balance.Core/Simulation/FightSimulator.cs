@@ -2,7 +2,6 @@ using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
-using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 
@@ -42,7 +41,6 @@ public sealed class FightSimulator
     private const float Dt = (float)StepSeconds;
     private static readonly double s_gcdSeconds = new CombatConfig().GcdMs / 1000d;
 
-    private readonly RegenConfiguration _regen = new();
     private readonly CombatFormula _formula;
     private readonly IReadOnlyList<CompiledRotationEntry> _rotation;
     private readonly ICombatRandom _rng;
@@ -58,7 +56,6 @@ public sealed class FightSimulator
     private double _starved;
     private double? _firstSpender;
     private double _lastCastStart = double.NegativeInfinity;
-    private double _lastCasting = double.NegativeInfinity;
     private double _regenCarry;   // PowerRegen's fraction of a point, as CharacterEntity keeps it
 
     /// <param name="data">The data auras are read from (an ability's aura, a character's stats refresh); none applies without it.</param>
@@ -130,7 +127,6 @@ public sealed class FightSimulator
             if (ability.CooldownLeft > 0f) ability.CooldownLeft -= Dt;
         }
 
-        if (Player.Casting is not null) _lastCasting = Time;
         Regenerate();
     }
 
@@ -164,21 +160,23 @@ public sealed class FightSimulator
         _ => (Player.Power ?? 0) == 0 ? 0 : (Player.CurrentPower ?? 0) * 100d / Player.Power!.Value,
     };
 
-    /// <summary>As CharacterEntity.Update: PowerRegen with the fraction carried, the carry dropped whenever the pool cannot regenerate.</summary>
+    /// <summary>
+    /// As CharacterEntity.Update in combat (#1181): the in-combat mana rate through PowerRegen.TakeWholePoints with the
+    /// fraction carried, the carry dropped whenever the pool cannot regenerate; a cast never pauses it.
+    /// </summary>
     private void Regenerate()
     {
         uint current = Player.CurrentPower ?? 0;
         uint max = Player.Power ?? 0;
-        if (Player.IsDead || Player.PowerType is not (PowerType.Mana or PowerType.Energy) || current >= max
-            || Player.RegenStat == 0)
+        double rate = Player.ManaRegen.InCombat;
+        if (Player.IsDead || current >= max || !(rate > 0d))
         {
             _regenCarry = 0d;
             return;
         }
 
-        bool suppressed = Time - _lastCasting < _regen.PowerRegenCastSuppressSeconds;
-        uint amount = PowerRegen.Amount(_regen, Player.RegenStat, inCombat: true, suppressed, StepSeconds, ref _regenCarry);
-        Player.CurrentPower = Math.Min(max, current + amount);
+        uint amount = PowerRegen.TakeWholePoints(rate * StepSeconds, ref _regenCarry);
+        Player.CurrentPower = (uint)Math.Min(max, (ulong)current + amount);
     }
 
     // ---- casting, shared by both sides (InstanceAbilityCastSystem) ----
@@ -292,7 +290,7 @@ public sealed class FightSimulator
             if (direct)
             {
                 (uint damage, HitResult result) = CombatRules.Damage(player, target, ability, _formula, _rng);
-                Add(_dealt, m.Name, CombatRules.HitCreature(player, target, damage, ability));
+                Add(_dealt, m.Name, CombatRules.HitCreature(target, damage));
                 if ((result & HitResult.Dodged) != HitResult.None)
                     continue;
 
@@ -375,18 +373,17 @@ public sealed class FightSimulator
             && (!AuraRules.KeysByCaster(aura.Stacking) || ReferenceEquals(a.Caster, caster)));
         AuraSnapshot snapshot = AuraRules.Snapshot(aura, caster.Attack, ability.Metadata, DamageType.Physical, _rng);
         var schedule = AuraSchedule.Start(Now, aura.DurationMs, aura.TickIntervalMs);
-        uint gain = (uint)Math.Max(0, ability.Metadata.PowerGainPerHit);
 
         if (held is not null)
         {
             uint stacks = AuraRules.NextStacks(aura.Stacking, held.Stacks, aura.MaxStacks);
             bool stacked = stacks > held.Stacks;
-            held.Renew(caster, stacks, snapshot, schedule, gain);
+            held.Renew(caster, stacks, snapshot, schedule);
             if (stacked) RefreshStats(target, aura);
             return;
         }
 
-        target.Auras.Add(new SimAura(aura, caster, 1, snapshot, schedule, gain));
+        target.Auras.Add(new SimAura(aura, caster, 1, snapshot, schedule));
         RefreshStats(target, aura);
     }
 
@@ -441,8 +438,7 @@ public sealed class FightSimulator
     /// <summary>
     /// One tick, as CombatService.ApplyPeriodicDamage and ApplyPeriodicHeal: one crit roll, armour on damage, never a
     /// dodge or a block; only the whole points of the amount and the aura's carry are dealt or healed
-    /// (AuraRules.TakeTick). A damage tick on the player gains Fury from the health it lost, tick by tick; one on a
-    /// creature gives its caster, while standing, the source ability's power.
+    /// (AuraRules.TakeTick). No tick gives power (#1181).
     /// </summary>
     private void PeriodicTick(SimUnit unit, SimAura aura, bool lastTick)
     {
@@ -461,8 +457,7 @@ public sealed class FightSimulator
                 }
                 else
                 {
-                    Add(_dealt, aura.Template.Name, CombatRules.PeriodicHitCreature((SimCreature)unit, points,
-                        aura.Caster is SimPlayer { IsDead: false } caster ? caster : null, aura.PowerGainPerHit));
+                    Add(_dealt, aura.Template.Name, CombatRules.HitCreature((SimCreature)unit, points));
                 }
 
                 break;

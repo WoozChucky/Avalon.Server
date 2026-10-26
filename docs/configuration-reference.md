@@ -228,8 +228,6 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `PvpOffDelay`                    | TimeSpan | `00:05:00` | How long a PvP flag stays on after its owner asks to turn it off (#164). Any player-on-player hit restarts a running timer at this length, for both players. Range `00:00:01`–`01:00:00` |
 | `InterestRadius`                 | float  | `60`       | Metres, on X/Z. A one-shot effect broadcast (hit, start/finish/interrupted cast, ability fired, attack swing, death, revive) goes only to connections whose character is within this distance of the effect or involved in it (#532), and a character, creature or projectile enters a client's view within it (#593). At least `1` and finite; startup refuses anything else |
 | `InterestRemoveMargin`           | float  | `10`       | Metres added to `InterestRadius` before an object already in a client's view is removed from it (#593), so one standing near the edge does not flicker in and out. `0` or more and finite (`0` turns the margin off); startup refuses anything else |
-| `FuryFromDamageTaken`            | float  | `50`       | Fury a character whose pool is Fury gains when hit (#526): `floor(health lost / max health × this)`, the health lost capped at what it had before the hit. `0` or more and finite (`0` turns it off); startup refuses anything else |
-| `FuryDecayPerSecond`             | float  | `5`        | Fury lost per second out of combat, down to 0 (#526); never in combat. `0` or more and finite (`0` turns it off); startup refuses anything else |
 | `MaxPartySize`                   | int    | `6`        | Most characters in one party; a party's instance also holds at most `min(this, the map's MaxPlayers)`. Range `2`–`40` |
 | `AbandonedInstanceLifetimeMinutes` | int  | `15`       | Minutes an abandoned dungeon instance (a Normal map's, solo or a party's, that a player entered and that is now empty) lives: re-entry within it returns the same instance, and the per-tick expiry pass frees it once it has passed. `0` frees it on the next tick, so the next entry builds a new one (a load-test world). An instance nobody has entered yet keeps a fixed 15 minutes; towns never expire. `0` or more; startup refuses a negative value. Chart value `server.game.abandonedInstanceLifetimeMinutes`, rendered only when set ([instanced maps](instanced-maps.md#expiry-cleanup)) |
 | `InstanceCreateCooldownSeconds`  | int    | `10`       | Seconds after a character opens a new instance at a portal (a private or a party one, #1104) before it may open another; a create inside it is refused `CreateOnCooldown`, with the time left as a system line once per window (a create refused again inside it gets the result alone). Counted from when the create is accepted, so a build that fails still costs it; entering a live instance, by default or by pick, is never held back. In memory only, per character: a new session starts without one. Range `0`–`3600`; `0` turns it off ([instanced maps](instanced-maps.md#entermaphandler-flow)) |
@@ -287,8 +285,6 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "PvpOffDelay": "00:05:00",
   "InterestRadius": 60,
   "InterestRemoveMargin": 10,
-  "FuryFromDamageTaken": 50,
-  "FuryDecayPerSecond": 5,
   "MaxPartySize": 6,
   "AbandonedInstanceLifetimeMinutes": 15,
   "InstanceCreateCooldownSeconds": 10,
@@ -367,9 +363,8 @@ reads the derived stats").
 |-------------------------------------|-------|---------|-------------|
 | `CombatLeaveDelaySeconds`           | float | `5`     | Seconds after the last hit received before a character counts as out of combat. Range `0.1`–`300` |
 | `HealthRegenOutOfCombatPerStamina`  | float | `0.5`   | Health a second per point of Stamina, out of combat only. Range `0`–`1000` |
-| `PowerRegenOutOfCombatPerStat`      | float | `0.3`   | Mana or Energy a second per point of the class's stat (Intellect or Agility), out of combat. Range `0`–`1000` |
-| `PowerRegenInCombatPerStat`         | float | `0.05`  | The same, in combat. Range `0`–`1000` |
-| `PowerRegenCastSuppressSeconds`     | float | `5`     | Seconds after a cast during which power does not regenerate. Range `0`–`60` |
+| `ManaRegenPctInCombat`              | float | `1`     | Percent of maximum mana regenerated a second in combat (#1181), scaled by the gear's increased mana regeneration; a cast does not pause it. `0` turns it off. Range `0`–`100` |
+| `ManaRegenPctOutOfCombat`           | float | `4`     | The same, out of combat. Range `0`–`100` |
 | `WardRechargeDelaySeconds`          | float | `4`     | Seconds without any damage taken before a ward starts to recharge (#1178), for characters and creatures. Any damage restarts it, damage the ward did not take included. Range `0`–`60` |
 | `WardRechargeSeconds`               | float | `2`     | Seconds a recharging ward takes from empty to full (#1178); it refills linearly from where it stood. `0` fills it at once when the delay ends. Range `0`–`60` |
 
@@ -377,9 +372,8 @@ reads the derived stats").
 "Regen": {
   "CombatLeaveDelaySeconds": 5.0,
   "HealthRegenOutOfCombatPerStamina": 0.5,
-  "PowerRegenOutOfCombatPerStat": 0.3,
-  "PowerRegenInCombatPerStat": 0.05,
-  "PowerRegenCastSuppressSeconds": 5.0,
+  "ManaRegenPctInCombat": 1.0,
+  "ManaRegenPctOutOfCombat": 4.0,
   "WardRechargeDelaySeconds": 4.0,
   "WardRechargeSeconds": 2.0
 }

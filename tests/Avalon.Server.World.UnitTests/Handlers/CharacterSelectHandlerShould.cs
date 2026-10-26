@@ -16,6 +16,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Social;
+using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.GameAuth;
@@ -77,14 +78,15 @@ public class CharacterSelectHandlerShould
         QuestService? questService = null,
         ICharacterIgnoreRepository? ignores = null,
         ICharacterAuraRepository? auras = null,
-        IReadOnlyCollection<AuraTemplate>? auraTemplates = null)
+        IReadOnlyCollection<AuraTemplate>? auraTemplates = null,
+        CharacterClass @class = CharacterClass.Warrior)
     {
         var row = new Character
         {
             Id = s_theCharacter,
             AccountId = s_theAccount,
             Name = "Tester",
-            Class = CharacterClass.Warrior,
+            Class = @class,
             Level = 1,
             Map = TownMapId,
             X = 1,
@@ -128,7 +130,7 @@ public class CharacterSelectHandlerShould
         StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates, auraTemplates);
 
         IWorld world = Substitute.For<IWorld>();
-        world.Configuration.Returns(game ?? new GameConfiguration());   // the select reads Game:FuryDecayPerSecond (#526)
+        world.Configuration.Returns(game ?? new GameConfiguration());
         world.InstanceRegistry.Returns(registry);
         world.MapTemplates.Returns(new List<MapTemplate>
         {
@@ -520,34 +522,36 @@ public class CharacterSelectHandlerShould
     /// <summary>
     /// #434: select derives stats from the character's level and what it wears, replacing the old
     /// half-levelled patch of Stamina and the regen stat. Nothing stores the current pools, so the
-    /// character enters full at the new maximum, apart from a Fury pool, which enters empty (#526).
+    /// character enters full at the new maximum, on mana whatever its class (#1181): the Warrior once on Fury and the
+    /// Hunter once on Energy.
     /// </summary>
-    [Fact]
-    public async Task Derive_the_stats_from_the_level_and_what_is_worn_and_enter_full()
+    [Theory]
+    [InlineData(CharacterClass.Warrior)]
+    [InlineData(CharacterClass.Hunter)]
+    public async Task Derive_the_stats_from_the_level_and_what_is_worn_and_enter_full(CharacterClass @class)
     {
         (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
             (InventoryType.Equipment, 3, EquipTemplates.Chestguard.Id.Value, 1u, 69u, ItemInstanceFlags.None));
-        ClassLevelStat warrior = new()
+        ClassLevelStat stats = new()
         {
-            Class = CharacterClass.Warrior,
+            Class = @class,
             Level = 1,
             BaseHp = 130,
-            BaseMana = 0,
             Stamina = 22,
             Strength = 23,
             Agility = 20,
             Intellect = 20,
         };
-        Fixture f = await BuildAsync(rows, instances, classStats: [warrior],
-            itemTemplates: [EquipTemplates.Chestguard], storedHealth: 1);
+        Fixture f = await BuildAsync(rows, instances, classStats: [stats],
+            itemTemplates: [EquipTemplates.Chestguard], storedHealth: 1, @class: @class);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         Assert.Equal(250u, entity.Health);
         Assert.Equal(250u, entity.CurrentHealth);
-        Assert.Equal(100u, entity.Power);
-        Assert.Equal(0u, entity.CurrentPower);   // a warrior's Fury pool enters empty (#526)
+        Assert.Equal(PowerType.Mana, entity.PowerType);
+        Assert.Equal((180u, 180u), (entity.Power, entity.CurrentPower));
         Assert.Equal(24u, entity.Stamina);
         Assert.Equal(8u + 2u, entity.Stats!.Value.Armor);   // and Strength 25 x 0.1 (#1178)
         Assert.True(entity.SaveState.StatsDirty);
@@ -577,7 +581,6 @@ public class CharacterSelectHandlerShould
             Class = CharacterClass.Warrior,
             Level = 1,
             BaseHp = 130,
-            BaseMana = 0,
             Stamina = 22,
             Strength = 23,
             Agility = 20,
@@ -629,12 +632,12 @@ public class CharacterSelectHandlerShould
 
     /// <summary>
     /// Regression guard: a class and level with no ClassLevelStat row keeps the stored maximums and
-    /// derives nothing (select once patched Stamina from a row that is not there), and a warrior still
-    /// enters with no Fury (#526). With no refresh to fix its pace, its basic attack waits the bare hand's attack time,
+    /// derives nothing (select once patched Stamina from a row that is not there), and the character still
+    /// enters with full mana (#1181). With no refresh to fix its pace, its basic attack waits the bare hand's attack time,
     /// never nothing (#1178).
     /// </summary>
     [Fact]
-    public async Task Keep_the_stored_maximums_and_enter_with_no_fury_when_the_class_and_level_have_no_row()
+    public async Task Keep_the_stored_maximums_and_enter_full_when_the_class_and_level_have_no_row()
     {
         AbilityTemplate basic = AbilityTestData.Cone(1);
         basic.Flags = AbilityFlags.Basic;
@@ -644,7 +647,7 @@ public class CharacterSelectHandlerShould
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         Assert.Equal((150u, 150u), (entity.Health, entity.CurrentHealth));
-        Assert.Equal((100u, 0u), (entity.Power, entity.CurrentPower));
+        Assert.Equal((100u, 100u), (entity.Power, entity.CurrentPower));
         Assert.Null(entity.Stats);
         Assert.Equal(0u, entity.Stamina);
 
@@ -653,21 +656,6 @@ public class CharacterSelectHandlerShould
         using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         AbilityInfo info = Assert.Single(Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities);
         Assert.Equal(CombatSeed.Formula().UnarmedAttackTimeMs, info.CooldownMs);
-    }
-
-    /// <summary>#526: Game:FuryDecayPerSecond reaches the character select builds: at 30, a second out of combat loses 30.</summary>
-    [Fact]
-    public async Task Build_the_character_with_the_configured_fury_decay()
-    {
-        Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100,
-            game: new GameConfiguration { FuryDecayPerSecond = 30f });
-
-        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
-
-        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
-        entity.CurrentPower = 50;
-        entity.Update(TimeSpan.FromSeconds(1));
-        Assert.Equal(20u, entity.CurrentPower);
     }
 
     [Fact]

@@ -16,7 +16,6 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using PowerType = Avalon.Network.Packets.State.PowerType;
 
 namespace Avalon.Database.World;
 
@@ -112,7 +111,6 @@ public class WorldDbContext : DbContext
     public DbSet<VendorStock> VendorStocks { get; set; } = null!;
     public DbSet<VendorStockCost> VendorStockCosts { get; set; } = null!;
     public DbSet<CombatFormula> CombatFormulas { get; set; } = null!;
-    public DbSet<ClassStatFactors> ClassStatFactors { get; set; } = null!;
     public DbSet<DoodadTemplate> DoodadTemplates { get; set; } = null!;
     public DbSet<DoodadAuraOutcome> DoodadAuraOutcomes { get; set; } = null!;
 
@@ -180,7 +178,6 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<VendorStock>());
         Configure(modelBuilder.Entity<VendorStockCost>());
         Configure(modelBuilder.Entity<CombatFormula>());
-        Configure(modelBuilder.Entity<ClassStatFactors>());
         Configure(modelBuilder.Entity<DoodadTemplate>());
         Configure(modelBuilder.Entity<DoodadAuraOutcome>());
 
@@ -394,7 +391,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Warrior,
             Level = 1,
             BaseHp = 130,
-            BaseMana = 0,
             Stamina = 22,
             Strength = 23,
             Agility = 20,
@@ -404,7 +400,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Warrior,
             Level = 2,
             BaseHp = 160,
-            BaseMana = 0,
             Stamina = 24,
             Strength = 25,
             Agility = 21,
@@ -414,7 +409,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Warrior,
             Level = 3,
             BaseHp = 190,
-            BaseMana = 0,
             Stamina = 26,
             Strength = 27,
             Agility = 23,
@@ -424,7 +418,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Warrior,
             Level = 4,
             BaseHp = 220,
-            BaseMana = 0,
             Stamina = 28,
             Strength = 29,
             Agility = 24,
@@ -434,7 +427,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Warrior,
             Level = 5,
             BaseHp = 250,
-            BaseMana = 0,
             Stamina = 30,
             Strength = 31,
             Agility = 26,
@@ -444,7 +436,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Wizard,
             Level = 1,
             BaseHp = 16,
-            BaseMana = 20,
             Stamina = 21,
             Strength = 20,
             Agility = 20,
@@ -454,7 +445,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Wizard,
             Level = 2,
             BaseHp = 32,
-            BaseMana = 40,
             Stamina = 22,
             Strength = 20,
             Agility = 21,
@@ -464,7 +454,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Wizard,
             Level = 3,
             BaseHp = 48,
-            BaseMana = 60,
             Stamina = 23,
             Strength = 20,
             Agility = 22,
@@ -474,7 +463,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Wizard,
             Level = 4,
             BaseHp = 64,
-            BaseMana = 80,
             Stamina = 24,
             Strength = 20,
             Agility = 23,
@@ -484,7 +472,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Wizard,
             Level = 5,
             BaseHp = 80,
-            BaseMana = 100,
             Stamina = 25,
             Strength = 20,
             Agility = 24,
@@ -494,7 +481,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Hunter,
             Level = 1,
             BaseHp = 78,
-            BaseMana = 10,
             Stamina = 20,
             Strength = 21,
             Agility = 23,
@@ -504,7 +490,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Hunter,
             Level = 2,
             BaseHp = 99,
-            BaseMana = 20,
             Stamina = 21,
             Strength = 22,
             Agility = 25,
@@ -514,7 +499,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Hunter,
             Level = 3,
             BaseHp = 120,
-            BaseMana = 30,
             Stamina = 22,
             Strength = 24,
             Agility = 27,
@@ -524,7 +508,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Hunter,
             Level = 4,
             BaseHp = 141,
-            BaseMana = 40,
             Stamina = 23,
             Strength = 25,
             Agility = 29,
@@ -534,7 +517,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Hunter,
             Level = 5,
             BaseHp = 162,
-            BaseMana = 50,
             Stamina = 24,
             Strength = 27,
             Agility = 31,
@@ -544,7 +526,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Cleric,
             Level = 1,
             BaseHp = 58,
-            BaseMana = 20,
             Stamina = 20,
             Strength = 20,
             Agility = 21,
@@ -554,7 +535,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Cleric,
             Level = 2,
             BaseHp = 78,
-            BaseMana = 40,
             Stamina = 21,
             Strength = 20,
             Agility = 22,
@@ -564,7 +544,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Cleric,
             Level = 3,
             BaseHp = 98,
-            BaseMana = 60,
             Stamina = 22,
             Strength = 20,
             Agility = 23,
@@ -574,7 +553,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Cleric,
             Level = 4,
             BaseHp = 118,
-            BaseMana = 80,
             Stamina = 23,
             Strength = 20,
             Agility = 24,
@@ -584,7 +562,6 @@ public class WorldDbContext : DbContext
             Class = CharacterClass.Cleric,
             Level = 5,
             BaseHp = 138,
-            BaseMana = 100,
             Stamina = 24,
             Strength = 20,
             Agility = 25,
@@ -594,10 +571,10 @@ public class WorldDbContext : DbContext
         // Levels 6-16 (#463): the experience table ends at 15, so 16 is reachable, and a level with
         // no row leaves a character's stats where they were. Each column continues the step its
         // class takes over levels 1-5, where L is the level:
-        //   Warrior: BaseHp 30L+100, BaseMana 0,   Stamina 20+2L, Strength 21+2L,               Agility 20+floor(3(L-1)/2), Intellect 20
-        //   Wizard:  BaseHp 16L,     BaseMana 20L, Stamina 20+L,  Strength 20,                  Agility 19+L,  Intellect 21+2L
-        //   Hunter:  BaseHp 21L+57,  BaseMana 10L, Stamina 19+L,  Strength 21+floor(14(L-1)/9), Agility 21+2L, Intellect 20
-        //   Cleric:  BaseHp 20L+38,  BaseMana 20L, Stamina 19+L,  Strength 20,                  Agility 20+L,  Intellect 21+2L
+        //   Warrior: BaseHp 30L+100, Stamina 20+2L, Strength 21+2L,               Agility 20+floor(3(L-1)/2), Intellect 20
+        //   Wizard:  BaseHp 16L,     Stamina 20+L,  Strength 20,                  Agility 19+L,  Intellect 21+2L
+        //   Hunter:  BaseHp 21L+57,  Stamina 19+L,  Strength 21+floor(14(L-1)/9), Agility 21+2L, Intellect 20
+        //   Cleric:  BaseHp 20L+38,  Stamina 19+L,  Strength 20,                  Agility 20+L,  Intellect 21+2L
         // Warrior Agility is the one column that does not rise by a whole step: 20, 21, 23, 24, 26
         // alternates +1 and +2, so it keeps alternating. Every formula reproduces levels 1-5 exactly.
         // #1178: every class gains the combat formula's 5 life per Stamina, so BaseHp was rebalanced to keep a
@@ -606,50 +583,50 @@ public class WorldDbContext : DbContext
         // so its Strength grows faster (was 20+L) and keeps its attacks' level-10 numbers.
         // Provisional, like the creature numbers: revisited in the combat-balance pass (#506).
         builder.HasData(
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 6, BaseHp = 280, BaseMana = 0, Stamina = 32, Strength = 33, Agility = 27, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 7, BaseHp = 310, BaseMana = 0, Stamina = 34, Strength = 35, Agility = 29, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 8, BaseHp = 340, BaseMana = 0, Stamina = 36, Strength = 37, Agility = 30, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 9, BaseHp = 370, BaseMana = 0, Stamina = 38, Strength = 39, Agility = 32, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 10, BaseHp = 400, BaseMana = 0, Stamina = 40, Strength = 41, Agility = 33, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 11, BaseHp = 430, BaseMana = 0, Stamina = 42, Strength = 43, Agility = 35, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 12, BaseHp = 460, BaseMana = 0, Stamina = 44, Strength = 45, Agility = 36, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 13, BaseHp = 490, BaseMana = 0, Stamina = 46, Strength = 47, Agility = 38, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 14, BaseHp = 520, BaseMana = 0, Stamina = 48, Strength = 49, Agility = 39, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 15, BaseHp = 550, BaseMana = 0, Stamina = 50, Strength = 51, Agility = 41, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 16, BaseHp = 580, BaseMana = 0, Stamina = 52, Strength = 53, Agility = 42, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 6, BaseHp = 96, BaseMana = 120, Stamina = 26, Strength = 20, Agility = 25, Intellect = 33 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 7, BaseHp = 112, BaseMana = 140, Stamina = 27, Strength = 20, Agility = 26, Intellect = 35 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 8, BaseHp = 128, BaseMana = 160, Stamina = 28, Strength = 20, Agility = 27, Intellect = 37 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 9, BaseHp = 144, BaseMana = 180, Stamina = 29, Strength = 20, Agility = 28, Intellect = 39 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 10, BaseHp = 160, BaseMana = 200, Stamina = 30, Strength = 20, Agility = 29, Intellect = 41 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 11, BaseHp = 176, BaseMana = 220, Stamina = 31, Strength = 20, Agility = 30, Intellect = 43 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 12, BaseHp = 192, BaseMana = 240, Stamina = 32, Strength = 20, Agility = 31, Intellect = 45 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 13, BaseHp = 208, BaseMana = 260, Stamina = 33, Strength = 20, Agility = 32, Intellect = 47 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 14, BaseHp = 224, BaseMana = 280, Stamina = 34, Strength = 20, Agility = 33, Intellect = 49 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 15, BaseHp = 240, BaseMana = 300, Stamina = 35, Strength = 20, Agility = 34, Intellect = 51 },
-            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 16, BaseHp = 256, BaseMana = 320, Stamina = 36, Strength = 20, Agility = 35, Intellect = 53 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 6, BaseHp = 183, BaseMana = 60, Stamina = 25, Strength = 28, Agility = 33, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 7, BaseHp = 204, BaseMana = 70, Stamina = 26, Strength = 30, Agility = 35, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 8, BaseHp = 225, BaseMana = 80, Stamina = 27, Strength = 31, Agility = 37, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 9, BaseHp = 246, BaseMana = 90, Stamina = 28, Strength = 33, Agility = 39, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 10, BaseHp = 267, BaseMana = 100, Stamina = 29, Strength = 35, Agility = 41, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 11, BaseHp = 288, BaseMana = 110, Stamina = 30, Strength = 36, Agility = 43, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 12, BaseHp = 309, BaseMana = 120, Stamina = 31, Strength = 38, Agility = 45, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 13, BaseHp = 330, BaseMana = 130, Stamina = 32, Strength = 39, Agility = 47, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 14, BaseHp = 351, BaseMana = 140, Stamina = 33, Strength = 41, Agility = 49, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 15, BaseHp = 372, BaseMana = 150, Stamina = 34, Strength = 42, Agility = 51, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 16, BaseHp = 393, BaseMana = 160, Stamina = 35, Strength = 44, Agility = 53, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 6, BaseHp = 158, BaseMana = 120, Stamina = 25, Strength = 20, Agility = 26, Intellect = 33 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 7, BaseHp = 178, BaseMana = 140, Stamina = 26, Strength = 20, Agility = 27, Intellect = 35 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 8, BaseHp = 198, BaseMana = 160, Stamina = 27, Strength = 20, Agility = 28, Intellect = 37 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 9, BaseHp = 218, BaseMana = 180, Stamina = 28, Strength = 20, Agility = 29, Intellect = 39 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 10, BaseHp = 238, BaseMana = 200, Stamina = 29, Strength = 20, Agility = 30, Intellect = 41 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 11, BaseHp = 258, BaseMana = 220, Stamina = 30, Strength = 20, Agility = 31, Intellect = 43 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 12, BaseHp = 278, BaseMana = 240, Stamina = 31, Strength = 20, Agility = 32, Intellect = 45 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 13, BaseHp = 298, BaseMana = 260, Stamina = 32, Strength = 20, Agility = 33, Intellect = 47 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 14, BaseHp = 318, BaseMana = 280, Stamina = 33, Strength = 20, Agility = 34, Intellect = 49 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 15, BaseHp = 338, BaseMana = 300, Stamina = 34, Strength = 20, Agility = 35, Intellect = 51 },
-            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 16, BaseHp = 358, BaseMana = 320, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 6, BaseHp = 280, Stamina = 32, Strength = 33, Agility = 27, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 7, BaseHp = 310, Stamina = 34, Strength = 35, Agility = 29, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 8, BaseHp = 340, Stamina = 36, Strength = 37, Agility = 30, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 9, BaseHp = 370, Stamina = 38, Strength = 39, Agility = 32, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 10, BaseHp = 400, Stamina = 40, Strength = 41, Agility = 33, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 11, BaseHp = 430, Stamina = 42, Strength = 43, Agility = 35, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 12, BaseHp = 460, Stamina = 44, Strength = 45, Agility = 36, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 13, BaseHp = 490, Stamina = 46, Strength = 47, Agility = 38, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 14, BaseHp = 520, Stamina = 48, Strength = 49, Agility = 39, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 15, BaseHp = 550, Stamina = 50, Strength = 51, Agility = 41, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 16, BaseHp = 580, Stamina = 52, Strength = 53, Agility = 42, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 6, BaseHp = 96, Stamina = 26, Strength = 20, Agility = 25, Intellect = 33 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 7, BaseHp = 112, Stamina = 27, Strength = 20, Agility = 26, Intellect = 35 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 8, BaseHp = 128, Stamina = 28, Strength = 20, Agility = 27, Intellect = 37 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 9, BaseHp = 144, Stamina = 29, Strength = 20, Agility = 28, Intellect = 39 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 10, BaseHp = 160, Stamina = 30, Strength = 20, Agility = 29, Intellect = 41 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 11, BaseHp = 176, Stamina = 31, Strength = 20, Agility = 30, Intellect = 43 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 12, BaseHp = 192, Stamina = 32, Strength = 20, Agility = 31, Intellect = 45 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 13, BaseHp = 208, Stamina = 33, Strength = 20, Agility = 32, Intellect = 47 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 14, BaseHp = 224, Stamina = 34, Strength = 20, Agility = 33, Intellect = 49 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 15, BaseHp = 240, Stamina = 35, Strength = 20, Agility = 34, Intellect = 51 },
+            new ClassLevelStat { Class = CharacterClass.Wizard, Level = 16, BaseHp = 256, Stamina = 36, Strength = 20, Agility = 35, Intellect = 53 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 6, BaseHp = 183, Stamina = 25, Strength = 28, Agility = 33, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 7, BaseHp = 204, Stamina = 26, Strength = 30, Agility = 35, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 8, BaseHp = 225, Stamina = 27, Strength = 31, Agility = 37, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 9, BaseHp = 246, Stamina = 28, Strength = 33, Agility = 39, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 10, BaseHp = 267, Stamina = 29, Strength = 35, Agility = 41, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 11, BaseHp = 288, Stamina = 30, Strength = 36, Agility = 43, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 12, BaseHp = 309, Stamina = 31, Strength = 38, Agility = 45, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 13, BaseHp = 330, Stamina = 32, Strength = 39, Agility = 47, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 14, BaseHp = 351, Stamina = 33, Strength = 41, Agility = 49, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 15, BaseHp = 372, Stamina = 34, Strength = 42, Agility = 51, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter, Level = 16, BaseHp = 393, Stamina = 35, Strength = 44, Agility = 53, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 6, BaseHp = 158, Stamina = 25, Strength = 20, Agility = 26, Intellect = 33 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 7, BaseHp = 178, Stamina = 26, Strength = 20, Agility = 27, Intellect = 35 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 8, BaseHp = 198, Stamina = 27, Strength = 20, Agility = 28, Intellect = 37 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 9, BaseHp = 218, Stamina = 28, Strength = 20, Agility = 29, Intellect = 39 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 10, BaseHp = 238, Stamina = 29, Strength = 20, Agility = 30, Intellect = 41 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 11, BaseHp = 258, Stamina = 30, Strength = 20, Agility = 31, Intellect = 43 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 12, BaseHp = 278, Stamina = 31, Strength = 20, Agility = 32, Intellect = 45 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 13, BaseHp = 298, Stamina = 32, Strength = 20, Agility = 33, Intellect = 47 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 14, BaseHp = 318, Stamina = 33, Strength = 20, Agility = 34, Intellect = 49 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 15, BaseHp = 338, Stamina = 34, Strength = 20, Agility = 35, Intellect = 51 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 16, BaseHp = 358, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
     }
 
     /// <summary>Quests (#433). Reference data; QuestCatalog validates it on load and on /reload quests.</summary>
@@ -1629,7 +1606,7 @@ public class WorldDbContext : DbContext
                 Slot = null,
                 UseScript = "RestorePower",
                 UseCooldownMs = 30000,
-                UseCooldownGroup = "potion",
+                UseCooldownGroup = "mana-potion",
                 UseValue = 30
             },
             new ItemTemplate
@@ -3135,11 +3112,6 @@ public class WorldDbContext : DbContext
                 "\"ThreatMultiplier\" >= 0 AND \"ThreatMultiplier\" < 'Infinity'");
             t.HasCheckConstraint("CK_AbilityTemplates_HealThreatPerHp_NonNegative",
                 "\"HealThreatPerHp\" >= 0 AND \"HealThreatPerHp\" < 'Infinity'");
-            // #526: a negative gain would drain the caster's pool on every hit.
-            t.HasCheckConstraint("CK_AbilityTemplates_PowerGainPerHit_NonNegative", "\"PowerGainPerHit\" >= 0");
-            // #652: a cost names the pool it is spent from (Mana 1, Fury 2, Energy 3); only a cost of 0 may name none.
-            t.HasCheckConstraint("CK_AbilityTemplates_CostPowerType",
-                "\"CostPowerType\" BETWEEN 0 AND 3 AND (\"Cost\" = 0 OR \"CostPowerType\" <> 0)");
             // #1178: none (the caster's base type), or a DamageType from Physical 0 to Blight 4.
             t.HasCheckConstraint("CK_AbilityTemplates_DamageType",
                 "\"DamageType\" IS NULL OR \"DamageType\" BETWEEN 0 AND 4");
@@ -3188,7 +3160,7 @@ public class WorldDbContext : DbContext
         // Shot) is paced by its weapon's attack time over attack speed, so its Cooldown is 0; a spell basic (Spark Bolt,
         // Smite) keeps 800 ms, shortened by cast speed (#1178, owner decision D1).
         builder.HasData(
-            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 0, range: SpellRange.Melee, powerGainPerHit: 8, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
+            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 0, range: SpellRange.Melee, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
             Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, range: SpellRange.Short, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 614f),
             Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 9f, cooldown: 3000, cost: 10, range: SpellRange.Medium, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 492f),
             Kit(210, CharacterClass.Wizard, "Spark Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 11f, cooldown: 800, cost: 0, range: SpellRange.Long, flags: AbilityFlags.Basic, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (14, 20), growth: 0.70f),
@@ -3297,27 +3269,14 @@ public class WorldDbContext : DbContext
             ProjectileSpeed = speed,
             Pierce = pierce,
             Affects = AbilityAffects.Hostile,
-            PowerGainPerHit = 0,
             AuraId = aura is { } a ? new AuraId(a) : null,
             DamageType = damageType,
         };
 
-    /// <summary>
-    /// The pool a class spends from (#652), as the World's <c>ClassPowerType</c> gives a character at select: a kit
-    /// ability's cost is spent from its own class's pool.
-    /// </summary>
-    private static PowerType ClassPool(CharacterClass cls) => cls switch
-    {
-        CharacterClass.Warrior => PowerType.Fury,
-        CharacterClass.Wizard or CharacterClass.Cleric => PowerType.Mana,
-        CharacterClass.Hunter => PowerType.Energy,
-        _ => PowerType.None,
-    };
-
     private static AbilityTemplate Kit(uint id, CharacterClass cls, string name, AbilityShape shape, AbilityAimMode aim,
         SpellRange range, uint cooldown, uint cost, AbilityAnchor anchor = AbilityAnchor.Caster,
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
-        AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0, SpellEffect? effects = null,
+        AbilityAffects affects = AbilityAffects.Hostile, SpellEffect? effects = null,
         uint? aura = null, AbilityFlags flags = AbilityFlags.None, DamageType? damageType = null,
         AbilityTags tags = AbilityTags.None, float effectiveness = 100f, (uint Min, uint Max) spellBase = default,
         float growth = 0f, DamageType? convertTo = null, float convertPct = 0f,
@@ -3329,7 +3288,6 @@ public class WorldDbContext : DbContext
             Cooldown = cooldown,
             Cost = cost,
             Flags = flags,
-            CostPowerType = cost == 0 ? PowerType.None : ClassPool(cls),
             Range = range,
             Effects = effects ?? (affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage),
             AllowedClasses = [cls],
@@ -3350,7 +3308,6 @@ public class WorldDbContext : DbContext
             ProjectileSpeed = speed,
             Pierce = pierce,
             Affects = affects,
-            PowerGainPerHit = powerGainPerHit,
             AuraId = aura is { } a ? new AuraId(a) : null,
             DamageType = damageType,
             Tags = tags,
@@ -3558,36 +3515,18 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_CombatFormula_UnarmedAttackTimeMs", "\"UnarmedAttackTimeMs\" > 0");
             t.HasCheckConstraint("CK_CombatFormula_LifePerStamina",
                 $"\"LifePerStamina\" >= 0 AND \"LifePerStamina\" <= {uint.MaxValue}");
+
+            // #1181: the mana formula, one for every class. The whole-number terms are uints (bigint), the Intellect
+            // conversion finite and 0 or more.
+            t.HasCheckConstraint("CK_CombatFormula_ManaBase", $"\"ManaBase\" >= 0 AND \"ManaBase\" <= {uint.MaxValue}");
+            t.HasCheckConstraint("CK_CombatFormula_ManaPerLevel",
+                $"\"ManaPerLevel\" >= 0 AND \"ManaPerLevel\" <= {uint.MaxValue}");
+            t.HasCheckConstraint("CK_CombatFormula_ManaPerIntellect", Finite("ManaPerIntellect"));
         });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id).ValueGeneratedNever();
 
         builder.HasData(CombatSeed.Formula());
-    }
-
-    /// <summary>
-    /// One row per class (#506): how its attributes become power.
-    /// Every fractional factor finite and 0 or more. Health, crit and defence are class-neutral (#1178), on the formula.
-    /// </summary>
-    private static void Configure(EntityTypeBuilder<ClassStatFactors> builder)
-    {
-        builder.ToTable("ClassStatFactors", t =>
-        {
-            foreach (string column in new[]
-                     {
-                         "PowerPerIntellect", "PowerPerAgility",
-                     })
-            {
-                t.HasCheckConstraint($"CK_ClassStatFactors_{column}", Finite(column));
-            }
-
-            // The whole-number factor is bigint; the calculator takes it as uint (#506 review).
-            t.HasCheckConstraint("CK_ClassStatFactors_FixedPower",
-                $"\"FixedPower\" IS NULL OR (\"FixedPower\" >= 0 AND \"FixedPower\" <= {uint.MaxValue})");
-        });
-        builder.HasKey(b => b.Class);
-
-        builder.HasData(CombatSeed.ClassFactors());
     }
 
     /// <summary>

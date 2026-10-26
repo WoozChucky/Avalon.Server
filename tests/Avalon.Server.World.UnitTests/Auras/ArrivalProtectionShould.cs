@@ -217,11 +217,8 @@ public class ArrivalProtectionShould
         attacker.CurrentPower = 0;
         target.CurrentPower = 0;
         ArrivalProtectionTestData.Apply(target);
-        AbilityTemplate row = AbilityTestData.Circle(1);
-        row.PowerGainPerHit = 10;
-        IAbility ability = AbilityTestData.Game(row);
-        var tick = new PeriodicHit(attacker, target, new AuraId(901), 10, new AuraSnapshot(10, 0, 1),
-            AuraSource.None with { PowerGainPerHit = 10 });
+        IAbility ability = AbilityTestData.Game(AbilityTestData.Circle(1));
+        var tick = new PeriodicHit(attacker, target, new AuraId(901), 10, new AuraSnapshot(10, 0, 1), AuraSource.None);
         double carry = 0.25;
 
         combat.EnterCombat(new Creature { Guid = new ObjectGuid(ObjectType.Creature, 10) }, target);
@@ -324,7 +321,7 @@ public class ArrivalProtectionShould
         character.Health = 100;
         character.CurrentHealth = 100;
         character.Power = 100;
-        character.PowerType = PowerType.Fury;
+        character.PowerType = PowerType.Mana;
         return character;
     }
 }

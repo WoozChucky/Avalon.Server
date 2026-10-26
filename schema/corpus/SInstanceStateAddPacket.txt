@@ -493,13 +493,13 @@ variant float-specials
     element 0
       field 1 Guid : ulong = 7
       field 2 Position : Vec3
-        field 1 X : float = Infinity (0x7f800000)
-        field 2 Y : float = -Infinity (0xff800000)
-        field 3 Z : float = -0 (0x80000000)
+        field 1 X : float = -0 (0x80000000)
+        field 2 Y : float = 1.40129846E-45 (0x00000001)
+        field 3 Z : float = 1.17549421E-38 (0x007fffff)
       field 3 Velocity : Vec3
-        field 1 X : float = Infinity (0x7f800000)
-        field 2 Y : float = -Infinity (0xff800000)
-        field 3 Z : float = -0 (0x80000000)
+        field 1 X : float = -0 (0x80000000)
+        field 2 Y : float = 1.40129846E-45 (0x00000001)
+        field 3 Z : float = 1.17549421E-38 (0x007fffff)
       field 4 Orientation : float? = 1.40129846E-45 (0x00000001)
       field 5 MoveState : MoveState? = Running (2)
       field 6 Health : uint? = 7
@@ -532,13 +532,13 @@ variant float-specials
     element 1
       field 1 Guid : ulong = 1000000
       field 2 Position : Vec3
-        field 1 X : float = -Infinity (0xff800000)
-        field 2 Y : float = -0 (0x80000000)
-        field 3 Z : float = 1.40129846E-45 (0x00000001)
+        field 1 X : float = 1.40129846E-45 (0x00000001)
+        field 2 Y : float = 1.17549421E-38 (0x007fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
       field 3 Velocity : Vec3
-        field 1 X : float = -Infinity (0xff800000)
-        field 2 Y : float = -0 (0x80000000)
-        field 3 Z : float = 1.40129846E-45 (0x00000001)
+        field 1 X : float = 1.40129846E-45 (0x00000001)
+        field 2 Y : float = 1.17549421E-38 (0x007fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
       field 4 Orientation : float? = 1.17549421E-38 (0x007fffff)
       field 5 MoveState : MoveState? = Swimming (3)
       field 6 Health : uint? = 65535
@@ -569,23 +569,24 @@ variant float-specials
       field 31 Ward : uint? = 19
       field 32 MaxWard : uint? = 1000000
   field 2 WorldTick : long = 5000000000
-  bytes 303
-    0a 8a 01 08 07 12 0a 0d 00 00 80 7f 15 00 00 80
-    ff 1a 0a 0d 00 00 80 7f 15 00 00 80 ff 25 01 00
+  bytes 313
+    0a 8a 01 08 07 12 0a 15 01 00 00 00 1d ff ff 7f
+    00 1a 0a 15 01 00 00 00 1d ff ff 7f 00 25 01 00
     00 00 28 02 30 07 38 ac 02 40 01 48 80 d0 ac f3
     0e 50 c0 84 3d 58 ac 02 60 01 68 c0 84 3d 70 07
     78 ac 02 82 01 05 61 6c 70 68 61 8d 01 ff ff 7f
     00 90 01 13 98 01 13 a0 01 01 a8 01 01 b0 01 01
     b8 01 04 c0 01 01 c8 01 13 d0 01 ac 02 d8 01 02
     e0 01 13 e8 01 80 d0 ac f3 0e f0 01 80 d0 ac f3
-    0e f8 01 ff ff 03 80 02 80 d0 ac f3 0e 0a 99 01
-    08 c0 84 3d 12 0a 0d 00 00 80 ff 1d 01 00 00 00
-    1a 0a 0d 00 00 80 ff 1d 01 00 00 00 25 ff ff 7f
-    00 28 03 30 ff ff 03 38 2a 40 03 48 ac 02 50 07
-    58 ff ff 03 60 01 68 07 70 c0 84 3d 78 2a 82 01
-    18 22 71 75 6f 74 65 64 22 20 61 6e 64 20 5c 62
-    61 63 6b 73 6c 61 73 68 5c 8d 01 ff ff 7f 7f 90
-    01 2a 98 01 2a a0 01 01 a8 01 01 b0 01 03 b8 01
-    01 c0 01 01 c8 01 ff ff 03 d0 01 80 d0 ac f3 0e
-    d8 01 01 e0 01 ff ff 03 e8 01 ac 02 f0 01 c0 84
-    3d f8 01 13 80 02 c0 84 3d 10 80 e4 97 d0 12
+    0e f8 01 ff ff 03 80 02 80 d0 ac f3 0e 0a a3 01
+    08 c0 84 3d 12 0f 0d 01 00 00 00 15 ff ff 7f 00
+    1d ff ff 7f 7f 1a 0f 0d 01 00 00 00 15 ff ff 7f
+    00 1d ff ff 7f 7f 25 ff ff 7f 00 28 03 30 ff ff
+    03 38 2a 40 03 48 ac 02 50 07 58 ff ff 03 60 01
+    68 07 70 c0 84 3d 78 2a 82 01 18 22 71 75 6f 74
+    65 64 22 20 61 6e 64 20 5c 62 61 63 6b 73 6c 61
+    73 68 5c 8d 01 ff ff 7f 7f 90 01 2a 98 01 2a a0
+    01 01 a8 01 01 b0 01 03 b8 01 01 c0 01 01 c8 01
+    ff ff 03 d0 01 80 d0 ac f3 0e d8 01 01 e0 01 ff
+    ff 03 e8 01 ac 02 f0 01 c0 84 3d f8 01 13 80 02
+    c0 84 3d 10 80 e4 97 d0 12

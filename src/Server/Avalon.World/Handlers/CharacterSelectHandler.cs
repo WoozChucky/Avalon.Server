@@ -478,8 +478,7 @@ public class CharacterSelectHandler(
 
         ulong requiredExperience = world.Data.FindLevel(character.Level)?.Experience ?? 0;
 
-        CharacterEntity entity = new(loggerFactory, character, regenConfig.Value, time,
-            world.Configuration.FuryDecayPerSecond, tickThread)
+        CharacterEntity entity = new(loggerFactory, character, regenConfig.Value, time, tickThread)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
@@ -491,9 +490,9 @@ public class CharacterSelectHandler(
 
         entity.BindGameplayAuthority(connection.GameplayAuthority!);
         entity.CurrentHealth = entity.Health;
-        entity.PowerType = ClassPowerType.Of(character.Class);
-        // Fury starts empty (#526), even when the stats refresh below finds no row and changes nothing.
-        entity.CurrentPower = entity.PowerType == PowerType.Fury ? 0u : entity.Power;
+        // #1181: every class casts from mana, which enters full, even when the stats refresh below finds no row.
+        entity.PowerType = PowerType.Mana;
+        entity.CurrentPower = entity.Power;
 
         // connection.Character is NOT assigned here, and is not assigned by this handler at all.
         // The entity is handed to the connection as a pending spawn once inventory and spells are
@@ -669,8 +668,7 @@ public class CharacterSelectHandler(
         entity.ItemModifiers.Load(instances);
 
         // #434: stats follow the class, the level and what is worn. No current health or power is
-        // stored, so the character enters full at the new maximum, as it always has, except that a
-        // Fury pool enters empty (#526).
+        // stored, so the character enters full at the new maximum, as it always has.
         if (!CharacterStatsRefresh.Apply(entity, world.Data, CurrentValues.EnterWorld))
         {
             logger.LogWarning(
@@ -750,7 +748,6 @@ public class CharacterSelectHandler(
             AbilityId = s.AbilityId,
             Name = s.Metadata.Name,
             Cost = s.Metadata.Cost,
-            CostPowerType = s.Metadata.CostPowerType,
             Range = (ushort)s.Metadata.Range,
             AimMode = s.Metadata.AimMode,
             Shape = s.Metadata.Shape,

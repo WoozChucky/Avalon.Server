@@ -212,20 +212,20 @@ Silenced never, Crippled and Hexed 0 % / 0.5 %.
 
 | Ability | Who | Shape | Aim | Reach, size | Cooldown | Cost | Direct | Aura |
 |---|---|---|---|---|---|---|---|---|
-| 203 Rend | Warrior | Cone | Movement | reach 2.5, arc 90 | 6 s | 10 Fury | Damage: an attack at 202 % of the weapon | 1 Bleed |
+| 203 Rend | Warrior | Cone | Movement | reach 2.5, arc 90 | 6 s | 10 Mana | Damage: an attack at 202 % of the weapon | 1 Bleed |
 | 213 Ignite | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 6 s | 20 Mana | none (a spell: its spell base, 31-46 growing 0.9 % a level, is Burn's) | 2 Burn |
-| 223 Crippling Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 8 s | 15 Energy | Damage: an attack at 495 % of the weapon, half converted to cold | 3 Crippled |
+| 223 Crippling Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 8 s | 15 Mana | Damage: an attack at 495 % of the weapon, half converted to cold | 3 Crippled |
 | 233 Renew | Cleric | Ally circle on the aim point | Cursor | reach 15, radius 4 | 6 s | 15 Mana | none (a heal: its spell base, 19-28, is Renew's) | 4 Renew |
 | 234 Fortify | Cleric | Ally circle on the caster | Movement | radius 8 | 20 s | 20 Mana | none | 5 Fortified |
 | 317 Venom Spit | Blightfly Swarmling | Projectile, 14 m/s | Cursor | reach 10 | 8 s | none | Damage: an attack at 60 % of the natural roll | 6 Poison |
 | 318 Sundering Howl | Bramblemaw Alpha | Circle on the caster | Movement | radius 6 | 18 s | none | none | 7 Sundered |
-| 204 Shield Bash | Warrior | Cone | Movement | reach 2.5, arc 90 | 15 s | 15 Fury | Damage: an attack at 148 % of the weapon | 12 Stunned |
+| 204 Shield Bash | Warrior | Cone | Movement | reach 2.5, arc 90 | 15 s | 15 Mana | Damage: an attack at 148 % of the weapon | 12 Stunned |
 | 214 Frost Bind | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 20 s | 25 Mana | Damage: a spell of 6-9, growing 0.45 % a level | 14 Frozen |
-| 224 Binding Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 15 s | 20 Energy | Damage: an attack at 168 % of the weapon, plus 2-4 blight | 13 Bound |
+| 224 Binding Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 15 s | 20 Mana | Damage: an attack at 168 % of the weapon, plus 2-4 blight | 13 Bound |
 | 235 Hush | Cleric | Projectile, 17 m/s | Cursor | reach 18 | 20 s | 20 Mana | none | 15 Silenced |
 
-All are instant. Every character of a class holds its class's new abilities. An Ally circle affects the caster too when
-the circle covers it.
+All are instant. Every cost is mana, for every class (#1181). Every character of a class holds its class's new
+abilities. An Ally circle affects the caster too when the circle covers it.
 
 ## 10. Crowd control
 

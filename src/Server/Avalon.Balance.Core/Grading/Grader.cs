@@ -1,6 +1,4 @@
-using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Network.Packets.State;
 using CreatureRarity = Avalon.World.Public.Enums.CreatureRarity;
 
 namespace Avalon.Balance.Core;
@@ -82,20 +80,12 @@ public static class Grader
             }
         }
 
-        // Resource flow.
+        // Resource flow. #1181: every class spends mana and enters full, so every class is graded on how long it
+        // starves, and nothing on how soon it first spends.
         foreach (RowResult r in graded.Where(r => r.Key.Scenario == g.ResourceScenario))
         {
-            if (r.Key.Class == CharacterClass.Warrior)
-            {
-                Add(r.Key, "resource flow", $"Warrior L{r.Key.Level} first spender", r.FirstSpenderSeconds?.Median,
-                    new Band { Min = 0, Max = g.WarriorFirstSpenderSeconds }, " s");
-            }
-
-            if (ClassPowerType.Of(r.Key.Class) is PowerType.Mana or PowerType.Energy)
-            {
-                Add(r.Key, "resource flow", $"{r.Key.Class} L{r.Key.Level} starved share", r.StarvedPct.Median,
-                    new Band { Min = 0, Max = g.CasterStarvedPct }, " %");
-            }
+            Add(r.Key, "resource flow", $"{r.Key.Class} L{r.Key.Level} starved share", r.StarvedPct.Median,
+                new Band { Min = 0, Max = g.CasterStarvedPct }, " %");
         }
 
         // Levelling pace: same-level normal kills to the next level, experience as CreatureStatDeriver derives it.

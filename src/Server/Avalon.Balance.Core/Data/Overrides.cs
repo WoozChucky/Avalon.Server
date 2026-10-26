@@ -46,9 +46,6 @@ public static class Overrides
                 ? t.ClassLevelStats.FirstOrDefault(r => r.Class == cls && Text(r.Level) == l)
                 : null,
             t => t.ClassLevelStats.Select(r => ($"{r.Class}.{Text(r.Level)}", (object)r))),
-        ["ClassStatFactors"] = new(typeof(ClassStatFactors), ["Class"],
-            (t, k) => Enum.TryParse(k, false, out CharacterClass cls) ? t.ClassStatFactors.FirstOrDefault(r => r.Class == cls) : null,
-            t => t.ClassStatFactors.Select(r => (r.Class.ToString(), (object)r))),
         ["CombatFormula"] = new(typeof(CombatFormula), ["Id"], (t, _) => t.CombatFormulas.SingleOrDefault(),
             t => t.CombatFormulas.Take(1).Select(r => ("", (object)r)), Keyless: true),
         ["CreatureBaseStats"] = new(typeof(CreatureBaseStat), ["Level"],

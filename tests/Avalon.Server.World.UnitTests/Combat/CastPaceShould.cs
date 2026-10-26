@@ -133,7 +133,7 @@ public class CastPaceShould
         WornItem sword = Weapon(32, attackTimeMs: 792);
         WornItem slow = Weapon(1178_401, attackTimeMs: 900);
         DerivedCharacterStats Wearing(WornItem weapon) => CharacterStatsCalculator.Calculate(warriorOne, [weapon],
-            TestCombat.FactorsOf(CharacterClass.Warrior), TestCombat.Formula);
+            TestCombat.Formula);
 
         // A basic attack with a wind-up, so a weapon swap can land while it is queued.
         AbilityTemplate template = AbilityTestData.Cone(CleaveId, reach: 2.5f, arc: 100f);

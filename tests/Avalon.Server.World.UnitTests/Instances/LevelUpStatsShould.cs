@@ -25,8 +25,8 @@ public class LevelUpStatsShould
 {
     private static readonly ClassLevelStat[] s_warriorRows =
     [
-        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
-        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 160, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 160, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
     ];
 
     [Fact]
@@ -65,21 +65,21 @@ public class LevelUpStatsShould
         Assert.Equal(50ul, killer.Experience);
         Assert.Equal(160u + 24u * 5u, killer.Health);
         Assert.Equal(killer.Health, killer.CurrentHealth);
-        Assert.Equal(100u, killer.CurrentPower);
+        Assert.Equal(188u, killer.CurrentPower);   // 100 + 8 + 20 x 4
         Assert.Equal(87.5f, killer.Stats!.Value.Offence.Increased(Avalon.Network.Packets.Combat.OffenceStat.PhysicalAttack));   // 25 x 3.5
         Assert.True(killer.SaveState.StatsDirty);
         instance.Dispose();
     }
 
     /// <summary>
-    /// #526 end to end: a Warrior's Cleave kills a creature and the kill levels it up through the real
-    /// CreatureKilled. The refill keeps Fury, capped at the new maximum (100 here), and the kill's own
-    /// Cleave gain (8) is counted: 60 becomes 68, and 150 of a former 200 ends at 100.
+    /// #1181 end to end: a Warrior's Cleave kills a creature and the kill levels it up through the real
+    /// CreatureKilled. The refill fills its mana to the new maximum (100 + 8 + 20 x 4 = 188 here), from below it or above
+    /// it.
     /// </summary>
     [Theory]
-    [InlineData(100u, 60u, 68u)]
-    [InlineData(200u, 150u, 100u)]
-    public async Task Keep_a_warriors_fury_capped_through_a_level_up_its_cleave_caused(uint maxBefore, uint furyBefore, uint furyAfter)
+    [InlineData(100u, 60u, 188u)]
+    [InlineData(300u, 250u, 188u)]
+    public async Task Refill_a_warriors_mana_through_a_level_up_its_cleave_caused(uint maxBefore, uint manaBefore, uint manaAfter)
     {
         StaticData data = await TestStaticData.LoadAsync(
             classStats: s_warriorRows,
@@ -92,18 +92,17 @@ public class LevelUpStatsShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: world);
 
         MapInstanceClient warrior = MapInstanceClients.Join(instance, 526_401);
-        warrior.Character.PowerType = PowerType.Fury;
+        warrior.Character.PowerType = PowerType.Mana;
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, data, CurrentValues.EnterWorld));
         warrior.Character.Power = maxBefore;
-        warrior.Character.CurrentPower = furyBefore;
+        warrior.Character.CurrentPower = manaBefore;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);   // facing +Z
         AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f);
-        cleave.PowerGainPerHit = 8;
         warrior.Character.Spells.Load([AbilityTestData.Game(cleave)]);
 
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 526_901u + furyBefore),
+            Guid = new ObjectGuid(ObjectType.Creature, 526_901u + manaBefore),
             Metadata = Loot.LootTestData.BoarTemplate(null),
             Position = new Vector3(0f, 0f, 2f),
             Health = 5,
@@ -117,9 +116,9 @@ public class LevelUpStatsShould
 
         Assert.Equal(0u, creature.CurrentHealth);
         Assert.Equal((ushort)2, warrior.Character.Level);
-        Assert.Equal(100u, warrior.Character.Power);
+        Assert.Equal(188u, warrior.Character.Power);
         Assert.Equal(warrior.Character.Health, warrior.Character.CurrentHealth);
-        Assert.Equal(furyAfter, warrior.Character.CurrentPower);
+        Assert.Equal(manaAfter, warrior.Character.CurrentPower);
     }
 
     /// <summary>

@@ -101,4 +101,16 @@ public class CombatFormula
 
     /// <summary>Milliseconds between basic attacks with no weapon, before attack speed; above 0.</summary>
     public uint UnarmedAttackTimeMs { get; set; }
+
+    // Mana (#1181): one formula for every class. A character's maximum is ManaBase + ManaPerLevel x (level - 1) +
+    // Intellect x ManaPerIntellect, truncated once, plus gear's flat power, then scaled by gear's increased maximum mana.
+
+    /// <summary>Every character's maximum mana at level 1 before Intellect and gear.</summary>
+    public uint ManaBase { get; set; }
+
+    /// <summary>Maximum mana each level past the first adds, for every class.</summary>
+    public uint ManaPerLevel { get; set; }
+
+    /// <summary>Maximum mana each point of Intellect gives, for every class. Finite and 0 or more.</summary>
+    public float ManaPerIntellect { get; set; }
 }

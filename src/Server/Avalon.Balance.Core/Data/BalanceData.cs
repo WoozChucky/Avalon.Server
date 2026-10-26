@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Balance.Core;
 
-/// <summary>The combat formula and every class's stat factors, as the world server's own checks accept them.</summary>
-public sealed record CombatData(CombatFormula Formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors> Factors);
+/// <summary>The combat formula, as the world server's own checks accept it.</summary>
+public sealed record CombatData(CombatFormula Formula);
 
 /// <summary>
 /// The seed tables after overrides, validated by the server's own validators, so a row a /reload would refuse stops
@@ -90,14 +90,13 @@ public sealed class BalanceData
         if (refused.Count > 0)
             throw new InvalidDataException("The ability catalog refused: " + string.Join("; ", refused));
 
-        (CombatFormula formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors> factors) =
-            CombatDataRules.Build(tables.CombatFormulas, tables.ClassStatFactors);
+        CombatFormula formula = CombatDataRules.Build(tables.CombatFormulas);
         CreatureTemplateRules.Validate(tables.CreatureTemplates);
         CreatureTemplateRules.ValidateRarities(tables.CreatureRarityModifiers);
         var creatureStats = new CreatureStatDeriver(tables.CreatureBaseStats, tables.CreatureRarityModifiers,
             NullLoggerFactory.Instance);
 
-        return new BalanceData(tables, auras, abilities, refused, new CombatData(formula, factors), creatureStats);
+        return new BalanceData(tables, auras, abilities, refused, new CombatData(formula), creatureStats);
     }
 
     /// <param name="auras">What the character's auras add, folded in as the server's stats refresh folds them; none when null.</param>
@@ -108,7 +107,7 @@ public sealed class BalanceData
             ?? throw new InvalidDataException($"ClassLevelStat {characterClass} level {level} is not seeded");
         // The simulator is paused (#1183): its gear is templates alone, each a copy with no base stats and no modifiers.
         List<WornItem> items = [.. worn.Select(t => new WornItem(t, default, null, t.DamageType))];
-        return CharacterStatsCalculator.Calculate(row, items, Combat.Factors[characterClass], Combat.Formula, auras);
+        return CharacterStatsCalculator.Calculate(row, items, Combat.Formula, auras);
     }
 
     /// <summary>The class's starting abilities (CharacterCreateInfos.StartingSpells), as the catalog holds them.</summary>

@@ -15,10 +15,10 @@ public class GraderShould
     private static TargetFile Targets() => ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
 
     private static RowResult Row(CharacterClass c, ushort level, string scenario, double win, double fight,
-        double? health = 50, double? firstSpender = 1, double starved = 0) =>
+        double? health = 50, double starved = 0) =>
         new(new RowKey(c, level, "forest", scenario), 100, win, new Distribution(fight, fight, fight),
             health is { } h ? new Distribution(h, h, h) : null,
-            firstSpender is { } s ? new Distribution(s, s, s) : null, new Distribution(starved, starved, starved),
+            new Distribution(1, 1, 1), new Distribution(starved, starved, starved),
             new Dictionary<string, double>(), new Dictionary<string, double>(), s_noSnapshot);
 
     [Theory]
@@ -85,17 +85,17 @@ public class GraderShould
     }
 
     [Fact]
-    public void Check_resource_flow_for_the_warrior_and_the_casters()
+    public void Check_resource_flow_for_every_class()
     {
         RowResult[] rows =
         [
-            Row(CharacterClass.Warrior, 1, "normal-3", 100, 20, firstSpender: 6),
+            Row(CharacterClass.Warrior, 1, "normal-3", 100, 20, starved: 25),
             Row(CharacterClass.Wizard, 1, "normal-3", 100, 20, starved: 25),
         ];
 
         GradeReport report = Grader.Grade(rows, TestData.Seeded, Scenarios(), Targets());
 
-        Assert.Equal(Grade.Red, report.Metrics.Single(m => m.Metric == "Warrior L1 first spender").Grade);
+        Assert.Equal(Grade.Red, report.Metrics.Single(m => m.Metric == "Warrior L1 starved share").Grade);
         Assert.Equal(Grade.Red, report.Metrics.Single(m => m.Metric == "Wizard L1 starved share").Grade);
     }
 
@@ -104,17 +104,11 @@ public class GraderShould
     {
         RowResult[] rows =
         [
-            Row(CharacterClass.Warrior, 1, "normal-3", 100, 20) with { FirstSpenderSeconds = new Distribution(1, 3, 9) },
-            Row(CharacterClass.Warrior, 2, "normal-3", 100, 20) with { FirstSpenderSeconds = new Distribution(0.5, 6, 6) },
             Row(CharacterClass.Wizard, 1, "normal-3", 100, 20) with { StarvedPct = new Distribution(0, 5, 40) },
         ];
 
         GradeReport report = Grader.Grade(rows, TestData.Seeded, Scenarios(), Targets());
 
-        GradedMetric fast = report.Metrics.Single(m => m.Metric == "Warrior L1 first spender");
-        Assert.Equal(3, fast.Value);
-        Assert.Equal(Grade.Green, fast.Grade);
-        Assert.Equal(Grade.Red, report.Metrics.Single(m => m.Metric == "Warrior L2 first spender").Grade);
         GradedMetric starved = report.Metrics.Single(m => m.Metric == "Wizard L1 starved share");
         Assert.Equal(5, starved.Value);
         Assert.Equal(Grade.Green, starved.Grade);

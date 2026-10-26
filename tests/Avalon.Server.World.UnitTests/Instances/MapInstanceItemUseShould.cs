@@ -88,7 +88,6 @@ public class MapInstanceItemUseShould
         MapInstanceClient client = Join(instance, 7);
         AbilityTemplate row = AbilityTestData.Circle(1);
         row.Cost = 30;
-        row.CostPowerType = PowerType.Mana;
         row.CastTime = castTimeMs;
         GameAbility ability = AbilityTestData.Game(row);
         client.Character.Spells.Load([ability]);

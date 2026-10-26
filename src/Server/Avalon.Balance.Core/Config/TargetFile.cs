@@ -17,7 +17,6 @@ public sealed class GlobalTargets
     public double ParityWinRatePoints { get; set; } = 10;
     public double ParityFightLengthPct { get; set; } = 15;
     public string ResourceScenario { get; set; } = "normal-3";
-    public double WarriorFirstSpenderSeconds { get; set; } = 4;
     public double CasterStarvedPct { get; set; } = 10;
     public Band KillsPerLevel { get; set; } = new() { Min = 10, Max = 20 };
 }

@@ -10,14 +10,14 @@ namespace Avalon.Benchmarking.Benchmarks;
 
 /// <summary>
 /// The stats calculation a stats refresh runs (#1179): <see cref="CharacterStatsCalculator.Calculate" /> for a level-10
-/// Warrior (the seeded row: BaseHp 400, Stamina 40, Strength 41, Agility 33, Intellect 20) on the seeded formula and the
-/// Warrior's factors, wearing a full forest kit: the five Barkplate pieces (items 12-16), the Bramblesteel Sword (7), the
-/// Alpha's Fang Pendant (58), the Heartwood Band (64) and the Thornheart Signet (65). <see cref="Calculate" /> wears each
-/// piece with no modifiers, as the kit was measured before instance modifiers; <see cref="CalculateModified" /> wears the
-/// same pieces with six modifiers each, local and global lines mixed (local defence and weapon lines, added damage to
-/// attacks and spells, attributes, resistances, crit); <see cref="CalculateThemed" /> wears those same lines renumbered to
-/// seeded affix rows of five Resonance themes and counts them (#1180) into one buffer bound once, as a character's is.
-/// The world passes the worn items as a list it reuses, so the benchmark does too; no auras. 0 B expected.
+/// Warrior (the seeded row: BaseHp 400, Stamina 40, Strength 41, Agility 33, Intellect 20) on the seeded formula,
+/// wearing a full forest kit: the five Barkplate pieces (items 12-16), the Bramblesteel Sword (7), the Alpha's Fang
+/// Pendant (58), the Heartwood Band (64) and the Thornheart Signet (65). <see cref="Calculate" /> wears each piece with
+/// no modifiers, as the kit was measured before instance modifiers; <see cref="CalculateModified" /> wears the same
+/// pieces with six modifiers each, local and global lines mixed (local defence and weapon lines, added damage to
+/// attacks and spells, attributes, resistances, crit); <see cref="CalculateThemed" /> wears those same lines renumbered
+/// to seeded affix rows of five Resonance themes and counts them (#1180) into one buffer bound once, as a character's
+/// is. The world passes the worn items as a list it reuses, so the benchmark does too; no auras. 0 B expected.
 /// </summary>
 /// <remarks>
 /// The templates are literals of the seed rows as they stood before #1179 part A replaced them with bases (their old
@@ -42,7 +42,6 @@ public class ItemStatsBenchmarks
         Class = CharacterClass.Warrior,
         Level = 10,
         BaseHp = 400,
-        BaseMana = 0,
         Stamina = 40,
         Strength = 41,
         Agility = 33,
@@ -94,7 +93,6 @@ public class ItemStatsBenchmarks
 
     private readonly ResonanceCounts _resonance = new();
 
-    private readonly ClassStatFactors _factors = CombatSeed.ClassFactors().Single(f => f.Class == CharacterClass.Warrior);
     private readonly CombatFormula _formula = CombatSeed.Formula();
 
     [GlobalSetup]
@@ -127,15 +125,15 @@ public class ItemStatsBenchmarks
 
     [Benchmark]
     public DerivedCharacterStats Calculate() =>
-        CharacterStatsCalculator.Calculate(s_warriorLevel10, _worn, _factors, _formula);
+        CharacterStatsCalculator.Calculate(s_warriorLevel10, _worn, _formula);
 
     [Benchmark]
     public DerivedCharacterStats CalculateModified() =>
-        CharacterStatsCalculator.Calculate(s_warriorLevel10, _wornModified, _factors, _formula);
+        CharacterStatsCalculator.Calculate(s_warriorLevel10, _wornModified, _formula);
 
     [Benchmark]
     public DerivedCharacterStats CalculateThemed() =>
-        CharacterStatsCalculator.Calculate(s_warriorLevel10, _wornThemed, _factors, _formula, resonance: _resonance);
+        CharacterStatsCalculator.Calculate(s_warriorLevel10, _wornThemed, _formula, resonance: _resonance);
 
     // The seeded catalog, its rows given their groups, stat lines and weights by id, as the World database loads them.
     private static ItemModifierCatalog SeededCatalog()

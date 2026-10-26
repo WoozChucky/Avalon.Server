@@ -41,7 +41,6 @@ internal static class TemplateFields
         A("castTime", e => e.CastTime, (e, r) => e.CastTime = r.CastTime),
         A("cooldown", e => e.Cooldown, (e, r) => e.Cooldown = r.Cooldown),
         A("cost", e => e.Cost, (e, r) => e.Cost = r.Cost),
-        A("costPowerType", e => e.CostPowerType, (e, r) => e.CostPowerType = Conv(r.CostPowerType, e.CostPowerType)),
         A("scriptName", e => e.ScriptName, (e, r) => e.ScriptName = r.ScriptName),
         A("range", e => e.Range, (e, r) => e.Range = Conv(r.Range, e.Range)),
         A("effects", e => e.Effects, (e, r) => e.Effects = Conv(r.Effects, e.Effects)),

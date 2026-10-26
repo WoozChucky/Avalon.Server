@@ -94,6 +94,9 @@ internal static class TestCharacters
     /// <summary>The character's Awakening meter (#1180), World-side and internal, read by reflection.</summary>
     public static AwakeningMeter AwakeningOf(CharacterEntity character) => Internal<AwakeningMeter>(character, "Awakening");
 
+    /// <summary>The character's mana regeneration rates (#1181), World-side and internal, read by reflection.</summary>
+    public static ManaRegenRates ManaRegenOf(CharacterEntity character) => Internal<ManaRegenRates>(character, "ManaRegen");
+
     private static T Internal<T>(CharacterEntity character, string property) =>
         (T)(typeof(CharacterEntity).GetProperty(property, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 ?.GetValue(character)

@@ -12,23 +12,13 @@ public class RegenConfiguration
     [Range(0.0, 1000.0)]
     public float HealthRegenOutOfCombatPerStamina { get; set; } = 0.5f;
 
-    /// <summary>
-    /// Power regenerated per point of the governing stat (Intellect for Mana, Agility for Energy)
-    /// per second when out of combat and not recently casting.
-    /// </summary>
-    [Range(0.0, 1000.0)]
-    public float PowerRegenOutOfCombatPerStat { get; set; } = 0.3f;
+    /// <summary>Percent of maximum mana regenerated a second while in combat (#1181); 0 turns it off.</summary>
+    [Range(0.0, 100.0)]
+    public float ManaRegenPctInCombat { get; set; } = 1f;
 
-    /// <summary>Same stat coefficient applied while in combat (and not recently casting).</summary>
-    [Range(0.0, 1000.0)]
-    public float PowerRegenInCombatPerStat { get; set; } = 0.05f;
-
-    /// <summary>
-    /// Seconds after the last spell cast before power regeneration resumes (the "5-second rule").
-    /// Power regen is suppressed during this window.
-    /// </summary>
-    [Range(0.0, 60.0)]
-    public float PowerRegenCastSuppressSeconds { get; set; } = 5f;
+    /// <summary>Percent of maximum mana regenerated a second out of combat (#1181); 0 turns it off.</summary>
+    [Range(0.0, 100.0)]
+    public float ManaRegenPctOutOfCombat { get; set; } = 4f;
 
     /// <summary>Seconds without any damage taken before a ward starts to recharge (#1178).</summary>
     [Range(0.0, 60.0)]

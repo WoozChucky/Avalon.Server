@@ -13,23 +13,20 @@ using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 namespace Avalon.Server.World.UnitTests.Reload;
 
 /// <summary>
-/// The combat area (#506): the formula row and the class stat factors, reloaded forward-only, and a bad
-/// row refused with the previous generation kept.
+/// The combat area (#506): the formula row, reloaded forward-only, and a bad row refused with the previous generation
+/// kept.
 /// </summary>
 public class CombatReloadShould
 {
     public sealed class Rows
     {
         public List<CombatFormula> Formulas = [CombatSeed.Formula()];
-        public List<ClassStatFactors> Factors = [.. CombatSeed.ClassFactors()];
 
         public ICombatDataRepository Repository()
         {
             ICombatDataRepository repository = Substitute.For<ICombatDataRepository>();
             repository.GetFormulasAsync(Arg.Any<CancellationToken>())
                 .Returns(_ => Task.FromResult<IReadOnlyCollection<CombatFormula>>(Formulas.ToList()));
-            repository.GetClassStatFactorsAsync(Arg.Any<CancellationToken>())
-                .Returns(_ => Task.FromResult<IReadOnlyCollection<ClassStatFactors>>(Factors.ToList()));
             return repository;
         }
     }
@@ -39,7 +36,6 @@ public class CombatReloadShould
         Class = CharacterClass.Warrior,
         Level = 1,
         BaseHp = 130,
-        BaseMana = 0,
         Stamina = 22,
         Strength = 23,
         Agility = 20,
@@ -50,12 +46,11 @@ public class CombatReloadShould
         TestStaticData.LoadAsync(TestStaticData.Repositories(classStats: () => [s_warriorLevel1], combat: rows.Repository()));
 
     [Fact]
-    public async Task Load_the_seeded_formula_and_every_class()
+    public async Task Load_the_seeded_formula()
     {
         StaticData data = await Load(new Rows());
 
         Assert.Equal(50f, data.Combat.Formula.ArmorBase);
-        Assert.Equal(CharacterClasses.Playable.Order(), data.Combat.Factors.Keys.Order());
     }
 
     [Fact]
@@ -97,11 +92,6 @@ public class CombatReloadShould
 
     public static TheoryData<string, Action<Rows>> BadRows => new()
     {
-        { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).PowerPerIntellect = -1 },
-        { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).PowerPerAgility = float.NaN },
-        { "ClassStatFactors Cleric", r => r.Factors.RemoveAll(f => f.Class == CharacterClass.Cleric) },
-        { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).FixedPower = -5 },
-        { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).FixedPower = 5_000_000_000 },
         { "CombatFormula 1", r => r.Formulas[0].ArmorCap = 2f },
         { "CombatFormula 1", r => r.Formulas[0].EvasionCap = 101f },
         { "CombatFormula 1", r => r.Formulas[0].CritMultiplier = float.PositiveInfinity },
@@ -117,6 +107,9 @@ public class CombatReloadShould
         // #1178: a speed cap is finite and 0 or more.
         { "CombatFormula 1", r => r.Formulas[0].AttackSpeedCap = -1f },
         { "CombatFormula 1", r => r.Formulas[0].CooldownRecoveryCap = float.NaN },
+        // #1181: the mana formula's Intellect conversion is finite and 0 or more.
+        { "CombatFormula 1", r => r.Formulas[0].ManaPerIntellect = float.NaN },
+        { "CombatFormula 1", r => r.Formulas[0].ManaPerIntellect = -1f },
     };
 
     [Theory]
@@ -132,24 +125,6 @@ public class CombatReloadShould
         InvalidDataException refused = await Assert.ThrowsAsync<InvalidDataException>(() => data.PrepareAsync(ReloadArea.Combat));
         Assert.StartsWith(named, refused.Message, StringComparison.Ordinal);
         Assert.Same(before, data.Combat);
-    }
-
-    /// <summary>
-    /// #506 review: the database refuses a negative or oversized FixedPower itself, so the
-    /// load's refusal is a second line, never EF's cast.
-    /// </summary>
-    [Theory]
-    [InlineData(-1L)]
-    [InlineData(4_294_967_296L)]
-    public void Be_refused_by_the_database_out_of_the_uint_range(long fixedPower)
-    {
-        using var database = Handlers.SqliteDatabase.World();
-        using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
-        ClassStatFactors warrior = context.ClassStatFactors.Single(f => f.Class == CharacterClass.Warrior);
-        warrior.FixedPower = fixedPower;
-
-        DbUpdateException refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
-        Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);
     }
 
     /// <summary>#627, #1178: the database refuses a negative attack speed cap, a floor at -100 % or below, and a floor above the cap.</summary>

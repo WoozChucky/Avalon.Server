@@ -103,6 +103,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRoll
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ResonanceProcBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AwakeningMeterBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorkbenchRequestBenchmarks*" "*InventoryFlushBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ManaRegenBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 
 # Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
@@ -2280,6 +2281,48 @@ are one run and that record predates part B's seal fields. Most rows read within
 identified chests 4,128.0 against 4,248.2 ns, 30 unidentified 11,837.4 against 12,571.4 ns). Thirty identified chests
 read 15,532.2 against 13,650.0 ns (+14 %), while eight identified chests read lower, so this run does not show a cost
 per modifier entry. It was not re-run (one targeted run).
+
+### Mana regeneration — `Benchmarks/ManaRegenBenchmarks.cs` (#1181)
+
+What mana regeneration (#1181 part A, [world simulation](world-simulation.md), "Regeneration carries the fraction of a
+point") costs the tick. Each operation is one `CharacterEntity.Update` of 1/60 s on each of 1,000 level 1 Wizards
+(`OperationsPerInvoke = 1000`, so a row is the cost per character), each pool emptied first so every character takes
+the regeneration branch on every tick. Each Wizard is built through the public constructor on a clock that never moves,
+on `PowerType.Mana` with no abilities, and its stats applied with `CurrentValues.EnterWorld` (maximum mana 400,
+Intellect 50, Stamina 0, so health never regenerates) over the seeded formula; `InCombat` marks it in combat once, and
+the frozen clock keeps it there. The file uses only members that exist before and after part A, so the same file ran
+on both sides. Setup fails the run unless one `Update` of 1 s from an empty pool gives the first character mana back
+(4 in combat or 16 out of it on the branch, 1 % or 4 % of 400; 2 or 15 on the base, Intellect 50 x 0.05 or x 0.3).
+
+- **Base** (`71da2359a`, the file copied into a scratch worktree): mana from the class's stat, behind a `PowerType`
+  test and a cast-suppression check. In combat `IsInCombat`, a clock read, is asked twice per character, by the health
+  block and by the regeneration; out of combat neither reads the clock (no combat was ever marked, and no cast ever
+  ran, so both checks stop at their first compare).
+- **Branch** (`713b5db51` plus the benchmark): `IsInCombat` read once, one of the two rates fixed at the last stats
+  refresh (`ManaRegenRates`), one multiply and the carry; no `PowerType` test and no clock read for casting.
+
+One run on each side, 2026-10-26 (out of process, ten warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet
+0.15.8, Windows 11, i9-12900K, SDK 10.0.403 / runtime 10.0.14, Release):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ManaRegenBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| `InCombat` | Base: mean (± StdDev) | Branch: mean (± StdDev) | Allocated |
+|---|---:|---:|---:|
+| `false` | 17.67 ns (± 1.25 ns) | 17.19 ns (± 0.41 ns) | 0 B / 0 B |
+| `true` | 25.18 ns (± 0.82 ns) | 15.83 ns (± 0.74 ns) | 0 B / 0 B |
+
+**Nothing allocates on either side.** **In combat a character's update is 9.4 ns cheaper**, about 37 %: the second
+combat read, its clock read and the `PowerType` test are gone. Out of combat the two sides read the same within the
+base's spread (0.5 ns), as neither reads the clock there. The figure does not cover a cast in progress, where the base
+also read the clock every tick to keep the suppression window open and once more to test it; the branch reads none. With
+1,800 players all in combat, that is some 17 µs a tick. Both figures are lower bounds for production: the benchmark's
+clock is frozen, so each read it saves is a virtual call returning a field, where a live world's goes to the system
+clock. The rows also differ in how often the whole-point write runs, about once per point gained: 4 or 16 times a second
+on the branch, 2.5 or 15 on the base, in and out of combat, which is why the branch's out-of-combat row costs more than
+its in-combat one. Removing Fury also took its gain and its damage-taken gain off every hit and its decay off every
+tick, none of which the rows above exercise (a Wizard never had Fury).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
