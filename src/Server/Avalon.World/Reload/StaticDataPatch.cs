@@ -121,8 +121,9 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     }
 
     /// <summary>
-    /// The Resonance effects of this generation (#1180 part A2), keyed by the themes of <see cref="Modifiers" />. Not part
-    /// of <see cref="Generation" />: no name is worked out from them.
+    /// The Resonance effects of this generation (#1180 part A2), keyed by the themes of <see cref="Modifiers" />; an Auras
+    /// reload replaces them with the same rows held against its auras (<see cref="AurasPatch.Effects" />). Not part of
+    /// <see cref="Generation" />: no name is worked out from them.
     /// </summary>
     public ResonanceEffectCatalog Effects { get; init; } = ResonanceEffectCatalog.Empty;
 
@@ -342,7 +343,19 @@ public sealed record QuestsPatch(Quests.QuestCatalog Catalog) : StaticDataPatch(
 /// </summary>
 public sealed record AurasPatch(AuraCatalog Catalog) : StaticDataPatch(ReloadArea.Auras)
 {
-    public override string Describe() => Catalog.Describe();
+    /// <summary>
+    /// The live Resonance effects (#1180 part A2) held against these auras (<see cref="ResonanceEffectCatalog.Against" />):
+    /// published with them in place of <see cref="Replaces" />, so an aura edit that breaks an effect's rules (a stun on
+    /// Rimebound, a periodic heal on Guard) leaves that effect out from the next firing, and every kept effect's source is
+    /// built from its aura as it now is. Null when no items generation was loaded to hold them against.
+    /// </summary>
+    public ResonanceEffectCatalog? Effects { get; init; }
+
+    /// <summary>The effect catalog <see cref="Effects" /> was built from: the live one, when this patch was prepared.</summary>
+    public ResonanceEffectCatalog? Replaces { get; init; }
+
+    public override string Describe() =>
+        Effects is null ? Catalog.Describe() : $"{Catalog.Describe()}, {Effects.Effects.Count} Resonance effects";
 }
 
 /// <summary>

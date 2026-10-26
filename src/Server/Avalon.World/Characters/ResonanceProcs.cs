@@ -7,9 +7,10 @@ namespace Avalon.World.Characters;
 /// A character's active Resonance effects (#1180 part A2), as its last stats refresh built them from its counts: one slot
 /// per active effect row, in the catalog's order (by theme id, then effect id), the triggers they listen for as one mask,
 /// and the cooldowns they fire against. Rebuilt by a refresh only when the counts were counted again or the effect catalog
-/// changed (<see cref="CharacterStatsRefresh" />), never per hit. The slots and the cooldowns are reused arrays that grow
-/// only when a rebuild needs more than they hold and never shrink, so a rebuild over what the character already had room
-/// for allocates nothing.
+/// changed (<see cref="CharacterStatsRefresh" />), or by a firing that finds the world's effect catalog changed since (an
+/// Auras reload, <see cref="Combat.ResonanceDispatcher" />), never per hit. The slots and the cooldowns are reused arrays
+/// that grow only when a rebuild needs more than they hold and never shrink, so a rebuild over what the character already
+/// had room for allocates nothing.
 /// <para>
 /// One cooldown per (theme, trigger), kept for the character's life in memory and never saved: the rows of one theme and
 /// trigger at different thresholds are one effect at different strengths, so moving between them (taking a ring off and
@@ -35,6 +36,12 @@ public sealed class ResonanceProcs
 
     /// <summary>The effect catalog the slots were last built from; <see cref="ResonanceEffectCatalog.Empty" /> before any.</summary>
     public ResonanceEffectCatalog BuiltFrom { get; private set; } = ResonanceEffectCatalog.Empty;
+
+    /// <summary>
+    /// How many rebuilds the slots have had: a walk over them that sees it change knows they were rebuilt under it, from
+    /// the same catalog (a recount) or another. Wraps, which a walk's one compare does not mind.
+    /// </summary>
+    public int Builds { get; private set; }
 
     /// <summary>The effect in <paramref name="slot" />.</summary>
     public ResonanceEffect EffectAt(int slot) => _slots[Checked(slot)].Effect;
@@ -73,6 +80,7 @@ public sealed class ResonanceProcs
         Count = count;
         Mask = mask;
         BuiltFrom = effects;
+        Builds = unchecked(Builds + 1);
     }
 
     /// <summary>The index of the cooldown of that theme and trigger, added (ready) when the character has none yet.</summary>

@@ -13,6 +13,7 @@ using Avalon.World;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Items;
@@ -21,9 +22,12 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
+using Avalon.World.Reload;
 using Avalon.World.Testing;
 using Avalon.World.Testing.Scenarios;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Combat;
@@ -39,7 +43,7 @@ namespace Avalon.Server.World.UnitTests.Combat;
 public class ResonanceProcsShould
 {
     // The seeded effect auras (ResonanceSeed).
-    private const uint Burning3 = 18, Regrowth3 = 28;
+    private const uint Burning1 = 16, Burning3 = 18, Rimebound = 22, Regrowth3 = 28;
 
     private const double Miss = 0.99;
 
@@ -64,6 +68,13 @@ public class ResonanceProcsShould
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero));
     private readonly ScriptedCombatRandom _random = new();
 
+    // Everything the instances log: a firing that threw is contained and logged, so a row where nothing fires also proves
+    // that nothing failed.
+    private readonly Creatures.CreatureAbilitiesShould.ListLogger _logs = new();
+
+    // What wearers are dressed and refreshed over: the shared reference data, unless a test reloads its own.
+    private StaticData _data = Data;
+
     private static StaticData Data => ScenarioReferenceData.Shared.Data;
 
     /// <summary>
@@ -71,7 +82,7 @@ public class ResonanceProcsShould
     /// (Hit, Crit), the killer (Kill), the creature that struck (Struck), the wearer (Evaded, WardBroken, Rootsurge's life
     /// threshold). A chance under 100 % draws once, past every other check; an effect at 100 % draws nothing. A hit that
     /// kills its creature fires no effect on the corpse, and a hit in town fires none on a flagged player, nor its Struck
-    /// on the attacker: neither draws.
+    /// on the attacker: neither draws. Nothing is logged at Error on any row, so a row where nothing fires did not fail.
     /// </summary>
     [Theory]
     [InlineData("Hit: Burning III on the creature hit")]
@@ -234,6 +245,7 @@ public class ResonanceProcsShould
 
         Assert.Equal(expected, Holds(cast));
         Assert.Equal(draws, _random.DoublesDrawn);
+        Assert.DoesNotContain(_logs.Entries, e => e.Level >= LogLevel.Error);
     }
 
     /// <summary>
@@ -384,12 +396,16 @@ public class ResonanceProcsShould
 
     /// <summary>
     /// Storm 4's crit places Jolt III on the creature crit and chains it to the two nearest living creatures hostile to
-    /// the wearer within 8 m of it: past an invulnerable one, a corpse and a flagged player nearer, and never to one beyond.
+    /// the wearer within 8 m of it that take it: past an invulnerable one, a corpse and a flagged player nearer, past two
+    /// at the aura cap that refuse it (a refusal takes no place in the chain), to one at 7 m, and never to one at 9 m (its
+    /// 0.5 m body 8.5 m away), though the chain still has room. A unit here holds at most one aura.
     /// </summary>
     [Fact]
     public void Chain_a_jolt_to_the_nearest_living_hostile_creatures_within_eight_metres()
     {
-        using MapInstance instance = Instance();
+        IWorld world = NewWorld(Data);
+        world.Configuration.Returns(new GameConfiguration { MaxAurasPerUnit = 1 });
+        using MapInstance instance = TestMapInstances.BuildCasting(out _, world: world, random: _random, time: _clock);
         CharacterEntity wearer = Wearer(instance, 1180_501, new Vector3(0f, 0f, -2f), "Storm");
         CharacterEntity player = Wearer(instance, 1180_502, new Vector3(0f, 0f, 1f));
         wearer.Data!.PvpEnabled = player.Data!.PvpEnabled = true;
@@ -401,16 +417,79 @@ public class ResonanceProcsShould
             ["B"] = Boar(instance, 1180_952, position: new Vector3(3f, 0f, 0f)),
             ["C"] = Boar(instance, 1180_953, position: new Vector3(-6f, 0f, 0f)),
             ["D"] = Boar(instance, 1180_954, position: new Vector3(0f, 0f, 7f)),
-            ["E"] = Boar(instance, 1180_955, position: new Vector3(12f, 0f, 0f)),
+            ["E"] = Boar(instance, 1180_955, position: new Vector3(9f, 0f, 0f)),
             ["F"] = Boar(instance, 1180_956, position: new Vector3(0f, 0f, 2f), invulnerable: true),
             ["G"] = Boar(instance, 1180_957, position: new Vector3(-1f, 0f, 0f), health: 0),
         };
+        foreach (string full in (string[])["B", "C"])
+            Assert.Equal(AuraApplyResult.Applied, instance.Auras.Apply(null, cast[full], new AuraId(Burning1), AuraSource.None));
 
         _random.Doubles(Miss, 0.0, Miss);
         instance.CombatService.ApplyDamage(wearer, cast["A"], 10);
 
-        Assert.Equal(["Jolt III on A from wearer", "Jolt III on B from wearer", "Jolt III on C from wearer"], Holds(cast));
+        Assert.Equal(
+        [
+            "Burning I on B from someone else", "Burning I on C from someone else", "Jolt III on A from wearer",
+            "Jolt III on D from wearer",
+        ], Holds(cast));
         Assert.Equal(3, _random.DoublesDrawn);
+    }
+
+    /// <summary>
+    /// A reload reaches an online wearer's next firing with no stats refresh in between. An aura edit that gives
+    /// Rimebound a stun leaves Rime 4's crit effect out at once: after its cooldown, the next crit draws Chilled III's
+    /// chance alone and places no Rimebound. And with an Items reload not yet counted, the Guard III a strike places
+    /// refreshes the wearer's stats, which counts its themes again and rebuilds its effects: the walk ends there, so
+    /// Barbs III, in the slot after Guard's, is not placed by that strike.
+    /// </summary>
+    [Theory]
+    [InlineData("an aura edit gives Rimebound a stun")]
+    [InlineData("a Guard III placed over an Items reload")]
+    public async Task Fire_an_online_wearers_effects_from_the_catalog_a_reload_left(string @case)
+    {
+        bool stuns = false;
+        StaticData data = await ScenarioReferenceData.Shared.NewDataAsync(auras =>
+        {
+            foreach (AuraTemplate aura in auras.Where(a => stuns && a.Id.Value == Rimebound))
+                aura.Control |= CrowdControl.Stun;
+            return auras;
+        });
+        _data = data;
+        using MapInstance instance = Instance(data: data);
+        Dictionary<string, IUnit> cast = [];
+        if (@case.StartsWith("an aura edit", StringComparison.Ordinal))
+        {
+            CharacterEntity wearer = Wearer(instance, 1180_701, "Rime");
+            Creature first = Boar(instance, 1180_971, health: 100_000);
+            Creature second = Boar(instance, 1180_972, health: 100_000);
+            (cast["wearer"], cast["second"]) = (wearer, second);
+            Hit(instance, wearer, first, chance: [Miss, 0.1], crit: true);
+            Assert.Equal(["Rimebound"], first.Auras.All.Select(a => a.Template.Name));
+
+            stuns = true;
+            data.Apply(await data.PrepareAsync(ReloadArea.Auras));
+            Assert.True(data.Auras.TryGet(new AuraId(Rimebound), out AuraTemplate? edited));
+            Assert.Equal(CrowdControl.Root | CrowdControl.Stun, edited.Control);
+
+            _clock.Advance(TimeSpan.FromSeconds(10));
+            Hit(instance, wearer, second, chance: [Miss], crit: true);
+        }
+        else
+        {
+            CharacterEntity wearer = Wearer(instance, 1180_702, "Iron", "Thorn");
+            Creature boar = Boar(instance, 1180_973, health: 100_000);
+            (cast["wearer"], cast["boar"]) = (wearer, boar);
+            data.Apply(await data.PrepareAsync(ReloadArea.Items));
+
+            int drawn = _random.DoublesDrawn;
+            _random.Doubles(Miss, Miss, Miss, 0.1);
+            instance.CombatService.ApplyDamage(boar, wearer, 10);
+            Assert.Equal(drawn + 4, _random.DoublesDrawn);
+        }
+
+        string[] expected = @case.StartsWith("an aura edit", StringComparison.Ordinal) ? [] : ["Guard III on wearer from wearer"];
+        Assert.Equal(expected, Holds(cast));
+        Assert.DoesNotContain(_logs.Entries, e => e.Level >= LogLevel.Error);
     }
 
     /// <summary>
@@ -471,8 +550,13 @@ public class ResonanceProcsShould
         Assert.InRange(proc, 1, applied);
     }
 
-    private MapInstance Instance(MapType mapType = MapType.Normal) =>
-        TestMapInstances.BuildCasting(out _, mapType, world: NewWorld(Data), random: _random, time: _clock);
+    private MapInstance Instance(MapType mapType = MapType.Normal, StaticData? data = null)
+    {
+        ILoggerFactory loggers = Substitute.For<ILoggerFactory>();
+        loggers.CreateLogger(Arg.Any<string>()).Returns(_logs);
+        return TestMapInstances.BuildCasting(out _, mapType, world: NewWorld(data ?? Data), random: _random, time: _clock,
+            loggerFactory: loggers);
+    }
 
     /// <summary>A character at the origin wearing four pieces with one T9 affix of each of <paramref name="themes" />, joined.</summary>
     private CharacterEntity Wearer(MapInstance instance, uint id, params string[] themes) =>
@@ -487,15 +571,16 @@ public class ResonanceProcsShould
 
     /// <summary>
     /// <paramref name="character" /> wearing the kit, each piece with one T9 affix of each of <paramref name="themes" />
-    /// (its seeded first line's low end), its stats refreshed as it enters the world.
+    /// (its seeded first line's low end), its stats refreshed as it enters the world, over the test's reference data.
     /// </summary>
-    private static CharacterEntity Dressed(CharacterEntity character, params string[] themes)
+    private CharacterEntity Dressed(CharacterEntity character, params string[] themes)
     {
+        StaticData data = _data;
         ILookup<int, ItemModifierStat> lines = ItemModifierSeed.Stats().ToLookup(line => line.ModifierId);
         int[] affixes = [.. themes.Select(theme => CatalogKeys.ModifierId(s_affixOf[theme]))];
         InventoryItem[] pieces =
         [
-            .. s_kit.Select(piece => TestCharacters.Item(piece.Slot, Data.FindItemTemplate(new ItemTemplateId(piece.Template))!)),
+            .. s_kit.Select(piece => TestCharacters.Item(piece.Slot, data.FindItemTemplate(new ItemTemplateId(piece.Template))!)),
         ];
         character.ItemModifiers.Load(
         [
@@ -515,7 +600,7 @@ public class ResonanceProcsShould
             }),
         ]);
         character.Container(InventoryType.Equipment).Load(pieces);
-        Assert.True(CharacterStatsRefresh.Apply(character, Data, CurrentValues.Refill));
+        Assert.True(CharacterStatsRefresh.Apply(character, data, CurrentValues.Refill));
         return character;
     }
 

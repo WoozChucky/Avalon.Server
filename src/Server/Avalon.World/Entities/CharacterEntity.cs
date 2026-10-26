@@ -633,6 +633,12 @@ public partial class CharacterEntity : ICharacter
     public void MarkCombat() => _lastCombatTime = _time.GetUtcNow().UtcDateTime;
 
     /// <summary>
+    /// When <see cref="MarkCombat" /> last stamped it, on its clock: the hit or dodge that just stamped it hands this to
+    /// its Resonance effects (#1180 part A2), so their cooldowns read no clock of their own. World-side only.
+    /// </summary>
+    internal DateTime CombatMarkedAt => _lastCombatTime;
+
+    /// <summary>
     /// Adds <paramref name="amount" /> to the current power, capped at the maximum (#526). Only a pool a
     /// cast spends (Mana, Energy or Fury) gains, and a dead character gains nothing. World-side only, not
     /// on ICharacter or IUnit: the modding API cannot grant power.

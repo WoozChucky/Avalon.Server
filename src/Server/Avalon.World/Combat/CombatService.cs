@@ -238,7 +238,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// A direct hit that landed fires the Resonance triggers it carries (#1180 part A2): Hit, and Crit for a critical
     /// one, for a character that struck; Struck, and WardBroken when its ward took part of the hit and is now empty (so it
     /// held something before), for a character struck. Each side is reported to the instance only when its active effects
-    /// listen for one of them: a hit with none costs two type tests and a mask test, and allocates nothing.
+    /// listen for one of them: a hit with none costs two type tests and a mask test, and allocates nothing. Each side is
+    /// reported with the time its combat stamp just read (both sides were marked above), so a firing reads no clock.
     /// </summary>
     private void ReportResonance(IUnit attacker, IUnit target, HitResult result, uint absorbed)
     {
@@ -248,7 +249,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
                 ? ResonanceTriggers.Hit | ResonanceTriggers.Crit
                 : ResonanceTriggers.Hit;
             if ((wearer.ResonanceProcs.Mask & fired) != 0)
-                _outcomes?.ResonanceFired(wearer, fired, target);
+                _outcomes?.ResonanceFired(wearer, fired, target, wearer.CombatMarkedAt);
         }
 
         if (target is CharacterEntity struck)
@@ -257,7 +258,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
                 ? ResonanceTriggers.Struck | ResonanceTriggers.WardBroken
                 : ResonanceTriggers.Struck;
             if ((struck.ResonanceProcs.Mask & fired) != 0)
-                _outcomes?.ResonanceFired(struck, fired, attacker);
+                _outcomes?.ResonanceFired(struck, fired, attacker, struck.CombatMarkedAt);
         }
     }
 
@@ -351,7 +352,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (target is CharacterEntity { IsDead: false } evader
             && (evader.ResonanceProcs.Mask & ResonanceTriggers.Evaded) != 0)
         {
-            _outcomes?.ResonanceFired(evader, ResonanceTriggers.Evaded, attacker);
+            _outcomes?.ResonanceFired(evader, ResonanceTriggers.Evaded, attacker, evader.CombatMarkedAt);
         }
     }
 

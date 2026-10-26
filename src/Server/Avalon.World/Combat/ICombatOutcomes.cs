@@ -83,7 +83,9 @@ public interface ICombatOutcomes
     /// <paramref name="other" /> is the event's other unit: the unit a direct hit landed on (Hit, Crit), the creature
     /// killed (Kill), or the attacker (Struck, Evaded, WardBroken). Only a direct hit, a dodge of one and a creature's
     /// kill report it, a killing tick's included: an aura's tick fires no direct-hit trigger, so no proc's damage feeds
-    /// another proc. Reported only for a match, so a hit with no matching effect costs a mask test.
+    /// another proc. Reported only for a match, so a hit with no matching effect costs a mask test. <paramref name="now" />
+    /// is the container's clock as the event read it (a hit's or a dodge's combat stamp on the wearer), which the
+    /// effects' cooldowns are checked and spent against, so a firing reads no clock of its own.
     /// </summary>
-    void ResonanceFired(CharacterEntity wearer, ResonanceTriggers fired, IUnit other);
+    void ResonanceFired(CharacterEntity wearer, ResonanceTriggers fired, IUnit other, DateTime now);
 }

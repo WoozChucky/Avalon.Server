@@ -366,8 +366,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _hits = new UnitHitQuery(_characters, _creatures, _members, _worldTicks);
 
         // Resonance effects (#1180 part A2) place their auras through this instance's aura system, find a chain's further
-        // targets through its hit query, and draw from its combat random on its clock.
-        _resonance = new ResonanceDispatcher(_auras, _hits, _combatService.Random, _time, MapType, outcomes: this);
+        // targets through its hit query, draw from its combat random, and fire from the world's current effect catalog
+        // (read per firing, so a reload reaches a wearer's next firing). A world without reference data (tests) has none.
+        _resonance = new ResonanceDispatcher(_auras, _hits, _combatService.Random, MapType, outcomes: this,
+            effects: () => world.Data?.ResonanceEffects);
         _resonanceFailures = new ThrottledErrorLog(_logger, _time, $"A Resonance effect in instance {InstanceId}");
 
         // The cast system gets `this` as the IAbilityArena every ability script is built with
@@ -3001,11 +3003,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// A Resonance trigger fired for <paramref name="wearer" /> (#1180 part A2): its effects fire through the dispatcher.
     /// Contained and throttled, as an ability's aura is: a failure costs the effects, never the hit or kill that fired them.
     /// </summary>
-    void ICombatOutcomes.ResonanceFired(CharacterEntity wearer, ResonanceTriggers fired, IUnit other)
+    void ICombatOutcomes.ResonanceFired(CharacterEntity wearer, ResonanceTriggers fired, IUnit other, DateTime now)
     {
         try
         {
-            _resonance.Fire(wearer, fired, other);
+            _resonance.Fire(wearer, fired, other, now);
         }
         catch (Exception e)
         {
@@ -3111,10 +3113,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             AwardExperience(creature, eligible, buffers.Shares);
 
             // #1180 part A2: the killer's Kill effects, before a killing hit's own Hit and Crit effects. A killing tick
-            // fires them too: they deal no damage, so no proc feeds another.
+            // fires them too: they deal no damage, so no proc feeds another. A kill has no combat stamp of its own (a
+            // killing hit stamps its attacker after this), so its cooldowns read the killer's clock, once per kill.
             if (killer is CharacterEntity wearer && (wearer.ResonanceProcs.Mask & ResonanceTriggers.Kill) != 0)
             {
-                ((ICombatOutcomes)this).ResonanceFired(wearer, ResonanceTriggers.Kill, creature);
+                ((ICombatOutcomes)this).ResonanceFired(wearer, ResonanceTriggers.Kill, creature,
+                    wearer.Clock.GetUtcNow().UtcDateTime);
             }
         }
         finally

@@ -10,15 +10,19 @@ namespace Avalon.World.Items;
 /// <summary>
 /// The Resonance effects (#1180 part A2): every effect row that passed the rules, held against the aura rows read in the
 /// same items prepare (ItemsPatch.Build), so a /reload items reloads both. Built once per load, off the tick, and
-/// immutable afterwards. A row that breaks a rule is logged and left out, and every other row still loads. An effect
-/// aura that a later /reload auras changes is caught where it is applied, by the aura system's fit check.
+/// immutable afterwards. A row that breaks a rule is logged and left out, and every other row still loads. The rows are
+/// kept, so an Auras reload builds a new catalog of the same rows against the auras its prepare read
+/// (<see cref="Against" />) and publishes it with them: an aura edit never leaves active an effect the rules refuse, nor
+/// a source built from the aura as it was.
 /// </summary>
 public sealed class ResonanceEffectCatalog
 {
+    private readonly IReadOnlyCollection<ItemThemeEffect> _rows;
     private readonly ThemeEffects[] _themes;
 
     public ResonanceEffectCatalog(IReadOnlyCollection<ItemThemeEffect> rows, AuraCatalog auras, ILogger logger)
     {
+        _rows = rows;
         List<ResonanceEffect> accepted = [];
         HashSet<(int ThemeId, int Count, ResonanceTrigger Trigger)> keys = [];
         foreach (ItemThemeEffect row in rows.OrderBy(r => r.Id))
@@ -60,6 +64,12 @@ public sealed class ResonanceEffectCatalog
 
     /// <summary>The accepted effects, by id.</summary>
     public IReadOnlyList<ResonanceEffect> Effects { get; }
+
+    /// <summary>
+    /// A new catalog of this one's rows, each held to the rules against <paramref name="auras" /> and, when accepted, given
+    /// a source built from its aura there: what an Auras reload publishes beside its auras. Built off the tick.
+    /// </summary>
+    public ResonanceEffectCatalog Against(AuraCatalog auras, ILogger logger) => new(_rows, auras, logger);
 
     /// <summary>
     /// Why <paramref name="row" /> cannot load against <paramref name="auras" />, or null when it can: every rule but the
