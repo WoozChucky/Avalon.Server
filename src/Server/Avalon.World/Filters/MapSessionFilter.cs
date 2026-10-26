@@ -50,6 +50,7 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_ITEM_USE => true,
             NetworkPacketType.CMSG_ITEM_IDENTIFY => true,
             NetworkPacketType.CMSG_ITEM_EXTRACT => true,
+            NetworkPacketType.CMSG_ITEM_IMPRINT => true,
             NetworkPacketType.CMSG_VENDOR_BUY => true,
             NetworkPacketType.CMSG_VENDOR_SELL => true,
             NetworkPacketType.CMSG_VENDOR_BUYBACK => true,

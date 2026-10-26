@@ -101,8 +101,9 @@ public readonly record struct ImprintedRows(List<ItemInstanceModifier> Modifiers
 public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOptions<GameConfiguration> options)
     : IItemRoller
 {
-    // The most affixes of one kind (prefix or suffix) a magic and a rare item carry.
-    private const int MagicRoom = 1, RareRoom = 3;
+    // The most affixes of one kind (prefix or suffix) a magic and a rare item carry; an imprint (#1180 part C) keeps to
+    // them too (Items.ImprintRules).
+    internal const int MagicRoom = 1, RareRoom = 3;
 
     // Above this many candidates on one kind, the pick's weights go on the heap rather than the stack. The seed's
     // largest kind has about a hundred.

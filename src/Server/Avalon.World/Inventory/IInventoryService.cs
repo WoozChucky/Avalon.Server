@@ -125,6 +125,21 @@ public interface IInventoryService
     /// its rarity) first.
     /// </summary>
     bool TryExtract(byte bagSlot, int modifierId);
+
+    /// <summary>
+    /// Imprints the glyph in <paramref name="glyphSlot" /> onto the item in <paramref name="targetSlot" /> (#1180 part C):
+    /// IItemRoller.Imprint makes the item's new modifier list (its rows, then the glyph's row copied under a new id at the
+    /// next ordinal, imprinted) and its new instability, which becomes the item's in the store, marked for the next save;
+    /// the glyph is destroyed, marked Removed. When the new total bricks the item, its affixes were rerolled among their
+    /// weakest tiers, and the item is replaced Tainted with Attuned cleared, never modified or bound again; otherwise it
+    /// is replaced Attuned, or, already Attuned, only its slot is recorded for the client. Answers Bricked or Ok; null,
+    /// changing nothing, unless both slots are held and differ, the glyph is a glyph holding one row of a tiered prefix or
+    /// suffix the catalog holds, and the item is one Items.ItemModification.Allowed accepts of a rolled base. It checks
+    /// nothing else: ImprintRules decides the request (the Workbench, a trade's lock, the rarity, the room, the group, the
+    /// base kind, the item level and the gold) first, and the caller spends the gold. It never logs or throws with the
+    /// item's instability in a message.
+    /// </summary>
+    ItemImprintResult? TryImprint(byte glyphSlot, byte targetSlot);
 }
 
 /// <summary>A wake <see cref="IInventoryService.TryAwaken" /> made (#1180): the slot, the row's catalog modifier now, and how it woke.</summary>

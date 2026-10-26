@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Doodads;
@@ -168,13 +169,15 @@ public class InventoryAllocationShould
     /// An identify request at the Resonance Workbench (#1179) allocates nothing beyond its one reply, whether it is
     /// refused (here AlreadyIdentified, the last rule before gold) or done, at no cost as v1 ships it and at a cost: no
     /// wallet is taken when there is no gold to ask for, the character's own is when there is, and the Workbench is
-    /// looked up by the guid the packet carries. An extract request at the same Workbench (#1180 part C) naming the chest's
-    /// implicit walks every extract rule and is refused at the last (NotExtractable), allocating nothing either.
+    /// looked up by the guid the packet carries. At the same Workbench (#1180 part C), an extract request naming the chest's
+    /// implicit walks every extract rule and is refused at the last (NotExtractable), and an imprint request of an
+    /// "S14 T9" glyph onto a magic chest with room for it walks every imprint rule and is refused at the last
+    /// (NotEnoughGold), each allocating nothing either.
     /// </summary>
     [Theory]
     [InlineData(0UL)]
     [InlineData(10UL)]
-    public void Answer_an_identify_request_allocating_nothing(ulong cost)
+    public void Answer_workbench_requests_allocating_nothing(ulong cost)
     {
         StaticData data = ScenarioReferenceData.Shared.Data;
         using MapInstance instance = TestMapInstances.Build(new QuietWorld(data));
@@ -218,11 +221,54 @@ public class InventoryAllocationShould
             ExtractRules.Decide(_character, instance, extract.WorkbenchGuid, extract.BagSlot, extract.ModifierId, data.Items));
         long extractRefused = Allocated(() => extractor.Execute(_connection, extract));
 
+        // A magic chest carrying its implicit and "P11 T7" in slot 4, and an "S14 T9" glyph in slot 5, with no gold for
+        // the glyph's 25.
+        CarriedItem target = Carried(4, s_chest.Id, ItemRarity.Magic, 10, ItemInstanceFlags.None,
+            data.Items.Modifiers.LinkedTo(s_chest.Id).Single().Id, CatalogKeys.ModifierId("P11 T7"));
+        CarriedItem glyph = Carried(5, data.Items.Glyph!.Id, ItemRarity.Magic, 1, ItemInstanceFlags.Attuned,
+            CatalogKeys.ModifierId("S14 T9"));
+        Assert.Equal(InventoryAddResult.Ok, economy.InventoryOf(_character).TryAddInstanceAt(target, 4));
+        Assert.Equal(InventoryAddResult.Ok, economy.InventoryOf(_character).TryAddInstanceAt(glyph, 5));
+        _character.Data.Gold = 0;
+        var imprinter = new ItemImprintHandler(NullLogger<ItemImprintHandler>.Instance, world, economy);
+        var imprint = new CItemImprintPacket
+        {
+            RequestId = 11,
+            WorkbenchGuid = workbench.Guid.RawValue,
+            GlyphBagSlot = 5,
+            TargetBagSlot = 4,
+        };
+        Assert.Equal(ItemImprintResult.NotEnoughGold, ImprintRules.Decide(_character, instance, imprint.WorkbenchGuid,
+            imprint.GlyphBagSlot, imprint.TargetBagSlot, data.Items, world.Configuration.Items.ImprintCost,
+            economy.WalletOf(_character), out _));
+        long imprintRefused = Allocated(() => imprinter.Execute(_connection, imprint));
+
         Assert.Multiple(
             () => Assert.Equal(0, identified),
             () => Assert.Equal(0, refused),
-            () => Assert.Equal(0, extractRefused));
-        Assert.Equal(3 * 4 * Rounds, _connection.Sent);
+            () => Assert.Equal(0, extractRefused),
+            () => Assert.Equal(0, imprintRefused));
+        Assert.Equal(4 * 4 * Rounds, _connection.Sent);
+    }
+
+    /// <summary>
+    /// An identified copy of <paramref name="template" /> in Bag slot <paramref name="slot" />, carrying one row of each
+    /// seeded modifier given, in order from ordinal 0, each line at its low end.
+    /// </summary>
+    private static CarriedItem Carried(byte slot, ItemTemplateId template, ItemRarity rarity, ushort itemLevel,
+        ItemInstanceFlags flags, params int[] modifierIds)
+    {
+        var id = new ItemInstanceId(Guid.CreateVersion7());
+        ItemModifierCatalog catalog = ScenarioReferenceData.Shared.Data.Items.Modifiers;
+        List<ItemInstanceModifier> rows = [];
+        foreach (int modifierId in modifierIds)
+        {
+            rows.Add(TestModifiers.Modifier(id, modifierId, (byte)rows.Count,
+                [.. catalog.Find(modifierId)!.Stats.Select(l => (l.Index, l.Stat, l.Min, l.Min2))]));
+        }
+
+        return new CarriedItem(new InventoryItem(slot, id, template, 1, 0, flags, rarity, itemLevel, null, true),
+            default, rows, 0);
     }
 
     private static CItemMovePacket Move(byte from, byte to) => new()

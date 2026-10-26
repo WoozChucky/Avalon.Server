@@ -336,6 +336,42 @@ public sealed class CharacterInventoryService(
         return true;
     }
 
+    public ItemImprintResult? TryImprint(byte glyphSlot, byte targetSlot)
+    {
+        CharacterInventoryContainer bag = Bag;
+        if (glyphSlot == targetSlot || !bag.TryGet(glyphSlot, out InventoryItem glyph)
+            || !bag.TryGet(targetSlot, out InventoryItem target) || !ItemModification.Allowed(target))
+        {
+            return null;
+        }
+
+        ItemsPatch items = currentItems();
+        if (ImprintRules.GlyphAffix(owner, glyph, items, out ItemInstanceModifier glyphRow) is null
+            || items.Find(target.TemplateId) is not { } template || !ItemRoller.IsRolledBase(template))
+        {
+            return null;
+        }
+
+        // The new list is made in full first, and the store's replace (the one step that can refuse) comes before the
+        // glyph goes: whatever throws here leaves the glyph and the item as they were.
+        ImprintedRows imprinted = roller.Imprint(owner.ItemModifiers.Of(target.InstanceId), glyphRow, target.InstanceId,
+            template.BaseKind!.Value, target.ItemLevel, owner.ItemModifiers.InstabilityOf(target.InstanceId),
+            items.Modifiers);
+        owner.ItemModifiers.ReplaceModifiers(target.InstanceId, imprinted.Modifiers, imprinted.Instability);
+        owner.SaveState.ItemModifiersChanged(target.InstanceId);
+        Delete(InventoryType.Bag, glyph);
+
+        // A bricked item is Tainted and never bound again; any other imprint binds it.
+        if (imprinted.Bricked)
+            Replace(InventoryType.Bag, target with { Tainted = true, Flags = target.Flags & ~ItemInstanceFlags.Attuned });
+        else if ((target.Flags & ItemInstanceFlags.Attuned) == 0)
+            Replace(InventoryType.Bag, target with { Flags = target.Flags | ItemInstanceFlags.Attuned });
+        else
+            owner.ClientChanges.RecordSlot(InventoryType.Bag, targetSlot);
+
+        return imprinted.Bricked ? ItemImprintResult.Bricked : ItemImprintResult.Ok;
+    }
+
     /// <summary>
     /// Before a change to <paramref name="container" /> when it is the Equipment (#1180): the worn seals' pending points
     /// are settled into them, so an item taken off keeps what it earned and one put on gets none earned before it. The
