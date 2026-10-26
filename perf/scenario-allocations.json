@@ -1,7 +1,11 @@
 {
-  "commit": "d46a334e0",
+  "commit": "e5f0af415",
   "date": "2026-10-26",
   "scenarios": {
+    "forest-awakening": {
+      "bytesPerWindow": 12826,
+      "bytesPerPlayerPerTick": 17.81388888888889
+    },
     "forest-combat": {
       "bytesPerWindow": 14122,
       "bytesPerPlayerPerTick": 19.61388888888889

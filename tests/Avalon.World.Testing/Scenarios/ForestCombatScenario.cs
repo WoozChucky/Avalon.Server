@@ -46,6 +46,13 @@ namespace Avalon.World.Testing.Scenarios;
 /// the roster, the effects fired at least about half as often as they do on these seeds, and each of those four triggers
 /// fired at least once (<see cref="Fires" />); the report lists every trigger's firings (<see cref="Notes" />).
 /// </para>
+/// <para>
+/// Built with the sealed kit (<c>forest-awakening</c>, #1180 part B), every fighter wears one rare amulet whose sealed
+/// affix never wakes (<see cref="ScenarioWorld.WearSealedKit" />), so every hit it lands on a creature feeds its Awakening
+/// meter, every kill it is credited with makes the meter due, and the tick's Awakening flush settles the points into the
+/// row and sends the progress. Its check adds one floor: every fighter's sealed row gained progress during the measured
+/// ticks (<see cref="AwakeningProgress" />), which the report lists (<see cref="Notes" />).
+/// </para>
 /// </remarks>
 public sealed class ForestCombatScenario : IScenario
 {
@@ -107,6 +114,7 @@ public sealed class ForestCombatScenario : IScenario
         ?? throw new InvalidOperationException($"{nameof(CharacterEntity)}.ResonanceProcs is not there");
 
     private readonly bool _themed;
+    private readonly bool _sealedKit;
 
     // Each world's fight, for Verify and Kills: the scenario is shared, and builds a world for every run.
     private readonly ConditionalWeakTable<ScenarioWorld, Fight> _fights = new();
@@ -119,11 +127,19 @@ public sealed class ForestCombatScenario : IScenario
 
     /// <param name="name">The name the baseline reports it under.</param>
     /// <param name="themed">Whether every fighter wears the Resonance kit (see the remarks).</param>
-    public ForestCombatScenario(string name, bool themed)
+    /// <param name="sealedKit">
+    /// Whether every fighter wears the sealed kit instead (see the remarks); both kits wear an amulet, so a fight wears one
+    /// or the other.
+    /// </param>
+    public ForestCombatScenario(string name, bool themed, bool sealedKit = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
+        if (themed && sealedKit)
+            throw new ArgumentException("A fighter wears the Resonance kit or the sealed kit, not both", nameof(sealedKit));
+
         Name = name;
         _themed = themed;
+        _sealedKit = sealedKit;
     }
 
     public string Name { get; }
@@ -142,6 +158,7 @@ public sealed class ForestCombatScenario : IScenario
             var roster = new List<CharacterEntity>(Players);
             var forests = new List<FightForest>(s_forestSeeds.Length);
             ResonanceWatch? watch = _themed ? new ResonanceWatch() : null;
+            List<ItemInstanceId>? seals = _sealedKit ? new List<ItemInstanceId>(Players) : null;
 
             foreach (int seed in s_forestSeeds)
             {
@@ -156,6 +173,9 @@ public sealed class ForestCombatScenario : IScenario
                         ScenarioWorld.WearResonanceKit(character, ScenarioReferenceData.Shared.Data,
                             s_kitAffixes[character.Class]);
                     }
+
+                    if (seals is not null)
+                        seals.Add(ScenarioWorld.WearSealedKit(character, ScenarioReferenceData.Shared.Data).ItemInstanceId);
 
                     FillBag(world, character);
                     characters[m] = character;
@@ -178,7 +198,7 @@ public sealed class ForestCombatScenario : IScenario
                 }
             }
 
-            var fight = new Fight(fighters, forests, roster, watch);
+            var fight = new Fight(fighters, forests, roster, watch, seals);
             world.Marked += fight.Mark;
             _fights.AddOrUpdate(world, fight);
             return world;
@@ -245,6 +265,55 @@ public sealed class ForestCombatScenario : IScenario
             foreach (ResonanceTrigger trigger in s_flooredTriggers)
                 RequireAtLeast(fired[trigger], 1, $"fired {trigger} Resonance effects");
         }
+
+        if (_sealedKit)
+        {
+            IReadOnlyList<int> progress = AwakeningProgress(world);
+            for (int i = 0; i < progress.Count; i++)
+            {
+                if (progress[i] <= 0)
+                {
+                    throw new InvalidOperationException(
+                        $"{Name}: player {i}'s sealed affix gained no progress during the measured ticks. A fight whose " +
+                        "kills and hits stopped filling the bar measures cheaper than it is and would pass the allocation " +
+                        "gate as an improvement.");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The progress each fighter's sealed affix gained during the measured ticks, in roster order: its row's progress now,
+    /// read through the character's modifier store, less its progress when the fight's progress was marked. Empty for a
+    /// fight without the sealed kit. Points still pending in a meter (hits' shares no kill has yet had settled) are not in
+    /// it.
+    /// </summary>
+    public IReadOnlyList<int> AwakeningProgress(ScenarioWorld world)
+    {
+        Fight fight = FightOf(world);
+        if (fight.Seals is not { } seals)
+            return [];
+
+        if (fight.MarkedProgress is not { } marked)
+            throw new InvalidOperationException($"{Name}: the fight's progress was not marked before its measured ticks");
+
+        int[] gained = new int[seals.Count];
+        for (int i = 0; i < seals.Count; i++)
+            gained[i] = SealProgressOf(fight.Characters[i], seals[i]) - marked[i];
+        return gained;
+    }
+
+    /// <summary>The sealed row's progress on <paramref name="character" />'s item <paramref name="item" />; throws once it woke.</summary>
+    private static int SealProgressOf(CharacterEntity character, ItemInstanceId item)
+    {
+        foreach (ItemInstanceModifier row in character.ItemModifiers.Of(item))
+        {
+            if (row.SealProgress is { } progress)
+                return progress;
+        }
+
+        throw new InvalidOperationException(
+            $"{character.Name}'s sealed kit no longer holds a seal: its bar was filled, at a threshold no fight reaches");
     }
 
     /// <summary>
@@ -269,10 +338,18 @@ public sealed class ForestCombatScenario : IScenario
 
     /// <summary>
     /// For the report: what the themed fight fired during the measured ticks, by trigger, Evaded and WardBroken included,
-    /// which the check does not floor; null for an unthemed fight.
+    /// which the check does not floor; or the progress the sealed kit's fighters gained in them
+    /// (<see cref="AwakeningProgress" />); null for a fight in neither kit.
     /// </summary>
     public string? Notes(ScenarioWorld world)
     {
+        if (_sealedKit)
+        {
+            IReadOnlyList<int> progress = AwakeningProgress(world);
+            return $"Awakening progress gained in the measured ticks: {progress.Sum()} points " +
+                   $"(by fighter: {string.Join(", ", progress)})";
+        }
+
         if (!_themed)
             return null;
 
@@ -319,11 +396,11 @@ public sealed class ForestCombatScenario : IScenario
             : throw new ArgumentException($"The world was not built by {Name}", nameof(world));
 
     /// <summary>
-    /// One world's fighters, their characters and forests, the themed fight's Resonance watch, and their casts, kills,
-    /// outcome and Resonance firings when its progress was marked.
+    /// One world's fighters, their characters and forests, the themed fight's Resonance watch, the sealed kit's items by
+    /// fighter, and their casts, kills, outcome, Resonance firings and sealed progress when its progress was marked.
     /// </summary>
     private sealed class Fight(IReadOnlyList<LoopFighter> fighters, IReadOnlyList<FightForest> forests,
-        IReadOnlyList<CharacterEntity> characters, ResonanceWatch? watch)
+        IReadOnlyList<CharacterEntity> characters, ResonanceWatch? watch, IReadOnlyList<ItemInstanceId>? seals)
     {
         public IReadOnlyList<LoopFighter> Fighters { get; } = fighters;
 
@@ -332,6 +409,10 @@ public sealed class ForestCombatScenario : IScenario
         public IReadOnlyList<FightForest> Forests { get; } = forests;
 
         public ResonanceWatch? Watch { get; } = watch;
+
+        public IReadOnlyList<ItemInstanceId>? Seals { get; } = seals;
+
+        public int[]? MarkedProgress { get; private set; }
 
         public int[] MarkedCasts { get; } = new int[fighters.Count];
 
@@ -354,6 +435,13 @@ public sealed class ForestCombatScenario : IScenario
             {
                 resonance.LookAtEveryone();
                 MarkedFires = new Dictionary<ResonanceTrigger, int>(resonance.Fired);
+            }
+
+            if (Seals is { } seals)
+            {
+                MarkedProgress = new int[seals.Count];
+                for (int i = 0; i < seals.Count; i++)
+                    MarkedProgress[i] = SealProgressOf(Characters[i], seals[i]);
             }
         }
 

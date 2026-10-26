@@ -12,6 +12,7 @@ public static class Scenarios
         new ManyInstancesScenario(),
         new ForestCombatScenario("forest-combat", themed: false),
         new ForestCombatScenario("forest-resonance", themed: true),
+        new ForestCombatScenario("forest-awakening", themed: false, sealedKit: true),
         new TownDoodadsScenario(),
     ];
 
