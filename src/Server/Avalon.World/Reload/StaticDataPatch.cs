@@ -332,22 +332,17 @@ public sealed record VendorsPatch(VendorCatalog Catalog) : StaticDataPatch(Reloa
 }
 
 /// <summary>
-/// The combat formula and every class's stat factors (#506), validated together. Forward-only: the next
-/// hit resolves with the new formula, and a character's derived stats change at its next stats refresh
-/// (select, gear change, level-up). Build refuses the whole area, naming the row, so a bad row leaves the
-/// previous generation live.
+/// The combat formula (#506), validated. Forward-only: the next hit resolves with the new formula, and a character's
+/// derived stats change at its next stats refresh (select, gear change, level-up). Build refuses the area, naming the
+/// row, so a bad row leaves the previous generation live.
 /// </summary>
-public sealed record CombatPatch(CombatFormula Formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors> Factors)
-    : StaticDataPatch(ReloadArea.Combat)
+public sealed record CombatPatch(CombatFormula Formula) : StaticDataPatch(ReloadArea.Combat)
 {
-    public override string Describe() => $"1 formula, {Factors.Count} class stat factors";
+    public override string Describe() => "1 formula";
 
     /// <exception cref="InvalidDataException">A row is missing or out of range; the message names it.</exception>
-    public static CombatPatch Build(IReadOnlyCollection<CombatFormula> formulas, IReadOnlyCollection<ClassStatFactors> factors)
-    {
-        (CombatFormula? f, IReadOnlyDictionary<CharacterClass, ClassStatFactors>? byClass) = CombatDataRules.Build(formulas, factors);
-        return new CombatPatch(f, byClass);
-    }
+    public static CombatPatch Build(IReadOnlyCollection<CombatFormula> formulas) =>
+        new(CombatDataRules.Build(formulas));
 }
 
 /// <summary>

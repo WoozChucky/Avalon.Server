@@ -132,7 +132,7 @@ public class AbilityAmountsFlusherShould
             Intellect = 20,
         };
         DerivedCharacterStats Wearing(WornItem weapon) => CharacterStatsCalculator.Calculate(warriorOne, [weapon],
-            TestCombat.FactorsOf(CharacterClass.Warrior), TestCombat.Formula);
+            TestCombat.Formula);
 
         AbilityTemplate cleave = AbilityTestData.Cone(200);
         cleave.Flags = AbilityFlags.Basic;

@@ -24,8 +24,8 @@ public class CombatRulesShould
 
         Assert.Equal(240u, warrior.CurrentHealth);
         Assert.Equal(PowerType.Mana, warrior.PowerType);
-        Assert.Equal(100u, warrior.CurrentPower);
-        Assert.Equal(100u, warrior.Power);
+        Assert.Equal(180u, warrior.CurrentPower);
+        Assert.Equal(180u, warrior.Power);
         Assert.Equal([200u, 201u, 202u, 203u, 204u], warrior.Abilities.Select(a => a.Id));
     }
 

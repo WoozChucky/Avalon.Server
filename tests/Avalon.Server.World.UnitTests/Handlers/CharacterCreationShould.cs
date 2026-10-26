@@ -77,10 +77,10 @@ public class CharacterCreationShould : IDisposable
     /// <summary>
     /// Creation derives the new character's maximums and its stats row from the seeded level 1
     /// row with nothing worn: every starting item goes to the Bag. A Wizard, since the old GetBase*
-    /// helpers already produced a Warrior's values; each class's are ClassStatFactorsGoldenShould's.
+    /// helpers already produced a Warrior's values; each class's are CharacterStatsGoldenShould's.
     /// </summary>
     [Theory]
-    [InlineData(CharacterClass.Wizard, "Wizardess", 121, 365, 0f)]
+    [InlineData(CharacterClass.Wizard, "Wizardess", 121, 192, 0f)]
     public async Task Derive_a_new_characters_maximums_and_stats_from_its_level_one_row(
         CharacterClass @class, string name, int health, int power, float block)
     {

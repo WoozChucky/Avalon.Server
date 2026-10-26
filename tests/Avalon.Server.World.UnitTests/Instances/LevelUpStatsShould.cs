@@ -25,8 +25,8 @@ public class LevelUpStatsShould
 {
     private static readonly ClassLevelStat[] s_warriorRows =
     [
-        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
-        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 160, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 160, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
     ];
 
     [Fact]
@@ -65,7 +65,7 @@ public class LevelUpStatsShould
         Assert.Equal(50ul, killer.Experience);
         Assert.Equal(160u + 24u * 5u, killer.Health);
         Assert.Equal(killer.Health, killer.CurrentHealth);
-        Assert.Equal(100u, killer.CurrentPower);
+        Assert.Equal(188u, killer.CurrentPower);   // 100 + 8 + 20 x 4
         Assert.Equal(87.5f, killer.Stats!.Value.Offence.Increased(Avalon.Network.Packets.Combat.OffenceStat.PhysicalAttack));   // 25 x 3.5
         Assert.True(killer.SaveState.StatsDirty);
         instance.Dispose();
@@ -73,11 +73,12 @@ public class LevelUpStatsShould
 
     /// <summary>
     /// #1181 end to end: a Warrior's Cleave kills a creature and the kill levels it up through the real
-    /// CreatureKilled. The refill fills its mana to the new maximum (100 here), from below it or above it.
+    /// CreatureKilled. The refill fills its mana to the new maximum (100 + 8 + 20 x 4 = 188 here), from below it or above
+    /// it.
     /// </summary>
     [Theory]
-    [InlineData(100u, 60u, 100u)]
-    [InlineData(200u, 150u, 100u)]
+    [InlineData(100u, 60u, 188u)]
+    [InlineData(300u, 250u, 188u)]
     public async Task Refill_a_warriors_mana_through_a_level_up_its_cleave_caused(uint maxBefore, uint manaBefore, uint manaAfter)
     {
         StaticData data = await TestStaticData.LoadAsync(
@@ -115,7 +116,7 @@ public class LevelUpStatsShould
 
         Assert.Equal(0u, creature.CurrentHealth);
         Assert.Equal((ushort)2, warrior.Character.Level);
-        Assert.Equal(100u, warrior.Character.Power);
+        Assert.Equal(188u, warrior.Character.Power);
         Assert.Equal(warrior.Character.Health, warrior.Character.CurrentHealth);
         Assert.Equal(manaAfter, warrior.Character.CurrentPower);
     }

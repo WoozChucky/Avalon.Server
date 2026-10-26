@@ -12,7 +12,6 @@ public static class SeedSource
         {
             AbilityTemplates = reader.Rows<AbilityTemplate>(),
             ClassLevelStats = reader.Rows<ClassLevelStat>(),
-            ClassStatFactors = reader.Rows<ClassStatFactors>(),
             CombatFormulas = reader.Rows<CombatFormula>(),
             CreatureBaseStats = reader.Rows<CreatureBaseStat>(),
             CreatureRarityModifiers = reader.Rows<CreatureRarityModifier>(),

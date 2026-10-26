@@ -434,7 +434,6 @@ public sealed class CharacterServiceShould : IDisposable
         using WorldDbContext world = sqlite.CreateWorld(new WorldId(1));
         ClassLevelStat row = world.ClassLevelStats.AsEnumerable()
             .Single(r => r.Class == CharacterClass.Warrior && r.Level == 1);
-        ClassStatFactors factors = world.ClassStatFactors.AsEnumerable().Single(f => f.Class == CharacterClass.Warrior);
         CombatFormula formula = world.CombatFormulas.Single();
         var templates = world.ItemTemplates.AsEnumerable().ToDictionary(t => t.Id.Value);
         List<ItemInstance> worn = [.. new ulong[] { 36, 37, 38, 39, 40 }.Select(t => Saved(templates[t]))];
@@ -471,7 +470,7 @@ public sealed class CharacterServiceShould : IDisposable
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row,
             [.. worn.Select((item, i) => new WornItem(wornTemplates[i], ItemBaseStats.Of(item.BaseStats), item.Modifiers,
                 wornTemplates[i].DamageType))],
-            factors, formula);
+            formula);
         AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(1), AbilityMetadataMapper.From(cleave), default);
 
         CharacterAbilitiesDto? result = await AbilityService(id, cleave, stats.ToRow(id), worn, wornTemplates, formula)

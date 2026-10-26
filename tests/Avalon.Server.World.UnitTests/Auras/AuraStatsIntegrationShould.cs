@@ -46,7 +46,7 @@ public class AuraStatsIntegrationShould
     {
         CharacterEntity warrior = TestCharacters.New(905_101);
         warrior.Container(InventoryType.Equipment).Load([TestCharacters.Item(3, s_plate)]);
-        Assert.True(CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors,
+        Assert.True(CharacterStatsRefresh.Apply(warrior, [s_warriorOne],
             id => id == s_plate.Id ? s_plate : null, ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld,
             TestCombat.Formula));
         return warrior;
@@ -59,7 +59,7 @@ public class AuraStatsIntegrationShould
         Assert.Equal(30u + 2u, warrior.Stats!.Value.Armor);   // and Strength 23 x 0.1 (#1178)
 
         warrior.Auras.Add(Held(AuraTestData.Fortified()), s_t0);
-        CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors, id => id == s_plate.Id ? s_plate : null,
+        CharacterStatsRefresh.Apply(warrior, [s_warriorOne], id => id == s_plate.Id ? s_plate : null,
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, TestCombat.Formula);
 
         Assert.Equal(38u, warrior.Stats!.Value.Armor);   // round(32 x 1.2)
@@ -116,8 +116,7 @@ public class AuraStatsIntegrationShould
         emboldened.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.AttackSpeed, Kind = AuraModifierKind.Flat, Value = 5f });
         warrior.Auras.Add(Held(emboldened), s_t0);
 
-        // The test data builds a new formula and factors on every read, so they are read once, outside the windows.
-        IReadOnlyDictionary<CharacterClass, ClassStatFactors> factors = TestCombat.Factors;
+        // The test data builds a new formula on every read, so it is read once, outside the windows.
         CombatFormula formula = TestCombat.Formula;
         // Two reads of the seeded table, taken in turn: a refresh keeps the counts over the same gear and table, so a new
         // table each time makes every refresh in the windows count again.
@@ -127,7 +126,7 @@ public class AuraStatsIntegrationShould
         ResonanceProcs procs = TestCharacters.ResonanceProcsOf(warrior);
         int refreshes = 0;
         long allocated = ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
-            factors, Worn, refreshes++ % 2 == 0 ? seeded : seededAgain, effects, CurrentValues.KeepShare, formula));
+            Worn, refreshes++ % 2 == 0 ? seeded : seededAgain, effects, CurrentValues.KeepShare, formula));
 
         Assert.Equal(0, allocated);
         Assert.Equal(1.2d, warrior.Stats!.Value.Offence.More(OffenceStat.Fire), precision: 6);
@@ -154,7 +153,7 @@ public class AuraStatsIntegrationShould
             }),
         ];
         ResonanceTable reloaded = new ItemModifierCatalog(rows, [], NullLogger.Instance).Resonance;
-        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, effects, CurrentValues.KeepShare, formula);
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, Worn, reloaded, effects, CurrentValues.KeepShare, formula);
 
         Assert.Equal(20, TestCharacters.ResonanceOf(warrior).Table.Count);
         Assert.Equal([new ThemeCount(1000, 1), new ThemeCount(1007, 1), new ThemeCount(1019, 1)], Pairs(warrior));
@@ -167,12 +166,12 @@ public class AuraStatsIntegrationShould
         Assert.Equal(0, ThreadAllocations.FewestOfThreeWindows(10, () =>
         {
             equipment.Put(swaps++ % 2 == 0 ? ironSword : sword);
-            CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, effects, CurrentValues.KeepShare,
+            CharacterStatsRefresh.Apply(warrior, s_warriorRows, Worn, reloaded, effects, CurrentValues.KeepShare,
                 formula);
         }));
 
         equipment.Put(ironSword);
-        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, effects, CurrentValues.KeepShare, formula);
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, Worn, reloaded, effects, CurrentValues.KeepShare, formula);
         Assert.Equal([new ThemeCount(1019, 2)], Pairs(warrior));
         Assert.Equal(" | None", Active(procs));
 
@@ -180,7 +179,7 @@ public class AuraStatsIntegrationShould
         // more slots than any rebuild before needed. The first refresh back counts again over the seeded effects; the next,
         // over the same table and gear, counts nothing again, so only the new catalog rebuilds the slots, growing them
         // outside the windows; the windows reuse them.
-        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, seeded, effects, CurrentValues.KeepShare, formula);
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, Worn, seeded, effects, CurrentValues.KeepShare, formula);
         AuraTemplate guard = AuraTestData.Fortified();
         ResonanceTrigger[] triggers = [ResonanceTrigger.Struck, ResonanceTrigger.Evaded, ResonanceTrigger.WardBroken];
         var grown = new ResonanceEffectCatalog(
@@ -191,11 +190,11 @@ public class AuraStatsIntegrationShould
                 AuraId = guard.Id, Target = ResonanceTarget.Wearer,
             }),
         ], new AuraCatalog([guard], static _ => null, NullLoggerFactory.Instance), NullLogger.Instance);
-        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, seeded, grown, CurrentValues.KeepShare, formula);
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, Worn, seeded, grown, CurrentValues.KeepShare, formula);
         Assert.Equal(3, procs.Count);
 
         Assert.Equal(0, ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
-            factors, Worn, refreshes++ % 2 == 0 ? seeded : seededAgain, grown, CurrentValues.KeepShare, formula)));
+            Worn, refreshes++ % 2 == 0 ? seeded : seededAgain, grown, CurrentValues.KeepShare, formula)));
         Assert.Equal("1, 2, 3 | Struck, Evaded, WardBroken", Active(procs));
 
         // Each affix with its seeded line's low end as its one value.

@@ -1,12 +1,10 @@
-using Avalon.Common;
 using Avalon.Domain.World;
 
 namespace Avalon.Database.World.Seeding;
 
 /// <summary>
-/// The seeded combat area (#506): the formula row and one factors row per class. The model's HasData
-/// reads these, and so does a StaticData built without a combat repository (tests). The class factors
-/// are exactly the constants CharacterStatsCalculator used before they moved here.
+/// The seeded combat area (#506): the formula row. The model's HasData reads it, and so does a StaticData built
+/// without a combat repository (tests).
 /// </summary>
 public static class CombatSeed
 {
@@ -53,27 +51,10 @@ public static class CombatSeed
         UnarmedDamageMin = 3,
         UnarmedDamageMax = 6,
         UnarmedAttackTimeMs = 816,
+        // #1181: one formula for every class: 180-192 at level 1 (Intellect 20-23), 292-416 at level 15. First pass,
+        // tuned by play.
+        ManaBase = 100,
+        ManaPerLevel = 8,
+        ManaPerIntellect = 4f,
     };
-
-    public static ClassStatFactors[] ClassFactors() =>
-    [
-        new()
-        {
-            Class = CharacterClass.Warrior, PowerPerIntellect = 0, PowerPerAgility = 0, FixedPower = 100,
-        },
-        new()
-        {
-            Class = CharacterClass.Wizard, PowerPerIntellect = 15, PowerPerAgility = 0, FixedPower = null,
-        },
-        // 0.8 per agility and 2 per intellect: what the old base-power helper's
-        // (agility * 0.8) + (intellect * 0.2) * 10 computed, kept as it was (#506 owner decision).
-        new()
-        {
-            Class = CharacterClass.Hunter, PowerPerIntellect = 2, PowerPerAgility = 0.8, FixedPower = null,
-        },
-        new()
-        {
-            Class = CharacterClass.Cleric, PowerPerIntellect = 12, PowerPerAgility = 0, FixedPower = null,
-        },
-    ];
 }

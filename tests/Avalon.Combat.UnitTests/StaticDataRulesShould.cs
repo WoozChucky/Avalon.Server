@@ -59,16 +59,6 @@ public class StaticDataRulesShould
         UnarmedAttackTimeMs = 816,
     };
 
-    private static ClassStatFactors[] Factors() => CharacterClasses.Playable
-        .Select(c => new ClassStatFactors
-        {
-            Class = c,
-            PowerPerIntellect = 1,
-            PowerPerAgility = 0,
-            FixedPower = null,
-        })
-        .ToArray();
-
     [Fact]
     public void Accept_a_valid_cone_naming_the_cone_script() =>
         Assert.Null(AbilityRules.Problem(Cone()));
@@ -84,21 +74,20 @@ public class StaticDataRulesShould
     [Fact]
     public void Build_the_seeded_combat_data()
     {
-        (CombatFormula? formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors>? byClass) = CombatDataRules.Build([Formula()], Factors());
+        CombatFormula formula = CombatDataRules.Build([Formula()]);
         Assert.Equal(CombatFormula.SingletonId, formula.Id);
-        Assert.Equal(CharacterClasses.Playable.Count, byClass.Count);
     }
 
     [Fact]
     public void Refuse_two_formulas() =>
-        Assert.Throws<InvalidDataException>(() => CombatDataRules.Build([Formula(), Formula()], Factors()));
+        Assert.Throws<InvalidDataException>(() => CombatDataRules.Build([Formula(), Formula()]));
 
     [Fact]
     public void Refuse_a_crit_cap_over_100()
     {
         CombatFormula f = Formula();
         f.CritCap = 101f;
-        Assert.Throws<InvalidDataException>(() => CombatDataRules.Build([f], Factors()));
+        Assert.Throws<InvalidDataException>(() => CombatDataRules.Build([f]));
     }
 
     [Fact]
@@ -170,7 +159,7 @@ public class StaticDataRulesShould
     {
         CombatFormula f = Formula();
         change(f);
-        CombatDataRules.Build([f], Factors());
+        CombatDataRules.Build([f]);
     }
 
     /// <summary>
@@ -340,7 +329,7 @@ public class StaticDataRulesShould
         change(f);
         try
         {
-            CombatDataRules.Build([f], Factors());
+            CombatDataRules.Build([f]);
             return null;
         }
         catch (InvalidDataException ex)

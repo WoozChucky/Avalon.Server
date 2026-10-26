@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.World.Reload;
@@ -8,12 +7,8 @@ namespace Avalon.Server.World.UnitTests;
 /// <summary>The seeded combat area (#506), validated as StaticData would load it.</summary>
 internal static class TestCombat
 {
-    public static CombatPatch Seeded() => CombatPatch.Build([CombatSeed.Formula()], CombatSeed.ClassFactors());
-
-    public static IReadOnlyDictionary<CharacterClass, ClassStatFactors> Factors => Seeded().Factors;
+    public static CombatPatch Seeded() => CombatPatch.Build([CombatSeed.Formula()]);
 
     /// <summary>The seeded formula, what a stats refresh in a test bounds the speeds and movement speed with (#627).</summary>
     public static CombatFormula Formula => Seeded().Formula;
-
-    public static ClassStatFactors FactorsOf(CharacterClass @class) => Factors[@class];
 }

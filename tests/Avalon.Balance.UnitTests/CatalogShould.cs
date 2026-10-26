@@ -67,7 +67,6 @@ public class ColumnRuleShould
     [
         ("Ability", typeof(Avalon.Domain.World.AbilityTemplate)),
         ("ClassLevelStat", typeof(Avalon.Domain.World.ClassLevelStat)),
-        ("ClassStatFactors", typeof(Avalon.Domain.World.ClassStatFactors)),
         ("CombatFormula", typeof(Avalon.Domain.World.CombatFormula)),
         ("CreatureBaseStats", typeof(Avalon.Domain.World.CreatureBaseStat)),
         ("CreatureRarityModifiers", typeof(Avalon.Domain.World.CreatureRarityModifier)),

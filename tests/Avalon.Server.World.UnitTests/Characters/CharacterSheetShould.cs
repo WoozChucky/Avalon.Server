@@ -37,8 +37,8 @@ public class CharacterSheetShould
 
     private static readonly ClassLevelStat[] s_warriorRows =
     [
-        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
-        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 160, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 160, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
     ];
 
     private static IWorldConnection Recording(CharacterEntity character, List<OutboundPacket> sent)
@@ -106,7 +106,8 @@ public class CharacterSheetShould
     /// <summary>
     /// #627, #1178: a refresh that moves exactly one value the sheet shows (a speed, the movement speed, one increased key,
     /// the crit multiplier bonus) is a change the owner is sent. #1180: so is a refresh that moves only the Resonance
-    /// counts, and the sheet lists each theme by its id with its count, leaving out a theme at 0.
+    /// counts, and the sheet lists each theme by its id with its count, leaving out a theme at 0. #1181: and one that moves
+    /// only the increased mana regeneration, which scales both rates: 1 % and 4 % of the maximum a second, times 1.5.
     /// </summary>
     [Theory]
     [InlineData("attack speed")]
@@ -114,6 +115,7 @@ public class CharacterSheetShould
     [InlineData("increased")]
     [InlineData("crit multiplier")]
     [InlineData("resonance")]
+    [InlineData("mana regeneration")]
     public void Send_a_sheet_when_exactly_one_shown_value_changes(string change)
     {
         CharacterEntity character = New();
@@ -139,6 +141,9 @@ public class CharacterSheetShould
             next = Stats();
         }
 
+        if (change == "mana regeneration")
+            next = Stats() with { IncreasedManaRegenPct = 50f };
+
         character.ApplyStats(next, CurrentValues.KeepShare, s_seeded.Formula);
         CharacterSheetFlusher.Flush(connection, s_seeded);
         // The same refresh again moves nothing, so nothing more is sent.
@@ -152,6 +157,12 @@ public class CharacterSheetShould
         Assert.Equal(change == "movement speed" ? 4.4f : 4f, after.MovementSpeed, precision: 5);
         Assert.Equal(change == "increased" ? 4f : 0f, after.IncreasedPct[(int)OffenceStat.Cold]);
         Assert.Equal(change == "crit multiplier" ? 1.6f : 1.5f, after.CritMultiplier, precision: 5);
+        uint maxMana = Stats().MaxPower;
+        bool regen = change == "mana regeneration";
+        Assert.Equal(maxMana * 0.01f, sheets[0].ManaRegenInCombat, precision: 5);
+        Assert.Equal(maxMana * 0.04f, sheets[0].ManaRegenOutOfCombat, precision: 5);
+        Assert.Equal(maxMana * (regen ? 0.015f : 0.01f), after.ManaRegenInCombat, precision: 5);
+        Assert.Equal(maxMana * (regen ? 0.06f : 0.04f), after.ManaRegenOutOfCombat, precision: 5);
         (uint ThemeId, uint Count)[] resonanceSent = change == "resonance" ? [(1u, 2u)] : [];
         Assert.Empty(sheets[0].Resonance ?? []);
         Assert.Equal(resonanceSent, (after.Resonance ?? []).Select(r => (r.ThemeId, r.Count)));
@@ -288,7 +299,7 @@ public class CharacterSheetShould
             CurrentValues.EnterWorld, formula);
         var sent = new List<OutboundPacket>();
 
-        CharacterSheetFlusher.Flush(Recording(character, sent), CombatPatch.Build([formula], CombatSeed.ClassFactors()));
+        CharacterSheetFlusher.Flush(Recording(character, sent), CombatPatch.Build([formula]));
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
         Assert.Equal((20u, 12u), (sheet.Evasion, sheet.MaxWard));

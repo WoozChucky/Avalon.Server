@@ -16,8 +16,8 @@ public class ReloadCommandShould
         "Reloaded loot: 8 tables, 40 entries (12 ms). Affects the next kill; drops already on the ground keep what they rolled.")]
     [InlineData("vendors", ReloadArea.Vendors, "3 vendors, 31 rows", 9,
         "Reloaded vendors: 3 vendors, 31 rows (9 ms). Open shops get the new list on the next tick; live stock counts carry over by row.")]
-    [InlineData("combat", ReloadArea.Combat, "1 formula, 4 class stat factors", 3,
-        "Reloaded combat: 1 formula, 4 class stat factors (3 ms). Affects the next hit; a character's stats change at its next select, gear change or level-up.")]
+    [InlineData("combat", ReloadArea.Combat, "1 formula", 3,
+        "Reloaded combat: 1 formula (3 ms). Affects the next hit; a character's stats change at its next select, gear change or level-up.")]
     [InlineData("creatures", ReloadArea.Creatures, "10 templates, 10 base stats, 4 rarities", 21,
         "Reloaded creatures: 10 templates, 10 base stats, 4 rarities (21 ms). Affects new spawns only.")]
     public void Reply_with_the_summary_and_the_areas_caveat_when_an_area_reloads(string area, ReloadArea reloaded,

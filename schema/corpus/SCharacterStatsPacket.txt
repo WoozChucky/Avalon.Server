@@ -40,6 +40,8 @@ variant absent
   field 26 AttackTimeMs : uint = 0
   field 27 IncreasedPct : float[] = null
   field 28 Resonance : List<ResonanceDto> = null
+  field 29 ManaRegenInCombat : float = 0 (0x00000000)
+  field 30 ManaRegenOutOfCombat : float = 0 (0x00000000)
   bytes 0
 
 variant empty
@@ -67,6 +69,8 @@ variant empty
   field 26 AttackTimeMs : uint = 0
   field 27 IncreasedPct : float[] = 0 elements
   field 28 Resonance : List<ResonanceDto> = 0 elements
+  field 29 ManaRegenInCombat : float = 0 (0x00000000)
+  field 30 ManaRegenOutOfCombat : float = 0 (0x00000000)
   bytes 0
 
 variant populated
@@ -102,7 +106,9 @@ variant populated
     element 1
       field 1 ThemeId : uint = 300
       field 2 Count : uint = 7
-  bytes 138
+  field 29 ManaRegenInCombat : float = -2.25 (0xc0100000)
+  field 30 ManaRegenOutOfCombat : float = 1E+10 (0x501502f9)
+  bytes 150
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 45
     cd cc cc 3d 55 00 00 c0 3f 58 c0 84 3d 60 80 d0
     ac f3 0e 75 b0 0f a1 b3 78 ac 02 85 01 db 0f 49
@@ -111,7 +117,8 @@ variant populated
     f9 02 15 50 bd 01 b0 0f a1 b3 c5 01 f9 02 15 50
     cd 01 cd cc cc 3d d0 01 07 dd 01 00 00 10 c0 dd
     01 db 0f 49 40 e2 01 0a 08 80 d0 ac f3 0e 10 c0
-    84 3d e2 01 05 08 ac 02 10 07
+    84 3d e2 01 05 08 ac 02 10 07 ed 01 00 00 10 c0
+    f5 01 f9 02 15 50
 
 variant maxima
   field 1 Stamina : uint = 4294967295
@@ -150,7 +157,9 @@ variant maxima
     element 2
       field 1 ThemeId : uint = 4294967295
       field 2 Count : uint = 4294967295
-  bytes 194
+  field 29 ManaRegenInCombat : float = 3.40282347E+38 (0x7f7fffff)
+  field 30 ManaRegenOutOfCombat : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 206
     08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
     ff 0f 20 ff ff ff ff 0f 28 ff ff ff ff 0f 45 ff
     ff 7f 7f 55 ff ff 7f 7f 58 ff ff ff ff 0f 60 ff
@@ -163,7 +172,7 @@ variant maxima
     01 ff ff 7f 7f e2 01 0c 08 ff ff ff ff 0f 10 ff
     ff ff ff 0f e2 01 0c 08 ff ff ff ff 0f 10 ff ff
     ff ff 0f e2 01 0c 08 ff ff ff ff 0f 10 ff ff ff
-    ff 0f
+    ff 0f ed 01 ff ff 7f 7f f5 01 ff ff 7f 7f
 
 variant minima
   field 1 Stamina : uint = 0
@@ -194,12 +203,15 @@ variant minima
     element 0
       field 1 ThemeId : uint = 0
       field 2 Count : uint = 0
-  bytes 78
+  field 29 ManaRegenInCombat : float = -3.40282347E+38 (0xff7fffff)
+  field 30 ManaRegenOutOfCombat : float = -3.40282347E+38 (0xff7fffff)
+  bytes 90
     45 ff ff 7f ff 55 ff ff 7f ff 75 ff ff 7f ff 85
     01 ff ff 7f ff 95 01 ff ff 7f ff 9d 01 ff ff 7f
     ff a5 01 ff ff 7f ff ad 01 ff ff 7f ff b5 01 ff
     ff 7f ff bd 01 ff ff 7f ff c5 01 ff ff 7f ff cd
-    01 ff ff 7f ff dd 01 ff ff 7f ff e2 01 00
+    01 ff ff 7f ff dd 01 ff ff 7f ff e2 01 00 ed 01
+    ff ff 7f ff f5 01 ff ff 7f ff
 
 variant varint-edges
   field 1 Stamina : uint = 2097152
@@ -234,7 +246,9 @@ variant varint-edges
     element 1
       field 1 ThemeId : uint = 2097152
       field 2 Count : uint = 127
-  bytes 149
+  field 29 ManaRegenInCombat : float = 1.17549435E-38 (0x00800000)
+  field 30 ManaRegenOutOfCombat : float = 1.17549435E-38 (0x00800000)
+  bytes 161
     08 80 80 80 01 10 80 80 80 01 18 80 80 80 80 01
     20 ff 7f 28 80 80 80 80 01 45 00 00 80 00 55 00
     00 80 00 58 ff ff ff 7f 60 7f 75 00 00 80 00 78
@@ -244,7 +258,8 @@ variant varint-edges
     01 00 00 80 00 c5 01 00 00 80 00 cd 01 00 00 80
     00 d0 01 80 01 dd 01 00 00 80 00 dd 01 01 00 80
     00 e2 01 07 08 ff 7f 10 80 80 01 e2 01 07 08 80
-    80 80 01 10 7f
+    80 80 01 10 7f ed 01 00 00 80 00 f5 01 00 00 80
+    00
 
 variant float-specials
   field 1 Stamina : uint = 7
@@ -256,7 +271,7 @@ variant float-specials
   field 10 BlockPct : float = Infinity (0x7f800000)
   field 11 WeaponMin : uint = 1000000
   field 12 WeaponMax : uint = 4000000000
-  field 14 MovementSpeed : float = -0 (0x80000000)
+  field 14 MovementSpeed : float = 1.17549421E-38 (0x007fffff)
   field 15 Evasion : uint = 300
   field 16 EvasionPct : float = NaN (0xffc00000)
   field 17 MaxWard : uint = 65535
@@ -279,12 +294,15 @@ variant float-specials
     element 1
       field 1 ThemeId : uint = 300
       field 2 Count : uint = 7
-  bytes 127
+  field 29 ManaRegenInCombat : float = -0 (0x80000000)
+  field 30 ManaRegenOutOfCombat : float = 1.40129846E-45 (0x00000001)
+  bytes 138
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 45
     ff ff 7f 7f 55 00 00 80 7f 58 c0 84 3d 60 80 d0
-    ac f3 0e 78 ac 02 85 01 00 00 c0 ff 88 01 ff ff
-    03 95 01 01 00 c0 7f a5 01 00 00 80 ff ad 01 01
-    00 c0 7f b5 01 ff ff 7f 00 bd 01 00 00 c0 ff c5
-    01 00 00 80 ff cd 01 01 00 00 00 d0 01 07 dd 01
-    00 00 80 7f dd 01 00 00 80 ff e2 01 0a 08 80 d0
-    ac f3 0e 10 c0 84 3d e2 01 05 08 ac 02 10 07
+    ac f3 0e 75 ff ff 7f 00 78 ac 02 85 01 00 00 c0
+    ff 88 01 ff ff 03 95 01 01 00 c0 7f a5 01 00 00
+    80 ff ad 01 01 00 c0 7f b5 01 ff ff 7f 00 bd 01
+    00 00 c0 ff c5 01 00 00 80 ff cd 01 01 00 00 00
+    d0 01 07 dd 01 00 00 80 7f dd 01 00 00 80 ff e2
+    01 0a 08 80 d0 ac f3 0e 10 c0 84 3d e2 01 05 08
+    ac 02 10 07 f5 01 01 00 00 00

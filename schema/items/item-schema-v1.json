@@ -692,6 +692,14 @@
       {
         "name": "IncreasedMaximumLife",
         "value": 53
+      },
+      {
+        "name": "IncreasedMaximumMana",
+        "value": 54
+      },
+      {
+        "name": "IncreasedManaRegeneration",
+        "value": 55
       }
     ],
     "ItemTemplateFlags": [

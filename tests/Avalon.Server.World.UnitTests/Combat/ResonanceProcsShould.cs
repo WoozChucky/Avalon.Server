@@ -280,7 +280,7 @@ public class ResonanceProcsShould
 
         equipment.Put(ring);
         ResonanceEffectCatalog reloaded = ItemModifierRepositories.SeededEffects();
-        Assert.True(CharacterStatsRefresh.Apply(wearer, Data.ClassLevelStats, Data.Combat.Factors, Data.FindItemTemplate,
+        Assert.True(CharacterStatsRefresh.Apply(wearer, Data.ClassLevelStats, Data.FindItemTemplate,
             Data.Items.Modifiers.Resonance, reloaded, CurrentValues.KeepShare, Data.Combat.Formula));
         Assert.Same(reloaded.Effects.Single(e => e.Aura.Value == Burning3), procs.EffectAt(0));
         Hit(instance, wearer, boar, chance: []);

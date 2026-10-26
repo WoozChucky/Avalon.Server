@@ -19,7 +19,7 @@ public class SeedLoadShould
 
         Assert.Equal(240u, warrior.MaxHealth);     // 130 + 22 x 5
         Assert.Equal(80.5f, warrior.Offence.Increased(OffenceStat.PhysicalAttack));   // 23 x 3.5
-        Assert.Equal(100u, warrior.MaxPower);      // the Warrior's fixed factor
+        Assert.Equal(180u, warrior.MaxPower);      // 100 + 20 x 4
     }
 
     [Fact(Skip = BalancePause.Reason)]

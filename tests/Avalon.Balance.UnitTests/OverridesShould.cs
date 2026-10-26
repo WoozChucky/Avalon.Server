@@ -26,11 +26,11 @@ public class OverridesShould
     }
 
     [Fact]
-    public void Change_rows_keyed_by_class_and_level_by_class_and_by_nothing()
+    public void Change_rows_keyed_by_class_and_level_by_one_column_and_by_nothing()
     {
         (SeedTables tables, _) = Apply("""
             { "ClassLevelStat.Warrior.3.Strength": 28,
-              "ClassStatFactors.Warrior.PowerPerIntellect": 2.5,
+              "CombatFormula.ManaPerIntellect": 2.5,
               "CombatFormula.ArmorBase": 60,
               "CreatureBaseStats.4.Health": 90,
               "CreatureTemplate.8.HealthModifier": 1.2,
@@ -39,7 +39,7 @@ public class OverridesShould
             """);
 
         Assert.Equal(28u, tables.ClassLevelStats.Single(r => r.Class == CharacterClass.Warrior && r.Level == 3).Strength);
-        Assert.Equal(2.5, tables.ClassStatFactors.Single(r => r.Class == CharacterClass.Warrior).PowerPerIntellect);
+        Assert.Equal(2.5f, tables.CombatFormulas.Single().ManaPerIntellect);
         Assert.Equal(60f, tables.CombatFormulas.Single().ArmorBase);
         Assert.Equal(90u, tables.CreatureBaseStats.Single(r => r.Level == 4).Health);
         Assert.Equal(1.2f, tables.CreatureTemplates.Single(t => t.Id.Value == 8).HealthModifier);

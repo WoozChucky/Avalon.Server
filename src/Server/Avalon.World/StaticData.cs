@@ -161,10 +161,7 @@ public class StaticData(
                 IReadOnlyCollection<CombatFormula> formulas = combatDataRepository is null
                     ? [CombatSeed.Formula()]
                     : await combatDataRepository.GetFormulasAsync(ct);
-                IReadOnlyCollection<ClassStatFactors> factors = combatDataRepository is null
-                    ? CombatSeed.ClassFactors()
-                    : await combatDataRepository.GetClassStatFactorsAsync(ct);
-                return CombatPatch.Build(formulas, factors);
+                return CombatPatch.Build(formulas);
             }
 
             case ReloadArea.Quests:
@@ -448,8 +445,8 @@ public class StaticData(
     public CreaturesPatch Creatures => _creatures!;
 
     /// <summary>
-    /// The combat formula and the class stat factors (#506), one generation. A hit reads this once, at
-    /// its own resolve; a stats refresh reads it once for the factors it derives with.
+    /// The combat formula (#506), one generation. A hit reads this once, at its own resolve; a stats refresh reads it
+    /// once for the formula it derives with.
     /// </summary>
     public CombatPatch Combat => _combat!;
 

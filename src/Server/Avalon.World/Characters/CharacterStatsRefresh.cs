@@ -38,9 +38,8 @@ public static class CharacterStatsRefresh
 #pragma warning restore IDE1006
 
     /// <summary>
-    /// False, changing nothing, when there is no ClassLevelStat row for the character's class and level, or no
-    /// ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in
-    /// accepts it, so a row that put a gem in slot 8 or anything in the reserved slot 13 adds nothing. Each counts the
+    /// False, changing nothing, when there is no ClassLevelStat row for the character's class and level. A worn item counts
+    /// only when its template exists and the slot it is in accepts it, so a row that put a gem in slot 8 or anything in the reserved slot 13 adds nothing. Each counts the
     /// template the lookup holds now, and the base stats and modifiers its copy rolled (#1179), so a template edited live
     /// reaches a worn copy's template lines and leaves its rolled base stats and modifiers as they were.
     /// <paramref name="formula" /> bounds the speeds (#1178) and movement speed (#627), and is required: the caller passes
@@ -52,13 +51,12 @@ public static class CharacterStatsRefresh
     public static bool Apply(
         CharacterEntity character,
         IReadOnlyCollection<ClassLevelStat> classStats,
-        IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
         ResonanceTable resonance,
         ResonanceEffectCatalog effects,
         CurrentValues current,
         CombatFormula formula) =>
-        Apply(character, classStats, classFactors, new Templates(findTemplate, null), resonance, effects, current, formula);
+        Apply(character, classStats, new Templates(findTemplate, null), resonance, effects, current, formula);
 
     /// <summary>
     /// The refresh itself. The class row is the first of the character's class and level, and the worn items are read
@@ -79,7 +77,6 @@ public static class CharacterStatsRefresh
     private static bool Apply(
         CharacterEntity character,
         IReadOnlyCollection<ClassLevelStat> classStats,
-        IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Templates templates,
         ResonanceTable resonance,
         ResonanceEffectCatalog effects,
@@ -87,7 +84,7 @@ public static class CharacterStatsRefresh
         CombatFormula formula)
     {
         ClassLevelStat? row = RowOf(classStats, character.Class, character.Level);
-        if (row is null || !classFactors.TryGetValue(character.Class, out ClassStatFactors? factors))
+        if (row is null)
             return false;
 
         List<WornItem> worn = t_worn ??= [];
@@ -110,7 +107,7 @@ public static class CharacterStatsRefresh
 
             // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)
             // agrees with every other.
-            DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula,
+            DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, formula,
                 character.Auras.StatTotals, recount ? character.Resonance : null);
             if (recount)
             {
@@ -138,11 +135,11 @@ public static class CharacterStatsRefresh
     /// <summary>The same, over the current generation of reference data.</summary>
     public static bool Apply(CharacterEntity character, StaticData data, CurrentValues current)
     {
-        // The combat and items areas are each read once, so the factors and the formula are one generation, and so are
-        // the Resonance table and the effects keyed by its themes.
+        // The combat and items areas are each read once, so the formula is one generation, and so are the Resonance table
+        // and the effects keyed by its themes.
         CombatPatch combat = data.Combat;
         ItemsPatch items = data.Items;
-        return Apply(character, data.ClassLevelStats, combat.Factors, new Templates(null, data), items.Modifiers.Resonance,
+        return Apply(character, data.ClassLevelStats, new Templates(null, data), items.Modifiers.Resonance,
             items.Effects, current, combat.Formula);
     }
 

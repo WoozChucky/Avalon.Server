@@ -533,7 +533,6 @@ public class CharacterSelectHandlerShould
             Class = CharacterClass.Warrior,
             Level = 1,
             BaseHp = 130,
-            BaseMana = 0,
             Stamina = 22,
             Strength = 23,
             Agility = 20,
@@ -548,7 +547,7 @@ public class CharacterSelectHandlerShould
         Assert.Equal(250u, entity.Health);
         Assert.Equal(250u, entity.CurrentHealth);
         Assert.Equal(PowerType.Mana, entity.PowerType);
-        Assert.Equal((100u, 100u), (entity.Power, entity.CurrentPower));
+        Assert.Equal((180u, 180u), (entity.Power, entity.CurrentPower));
         Assert.Equal(24u, entity.Stamina);
         Assert.Equal(8u + 2u, entity.Stats!.Value.Armor);   // and Strength 25 x 0.1 (#1178)
         Assert.True(entity.SaveState.StatsDirty);
@@ -578,7 +577,6 @@ public class CharacterSelectHandlerShould
             Class = CharacterClass.Warrior,
             Level = 1,
             BaseHp = 130,
-            BaseMana = 0,
             Stamina = 22,
             Strength = 23,
             Agility = 20,

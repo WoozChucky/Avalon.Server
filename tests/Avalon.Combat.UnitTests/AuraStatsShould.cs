@@ -114,13 +114,12 @@ public class AuraStatsShould
     {
         var row = new ClassLevelStat
         { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
-        var factors = new ClassStatFactors { Class = CharacterClass.Warrior, FixedPower = 100 };
         var plate = new ItemTemplate { Name = "Plate", Slot = ItemSlotType.Chest, StatType1 = StatType.Armor, StatValue1 = 24 };
 
-        DerivedCharacterStats folded = CharacterStatsCalculator.Calculate(row, Worn.Of(plate), factors, new CombatFormula(),
+        DerivedCharacterStats folded = CharacterStatsCalculator.Calculate(row, Worn.Of(plate), new CombatFormula(),
             Of((Mod(AuraStat.Armor, AuraModifierKind.Increased, 20f), 1)));
 
         Assert.Equal(29u, folded.Armor);
-        Assert.Equal(CharacterStatsCalculator.Calculate(row, Worn.Of(plate), factors, new CombatFormula()).Offence, folded.Offence);
+        Assert.Equal(CharacterStatsCalculator.Calculate(row, Worn.Of(plate), new CombatFormula()).Offence, folded.Offence);
     }
 }

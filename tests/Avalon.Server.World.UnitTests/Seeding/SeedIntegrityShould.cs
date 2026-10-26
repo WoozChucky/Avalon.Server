@@ -614,7 +614,6 @@ public class SeedIntegrityShould
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(f => f.Class);
         CombatFormula formula = context.CombatFormulas.AsNoTracking().Single();
         var old = new Dictionary<CharacterClass, (uint HpPerLevel, uint PerStamina)>
         {
@@ -627,7 +626,7 @@ public class SeedIntegrityShould
         foreach (ClassLevelStat row in context.ClassLevelStats.AsNoTracking().ToList())
         {
             (uint hpPerLevel, uint perStamina) = old[row.Class];
-            uint bare = CharacterStatsCalculator.Calculate(row, [], factors[row.Class], formula).MaxHealth;
+            uint bare = CharacterStatsCalculator.Calculate(row, [], formula).MaxHealth;
             Assert.True(hpPerLevel * row.Level + row.Stamina * perStamina == bare,
                 $"{row.Class} level {row.Level}: bare health {bare}, was {hpPerLevel * row.Level + row.Stamina * perStamina}");
         }
@@ -831,12 +830,11 @@ public class SeedIntegrityShould
 
         var abilities = context.AbilityTemplates.AsNoTracking().ToList();
         var levelStats = context.ClassLevelStats.AsNoTracking().ToList();
-        var factors = context.ClassStatFactors.AsNoTracking().ToList();
 
         foreach ((CharacterClass cls, uint[] ids) in s_kit)
         {
             ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
-            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], factors.Single(f => f.Class == cls), TestCombat.Formula).MaxPower;
+            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], TestCombat.Formula).MaxPower;
 
             foreach (uint id in ids)
             {
@@ -1046,12 +1044,12 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #506: the one formula row and the class factors, as the balance seed set them. #1178: the evasion curve, the
-    /// resistance bounds and the class-neutral attribute conversions; no class has a base dodge, block, crit or life
-    /// rate of its own any more.
+    /// #506: the one formula row, as the balance seed set it. #1178: the evasion curve, the resistance bounds and the
+    /// class-neutral attribute conversions; no class has a base dodge, block, crit or life rate of its own any more.
+    /// #1181: nor a mana pool of its own: one mana formula for every class.
     /// </summary>
     [Fact]
-    public void Seed_the_combat_formula_and_one_factors_row_per_class()
+    public void Seed_the_combat_formula()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -1063,12 +1061,7 @@ public class SeedIntegrityShould
             (f.EvasionBase, f.EvasionPerLevel, f.EvasionCap, f.ResistanceCap, f.ResistanceFloor, f.ArmorPerStrength,
              f.EvasionPerAgility, f.WardPerIntellect));
 
-        var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(r => r.Class);
-        Assert.Equal(CharacterClasses.Playable.Order(), factors.Keys.Order());
-        ClassStatFactors w = factors[CharacterClass.Warrior];
-        Assert.Equal((0d, 0d, (long?)100L), (w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower));
-        ClassStatFactors h = factors[CharacterClass.Hunter];
-        Assert.Equal((2d, 0.8d, (long?)null), (h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower));
+        Assert.Equal((100u, 8u, 4f), (f.ManaBase, f.ManaPerLevel, f.ManaPerIntellect));
     }
 
     /// <summary>
@@ -1125,8 +1118,7 @@ public class SeedIntegrityShould
         {
             ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable()
                 .Single(s => s.Class == @class && s.Level == level);
-            ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == @class);
-            evasion = CharacterStatsCalculator.Calculate(row, [], factors, formula).Evasion;
+            evasion = CharacterStatsCalculator.Calculate(row, [], formula).Evasion;
         }
         else
         {
@@ -1205,13 +1197,12 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
-        ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
         List<WornItem> worn = starter ? RetiredGearProfiles.For("starter", c) : [];
         AbilityTemplate basic = context.AbilityTemplates.AsNoTracking().AsEnumerable()
             .Single(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c));
 
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, formula);
         var pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
         double paceMs = AbilityPace.Cooldown(AbilityMetadataMapper.From(basic), pace) * 1000d;
 
@@ -1285,11 +1276,10 @@ public class SeedIntegrityShould
         AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == id);
         CharacterClass c = Assert.Single(ability.AllowedClasses);
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
-        ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
         List<WornItem> worn = RetiredGearProfiles.For(gear, c);
 
-        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, worn, factors, formula).AttackerAt(level);
+        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, worn, formula).AttackerAt(level);
         AbilityMetadata metadata = AbilityMetadataMapper.From(ability);
         AuraTemplate? aura = viaAura
             ? context.AuraTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == ability.AuraId!.Value)
@@ -2764,7 +2754,7 @@ public class SeedIntegrityShould
     /// lines, its base's implicit and its own lines), each line at its maximum (an "adds" line's high end, or for added
     /// damage the average of its two ends). Attack speed counts local and global attack speed and the formula's attack
     /// speed per Agility; block counts the base's block chance with block lines; maximum power counts power lines and the
-    /// class's power per Intellect and Agility, against its level-10 pool. Life is (a class's level-10 base + flat life +
+    /// formula's mana per Intellect, against a class's level-10 pool. Life is (a class's level-10 base + flat life +
     /// Stamina's life) times (1 + increased maximum life / 100), rounded half away from zero as the stats fold does, with
     /// each slot's flat and increased life from the one item it holds, at the set that gives most; it must land 40-60 %
     /// above that class's base.
@@ -2865,10 +2855,8 @@ public class SeedIntegrityShould
         double PowerShare(CharacterClass c)
         {
             ClassLevelStat row = context.ClassLevelStats.AsNoTracking().Single(s => s.Class == c && s.Level == 10);
-            ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().Single(f => f.Class == c);
-            double power = row.BaseMana + (long)((row.Intellect * factors.PowerPerIntellect) + (row.Agility * factors.PowerPerAgility));
-            double gear = Worst(Weighted((StatType.Power, 1), (StatType.Intellect, factors.PowerPerIntellect),
-                (StatType.Agility, factors.PowerPerAgility)));
+            double power = formula.ManaBase + (formula.ManaPerLevel * 9) + (long)(row.Intellect * formula.ManaPerIntellect);
+            double gear = Worst(Weighted((StatType.Power, 1), (StatType.Intellect, formula.ManaPerIntellect)));
             return 100.0 * gear / power;
         }
 

@@ -12,8 +12,10 @@ namespace Avalon.World.Characters;
 /// attack speed, and CritMultiplier what a crit multiplies by. The evasion rating, the ward's maximum and the resistances
 /// (#1178) come from the same refresh, the resistances capped as a hit caps them. WeaponMin and WeaponMax are the range an
 /// Attack rolls, the bare hand's with no weapon. Increased is the offence block's increased points, the only part of it
-/// the sheet shows. Only what is sent is kept, so a change the client is not shown sends nothing. A value type, so the
-/// last one sent can be compared with the current one without allocating. The Resonance counts (#1180) are not kept here:
+/// the sheet shows. ManaRegenInCombat and ManaRegenOutOfCombat (#1181) are the mana a second the same refresh fixed, in
+/// and out of combat, increased mana regeneration included. Only what is sent is kept, so a change the client is not
+/// shown sends nothing. A value type, so the last one sent can be compared with the current one without allocating. The
+/// Resonance counts (#1180) are not kept here:
 /// they are the character's live buffer, which the flusher compares with the counts it last sent, and are written into
 /// the packet by <see cref="ToPacket" />.
 /// </summary>
@@ -40,6 +42,8 @@ public readonly record struct CharacterSheet(
     float CastSpeedPct,
     float CooldownRecoveryPct,
     uint AttackTimeMs,
+    float ManaRegenInCombat,
+    float ManaRegenOutOfCombat,
     IncreasedPoints Increased)
 {
     // The one array every sheet's increased points are written into: a sheet is encoded on the tick thread as soon as it
@@ -56,10 +60,11 @@ public readonly record struct CharacterSheet(
     /// <summary>
     /// <paramref name="level" /> is the character's own: EvasionPct carries the chance to evade an attacker of that level
     /// (#1178), in percentage points. No source raises the maximum resistance yet, so each resistance is capped at the
-    /// formula's ResistanceCap. <paramref name="pace" /> is the character's, bounded by the formula its refresh read.
+    /// formula's ResistanceCap. <paramref name="pace" /> is the character's, bounded by the formula its refresh read, and
+    /// so is <paramref name="manaRegen" /> (#1181), fixed by the same refresh.
     /// </summary>
     public static CharacterSheet From(in DerivedCharacterStats s, ushort level, CombatFormula formula, in CasterPace pace,
-        float movementSpeed) => new(
+        float movementSpeed, in ManaRegenRates manaRegen) => new(
         s.Stamina, s.Strength, s.Agility, s.Intellect, s.Armor,
         HitResolver.EffectivePct(s.CritPct, formula.CritCap),
         HitResolver.EffectivePct(s.BlockPct, formula.BlockCap),
@@ -74,6 +79,8 @@ public readonly record struct CharacterSheet(
         (float)HitResolver.CritMultiplier(s.Offence.CritMultiplierBonus, formula),
         pace.AttackSpeedPct, pace.CastSpeedPct, pace.CooldownRecoveryPct,
         s.Weapon.AttackTimeMs,
+        (float)manaRegen.InCombat,
+        (float)manaRegen.OutOfCombat,
         IncreasedPoints.Of(s.Offence));
 
     /// <summary>
@@ -123,6 +130,8 @@ public readonly record struct CharacterSheet(
             CastSpeedPct = CastSpeedPct,
             CooldownRecoveryPct = CooldownRecoveryPct,
             AttackTimeMs = AttackTimeMs,
+            ManaRegenInCombat = ManaRegenInCombat,
+            ManaRegenOutOfCombat = ManaRegenOutOfCombat,
             IncreasedPct = increased,
             Resonance = themes,
         };

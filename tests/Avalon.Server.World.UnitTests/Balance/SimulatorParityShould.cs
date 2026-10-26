@@ -65,7 +65,7 @@ public class SimulatorParityShould
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
         warrior.Character.Container(InventoryType.Equipment)
             .Load(s_forestWarrior.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i)).ToArray());
-        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
+        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, Data.Tables.ClassLevelStats,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         warrior.Character.Spells.Load(abilities.Select(a => (IAbility)AbilityTestData.Game(a)).ToArray());
@@ -270,7 +270,7 @@ public class SimulatorParityShould
         };
         MapInstanceClient real = Join(instance, new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), clock) { Data = row });
         real.Character.PowerType = PowerType.Mana;
-        Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
+        Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         real.Character.Spells.Load([AbilityTestData.Game(Row(211))]);
@@ -552,7 +552,7 @@ public class SimulatorParityShould
         };
         MapInstanceClient real = Join(instance, new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), clock) { Data = row });
         real.Character.PowerType = PowerType.Mana;
-        Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
+        Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         real.Character.Spells.Load([AbilityTestData.Game(renew)]);
@@ -615,7 +615,7 @@ public class SimulatorParityShould
         };
         real.Character.Auras.Add(new ActiveAura(ward, real.Character.Guid, AuraSource.None, 1, default,
             AuraSchedule.Start(s_clockStart, 30000, 0), 30000, s_clockStart.UtcDateTime), s_clockStart);
-        Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats, Data.Combat.Factors,
+        Assert.True(CharacterStatsRefresh.Apply(real.Character, Data.Tables.ClassLevelStats,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, Data.Combat.Formula));
 
@@ -815,7 +815,6 @@ public class SimulatorParityShould
         rarities.GetAllAsync(Arg.Any<CancellationToken>()).Returns(seed.CreatureRarityModifiers);
         ICombatDataRepository combat = Substitute.For<ICombatDataRepository>();
         combat.GetFormulasAsync(Arg.Any<CancellationToken>()).Returns(seed.CombatFormulas);
-        combat.GetClassStatFactorsAsync(Arg.Any<CancellationToken>()).Returns(seed.ClassStatFactors);
 
         IDialogueRepository dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<DialogueNode>());

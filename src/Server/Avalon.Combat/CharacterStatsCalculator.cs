@@ -4,16 +4,18 @@ namespace Avalon.Combat;
 
 /// <summary>
 /// The one stats calculation (spec #463, closes #434): a class and level's seeded ClassLevelStat
-/// row, its class's ClassStatFactors row (#506, reloaded with the combat area), the combat formula's
-/// class-neutral life per Stamina, base crit and attribute conversions (#1178), plus the stats of the gear worn. Pure.
+/// row, the combat formula's class-neutral life per Stamina, mana terms (#1181), base crit and attribute conversions
+/// (#1178), plus the stats of the gear worn. Pure.
 /// </summary>
 public static class CharacterStatsCalculator
 {
     /// <summary>
-    /// Where a class's power factor is fractional, the whole sum of the factored terms is truncated to a whole number once,
-    /// not each product on its own. Health and crit are the same for every class (#1178): BaseHp plus Stamina times <paramref name="formula" />'s life per
+    /// Health and crit are the same for every class (#1178): BaseHp plus Stamina times <paramref name="formula" />'s life per
     /// Stamina plus gear health, scaled by gear's increased maximum life (#1179, <c>max(0, 1 + x / 100)</c>, whole numbers, half
-    /// away from zero), and the formula's base crit plus gear crit; only power still reads the class's factors.
+    /// away from zero), and the formula's base crit plus gear crit. Mana is the same for every class too (#1181), in the
+    /// same shape as life: the formula's base, its gain per level past the first and Intellect times its mana per
+    /// Intellect (truncated once), plus gear's flat power, scaled by gear's increased maximum mana. Gear's increased mana
+    /// regeneration is summed as it is, for the regeneration rates.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
     /// Every worn item gives its template's lines, its copy's base stats and its modifiers' lines (#1179); a defence line is
@@ -29,7 +31,7 @@ public static class CharacterStatsCalculator
     /// null counts nothing.
     /// </summary>
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<WornItem> worn,
-        ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null, ResonanceCounts? resonance = null)
+        CombatFormula formula, AuraStatTotals? auras = null, ResonanceCounts? resonance = null)
     {
         // One walk of every worn item's lines feeds the gear totals, the offence block's line sums (#1179) and the
         // Resonance counts (#1180).
@@ -46,11 +48,10 @@ public static class CharacterStatsCalculator
 
         long flatLife = LocalScaling.Saturate((Int128)row.BaseHp + ((Int128)stamina * formula.LifePerStamina) + gear.Health);
         long maxHealth = LocalScaling.Increase(flatLife, gear.IncreasedMaximumLife);
-        long maxPower = factors.FixedPower is { } fixedPower
-            ? fixedPower
-            : row.BaseMana
-              + (long)(intellect * factors.PowerPerIntellect + agility * factors.PowerPerAgility)
-              + gear.Power;
+        long flatMana = LocalScaling.Saturate((Int128)formula.ManaBase
+            + ((Int128)formula.ManaPerLevel * Math.Max(0, row.Level - 1))
+            + (long)(intellect * (double)formula.ManaPerIntellect) + gear.Power);
+        long maxPower = LocalScaling.Increase(flatMana, gear.IncreasedMaximumMana);
         long armor = LocalScaling.Add(gear.Armor, (long)(strength * (double)formula.ArmorPerStrength));
         long evasion = LocalScaling.Add(gear.Evasion, (long)(agility * (double)formula.EvasionPerAgility));
         long ward = LocalScaling.Add(gear.Ward, (long)(intellect * (double)formula.WardPerIntellect));
@@ -79,7 +80,8 @@ public static class CharacterStatsCalculator
             Weapon: WeaponDamage.Of(weapon, formula),
             Offence: offence,
             AddedToAttacks: addedToAttacks,
-            AddedToSpells: addedToSpells);
+            AddedToSpells: addedToSpells,
+            IncreasedManaRegenPct: gear.IncreasedManaRegenPct);
 
         return auras is null ? derived : AuraStats.Fold(derived, auras);
     }
@@ -140,8 +142,9 @@ public static class CharacterStatsCalculator
 
     private struct GearTotals
     {
-        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, IncreasedMaximumLife, Power;
-        public float BlockPct, CritPct, MovementSpeedPct;
+        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, IncreasedMaximumLife, Power,
+            IncreasedMaximumMana;
+        public float BlockPct, CritPct, MovementSpeedPct, IncreasedManaRegenPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
         /// <summary>
@@ -191,6 +194,8 @@ public static class CharacterStatsCalculator
                 case StatType.Health: Health += value; break;
                 case StatType.IncreasedMaximumLife: IncreasedMaximumLife += value; break;
                 case StatType.Power: Power += value; break;
+                case StatType.IncreasedMaximumMana: IncreasedMaximumMana += value; break;
+                case StatType.IncreasedManaRegeneration: IncreasedManaRegenPct += value; break;
                 // #627: a percentage, summed raw; the entity applies the combat formula's bounds. Attack speed, cast speed
                 // and cooldown recovery are the offence block's (#1178), CharacterOffence's to sum.
                 case StatType.MovementSpeed: MovementSpeedPct += value; break;

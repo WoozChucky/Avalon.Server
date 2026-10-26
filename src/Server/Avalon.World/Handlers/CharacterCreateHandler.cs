@@ -45,7 +45,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         ClassLevelStat? level = world.Data.ClassLevelStats.FirstOrDefault(c => c.Class == packet.Class && c.Level == 1);
         if (createInfo is null || level is null) { Answer(connection, SCharacterCreateResult.InternalDatabaseError); return; }
         CombatPatch combat = world.Data.Combat;
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], combat.Factors[createInfo.Class], combat.Formula);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], combat.Formula);
         var row = new Character
         {
             AccountId = authority.AccountId,

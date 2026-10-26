@@ -3091,9 +3091,6 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long>("BaseHp")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("BaseMana")
-                        .HasColumnType("bigint");
-
                     b.Property<long>("Intellect")
                         .HasColumnType("bigint");
 
@@ -3114,7 +3111,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 1,
                             Agility = 20L,
                             BaseHp = 130L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 22L,
                             Strength = 23L
@@ -3125,7 +3121,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 2,
                             Agility = 21L,
                             BaseHp = 160L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 24L,
                             Strength = 25L
@@ -3136,7 +3131,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 3,
                             Agility = 23L,
                             BaseHp = 190L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 26L,
                             Strength = 27L
@@ -3147,7 +3141,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 4,
                             Agility = 24L,
                             BaseHp = 220L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 28L,
                             Strength = 29L
@@ -3158,7 +3151,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 5,
                             Agility = 26L,
                             BaseHp = 250L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 30L,
                             Strength = 31L
@@ -3169,7 +3161,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 1,
                             Agility = 20L,
                             BaseHp = 16L,
-                            BaseMana = 20L,
                             Intellect = 23L,
                             Stamina = 21L,
                             Strength = 20L
@@ -3180,7 +3171,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 2,
                             Agility = 21L,
                             BaseHp = 32L,
-                            BaseMana = 40L,
                             Intellect = 25L,
                             Stamina = 22L,
                             Strength = 20L
@@ -3191,7 +3181,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 3,
                             Agility = 22L,
                             BaseHp = 48L,
-                            BaseMana = 60L,
                             Intellect = 27L,
                             Stamina = 23L,
                             Strength = 20L
@@ -3202,7 +3191,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 4,
                             Agility = 23L,
                             BaseHp = 64L,
-                            BaseMana = 80L,
                             Intellect = 29L,
                             Stamina = 24L,
                             Strength = 20L
@@ -3213,7 +3201,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 5,
                             Agility = 24L,
                             BaseHp = 80L,
-                            BaseMana = 100L,
                             Intellect = 31L,
                             Stamina = 25L,
                             Strength = 20L
@@ -3224,7 +3211,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 1,
                             Agility = 23L,
                             BaseHp = 78L,
-                            BaseMana = 10L,
                             Intellect = 20L,
                             Stamina = 20L,
                             Strength = 21L
@@ -3235,7 +3221,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 2,
                             Agility = 25L,
                             BaseHp = 99L,
-                            BaseMana = 20L,
                             Intellect = 20L,
                             Stamina = 21L,
                             Strength = 22L
@@ -3246,7 +3231,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 3,
                             Agility = 27L,
                             BaseHp = 120L,
-                            BaseMana = 30L,
                             Intellect = 20L,
                             Stamina = 22L,
                             Strength = 24L
@@ -3257,7 +3241,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 4,
                             Agility = 29L,
                             BaseHp = 141L,
-                            BaseMana = 40L,
                             Intellect = 20L,
                             Stamina = 23L,
                             Strength = 25L
@@ -3268,7 +3251,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 5,
                             Agility = 31L,
                             BaseHp = 162L,
-                            BaseMana = 50L,
                             Intellect = 20L,
                             Stamina = 24L,
                             Strength = 27L
@@ -3279,7 +3261,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 1,
                             Agility = 21L,
                             BaseHp = 58L,
-                            BaseMana = 20L,
                             Intellect = 23L,
                             Stamina = 20L,
                             Strength = 20L
@@ -3290,7 +3271,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 2,
                             Agility = 22L,
                             BaseHp = 78L,
-                            BaseMana = 40L,
                             Intellect = 25L,
                             Stamina = 21L,
                             Strength = 20L
@@ -3301,7 +3281,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 3,
                             Agility = 23L,
                             BaseHp = 98L,
-                            BaseMana = 60L,
                             Intellect = 27L,
                             Stamina = 22L,
                             Strength = 20L
@@ -3312,7 +3291,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 4,
                             Agility = 24L,
                             BaseHp = 118L,
-                            BaseMana = 80L,
                             Intellect = 29L,
                             Stamina = 23L,
                             Strength = 20L
@@ -3323,7 +3301,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 5,
                             Agility = 25L,
                             BaseHp = 138L,
-                            BaseMana = 100L,
                             Intellect = 31L,
                             Stamina = 24L,
                             Strength = 20L
@@ -3334,7 +3311,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 6,
                             Agility = 27L,
                             BaseHp = 280L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 32L,
                             Strength = 33L
@@ -3345,7 +3321,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 7,
                             Agility = 29L,
                             BaseHp = 310L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 34L,
                             Strength = 35L
@@ -3356,7 +3331,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 8,
                             Agility = 30L,
                             BaseHp = 340L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 36L,
                             Strength = 37L
@@ -3367,7 +3341,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 9,
                             Agility = 32L,
                             BaseHp = 370L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 38L,
                             Strength = 39L
@@ -3378,7 +3351,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 10,
                             Agility = 33L,
                             BaseHp = 400L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 40L,
                             Strength = 41L
@@ -3389,7 +3361,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 11,
                             Agility = 35L,
                             BaseHp = 430L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 42L,
                             Strength = 43L
@@ -3400,7 +3371,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 12,
                             Agility = 36L,
                             BaseHp = 460L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 44L,
                             Strength = 45L
@@ -3411,7 +3381,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 13,
                             Agility = 38L,
                             BaseHp = 490L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 46L,
                             Strength = 47L
@@ -3422,7 +3391,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 14,
                             Agility = 39L,
                             BaseHp = 520L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 48L,
                             Strength = 49L
@@ -3433,7 +3401,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 15,
                             Agility = 41L,
                             BaseHp = 550L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 50L,
                             Strength = 51L
@@ -3444,7 +3411,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 16,
                             Agility = 42L,
                             BaseHp = 580L,
-                            BaseMana = 0L,
                             Intellect = 20L,
                             Stamina = 52L,
                             Strength = 53L
@@ -3455,7 +3421,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 6,
                             Agility = 25L,
                             BaseHp = 96L,
-                            BaseMana = 120L,
                             Intellect = 33L,
                             Stamina = 26L,
                             Strength = 20L
@@ -3466,7 +3431,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 7,
                             Agility = 26L,
                             BaseHp = 112L,
-                            BaseMana = 140L,
                             Intellect = 35L,
                             Stamina = 27L,
                             Strength = 20L
@@ -3477,7 +3441,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 8,
                             Agility = 27L,
                             BaseHp = 128L,
-                            BaseMana = 160L,
                             Intellect = 37L,
                             Stamina = 28L,
                             Strength = 20L
@@ -3488,7 +3451,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 9,
                             Agility = 28L,
                             BaseHp = 144L,
-                            BaseMana = 180L,
                             Intellect = 39L,
                             Stamina = 29L,
                             Strength = 20L
@@ -3499,7 +3461,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 10,
                             Agility = 29L,
                             BaseHp = 160L,
-                            BaseMana = 200L,
                             Intellect = 41L,
                             Stamina = 30L,
                             Strength = 20L
@@ -3510,7 +3471,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 11,
                             Agility = 30L,
                             BaseHp = 176L,
-                            BaseMana = 220L,
                             Intellect = 43L,
                             Stamina = 31L,
                             Strength = 20L
@@ -3521,7 +3481,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 12,
                             Agility = 31L,
                             BaseHp = 192L,
-                            BaseMana = 240L,
                             Intellect = 45L,
                             Stamina = 32L,
                             Strength = 20L
@@ -3532,7 +3491,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 13,
                             Agility = 32L,
                             BaseHp = 208L,
-                            BaseMana = 260L,
                             Intellect = 47L,
                             Stamina = 33L,
                             Strength = 20L
@@ -3543,7 +3501,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 14,
                             Agility = 33L,
                             BaseHp = 224L,
-                            BaseMana = 280L,
                             Intellect = 49L,
                             Stamina = 34L,
                             Strength = 20L
@@ -3554,7 +3511,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 15,
                             Agility = 34L,
                             BaseHp = 240L,
-                            BaseMana = 300L,
                             Intellect = 51L,
                             Stamina = 35L,
                             Strength = 20L
@@ -3565,7 +3521,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 16,
                             Agility = 35L,
                             BaseHp = 256L,
-                            BaseMana = 320L,
                             Intellect = 53L,
                             Stamina = 36L,
                             Strength = 20L
@@ -3576,7 +3531,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 6,
                             Agility = 33L,
                             BaseHp = 183L,
-                            BaseMana = 60L,
                             Intellect = 20L,
                             Stamina = 25L,
                             Strength = 28L
@@ -3587,7 +3541,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 7,
                             Agility = 35L,
                             BaseHp = 204L,
-                            BaseMana = 70L,
                             Intellect = 20L,
                             Stamina = 26L,
                             Strength = 30L
@@ -3598,7 +3551,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 8,
                             Agility = 37L,
                             BaseHp = 225L,
-                            BaseMana = 80L,
                             Intellect = 20L,
                             Stamina = 27L,
                             Strength = 31L
@@ -3609,7 +3561,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 9,
                             Agility = 39L,
                             BaseHp = 246L,
-                            BaseMana = 90L,
                             Intellect = 20L,
                             Stamina = 28L,
                             Strength = 33L
@@ -3620,7 +3571,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 10,
                             Agility = 41L,
                             BaseHp = 267L,
-                            BaseMana = 100L,
                             Intellect = 20L,
                             Stamina = 29L,
                             Strength = 35L
@@ -3631,7 +3581,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 11,
                             Agility = 43L,
                             BaseHp = 288L,
-                            BaseMana = 110L,
                             Intellect = 20L,
                             Stamina = 30L,
                             Strength = 36L
@@ -3642,7 +3591,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 12,
                             Agility = 45L,
                             BaseHp = 309L,
-                            BaseMana = 120L,
                             Intellect = 20L,
                             Stamina = 31L,
                             Strength = 38L
@@ -3653,7 +3601,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 13,
                             Agility = 47L,
                             BaseHp = 330L,
-                            BaseMana = 130L,
                             Intellect = 20L,
                             Stamina = 32L,
                             Strength = 39L
@@ -3664,7 +3611,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 14,
                             Agility = 49L,
                             BaseHp = 351L,
-                            BaseMana = 140L,
                             Intellect = 20L,
                             Stamina = 33L,
                             Strength = 41L
@@ -3675,7 +3621,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 15,
                             Agility = 51L,
                             BaseHp = 372L,
-                            BaseMana = 150L,
                             Intellect = 20L,
                             Stamina = 34L,
                             Strength = 42L
@@ -3686,7 +3631,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 16,
                             Agility = 53L,
                             BaseHp = 393L,
-                            BaseMana = 160L,
                             Intellect = 20L,
                             Stamina = 35L,
                             Strength = 44L
@@ -3697,7 +3641,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 6,
                             Agility = 26L,
                             BaseHp = 158L,
-                            BaseMana = 120L,
                             Intellect = 33L,
                             Stamina = 25L,
                             Strength = 20L
@@ -3708,7 +3651,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 7,
                             Agility = 27L,
                             BaseHp = 178L,
-                            BaseMana = 140L,
                             Intellect = 35L,
                             Stamina = 26L,
                             Strength = 20L
@@ -3719,7 +3661,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 8,
                             Agility = 28L,
                             BaseHp = 198L,
-                            BaseMana = 160L,
                             Intellect = 37L,
                             Stamina = 27L,
                             Strength = 20L
@@ -3730,7 +3671,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 9,
                             Agility = 29L,
                             BaseHp = 218L,
-                            BaseMana = 180L,
                             Intellect = 39L,
                             Stamina = 28L,
                             Strength = 20L
@@ -3741,7 +3681,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 10,
                             Agility = 30L,
                             BaseHp = 238L,
-                            BaseMana = 200L,
                             Intellect = 41L,
                             Stamina = 29L,
                             Strength = 20L
@@ -3752,7 +3691,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 11,
                             Agility = 31L,
                             BaseHp = 258L,
-                            BaseMana = 220L,
                             Intellect = 43L,
                             Stamina = 30L,
                             Strength = 20L
@@ -3763,7 +3701,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 12,
                             Agility = 32L,
                             BaseHp = 278L,
-                            BaseMana = 240L,
                             Intellect = 45L,
                             Stamina = 31L,
                             Strength = 20L
@@ -3774,7 +3711,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 13,
                             Agility = 33L,
                             BaseHp = 298L,
-                            BaseMana = 260L,
                             Intellect = 47L,
                             Stamina = 32L,
                             Strength = 20L
@@ -3785,7 +3721,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 14,
                             Agility = 34L,
                             BaseHp = 318L,
-                            BaseMana = 280L,
                             Intellect = 49L,
                             Stamina = 33L,
                             Strength = 20L
@@ -3796,7 +3731,6 @@ namespace Avalon.Database.World.Migrations
                             Level = 15,
                             Agility = 35L,
                             BaseHp = 338L,
-                            BaseMana = 300L,
                             Intellect = 51L,
                             Stamina = 34L,
                             Strength = 20L
@@ -3807,63 +3741,9 @@ namespace Avalon.Database.World.Migrations
                             Level = 16,
                             Agility = 36L,
                             BaseHp = 358L,
-                            BaseMana = 320L,
                             Intellect = 53L,
                             Stamina = 35L,
                             Strength = 20L
-                        });
-                });
-
-            modelBuilder.Entity("Avalon.Domain.World.ClassStatFactors", b =>
-                {
-                    b.Property<byte>("Class")
-                        .HasColumnType("smallint");
-
-                    b.Property<long?>("FixedPower")
-                        .HasColumnType("bigint");
-
-                    b.Property<double>("PowerPerAgility")
-                        .HasColumnType("double precision");
-
-                    b.Property<double>("PowerPerIntellect")
-                        .HasColumnType("double precision");
-
-                    b.HasKey("Class");
-
-                    b.ToTable("ClassStatFactors", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ClassStatFactors_FixedPower", "\"FixedPower\" IS NULL OR (\"FixedPower\" >= 0 AND \"FixedPower\" <= 4294967295)");
-
-                            t.HasCheckConstraint("CK_ClassStatFactors_PowerPerAgility", "\"PowerPerAgility\" >= 0 AND \"PowerPerAgility\" < 'Infinity'");
-
-                            t.HasCheckConstraint("CK_ClassStatFactors_PowerPerIntellect", "\"PowerPerIntellect\" >= 0 AND \"PowerPerIntellect\" < 'Infinity'");
-                        });
-
-                    b.HasData(
-                        new
-                        {
-                            Class = (byte)1,
-                            FixedPower = 100L,
-                            PowerPerAgility = 0.0,
-                            PowerPerIntellect = 0.0
-                        },
-                        new
-                        {
-                            Class = (byte)2,
-                            PowerPerAgility = 0.0,
-                            PowerPerIntellect = 15.0
-                        },
-                        new
-                        {
-                            Class = (byte)3,
-                            PowerPerAgility = 0.80000000000000004,
-                            PowerPerIntellect = 2.0
-                        },
-                        new
-                        {
-                            Class = (byte)4,
-                            PowerPerAgility = 0.0,
-                            PowerPerIntellect = 12.0
                         });
                 });
 
@@ -3933,6 +3813,15 @@ namespace Avalon.Database.World.Migrations
                         .HasColumnType("real");
 
                     b.Property<long>("LifePerStamina")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ManaBase")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("ManaPerIntellect")
+                        .HasColumnType("real");
+
+                    b.Property<long>("ManaPerLevel")
                         .HasColumnType("bigint");
 
                     b.Property<float>("MoveSpeedCap")
@@ -4009,6 +3898,12 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_CombatFormula_LifePerStamina", "\"LifePerStamina\" >= 0 AND \"LifePerStamina\" <= 4294967295");
 
+                            t.HasCheckConstraint("CK_CombatFormula_ManaBase", "\"ManaBase\" >= 0 AND \"ManaBase\" <= 4294967295");
+
+                            t.HasCheckConstraint("CK_CombatFormula_ManaPerIntellect", "\"ManaPerIntellect\" >= 0 AND \"ManaPerIntellect\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_ManaPerLevel", "\"ManaPerLevel\" >= 0 AND \"ManaPerLevel\" <= 4294967295");
+
                             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedCap", "\"MoveSpeedCap\" > -100 AND \"MoveSpeedCap\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedFloor", "\"MoveSpeedFloor\" > -100 AND \"MoveSpeedFloor\" <= \"MoveSpeedCap\"");
@@ -4051,6 +3946,9 @@ namespace Avalon.Database.World.Migrations
                             IncreasedPhysicalAttackPerStrength = 3.5f,
                             IncreasedSpellPerIntellect = 3.5f,
                             LifePerStamina = 5L,
+                            ManaBase = 100L,
+                            ManaPerIntellect = 4f,
+                            ManaPerLevel = 8L,
                             MoveSpeedCap = 35f,
                             MoveSpeedFloor = -50f,
                             ResistanceCap = 75f,
