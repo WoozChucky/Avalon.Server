@@ -163,6 +163,15 @@ enum AuthResult {
    AuthResult_BANNED = 7;
    AuthResult_DEACTIVATED = 8;
 }
+enum AwakeningOutcome {
+   AwakeningOutcome_Woken = 0;
+   AwakeningOutcome_TierRaised = 1;
+   AwakeningOutcome_Polished = 2;
+}
+message AwakeningProgressDto {
+   uint32 EquipmentSlot = 1;
+   uint32 Progress = 2;
+}
 enum BaseStat {
    BaseStat_Armour = 0;
    BaseStat_Evasion = 1;
@@ -854,6 +863,8 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_ITEM_RESULT = 12432;
    NetworkPacketType_SMSG_ITEM_USE_RESULT = 12433;
    NetworkPacketType_SMSG_ITEM_IDENTIFY_RESULT = 12434;
+   NetworkPacketType_SMSG_AWAKENING_PROGRESS = 12435;
+   NetworkPacketType_SMSG_ITEM_AWAKENED = 12436;
    NetworkPacketType_SMSG_VENDOR_LIST = 12448;
    NetworkPacketType_SMSG_VENDOR_RESULT = 12449;
    NetworkPacketType_SMSG_PARTY_INVITE = 12464;
@@ -1138,6 +1149,9 @@ message SAuthResultPacket {
    AuthResult Result = 2;
    optional string MfaHash = 3;
 }
+message SAwakeningProgressPacket {
+   repeated AwakeningProgressDto Items = 1;
+}
 message SCharacterAbilitiesPacket {
    repeated AbilityInfo Abilities = 1;
 }
@@ -1306,6 +1320,11 @@ message SInventorySnapshotPacket {
 message SInventoryUpdatePacket {
    repeated InventorySlotUpdateDto Slots = 1;
    optional uint64 Gold = 2;
+}
+message SItemAwakenedPacket {
+   uint32 EquipmentSlot = 1;
+   uint32 ModifierId = 2;
+   AwakeningOutcome Outcome = 3;
 }
 message SItemIdentifyResultPacket {
    uint32 RequestId = 1;

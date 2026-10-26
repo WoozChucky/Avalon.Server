@@ -278,6 +278,40 @@ public sealed class CharacterInventoryService(
         return true;
     }
 
+    public AwakenedItem? TryAwaken(byte equipmentSlot)
+    {
+        if (!owner.Container(InventoryType.Equipment).TryGet(equipmentSlot, out InventoryItem item))
+            return null;
+
+        IReadOnlyList<ItemInstanceModifier> rows = owner.ItemModifiers.Of(item.InstanceId);
+        int ready = -1;
+        for (int i = 0; i < rows.Count && ready < 0; i++)
+        {
+            if (Awakening.ReadyToWake(item, rows[i]))
+                ready = i;
+        }
+
+        if (ready < 0)
+            return null;
+
+        AwakenedModifier woken = roller.Awaken(rows[ready], item.ItemLevel, currentItems().Modifiers);
+
+        // A new list with the woken row in the sealed one's place: the old list is never written, so the next stats
+        // refresh sees a list it has not counted and counts Resonance again.
+        var modifiers = new List<ItemInstanceModifier>(rows.Count);
+        for (int i = 0; i < rows.Count; i++)
+            modifiers.Add(i == ready ? woken.Row : rows[i]);
+
+        owner.ItemModifiers.ReplaceModifiers(item.InstanceId, modifiers);
+        owner.SaveState.ItemModifiersChanged(item.InstanceId);
+        if ((item.Flags & ItemInstanceFlags.Attuned) == 0)
+            Replace(InventoryType.Equipment, item with { Flags = item.Flags | ItemInstanceFlags.Attuned });
+        else
+            owner.ClientChanges.RecordSlot(InventoryType.Equipment, equipmentSlot);
+
+        return new AwakenedItem(equipmentSlot, woken.Row.ModifierId, woken.Outcome);
+    }
+
     /// <summary>
     /// Before a change to <paramref name="container" /> when it is the Equipment (#1180): the worn seals' pending points
     /// are settled into them, so an item taken off keeps what it earned and one put on gets none earned before it.

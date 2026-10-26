@@ -153,6 +153,25 @@ public sealed class ItemModifierStore
     }
 
     /// <summary>
+    /// A held item's modifiers change (#1180: a wake): <paramref name="modifiers" /> becomes its list, beside the same base
+    /// stats, and the name its modifiers gave it is worked out again at its next describe. A changed modifier is always a
+    /// new list and a new row, never a field written inside the list the item holds: a stats refresh recounts Resonance
+    /// only for a worn list it has not seen (Characters.ResonanceInputs, by reference). So the list must not be the one
+    /// held, and the caller keeps no use of it. Throws for an item without an entry, and for the list it already holds.
+    /// </summary>
+    internal void ReplaceModifiers(ItemInstanceId item, List<ItemInstanceModifier> modifiers)
+    {
+        ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item);
+        if (Unsafe.IsNullRef(ref entry))
+            throw new InvalidOperationException($"Item {item} carries no modifiers to replace.");
+
+        if (ReferenceEquals(entry.Modifiers, modifiers))
+            throw new ArgumentException($"Item {item}'s modifiers are replaced by a new list, never by the one it holds.", nameof(modifiers));
+
+        entry = new Entry(modifiers, entry.BaseStats);
+    }
+
+    /// <summary>
     /// The item leaves: its base stats and its list go with it, and the entry is gone. None and an empty list for an item
     /// without them.
     /// </summary>

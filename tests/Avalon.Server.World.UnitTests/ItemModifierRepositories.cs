@@ -21,11 +21,13 @@ internal static class ItemModifierRepositories
     /// The seeded catalog's Resonance table (#1180), as the world reads it from the World database. Read on every call, so
     /// a failed read fails only its own caller.
     /// </summary>
-    public static async Task<ResonanceTable> SeededResonance()
+    public static async Task<ResonanceTable> SeededResonance() => (await SeededCatalog()).Resonance;
+
+    /// <summary>The seeded modifier catalog, as the world reads it from the World database; read on every call.</summary>
+    public static async Task<ItemModifierCatalog> SeededCatalog()
     {
         using var database = SqliteDatabase.World();
-        return (await new ItemModifierRepository(database, NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None))
-            .Resonance;
+        return await new ItemModifierRepository(database, NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None);
     }
 
     /// <summary>

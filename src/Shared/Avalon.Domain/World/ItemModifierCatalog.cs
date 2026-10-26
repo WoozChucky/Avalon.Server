@@ -30,6 +30,9 @@ public sealed class ItemModifierCatalog
     private readonly Dictionary<ulong, ItemModifier[]> _links;
     private readonly ItemModifierCandidate[][] _candidates;
 
+    // Each tiered row's next better row of its own group (#1180), by the row's id: a row with none has no entry.
+    private readonly Dictionary<int, ItemModifier> _nextTier;
+
     public ItemModifierCatalog(
         IReadOnlyCollection<ItemModifier> modifiers, IReadOnlyCollection<ItemTemplateModifier> links, ILogger logger)
     {
@@ -46,6 +49,7 @@ public sealed class ItemModifierCatalog
         }
 
         Resonance = new ResonanceTable(_modifiers.Values);
+        _nextTier = NextTiers(_modifiers.Values);
 
         _links = [];
         foreach (IGrouping<ulong, ItemTemplateModifier> template in links
@@ -79,6 +83,7 @@ public sealed class ItemModifierCatalog
     private ItemModifierCatalog(ItemModifierCatalog from, Dictionary<ulong, ItemModifier[]> links)
     {
         _modifiers = from._modifiers;
+        _nextTier = from._nextTier;
         _candidates = from._candidates;
         Resonance = from.Resonance;
         _links = links;
@@ -102,6 +107,15 @@ public sealed class ItemModifierCatalog
 
     /// <summary>The accepted modifier of that id, with its group, stat lines and weights; null when there is none.</summary>
     public ItemModifier? Find(int modifierId) => _modifiers.GetValueOrDefault(modifierId);
+
+    /// <summary>
+    /// The accepted row one tier better than <paramref name="modifier" /> in its own group (#1180): of the same
+    /// <see cref="ItemModifier.GroupId" />, the largest <see cref="ItemModifier.Tier" /> below its own (tiers count down,
+    /// T1 the best), the lowest id among equals. Null for an untiered row, a row the catalog does not hold, and the best
+    /// tier of its group. Worked out when the catalog is built, so asking allocates nothing. It knows nothing of item
+    /// levels: the wake decides whether the row is within an item's reach.
+    /// </summary>
+    public ItemModifier? NextTier(ItemModifier modifier) => _nextTier.GetValueOrDefault(modifier.Id);
 
     /// <summary>The modifiers every copy of the template rolls, in link order; empty when it links none.</summary>
     public IReadOnlyList<ItemModifier> LinkedTo(ItemTemplateId template) =>
@@ -129,6 +143,35 @@ public sealed class ItemModifierCatalog
         ItemRarity.Unique or ItemRarity.Common => null,
         _ => linked.Count > 0 ? $"a {rarity} template links no modifier" : null,
     };
+
+    /// <summary>
+    /// For each tiered row, the next better row of its group (<see cref="NextTier" />). Each group's rows are sorted best
+    /// tier first, then by id; where the tier changes, the tier just passed is the next better one for every row of the
+    /// new tier, and its first row, the lowest id, is the one named. The best tier has none.
+    /// </summary>
+    private static Dictionary<int, ItemModifier> NextTiers(IEnumerable<ItemModifier> accepted)
+    {
+        var next = new Dictionary<int, ItemModifier>();
+        foreach (IGrouping<int, ItemModifier> group in accepted.Where(m => m.Tier is not null).GroupBy(m => m.GroupId))
+        {
+            ItemModifier[] sorted = [.. group.OrderBy(m => m.Tier).ThenBy(m => m.Id)];
+            ItemModifier? better = null;
+            int firstOfTier = 0;
+            for (int i = 1; i < sorted.Length; i++)
+            {
+                if (sorted[i].Tier != sorted[i - 1].Tier)
+                {
+                    better = sorted[firstOfTier];
+                    firstOfTier = i;
+                }
+
+                if (better is not null)
+                    next[sorted[i].Id] = better;
+            }
+        }
+
+        return next;
+    }
 
     private static int WeightOn(ItemModifier modifier, ItemBaseKind kind)
     {

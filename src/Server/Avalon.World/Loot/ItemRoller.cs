@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Items;
 using Avalon.World.Configuration;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Enums;
@@ -46,7 +47,22 @@ public interface IItemRoller
     /// as Rare, as the tier it rolled; a unique is never touched.
     /// </summary>
     void RollDrops(List<RolledDrop> drops, in DropContext context, ItemsPatch items);
+
+    /// <summary>
+    /// Wakes <paramref name="sealedRow" />, a sealed affix of a copy at <paramref name="itemLevel" /> (#1180), over
+    /// <paramref name="catalog" />: a new row with the same id, item and ordinal, no seal and a values list of its own; the
+    /// sealed row is left as it was. A row the catalog no longer holds wakes as it was, with no draw. Otherwise one draw
+    /// against Game:Items:Awakening:TierUpChancePct (none at 0 or 100) decides whether the wake rises: a miss wakes it as
+    /// it was; a rise names the row's next better tier (<see cref="ItemModifierCatalog.NextTier" />) when that tier's
+    /// required item level is within the copy's level plus <see cref="ItemAwakening.TierReach" />, its values rolled within
+    /// that tier as a roll makes them, and otherwise polishes it: each line rolls again within its own tier, and the line
+    /// whose ends sum higher is kept, the old one on a tie.
+    /// </summary>
+    AwakenedModifier Awaken(ItemInstanceModifier sealedRow, ushort itemLevel, ItemModifierCatalog catalog);
 }
+
+/// <summary>A sealed affix as it woke (#1180): its new row and how it woke.</summary>
+public readonly record struct AwakenedModifier(ItemInstanceModifier Row, AwakeningOutcome Outcome);
 
 /// <summary>
 /// <see cref="IItemRoller" /> over the loot random and the server's id allocator: the copy's id and each modifier's id
@@ -55,7 +71,8 @@ public interface IItemRoller
 /// several lines), the rarity, the base stats in ItemBaseStat order, the implicit's values by line, the affix count, then
 /// per affix one weighted pick and its values by line (the low end, then the high), then a rare's two words, and last a
 /// rare's seal (#1180: only a rare with a prefix or suffix, and only at a Game:Items:SealedRarePct strictly between 0 and
-/// 100). A unique draws its base's base stats and implicit, then its own lines' values.
+/// 100). A unique draws its base's base stats and implicit, then its own lines' values. A wake (#1180) draws its tier-up
+/// chance, then a rise's or a polish's values by line.
 /// </summary>
 public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOptions<GameConfiguration> options)
     : IItemRoller
@@ -73,6 +90,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
 
     private readonly CreatureRarityOdds _odds = options.Value.Items.Rarity;
     private readonly double _sealedRarePct = options.Value.Items.SealedRarePct;
+    private readonly double _tierUpChancePct = options.Value.Items.Awakening.TierUpChancePct;
 
     public RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemsPatch items)
     {
@@ -382,23 +400,117 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
         };
 
         // The row's own list, sized once: replacing it would throw away the one its initializer made.
-        List<ItemInstanceModifierValue> values = rolled.Values;
-        values.Capacity = modifier.Stats.Count;
+        rolled.Values.Capacity = modifier.Stats.Count;
+        RollValues(rolled, modifier);
+        return rolled;
+    }
+
+    /// <summary>A value of each of <paramref name="modifier" />'s lines added to <paramref name="row" />, in the lines' order.</summary>
+    private void RollValues(ItemInstanceModifier row, ItemModifier modifier)
+    {
         foreach (ItemModifierStat line in modifier.Stats)
+            row.Values.Add(RollValue(row.Id, line));
+    }
+
+    /// <summary>
+    /// One value of <paramref name="line" />, uniform in [Min, Max]; a line with a second range also rolls its high end
+    /// uniform in [Min2, Max2], raised to the low end when below it.
+    /// </summary>
+    private ItemInstanceModifierValue RollValue(Guid modifierId, ItemModifierStat line)
+    {
+        int value = Uniform(line.Min, line.Max);
+        int? high = line.Min2 is { } min2 && line.Max2 is { } max2 ? Math.Max(Uniform(min2, max2), value) : null;
+        return new ItemInstanceModifierValue
         {
-            int value = Uniform(line.Min, line.Max);
-            int? high = line.Min2 is { } min2 && line.Max2 is { } max2 ? Math.Max(Uniform(min2, max2), value) : null;
-            values.Add(new ItemInstanceModifierValue
-            {
-                ItemInstanceModifierId = id,
-                Index = line.Index,
-                Stat = line.Stat,
-                Value = value,
-                Value2 = high,
-            });
+            ItemInstanceModifierId = modifierId,
+            Index = line.Index,
+            Stat = line.Stat,
+            Value = value,
+            Value2 = high,
+        };
+    }
+
+    public AwakenedModifier Awaken(ItemInstanceModifier sealedRow, ushort itemLevel, ItemModifierCatalog catalog)
+    {
+        // A row a reload left out has no tiers to rise through: it wakes as it was, and draws nothing.
+        if (catalog.Find(sealedRow.ModifierId) is not { } modifier || !DrawTierUp())
+            return new AwakenedModifier(Woken(sealedRow, sealedRow.ModifierId, Kept(sealedRow)), AwakeningOutcome.Woken);
+
+        if (catalog.NextTier(modifier) is { } better && better.RequiredItemLevel <= itemLevel + ItemAwakening.TierReach)
+        {
+            ItemInstanceModifier raised = Woken(sealedRow, better.Id, new List<ItemInstanceModifierValue>(better.Stats.Count));
+            RollValues(raised, better);
+            return new AwakenedModifier(raised, AwakeningOutcome.TierRaised);
         }
 
-        return rolled;
+        return new AwakenedModifier(Woken(sealedRow, sealedRow.ModifierId, Polished(sealedRow, modifier)),
+            AwakeningOutcome.Polished);
+    }
+
+    /// <summary>
+    /// Whether a wake rises (#1180): never at a Game:Items:Awakening:TierUpChancePct of 0 and always at 100, neither with a
+    /// draw; between them, one draw of [0, 100) below the chance.
+    /// </summary>
+    private bool DrawTierUp() =>
+        _tierUpChancePct > 0 && (_tierUpChancePct >= 100 || random.NextDouble() * 100 < _tierUpChancePct);
+
+    /// <summary>The woken row: <paramref name="sealedRow" />'s id, item and ordinal, as <paramref name="modifierId" />, unsealed.</summary>
+    private static ItemInstanceModifier Woken(ItemInstanceModifier sealedRow, int modifierId,
+        List<ItemInstanceModifierValue> values) => new()
+        {
+            Id = sealedRow.Id,
+            ItemInstanceId = sealedRow.ItemInstanceId,
+            ModifierId = modifierId,
+            Ordinal = sealedRow.Ordinal,
+            Values = values,
+            SealProgress = null,
+        };
+
+    /// <summary>A copy of each of the row's values, in its order.</summary>
+    private static List<ItemInstanceModifierValue> Kept(ItemInstanceModifier row)
+    {
+        var values = new List<ItemInstanceModifierValue>(row.Values.Count);
+        foreach (ItemInstanceModifierValue value in row.Values)
+            values.Add(value.Copy());
+
+        return values;
+    }
+
+    /// <summary>
+    /// The polish: each of the row's values, in index order, rolled again within its line of <paramref name="modifier" />
+    /// as a roll makes it, the new one kept only when its ends sum higher than the old; a value whose line the catalog no
+    /// longer has is kept. Each kept line is whole, so its high end stays at or above its low end.
+    /// </summary>
+    private List<ItemInstanceModifierValue> Polished(ItemInstanceModifier row, ItemModifier modifier)
+    {
+        var values = new List<ItemInstanceModifierValue>(row.Values.Count);
+        foreach (ItemInstanceModifierValue old in row.Values)
+        {
+            ItemModifierStat? line = LineAt(modifier, old.Index);
+            if (line is null)
+            {
+                values.Add(old.Copy());
+                continue;
+            }
+
+            ItemInstanceModifierValue rolled = RollValue(row.Id, line);
+            long before = old.Value + (long)old.Value2.GetValueOrDefault();
+            long after = rolled.Value + (long)rolled.Value2.GetValueOrDefault();
+            values.Add(after > before ? rolled : old.Copy());
+        }
+
+        return values;
+    }
+
+    private static ItemModifierStat? LineAt(ItemModifier modifier, byte index)
+    {
+        foreach (ItemModifierStat line in modifier.Stats)
+        {
+            if (line.Index == index)
+                return line;
+        }
+
+        return null;
     }
 
     private int Uniform(int min, int max) => (int)random.NextInt64(min, (long)max + 1);

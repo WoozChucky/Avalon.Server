@@ -180,6 +180,10 @@ public enum NetworkPacketType : short
     SMSG_ITEM_USE_RESULT = 0x3091,
     SMSG_ITEM_IDENTIFY_RESULT = 0x3092,
 
+    // Awakening (#1180): a worn sealed affix's bar, and its wake
+    SMSG_AWAKENING_PROGRESS = 0x3093,
+    SMSG_ITEM_AWAKENED = 0x3094,
+
     // Vendors
     SMSG_VENDOR_LIST = 0x30A0,
     SMSG_VENDOR_RESULT = 0x30A1,

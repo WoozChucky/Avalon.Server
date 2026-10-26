@@ -573,5 +573,8 @@ public class CharacterInventoryServiceShould
 
         public void RollDrops(List<RolledDrop> drops, in DropContext context, ItemsPatch items) =>
             inner.RollDrops(drops, context, items);
+
+        public AwakenedModifier Awaken(ItemInstanceModifier sealedRow, ushort itemLevel, ItemModifierCatalog catalog) =>
+            inner.Awaken(sealedRow, itemLevel, catalog);
     }
 }

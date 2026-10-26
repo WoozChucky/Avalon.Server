@@ -4,24 +4,33 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World;
-using Avalon.World.Characters;
 using Avalon.World.Auras;
+using Avalon.World.Characters;
 using Avalon.World.Combat;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
+using Avalon.World.Loot;
 using Avalon.World.Persistence;
+using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Testing.Scenarios;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 
@@ -48,6 +57,8 @@ public class AwakeningShould
     /// <summary>
     /// Each row's progress once a save snapshot settled it. Every row but the one taken off settles nothing before the
     /// snapshot, so it also proves that its hits and kills marked nothing for a save and recorded nothing for the client.
+    /// A row ending "then the tick's flush" is read through the tick's Awakening flush instead: a full bar wakes, sent once
+    /// and with no progress for the row that woke; a partial one is sent once as its slot's progress.
     /// </summary>
     [Theory]
     [InlineData("a solo kill of a Normal creature in one hit", 2)]
@@ -61,6 +72,8 @@ public class AwakeningShould
     [InlineData("taken off after half an Elite, then a Normal kill", 1)]
     [InlineData("a Boss of uint.MaxValue health, with no armour or resistance, one hit removing all of it", 40)]
     [InlineData("an item level 1 amulet at 45, a Boss kill", 50)]
+    [InlineData("an item level 1 amulet at 45, a Boss kill, then the tick's flush", 50)]
+    [InlineData("a solo kill of a Normal creature in one hit, then the tick's flush", 2)]
     public void Fill_the_bar_from_kills_and_damage_while_worn(string @case, int expected)
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, world: MapInstanceClients.NewWorld(Data),
@@ -72,6 +85,7 @@ public class AwakeningShould
         switch (@case)
         {
             case "a solo kill of a Normal creature in one hit":
+            case "a solo kill of a Normal creature in one hit, then the tick's flush":
             {
                 sealedItems = Dress(instance, wearer);
                 Creature foe = Foe(instance, 1180_981, CreatureRarity.Normal, health: 100);
@@ -177,6 +191,7 @@ public class AwakeningShould
             }
 
             case "an item level 1 amulet at 45, a Boss kill":
+            case "an item level 1 amulet at 45, a Boss kill, then the tick's flush":
             {
                 sealedItems = Dress(instance, wearer, progress: 45);
                 Creature boss = Foe(instance, 1180_991, CreatureRarity.Boss, health: 100);
@@ -196,6 +211,12 @@ public class AwakeningShould
             Assert.False(wearer.ClientChanges.HasChanges);
         }
 
+        if (@case.EndsWith(", then the tick's flush", StringComparison.Ordinal))
+        {
+            AssertFlushed(wearer, expected);
+            return;
+        }
+
         CharacterSaveSnapshot.Take(wearer);
 
         // Each sealed row reads the same, and is still sealed: a settle never wakes one.
@@ -203,6 +224,170 @@ public class AwakeningShould
         if (@case.StartsWith("half an Elite", StringComparison.Ordinal))
             Assert.Equal(500, TestCharacters.AwakeningOf(wearer).PendingMilli);
     }
+
+    /// <summary>
+    /// The wake (#1180), through the tick's Awakening flush over the seeded catalog: an identified rare amulet worn on Neck
+    /// carrying an awake "S1 T9" (Thorn) and a sealed "S5 Fire" row of the case's tier, item level and progress. A full
+    /// bar wakes: as it was on a missed draw (the default 20 %), one tier better when that tier's item level is within the
+    /// item's plus 3, and otherwise polished, each value rolled again within its tier and the higher kept.
+    /// <paramref name="expected" /> is the row as "{key} {outcome} {values}", or "sealed" when nothing woke.
+    /// </summary>
+    [Theory]
+    [InlineData("T9 at item level 1 at 50, the draw 0.2 misses", "S5 Fire T9 Woken 1")]
+    [InlineData("T9 at item level 1 at 50, the draw 0.19 hits", "S5 Fire T8 TierRaised 3")]
+    [InlineData("T8 at item level 1 at 50, a hit: T7 out of reach", "S5 Fire T8 Polished 3")]
+    [InlineData("T8 at item level 4 at 80, a hit", "S5 Fire T7 TierRaised 4")]
+    [InlineData("T7 at item level 10 at 140, a hit, the new roll lower", "S5 Fire T7 Polished 4")]
+    [InlineData("T7 at item level 10 at 140, a hit, the new roll higher", "S5 Fire T7 Polished 4")]
+    [InlineData("one point short", "sealed")]
+    [InlineData("in the bag at its threshold", "sealed")]
+    [InlineData("already attuned, at its threshold, a miss", "S5 Fire T9 Woken 1")]
+    public void Wake_at_the_threshold_through_the_tick_flush(string @case, string expected)
+    {
+        // No roll makes a T8 seal at item level 1 today (T8 needs 4); the row holds the reach rule for later tiers.
+        WakeCase setup = @case switch
+        {
+            "T9 at item level 1 at 50, the draw 0.2 misses" => new("T9", 1, 50, 1, [0.2], []),
+            "T9 at item level 1 at 50, the draw 0.19 hits" => new("T9", 1, 50, 1, [0.19], [3]),
+            "T8 at item level 1 at 50, a hit: T7 out of reach" => new("T8", 1, 50, 2, [0.19], [3]),
+            "T8 at item level 4 at 80, a hit" => new("T8", 4, 80, 2, [0.19], [4]),
+            "T7 at item level 10 at 140, a hit, the new roll lower" => new("T7", 10, 140, 4, [0.19], [3]),
+            "T7 at item level 10 at 140, a hit, the new roll higher" => new("T7", 10, 140, 3, [0.19], [4]),
+            "one point short" => new("T9", 1, 49, 1, [], []),
+            "in the bag at its threshold" => new("T9", 1, 50, 1, [], [], InBag: true),
+            "already attuned, at its threshold, a miss" => new("T9", 1, 50, 1, [0.5], [], Attuned: true),
+            _ => throw new ArgumentOutOfRangeException(nameof(@case), @case, null),
+        };
+
+        CharacterEntity character = TestCharacters.New(1180_811, time: _clock);
+        character.Level = WearerLevel;
+        InventoryType container = setup.InBag ? InventoryType.Bag : InventoryType.Equipment;
+        byte slot = setup.InBag ? (byte)0 : EquipmentSlots.Neck;
+        InventoryItem amulet = TestCharacters.Item(slot, Data.FindItemTemplate(new ItemTemplateId(69))!) with
+        {
+            Rarity = ItemRarity.Rare,
+            ItemLevel = setup.ItemLevel,
+            Flags = setup.Attuned ? ItemInstanceFlags.Attuned : ItemInstanceFlags.None,
+        };
+        ItemInstanceModifier awake = TestModifiers.Modifier(amulet.InstanceId, CatalogKeys.ModifierId("S1 T9"), 0,
+            (0, StatType.Strength, 1, null));
+        ItemInstanceModifier sealedRow = TestModifiers.Modifier(amulet.InstanceId, CatalogKeys.ModifierId($"S5 Fire {setup.Tier}"),
+            1, (0, StatType.FireResistance, setup.Value, null));
+        sealedRow.SealProgress = setup.Progress;
+        character.ItemModifiers.Load(
+            [new ItemInstance { Identified = true, Id = amulet.InstanceId, TemplateId = amulet.TemplateId, Modifiers = [awake, sealedRow] }]);
+        character.Container(container).Load([amulet]);
+        Assert.True(CharacterStatsRefresh.Apply(character, Data, CurrentValues.EnterWorld));
+
+        IReadOnlyList<ItemInstanceModifier> before = character.ItemModifiers.Of(amulet.InstanceId);
+        float fireBefore = character.Stats!.Value.Resistances.Fire;
+        if (!setup.InBag)
+            Assert.Equal("Thorn 1", ResonanceNamed(character));
+
+        var draws = new ScriptedLootRandom(setup.Doubles, setup.Integers);
+        AwakeningFlusher flusher = Flusher(draws);
+        var sent = new List<OutboundPacket>();
+        IWorldConnection connection = Recording(character, sent);
+        flusher.Flush(connection, Data);
+
+        ItemInstanceModifier row = character.ItemModifiers.Of(amulet.InstanceId)[1];
+        if (expected == "sealed")
+        {
+            Assert.Equal(setup.Progress, row.SealProgress);
+            Assert.Same(before, character.ItemModifiers.Of(amulet.InstanceId));
+            Assert.Empty(sent);
+            Assert.Equal(SaveState.Unchanged, character.SaveState.ItemState(amulet.InstanceId));
+            Assert.False(character.ClientChanges.HasChanges);
+            Assert.True(draws.Exhausted);
+            return;
+        }
+
+        SItemAwakenedPacket awakened = Assert.Single(TestTown.Read<SItemAwakenedPacket>(sent, NetworkPacketType.SMSG_ITEM_AWAKENED));
+        Assert.Equal(expected,
+            $"{KeyOf(row.ModifierId)} {awakened.Outcome} {string.Join(",", row.Values.Select(v => v.Value))}");
+        Assert.Empty(TestTown.Read<SAwakeningProgressPacket>(sent, NetworkPacketType.SMSG_AWAKENING_PROGRESS));
+        Assert.Equal(((uint)EquipmentSlots.Neck, (uint)row.ModifierId), (awakened.EquipmentSlot, awakened.ModifierId));
+
+        // A new list and a new row in the sealed one's place, keeping its id and ordinal, no longer sealed.
+        Assert.NotSame(before, character.ItemModifiers.Of(amulet.InstanceId));
+        Assert.Equal((sealedRow.Id, sealedRow.Ordinal, (int?)null), (row.Id, row.Ordinal, row.SealProgress));
+        Assert.True((TestCharacters.At(character, InventoryType.Equipment, EquipmentSlots.Neck).Flags & ItemInstanceFlags.Attuned) != 0);
+        Assert.Contains((InventoryType.Equipment, EquipmentSlots.Neck), character.ClientChanges.Slots);
+
+        // The stats were refreshed and Resonance counted again: the woken value adds its fire resistance, and Ember.
+        Assert.Equal((0f, (float)row.Values[0].Value), (fireBefore, character.Stats!.Value.Resistances.Fire));
+        Assert.Equal("Ember 1, Thorn 1", ResonanceNamed(character));
+
+        // Sent once: the next tick's flush has nothing to say.
+        sent.Clear();
+        flusher.Flush(connection, Data);
+        Assert.Empty(sent);
+        Assert.True(draws.Exhausted);
+        Assert.True(character.SaveState.TakeMarks().Items[amulet.InstanceId].Modifiers);
+    }
+
+    /// <summary>
+    /// The tick's Awakening flush for <paramref name="wearer" />, whose amulet on Neck settled to
+    /// <paramref name="progress" />, run twice: a full bar (item level 1's 50) wakes, sent once with no progress for it;
+    /// any other bar is sent once as Neck's progress. A wake misses its tier-up draw.
+    /// </summary>
+    private static void AssertFlushed(CharacterEntity wearer, int progress)
+    {
+        bool full = progress == ItemAwakening.Threshold(1);
+        var draws = new ScriptedLootRandom(full ? [0.5] : []);
+        AwakeningFlusher flusher = Flusher(draws);
+        var sent = new List<OutboundPacket>();
+        IWorldConnection connection = Recording(wearer, sent);
+        flusher.Flush(connection, Data);
+        flusher.Flush(connection, Data);
+
+        List<SItemAwakenedPacket> woken = TestTown.Read<SItemAwakenedPacket>(sent, NetworkPacketType.SMSG_ITEM_AWAKENED);
+        List<SAwakeningProgressPacket> bars = TestTown.Read<SAwakeningProgressPacket>(sent, NetworkPacketType.SMSG_AWAKENING_PROGRESS);
+        if (full)
+        {
+            Assert.Equal((uint)EquipmentSlots.Neck, Assert.Single(woken).EquipmentSlot);
+            Assert.Empty(bars);
+        }
+        else
+        {
+            Assert.Empty(woken);
+            Assert.Equal([((uint)EquipmentSlots.Neck, (uint)progress)],
+                Assert.Single(bars).Items.Select(entry => (entry.EquipmentSlot, entry.Progress)));
+        }
+
+        Assert.True(draws.Exhausted);
+    }
+
+    /// <summary>The tick's Awakening flush over an economy on the seeded data, its roller drawing from <paramref name="draws" />.</summary>
+    private static AwakeningFlusher Flusher(ILootRandom draws)
+    {
+        var ids = new ItemIdAllocator();
+        var economy = new CharacterEconomy(MapInstanceClients.NewWorld(Data), ids,
+            new ItemRoller(draws, ids, Options.Create(new GameConfiguration())));
+        return new AwakeningFlusher(economy, NullLogger.Instance);
+    }
+
+    private static IWorldConnection Recording(CharacterEntity character, List<OutboundPacket> sent)
+    {
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
+        TestTown.Record(connection, character, sent);
+        return connection;
+    }
+
+    private static string KeyOf(int modifierId) => CatalogKeys.All().Single(row => row.ModifierId == modifierId).Key;
+
+    /// <summary>The character's Resonance counts above 0 as "Theme count", by the seeded theme names.</summary>
+    private static string ResonanceNamed(CharacterEntity character)
+    {
+        Dictionary<int, string> names = ItemModifierSeed.Themes().ToDictionary(theme => theme.Id, theme => theme.Name);
+        List<string> counted = [];
+        foreach (ThemeCount pair in TestCharacters.ResonanceOf(character))
+            counted.Add($"{names[pair.ThemeId]} {pair.Count}");
+        return string.Join(", ", counted);
+    }
+
+    private sealed record WakeCase(string Tier, ushort ItemLevel, int Progress, int Value, double[] Doubles, long[] Integers,
+        bool InBag = false, bool Attuned = false);
 
     /// <summary>
     /// <paramref name="character" />, at level 10, wearing (or holding in its bag) an identified rare amulet of
