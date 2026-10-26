@@ -341,13 +341,14 @@ singletons as in every host. Only their context factories differ in the API, whi
   it trades again. No world or API does that by itself.
   **Migration order, #1180 (part C).** Extraction is additive. A world's World database migrates through
   `AddGlyphTemplate`, which inserts item template row 152, the Glyph (`ItemClass.Crafting`, `ItemSubClass.Glyph` 401,
-  priced 0), and nothing else. Its Character database migrates through `AddImprintsAndInstability`: six columns, each
-  `NOT NULL` with a default, so every existing row reads 0 or false: `ItemInstances.Instability` and
-  `TradeRecordItems.Instability` (`smallint`, default 0), `ItemInstances.Tainted` and `TradeRecordItems.Tainted`
-  (`boolean`, default false), and `ItemInstanceModifiers.Imprinted` and `TradeRecordItemModifiers.Imprinted`
-  (`boolean`, default false); and four checks, `CK_ItemInstances_Instability` and `CK_TradeRecordItems_Instability`
-  (`"Instability" >= 0`), and `CK_ItemInstances_Tainted` and `CK_TradeRecordItems_Tainted`
-  (`"Tainted" = ("Instability" >= 100)`). There is no backfill: no existing copy is imprinted, unstable or Tainted.
+  priced 0), and nothing else. Its Character database migrates through `AddImprintsAndInstability`: six `NOT NULL`
+  columns, each added with a default that fills every existing row with 0 or false and is then dropped, as the model
+  declares none, so no insert can leave a column out: `ItemInstances.Instability` and `TradeRecordItems.Instability`
+  (`smallint`, 0), `ItemInstances.Tainted` and `TradeRecordItems.Tainted` (`boolean`, false), and
+  `ItemInstanceModifiers.Imprinted` and `TradeRecordItemModifiers.Imprinted` (`boolean`, false); and four checks,
+  `CK_ItemInstances_Instability` and `CK_TradeRecordItems_Instability` (`"Instability" >= 0`), and
+  `CK_ItemInstances_Tainted` and `CK_TradeRecordItems_Tainted` (`"Tainted" = ("Instability" >= 100)`).
+  There is no backfill: no existing copy is imprinted, unstable or Tainted.
   Each world applies both at its start, before it serves (`WorldStartup`). The order is: the worlds go first, each
   migrating at its next start (start any stopped world once, so it migrates too), and then the API release with the
   change is cut. The API reads the new columns (the inventory read loads each `ItemInstance` whole, `Instability`

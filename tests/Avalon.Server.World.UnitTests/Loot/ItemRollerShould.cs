@@ -370,7 +370,9 @@ public class ItemRollerShould
     /// family offers within the item level (no draw when only one is), then its values; the implicit is kept. Each row
     /// imprints the glyph S14 T9 onto a rare plate chest carrying its implicit, a sealed P12 T9 at 17 and S1 T9, every draw
     /// scripted, so an extra or missing one fails. <paramref name="expected" /> is "{instability} {bricked|kept}: {each
-    /// row's key in ordinal order, sealed and imprinted as DescribeRolls marks them}".
+    /// row's key in ordinal order, sealed and imprinted as DescribeRolls marks them}", or "throws" for a brick that finds
+    /// an affix offered no tier (below every tier's item level here), which fails loudly rather than keep the tier, having
+    /// written none of the target's rows.
     /// </summary>
     [Theory]
     [InlineData("20/45, from 0, the draw 30: kept, one draw",
@@ -383,6 +385,7 @@ public class ItemRollerShould
         "100 bricked: implicit IncreasedMaximumLife T8 | P12 T9 sealed 17 | S1 T9 | S14 T9 imprinted")]
     [InlineData("45/45, from 0: still one draw",
         "45 kept: implicit IncreasedMaximumLife T8 | P12 T9 sealed 17 | S1 T9 | S14 T9 imprinted")]
+    [InlineData("from 70, the draw 30, at item level 0: no tier offered", "throws")]
     public void Imprint_a_glyph_and_brick_at_the_instability_limit(string @case, string expected)
     {
         (int min, int max, ushort instability, ushort itemLevel, long[] integers) = @case switch
@@ -395,6 +398,7 @@ public class ItemRollerShould
             "from 70, the draw 30, at item level 3: only T9 allowed, no tier draws, values only" =>
                 (20, 45, (ushort)70, (ushort)3, [30, 2, 1, 1]),
             "45/45, from 0: still one draw" => (45, 45, (ushort)0, (ushort)9, [45]),
+            "from 70, the draw 30, at item level 0: no tier offered" => (20, 45, (ushort)70, (ushort)0, [30]),
             _ => throw new ArgumentOutOfRangeException(nameof(@case), @case, null),
         };
         ItemTemplate chest = Template(13);
@@ -413,9 +417,17 @@ public class ItemRollerShould
         ItemInstanceModifier glyphRow = Row(new ItemInstanceId(Guid.CreateVersion7()), "S14 T9", 0, 2);
         string before = TestModifiers.DescribeRolls(rows);
         var script = new ScriptedLootRandom([], integers);
+        IItemRoller roller = Roller(script, instabilityMin: min, instabilityMax: max);
+        if (expected == "throws")
+        {
+            Assert.Throws<InvalidOperationException>(() =>
+                roller.Imprint(rows, glyphRow, target, kind, itemLevel, instability, Catalog));
+            Assert.True(script.Exhausted, "the imprint left scripted draws unused");
+            Assert.Equal(before, TestModifiers.DescribeRolls(rows));
+            return;
+        }
 
-        ImprintedRows imprinted = Roller(script, instabilityMin: min, instabilityMax: max)
-            .Imprint(rows, glyphRow, target, kind, itemLevel, instability, Catalog);
+        ImprintedRows imprinted = roller.Imprint(rows, glyphRow, target, kind, itemLevel, instability, Catalog);
 
         Assert.True(script.Exhausted, "the imprint left scripted draws unused");
         IReadOnlyList<ItemInstanceModifier> result = imprinted.Modifiers;

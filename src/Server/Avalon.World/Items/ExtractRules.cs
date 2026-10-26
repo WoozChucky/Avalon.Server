@@ -74,7 +74,7 @@ public static class ExtractRules
             return false;
 
         if (modifierId > int.MaxValue || ExtractableRow(character.ItemModifiers.Of(item.InstanceId), (int)modifierId,
-                items.Modifiers) is null)
+                items.Modifiers, out _) is null)
         {
             return false;
         }
@@ -84,22 +84,28 @@ public static class ExtractRules
 
     /// <summary>
     /// The row of <paramref name="rows" /> carrying <paramref name="modifierId" />, when it is an awake prefix or suffix
-    /// <paramref name="catalog" /> still holds; otherwise null. Shared by the rules and the inventory service, so both judge
-    /// the same row the same way. An item never carries two rows of one modifier (one per group).
+    /// <paramref name="catalog" /> still holds, with that catalog row as <paramref name="modifier" />; otherwise null, and
+    /// <paramref name="modifier" /> null. Shared by the rules and the inventory service, so both judge the same row the same
+    /// way. An item never carries two rows of one modifier (one per group).
     /// </summary>
     internal static ItemInstanceModifier? ExtractableRow(IReadOnlyList<ItemInstanceModifier> rows, int modifierId,
-        ItemModifierCatalog catalog)
+        ItemModifierCatalog catalog, out ItemModifier? modifier)
     {
+        modifier = null;
         for (int i = 0; i < rows.Count; i++)
         {
             ItemInstanceModifier row = rows[i];
             if (row.ModifierId != modifierId)
                 continue;
 
-            return !row.Sealed
-                   && catalog.Find(modifierId)?.Group is { Kind: ItemModifierKind.Prefix or ItemModifierKind.Suffix }
-                ? row
-                : null;
+            if (row.Sealed
+                || catalog.Find(modifierId) is not { Group.Kind: ItemModifierKind.Prefix or ItemModifierKind.Suffix } found)
+            {
+                return null;
+            }
+
+            modifier = found;
+            return row;
         }
 
         return null;

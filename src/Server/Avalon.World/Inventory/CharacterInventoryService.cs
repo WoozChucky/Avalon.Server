@@ -78,7 +78,7 @@ public sealed class CharacterInventoryService(
             {
                 Create(InventoryType.Bag, new InventoryItem(slot, itemIds.Next(), templateId, take,
                     ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None, template!.Rarity,
-                    ItemInstanceDefaults.InitialItemLevel(template), RareName: null, Identified: true));
+                    ItemInstanceDefaults.InitialItemLevel(template), RareName: null, Identified: true, Tainted: false));
             }
 
             remaining -= take;
@@ -309,13 +309,17 @@ public sealed class CharacterInventoryService(
 
     public bool TryExtract(byte bagSlot, int modifierId)
     {
-        if (!Bag.TryGet(bagSlot, out InventoryItem item) || !ItemModification.Allowed(item))
+        // A stack offered in a trade is Locked here too, as every removal by id is, whoever calls this.
+        if (!Bag.TryGet(bagSlot, out InventoryItem item) || !ItemModification.Allowed(item)
+            || owner.Locks.IsLocked(item.InstanceId))
+        {
             return false;
+        }
 
         ItemsPatch items = currentItems();
         if (items.Glyph is not { } glyphTemplate
-            || ExtractRules.ExtractableRow(owner.ItemModifiers.Of(item.InstanceId), modifierId, items.Modifiers) is not { } row
-            || items.Modifiers.Find(modifierId) is not { } modifier)
+            || ExtractRules.ExtractableRow(owner.ItemModifiers.Of(item.InstanceId), modifierId, items.Modifiers,
+                out ItemModifier? modifier) is not { } row)
         {
             return false;
         }
@@ -325,7 +329,7 @@ public sealed class CharacterInventoryService(
         List<ItemInstanceModifier> glyphRows = [row.CopyAs(itemIds.NextModifierId(), glyphId, 0, imprinted: false)];
         var glyph = new InventoryItem(bagSlot, glyphId, glyphTemplate.Id, 1,
             ItemInstanceDefaults.InitialDurability(glyphTemplate), ItemInstanceFlags.Attuned, ItemRarity.Magic,
-            modifier.RequiredItemLevel, RareName: null, Identified: true);
+            modifier!.RequiredItemLevel, RareName: null, Identified: true, Tainted: false);
 
         // The item's delete takes its slot and its store entry; the glyph then fills the same slot, so no free slot is
         // needed, and the slot's mark nets to Changed.
@@ -340,7 +344,8 @@ public sealed class CharacterInventoryService(
     {
         CharacterInventoryContainer bag = Bag;
         if (glyphSlot == targetSlot || !bag.TryGet(glyphSlot, out InventoryItem glyph)
-            || !bag.TryGet(targetSlot, out InventoryItem target) || !ItemModification.Allowed(target))
+            || !bag.TryGet(targetSlot, out InventoryItem target) || !ItemModification.Allowed(target)
+            || !owner.ItemModifiers.IsOneOfAKind(target.InstanceId))
         {
             return null;
         }
@@ -352,23 +357,28 @@ public sealed class CharacterInventoryService(
             return null;
         }
 
-        // The new list is made in full first, and the store's replace (the one step that can refuse) comes before the
-        // glyph goes: whatever throws here leaves the glyph and the item as they were.
+        // All or nothing: the new list and the item's new flags are made in full first, so whatever throws here leaves the
+        // glyph and the item as they were. A bricked item is Tainted and never bound again; any other imprint binds it.
         ImprintedRows imprinted = roller.Imprint(owner.ItemModifiers.Of(target.InstanceId), glyphRow, target.InstanceId,
             template.BaseKind!.Value, target.ItemLevel, owner.ItemModifiers.InstabilityOf(target.InstanceId),
             items.Modifiers);
-        owner.ItemModifiers.ReplaceModifiers(target.InstanceId, imprinted.Modifiers, imprinted.Instability);
-        owner.SaveState.ItemModifiersChanged(target.InstanceId);
-        Delete(InventoryType.Bag, glyph);
+        InventoryItem? changed = imprinted.Bricked
+            ? target with { Tainted = true, Flags = target.Flags & ~ItemInstanceFlags.Attuned }
+            : (target.Flags & ItemInstanceFlags.Attuned) == 0
+                ? target with { Flags = target.Flags | ItemInstanceFlags.Attuned }
+                : null;
 
-        // A bricked item is Tainted and never bound again; any other imprint binds it.
-        if (imprinted.Bricked)
-            Replace(InventoryType.Bag, target with { Tainted = true, Flags = target.Flags & ~ItemInstanceFlags.Attuned });
-        else if ((target.Flags & ItemInstanceFlags.Attuned) == 0)
-            Replace(InventoryType.Bag, target with { Flags = target.Flags | ItemInstanceFlags.Attuned });
+        // The store's replace (whose refusals are ruled out: the item has an entry, checked above, and the roller's list is
+        // always new) and the item's Tainted are written in one step, with nothing between them that can throw, so no item
+        // ever holds a bricking total untainted. The glyph goes after.
+        owner.ItemModifiers.ReplaceModifiers(target.InstanceId, imprinted.Modifiers, imprinted.Instability);
+        if (changed is { } item)
+            Replace(InventoryType.Bag, item);
         else
             owner.ClientChanges.RecordSlot(InventoryType.Bag, targetSlot);
 
+        owner.SaveState.ItemModifiersChanged(target.InstanceId);
+        Delete(InventoryType.Bag, glyph);
         return imprinted.Bricked ? ItemImprintResult.Bricked : ItemImprintResult.Ok;
     }
 
@@ -560,7 +570,7 @@ public sealed class CharacterInventoryService(
     {
         Create(InventoryType.Bag, new InventoryItem(slot, rolled.InstanceId, rolled.TemplateId, 1,
             ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel,
-            rolled.RareName, identified));
+            rolled.RareName, identified, Tainted: false));
         if (!rolled.HasRolledRows)
             return;
 

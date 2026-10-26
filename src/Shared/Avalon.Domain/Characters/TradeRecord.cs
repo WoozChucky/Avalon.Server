@@ -55,10 +55,10 @@ public class TradeRecordItem
     /// The item's hidden instability when it moved (#1180, <see cref="ItemInstance.Instability" />): kept so the record is
     /// the whole copy, and never shown.
     /// </summary>
-    public ushort Instability { get; set; }
+    public required ushort Instability { get; set; }
 
     /// <summary>Whether the item was Tainted when it moved (#1180): exactly when its instability had reached the brick.</summary>
-    public bool Tainted { get; set; }
+    public required bool Tainted { get; set; }
 
     /// <summary>The item's base stats as they were when it moved (#1179): the record's own copy, one row per stat.</summary>
     public List<TradeRecordItemBaseStat> BaseStats { get; set; } = [];

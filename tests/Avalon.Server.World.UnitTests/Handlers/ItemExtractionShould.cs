@@ -42,7 +42,7 @@ public class ItemExtractionShould
     private static readonly StaticData s_data = ScenarioReferenceData.Shared.Data;
     private static readonly ItemTemplate s_chest = s_data.Items.Templates.Single(t => t.Name == "Ironbound Chestguard");
     private static readonly ItemTemplate s_helm = s_data.Items.Templates.Single(t => t.Name == "Ironbound Helm");
-    private static readonly ItemTemplate s_unique = s_data.Items.Find(new ItemTemplateId(65))!;
+    private static readonly ItemTemplate s_unique = s_data.Items.Templates.First(t => t.Rarity == ItemRarity.Unique);
     private static readonly ItemTemplate s_sword = s_data.Items.Templates.First(t => t.BaseKind == ItemBaseKind.Sword);
 
     private static readonly DoodadTemplateView s_workbench =
@@ -86,6 +86,7 @@ public class ItemExtractionShould
     [InlineData("no such affix", ItemExtractResult.NotExtractable)]
     [InlineData("the implicit", ItemExtractResult.NotExtractable)]
     [InlineData("the sealed affix", ItemExtractResult.NotExtractable)]
+    [InlineData("no glyph template in the patch", ItemExtractResult.NotExtractable)]
     public async Task Refuse_an_extract_naming_why_in_order(string @case, ItemExtractResult expected)
     {
         StaticData data = s_data;
@@ -107,6 +108,10 @@ public class ItemExtractionShould
                 data = await ScenarioReferenceData.Shared.NewDataAsync(auras => auras);
                 template = NoDestroyCopyOf(s_chest, data.Items.Templates.Max(t => t.Id.Value) + 1);
                 data.Apply(data.Items with { Templates = [.. data.Items.Templates, template] });
+                break;
+            case "no glyph template in the patch":
+                data = await ScenarioReferenceData.Shared.NewDataAsync(auras => auras);
+                data.Apply(data.Items with { Templates = [.. data.Items.Templates.Where(t => t.SubClass != ItemSubClass.Glyph)] });
                 break;
         }
 
@@ -197,6 +202,8 @@ public class ItemExtractionShould
             (glyph.TemplateId, glyph.Count, glyph.Rarity, glyph.Identified, glyph.Flags, glyph.Tainted, glyph.ItemLevel));
 
         Assert.False(character.ItemModifiers.IsOneOfAKind(old));
+        // A glyph is a new copy: the helm's 40 never comes with its affix.
+        Assert.Equal(0, character.ItemModifiers.InstabilityOf(glyph.InstanceId));
         ItemInstanceModifier row = Assert.Single(character.ItemModifiers.Of(glyph.InstanceId));
         Assert.Equal((modifierId, (byte)0, false, false), (row.ModifierId, row.Ordinal, row.Sealed, row.Imprinted));
         Assert.NotEqual(extracted.Id, row.Id);
@@ -456,6 +463,34 @@ public class ItemExtractionShould
     }
 
     /// <summary>
+    /// #1180 part C: an imprint is all or nothing. When the inventory service refuses an imprint ImprintRules allowed (here
+    /// a magic chest whose copy carries no rolled rows, which no game path makes), it has written nothing, and the handler
+    /// gives the gold it spent back: the answer is InternalError, and neither item, nor the store, nor the gold has changed.
+    /// </summary>
+    [Fact]
+    public void Give_back_the_gold_of_an_imprint_the_inventory_service_refuses_after_the_rules_allowed_it()
+    {
+        CarriedItem target = TestCharacters.Carried(new InventoryItem(Slot, new ItemInstanceId(Guid.CreateVersion7()), s_chest.Id, 1,
+            0, ItemInstanceFlags.None, ItemRarity.Magic, 9, RareName: null, Identified: true, Tainted: false));
+        using var f = new Fixture(s_data, target, Glyph("S14 T9"), Gold);
+        CharacterEntity character = f.Client.Character;
+        InventoryItem held = TestCharacters.At(character, InventoryType.Bag, GlyphSlot);
+        IReadOnlyList<ItemInstanceModifier> heldRows = character.ItemModifiers.Of(held.InstanceId);
+
+        Assert.Equal(ItemImprintResult.InternalError, f.Imprint(f.Workbench.Guid, GlyphSlot, Slot));
+
+        Assert.Equal(target.Item, TestCharacters.At(character, InventoryType.Bag, Slot));
+        Assert.Equal(held, TestCharacters.At(character, InventoryType.Bag, GlyphSlot));
+        Assert.Same(heldRows, character.ItemModifiers.Of(held.InstanceId));
+        Assert.False(character.ItemModifiers.IsOneOfAKind(target.Item.InstanceId));
+        Assert.Equal(0, character.ItemModifiers.InstabilityOf(target.Item.InstanceId));
+        Assert.Equal(Gold, character.Data!.Gold);
+        SaveMarks marks = character.SaveState.TakeMarks();
+        Assert.Empty(marks.Items);
+        Assert.Empty(marks.Slots);
+    }
+
+    /// <summary>
     /// Points the request at the Workbench, or breaks the Workbench's shared prefix as each flag says: not found (by the
     /// case: a chest's guid, a despawned Workbench, otherwise an unknown guid), too far (by the case: a NaN position,
     /// otherwise 5.01 m away), stunned and dead. Answers the guid the request names.
@@ -527,7 +562,7 @@ public class ItemExtractionShould
         ItemInstanceModifier row = LowEnd(id, key, 0);
         row.ModifierId = modifierId ?? key;
         var item = new InventoryItem(GlyphSlot, id, s_data.Items.Glyph!.Id, 1, 0, ItemInstanceFlags.Attuned,
-            ItemRarity.Magic, s_data.Items.Modifiers.Find(key)!.RequiredItemLevel, null, true);
+            ItemRarity.Magic, s_data.Items.Modifiers.Find(key)!.RequiredItemLevel, null, true, Tainted: false);
         return new CarriedItem(item, default, [row], 0);
     }
 
@@ -573,7 +608,7 @@ public class ItemExtractionShould
     {
         var id = new ItemInstanceId(Guid.CreateVersion7());
         var item = new InventoryItem(Slot, id, s_helm.Id, 1, 0, ItemInstanceFlags.Attuned, ItemRarity.Rare, 9,
-            "Grim Visor", true);
+            "Grim Visor", true, Tainted: false);
         ItemModifier @implicit = s_data.Items.Modifiers.LinkedTo(s_helm.Id).Single();
         ItemModifierStat line = @implicit.Stats[0];
         ItemInstanceModifier imprinted =
@@ -608,8 +643,8 @@ public class ItemExtractionShould
     /// The instance with the seeded Workbench at x 10 and a forest chest (doodad 1) beside it, the character 4 m from the
     /// Workbench holding the item it is given in Bag slot 3, the glyph (or any second item) it is given in Bag slot 5, and
     /// the gold it is given (25 by default), already sent once and saved, so a request starts from a character with
-    /// nothing to save or send. The world's configuration (imprint costs and instability) and the roller's random are the
-    /// test's to choose.
+    /// nothing to save or send. The world's configuration (imprint costs and instability) is the test's to choose; the
+    /// roller draws from a seeded random.
     /// </summary>
     private sealed class Fixture : IDisposable
     {
@@ -617,7 +652,7 @@ public class ItemExtractionShould
         private readonly StaticData _data;
 
         public Fixture(StaticData data, CarriedItem carried, CarriedItem? glyph = null, ulong gold = Gold,
-            GameConfiguration? configuration = null, ILootRandom? random = null)
+            GameConfiguration? configuration = null)
         {
             _data = data;
             configuration ??= new GameConfiguration();
@@ -633,7 +668,7 @@ public class ItemExtractionShould
             Client = Join(Instance, character);
 
             var ids = new ItemIdAllocator();
-            var roller = new ItemRoller(random ?? new LootRandom(new Random(1180)), ids, Options.Create(configuration));
+            var roller = new ItemRoller(new LootRandom(new Random(1180)), ids, Options.Create(configuration));
             Economy = new CharacterEconomy(world, ids, roller);
             Handler = new ItemExtractHandler(NullLogger<ItemExtractHandler>.Instance, world, Economy);
             Imprinter = new ItemImprintHandler(NullLogger<ItemImprintHandler>.Instance, world, Economy);

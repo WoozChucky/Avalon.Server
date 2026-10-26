@@ -103,7 +103,9 @@ public sealed class ItemModifierStore
 
     /// <summary>
     /// At select: every loaded item's modifiers, in ordinal order, each one's values in index order, its base stats and its
-    /// instability. It keeps the loaded objects and marks nothing: they are what the database holds.
+    /// instability. It keeps the loaded objects and marks nothing: they are what the database holds. Throws, as
+    /// <see cref="Put" /> does, for an item carrying instability but no rolled rows, rather than drop a total every later
+    /// save of the item would need.
     /// </summary>
     public void Load(IReadOnlyCollection<ItemInstance> instances)
     {
@@ -117,7 +119,12 @@ public sealed class ItemModifierStore
                 baseStats = baseStats.With(rows[i].Stat, rows[i].Value);
 
             if (!HasRolledRows(baseStats, instance.Modifiers))
+            {
+                if (instance.Instability > 0)
+                    throw new InvalidOperationException($"Item {instance.Id} carries instability but no rolled rows.");
+
                 continue;
+            }
 
             List<ItemInstanceModifier>? modifiers = null;
             if (instance.Modifiers.Count > 0)

@@ -226,12 +226,18 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
 
             // #1180 C-R16: a stored seal on a row this batch writes unsealed is cleared first, in its own statement, so a
             // seal moving between two rows of one item never meets the one-seal index twice, whatever order the tracked
-            // updates below run in.
-            var unsealed = modifiers.Modifiers.Where(m => m.SealProgress is null).Select(m => m.Id).ToList();
+            // updates below run in. Only an item whose new rows hold a seal can meet it, so only its rows are asked: a seal
+            // on a row outside the new set went with the deletes above, and one whose item keeps no seal is written null by
+            // the tracked update alone.
+            var sealedItems = modifiers.Modifiers.Where(m => m.SealProgress is not null).Select(m => m.ItemInstanceId)
+                .Distinct().ToList();
+            var unsealed = modifiers.Modifiers
+                .Where(m => m.SealProgress is null && sealedItems.Contains(m.ItemInstanceId))
+                .Select(m => m.Id).ToList();
             if (unsealed.Count > 0)
             {
                 await context.ItemInstanceModifiers
-                    .Where(m => rewritten.Contains(m.ItemInstanceId) && unsealed.Contains(m.Id) && m.SealProgress != null)
+                    .Where(m => sealedItems.Contains(m.ItemInstanceId) && unsealed.Contains(m.Id) && m.SealProgress != null)
                     .ExecuteUpdateAsync(s => s.SetProperty(m => m.SealProgress, (int?)null), token);
             }
         }

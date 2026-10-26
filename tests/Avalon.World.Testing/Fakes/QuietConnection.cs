@@ -12,11 +12,22 @@ namespace Avalon.World.Testing.Fakes;
 /// <summary>
 /// A connection that only counts what it is sent, and holds the character, dialogue and target a tick
 /// reads, with no packets of its own to process. Allocation-free, so the tick paths it serves can be
-/// pinned at zero bytes. Everything else throws.
+/// pinned at zero bytes, unless <see cref="KeepLastPayload" /> is set. Everything else throws.
 /// </summary>
 public sealed class QuietConnection(CharacterEntity character) : IWorldConnection
 {
+    private byte[] _lastPayload = [];
+
     public int Sent { get; private set; }
+
+    /// <summary>
+    /// While set (a setup's check, never a measured or pinned path, since it copies), each send also keeps a copy of its
+    /// payload as <see cref="LastPayload" />, so a reply can be read back.
+    /// </summary>
+    public bool KeepLastPayload { get; set; }
+
+    /// <summary>The payload of the last packet sent while <see cref="KeepLastPayload" /> was set; empty before one.</summary>
+    public ReadOnlyMemory<byte> LastPayload => _lastPayload;
 
     public ICharacter? Character { get; set; } = character;
 
@@ -29,6 +40,9 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
     {
         Sent++;
         SentPayloadBytes += packet.PayloadLength;
+        if (KeepLastPayload)
+            _lastPayload = packet.PayloadMemory.ToArray();
+
         packet.Release();
     }
 

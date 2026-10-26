@@ -267,7 +267,7 @@ public class InventoryAllocationShould
                 [.. catalog.Find(modifierId)!.Stats.Select(l => (l.Index, l.Stat, l.Min, l.Min2))]));
         }
 
-        return new CarriedItem(new InventoryItem(slot, id, template, 1, 0, flags, rarity, itemLevel, null, true),
+        return new CarriedItem(new InventoryItem(slot, id, template, 1, 0, flags, rarity, itemLevel, null, true, Tainted: false),
             default, rows, 0);
     }
 

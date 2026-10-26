@@ -119,10 +119,10 @@ public interface IInventoryService
     /// count 1, Magic, identified, Attuned (so bound), its item level the affix's required item level, holding one row, a
     /// copy of the affix under a new row id at ordinal 0, unsealed and not imprinted. The glyph and its row are marked New
     /// for the next save, and the slot is recorded for the client. False, changing nothing, unless the slot holds an item
-    /// Items.ItemModification.Allowed accepts carrying an awake prefix or suffix row of <paramref name="modifierId" />
-    /// in the current catalog, and the patch holds a Glyph template. The glyph is built in full before the item is
-    /// destroyed. It checks nothing else: ExtractRules decides the request (the Workbench, a trade's lock, the base and
-    /// its rarity) first.
+    /// Items.ItemModification.Allowed accepts, not offered in a trade, carrying an awake prefix or suffix row of
+    /// <paramref name="modifierId" /> in the current catalog, and the patch holds a Glyph template. The glyph is built in
+    /// full before the item is destroyed. It checks nothing else: ExtractRules decides the request (the Workbench, the base
+    /// and its rarity) first.
     /// </summary>
     bool TryExtract(byte bagSlot, int modifierId);
 
@@ -132,12 +132,14 @@ public interface IInventoryService
     /// next ordinal, imprinted) and its new instability, which becomes the item's in the store, marked for the next save;
     /// the glyph is destroyed, marked Removed. When the new total bricks the item, its affixes were rerolled among their
     /// weakest tiers, and the item is replaced Tainted with Attuned cleared, never modified or bound again; otherwise it
-    /// is replaced Attuned, or, already Attuned, only its slot is recorded for the client. Answers Bricked or Ok; null,
-    /// changing nothing, unless both slots are held and differ, the glyph is a glyph holding one row of a tiered prefix or
-    /// suffix the catalog holds, and the item is one Items.ItemModification.Allowed accepts of a rolled base. It checks
-    /// nothing else: ImprintRules decides the request (the Workbench, a trade's lock, the rarity, the room, the group, the
-    /// base kind, the item level and the gold) first, and the caller spends the gold. It never logs or throws with the
-    /// item's instability in a message.
+    /// is replaced Attuned, or, already Attuned, only its slot is recorded for the client. All or nothing: the new list and
+    /// the item's new flags are made before anything is written, and the store's replace and the item's Tainted are
+    /// written together, so no item holds a bricking total untainted. Answers Bricked or Ok; null, changing nothing,
+    /// unless both slots are held and differ, the glyph is a glyph holding one row of a tiered prefix or suffix the
+    /// catalog holds, and the item is one Items.ItemModification.Allowed accepts of a rolled base, carrying rolled rows.
+    /// It checks nothing else: ImprintRules decides the request (the Workbench, a trade's lock, the rarity, the room, the
+    /// group, the base kind, the item level and the gold) first, and the caller spends the gold, giving it back on a null.
+    /// It never logs or throws with the item's instability in a message.
     /// </summary>
     ItemImprintResult? TryImprint(byte glyphSlot, byte targetSlot);
 }

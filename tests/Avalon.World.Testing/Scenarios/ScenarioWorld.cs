@@ -603,7 +603,7 @@ public sealed class ScenarioWorld : IDisposable
                                     ?? throw new InvalidOperationException($"The seed has no item template {templateId}");
             var id = new ItemInstanceId(new Guid(owner, slot, 0, 0, 0, 0, 0, 0, 0, 0, 3));
             worn[piece] = new InventoryItem(slot, id, template.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Magic, 1,
-                RareName: null, Identified: true);
+                RareName: null, Identified: true, Tainted: false);
 
             var modifiers = new List<ItemInstanceModifier>(modifierIds.Length);
             for (int ordinal = 0; ordinal < modifierIds.Length; ordinal++)
@@ -647,7 +647,7 @@ public sealed class ScenarioWorld : IDisposable
         character.Container(InventoryType.Equipment).Load(
         [
             new InventoryItem(slot, id, template.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Rare, SealedKitItemLevel,
-                RareName: "Dusk Knot", Identified: true),
+                RareName: "Dusk Knot", Identified: true, Tainted: false),
         ]);
         if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
             throw new InvalidOperationException($"The seed has no stats or stat factors for {character.Class}");

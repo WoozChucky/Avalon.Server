@@ -1,12 +1,10 @@
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Common.Accounts;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
@@ -18,11 +16,9 @@ using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Maps.Navigation;
-using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Instances;
 using Avalon.World.Scripts;
 using Avalon.World.Testing.Fakes;
 using Avalon.World.Testing.Scenarios;
@@ -40,7 +36,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// with, over the seeded reference data. The character holds an identified magic plate chest at item level 10 in Bag
 /// slot 0, carrying its implicit and "P11 T7", and an "S14 T9" glyph in Bag slot 1, with no gold.
 /// <see cref="Refused_identify" /> (the baseline, #1179) names the chest and is answered AlreadyIdentified.
-/// <see cref="Refused_extract" /> names the chest's implicit and walks every extract rule to the last, NotExtractable.
+/// <see cref="Refused_extract" /> names the chest's implicit and walks every extract rule to NotExtractable, where the row
+/// walk finds the implicit and refuses it.
 /// <see cref="Refused_imprint" /> imprints the glyph onto the chest, which has room for it, and walks every imprint rule
 /// to the last, NotEnoughGold (the glyph's tier costs 25). 0 B expected on every row: a refusal changes nothing and
 /// allocates nothing beyond its pooled reply.
@@ -63,7 +60,7 @@ public class WorkbenchRequestBenchmarks
     private ServiceProvider _services = null!;
     private MapInstance _instance = null!;
     private CharacterEntity _character = null!;
-    private ReplyConnection _connection = null!;
+    private QuietConnection _connection = null!;
     private ItemIdentifyHandler _identifier = null!;
     private ItemExtractHandler _extractor = null!;
     private ItemImprintHandler _imprinter = null!;
@@ -106,7 +103,7 @@ public class WorkbenchRequestBenchmarks
         _character = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration()) { Data = row };
         _character.InstanceId = _instance.InstanceId;
         int implicitId = HoldChestAndGlyph(data);
-        _connection = new ReplyConnection(_character);
+        _connection = new QuietConnection(_character);
 
         var world = new QuietWorld(data, _instance);
         var ids = new ItemIdAllocator();
@@ -126,14 +123,14 @@ public class WorkbenchRequestBenchmarks
         if (world.Configuration.Items.ImprintCost.GetValueOrDefault((byte)9) == 0)
             throw new InvalidOperationException("A T9 glyph costs no gold, so the imprint row cannot be refused NotEnoughGold.");
 
-        _connection.Keep = true;
+        _connection.KeepLastPayload = true;
         Refused_identify();
-        Expect(_connection.Read<SItemIdentifyResultPacket>().Result, ItemIdentifyResult.AlreadyIdentified);
+        Expect(Reply<SItemIdentifyResultPacket>().Result, ItemIdentifyResult.AlreadyIdentified);
         Refused_extract();
-        Expect(_connection.Read<SItemExtractResultPacket>().Result, ItemExtractResult.NotExtractable);
+        Expect(Reply<SItemExtractResultPacket>().Result, ItemExtractResult.NotExtractable);
         Refused_imprint();
-        Expect(_connection.Read<SItemImprintResultPacket>().Result, ItemImprintResult.NotEnoughGold);
-        _connection.Keep = false;
+        Expect(Reply<SItemImprintResultPacket>().Result, ItemImprintResult.NotEnoughGold);
+        _connection.KeepLastPayload = false;
         if (_connection.Sent != 3)
             throw new InvalidOperationException($"Three requests were answered with {_connection.Sent} replies.");
 
@@ -188,8 +185,8 @@ public class WorkbenchRequestBenchmarks
         _character.ItemModifiers.Load(instances);
         _character.Container(InventoryType.Bag).Load(
         [
-            new InventoryItem(ChestSlot, chest, s_chest, 1, 0, ItemInstanceFlags.None, ItemRarity.Magic, 10, RareName: null, Identified: true),
-            new InventoryItem(GlyphSlot, glyph, glyphTemplate.Id, 1, 0, ItemInstanceFlags.Attuned, ItemRarity.Magic, 1, RareName: null, Identified: true),
+            new InventoryItem(ChestSlot, chest, s_chest, 1, 0, ItemInstanceFlags.None, ItemRarity.Magic, 10, RareName: null, Identified: true, Tainted: false),
+            new InventoryItem(GlyphSlot, glyph, glyphTemplate.Id, 1, 0, ItemInstanceFlags.Attuned, ItemRarity.Magic, 1, RareName: null, Identified: true, Tainted: false),
         ]);
         return implicitId;
     }
@@ -238,6 +235,9 @@ public class WorkbenchRequestBenchmarks
             throw new InvalidOperationException($"A request was answered {answered}, not {intended}.");
     }
 
+    /// <summary>The last reply the connection kept, decoded.</summary>
+    private T Reply<T>() => Serializer.Deserialize<T>(_connection.LastPayload);
+
     /// <summary>Fails unless the items, the gold and the pending client changes are as setup left them.</summary>
     private void Unchanged()
     {
@@ -246,67 +246,5 @@ public class WorkbenchRequestBenchmarks
         {
             throw new InvalidOperationException("A refused Workbench request changed the character's items, gold or client changes.");
         }
-    }
-
-    /// <summary>
-    /// Counts what it is sent and releases it, as <see cref="QuietConnection" /> does; while <see cref="Keep" /> is set
-    /// (setup only), it also keeps a copy of the last payload, so the reply can be read back. Everything else throws.
-    /// </summary>
-    private sealed class ReplyConnection(CharacterEntity character) : IWorldConnection
-    {
-        private byte[] _kept = [];
-
-        public int Sent { get; private set; }
-
-        public bool Keep { get; set; }
-
-        public ICharacter? Character { get; set; } = character;
-
-        public T Read<T>() => Serializer.Deserialize<T>(new ReadOnlyMemory<byte>(_kept));
-
-        public void Send(OutboundPacket packet)
-        {
-            Sent++;
-            if (Keep)
-                _kept = packet.PayloadMemory.ToArray();
-            packet.Release();
-        }
-
-        public (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
-        public ulong? CurrentTargetGuid { get; set; }
-        public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;
-        public long RoundTripTime => 0;
-        public void UpdateMap() { }
-
-        public Guid Id => throw new NotSupportedException();
-        public Task? ExecuteTask => throw new NotSupportedException();
-        public string RemoteEndPoint => throw new NotSupportedException();
-        public AccountId? AccountId { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public PendingSpawn? PendingSpawn => throw new NotSupportedException();
-        public bool SelectInProgress => throw new NotSupportedException();
-        public bool LeaveInProgress => throw new NotSupportedException();
-        public long SelectStartedTicks => throw new NotSupportedException();
-        public bool IsConnected => throw new NotSupportedException();
-        public bool IsClosing => throw new NotSupportedException();
-        public long Latency => throw new NotSupportedException();
-        public long CurrentPacketArrivedTicks => throw new NotSupportedException();
-        public bool InGame => throw new NotSupportedException();
-        public bool InMap => throw new NotSupportedException();
-        public uint LastInputSeq { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public AccountLocale Locale { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public bool RespawnInFlight { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public bool LoadReportedEarly => throw new NotSupportedException();
-        public void Close(bool expected = true) => throw new NotSupportedException();
-        public Task CloseAsync(bool expected = true) => throw new NotSupportedException();
-        public Task StartAsync(CancellationToken token = default) => throw new NotSupportedException();
-        public void BeginSelect(long nowTicks) => throw new NotSupportedException();
-        public void NoteLoadReportedEarly() => throw new NotSupportedException();
-        public void CancelSelect() => throw new NotSupportedException();
-        public void SetPendingSpawn(ICharacter character, IMapInstance instance, long sinceTicks) => throw new NotSupportedException();
-        public PendingSpawn? TakePendingSpawn() => throw new NotSupportedException();
-        public void UpdateSession() => throw new NotSupportedException();
-        public void FlushContinuations() => throw new NotSupportedException();
-        public void EnqueueContinuation<T>(Task<T> task, Action<T> callback) => throw new NotSupportedException();
-        public void EnqueueContinuation(Task task, Action callback) => throw new NotSupportedException();
     }
 }

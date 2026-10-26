@@ -240,7 +240,7 @@ public class ItemIdentifyHandlerShould
         {
             var id = new ItemInstanceId(Guid.CreateVersion7());
             var item = new InventoryItem(Slot, id, s_chest.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Magic, 9, null,
-                identified);
+                identified, Tainted: false);
             return new CarriedItem(item, new ItemBaseStats { Armour = 8 },
             [
                 Modifier(id, CatalogKeys.ModifierId("implicit IncreasedMaximumLife T9"), 0,

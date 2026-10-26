@@ -192,15 +192,17 @@ modifiers](item-modifiers.md#extraction); this section is how the world decides,
   `IInventoryService.TryExtract(bagSlot, modifierId)`; a failure after the rules allowed it is a bug, logged at Error
   and answered `InternalError` (10), and leaves the item as it was.
 - **`TryExtract`.** It answers false and changes nothing unless the Bag slot holds an item `ItemModification.Allowed`
-  accepts (identified and not Tainted), carrying an awake prefix or suffix row of that modifier in the current catalog
-  (`ExtractRules.ExtractableRow`, the rules' own check), and the patch holds a Glyph template. It builds the glyph in
-  full first (a new item id; the affix's row copied by `ItemInstanceModifier.CopyAs` under a new row id from
-  `IItemIdAllocator.NextModifierId`, ordinal 0, unsealed, not imprinted; the copy Magic, identified, `Attuned`, count 1,
-  its template's initial durability, its item level the modifier's `RequiredItemLevel`), so whatever throws leaves the
-  item as it was. Then it deletes the item (marked Removed, its store entry taken: rows, base stats, instability and
-  all), puts the glyph's row in the store (`PutMade`, marked for the save) and creates the glyph **in the same Bag
-  slot**: no free slot is needed, the slot's save mark nets to Changed, and the cascade from the old item's delete
-  makes the slot's upsert an insert. The glyph reaches the client in the tick's `SMSG_INVENTORY_UPDATE`.
+  accepts (identified and not Tainted), not offered in a trade (it asks `Locks` itself, as every removal by id does,
+  whoever calls it), carrying an awake prefix or suffix row of that modifier in the current catalog
+  (`ExtractRules.ExtractableRow`, the rules' own check, which also hands back the catalog row), and the patch holds a
+  Glyph template. It builds the glyph in full first (a new item id; the affix's row copied by
+  `ItemInstanceModifier.CopyAs` under a new row id from `IItemIdAllocator.NextModifierId`, ordinal 0, unsealed, not
+  imprinted; the copy Magic, identified, `Attuned`, count 1, its template's initial durability, its item level the
+  modifier's `RequiredItemLevel`), so whatever throws leaves the item as it was. Then it deletes the item (marked
+  Removed, its store entry taken: rows, base stats, instability and all), puts the glyph's row in the store (`PutMade`,
+  marked for the save) and creates the glyph **in the same Bag slot**: no free slot is needed, the slot's save mark nets
+  to Changed, and the cascade from the old item's delete makes the slot's upsert an insert. The glyph reaches the client
+  in the tick's `SMSG_INVENTORY_UPDATE`.
 - **Imprint.** `CMSG_ITEM_IMPRINT` (`0x2085`, `CItemImprintPacket`: `RequestId` 1, `WorkbenchGuid` 2, `GlyphBagSlot` 3,
   `TargetBagSlot` 4), answered by `ItemImprintHandler` with `SMSG_ITEM_IMPRINT_RESULT` (`0x3096`,
   `SItemImprintResultPacket`: `RequestId`, `ItemImprintResult`). `ImprintRules.Decide` asks, in order: the prefix,
@@ -218,47 +220,58 @@ modifiers](item-modifiers.md#extraction); this section is how the world decides,
   `IWallet.CanSpend` refuses it; the wallet leaves out gold a trade holds). Rows the catalog no longer holds count toward
   neither room nor group. **No rule reads instability**, so no refusal says anything of it. On `Ok` the handler spends
   the cost through `IWallet.TrySpend` (nothing at 0), then calls `IInventoryService.TryImprint(glyphSlot, targetSlot)`
-  and answers what it returns, `Ok` (0) or `Bricked` (16), a success too. Gold goes before the item, so a failure after
-  the rules allowed it (a bug, logged at Error, its message never naming the total, and answered `InternalError` 17)
-  loses value and never makes it: the gold may be spent and is not given back; the glyph and the item are left as they
-  were.
+  and answers what it returns, `Ok` (0) or `Bricked` (16), a success too. An imprint is all or nothing. When
+  `TryImprint` answers null after the rules allowed it, it has written nothing, and the handler gives the cost back
+  through `IWallet.TryAddGold`, logs at Error (a generated `[LoggerMessage]` method, naming the request, the cost and
+  the refund's result, never the total) and answers `InternalError` 17: the request changed nothing, gold included. A
+  throw (a bug, logged at Error and answered `InternalError`) keeps the gold already spent, so it loses value and never
+  makes it; `TryImprint` makes its new list and flags before it writes anything, so the glyph and the item are left as
+  they were.
 - **`TryImprint`.** It answers null and changes nothing unless both slots are held and differ, the glyph is a glyph
   holding one row of a tiered prefix or suffix the catalog holds (`ImprintRules.GlyphAffix`, the rules' own check), and
-  the target is an item `ItemModification.Allowed` accepts of a rolled base. Otherwise `IItemRoller.Imprint` makes the
-  target's new modifier list (its rows, then the glyph's row copied by `CopyAs` under a new row id at the next ordinal
-  after the highest, flagged `Imprinted`), draws the instability and, when the total bricks the item, rerolls its
-  affixes as new row objects ([item modifiers](item-modifiers.md#extraction)); neither the held list nor any row in it
-  is written. The new list and total **replace** the item's (`ItemModifierStore.ReplaceModifiers(item, list,
-  instability)`, marked for the save), the one step that can refuse, before the glyph goes; then the glyph is deleted
-  (marked Removed). Last, the flags: a bricked item is replaced with `Tainted` set and `Attuned` cleared; any other is
-  replaced with `Attuned` set, or, already attuned, only has its slot recorded for the client. It answers `Bricked` or
-  `Ok`. It never logs, and never throws with the total in a message. The item, the emptied glyph slot and the gold
-  reach the client in the tick's `SMSG_INVENTORY_UPDATE`; the brick itself is told only by the `Bricked` answer.
+  the target is an item `ItemModification.Allowed` accepts of a rolled base, carrying rolled rows (an entry in the
+  store, which every rolled base has). Otherwise `IItemRoller.Imprint` makes the target's new modifier list (its rows,
+  then the glyph's row copied by `CopyAs` under a new row id at the next ordinal after the highest, flagged
+  `Imprinted`), draws the instability and, when the total bricks the item, rerolls its affixes as new row objects ([item
+  modifiers](item-modifiers.md#extraction)); neither the held list nor any row in it is written. The item's new flags
+  are made too: a bricked item `Tainted` with `Attuned` cleared; any other `Attuned`, or, already attuned, unchanged.
+  Only then does it write, all or nothing: the new list and total **replace** the item's
+  (`ItemModifierStore.ReplaceModifiers(item, list, instability)`, whose refusals, an item without an entry and the list
+  it holds, are ruled out) and, in the same step with nothing between them that can throw, the item is replaced with its
+  new flags (an unchanged one only has its slot recorded for the client), so no item ever holds a bricking total
+  untainted; the item is marked for the save, and last the glyph is deleted (marked Removed). It answers `Bricked` or
+  `Ok`. It never logs, and never throws with the total in a message. The item, the emptied glyph slot and the gold reach
+  the client in the tick's `SMSG_INVENTORY_UPDATE`; the brick itself is told only by the `Bricked` answer.
 - **The columns** (Character migration `AddImprintsAndInstability`). `ItemInstances.Instability` (`smallint NOT NULL`,
-  default 0, `ushort` in the domain as `ItemLevel` is; `CK_ItemInstances_Instability`: `"Instability" >= 0`), the
-  hidden running total; `ItemInstances.Tainted` (`boolean NOT NULL`, default false), held equal to the brick by
-  `CK_ItemInstances_Tainted`: `"Tainted" = ("Instability" >= 100)` (100 is `ItemInstability.BrickAt`); and
-  `ItemInstanceModifiers.Imprinted` (`boolean NOT NULL`, default false, no index: nothing counts imprints). The trade
-  record mirrors all three (`TradeRecordItems.Instability` and `Tainted`, with `CK_TradeRecordItems_Instability` and
-  `CK_TradeRecordItems_Tainted`, and `TradeRecordItemModifiers.Imprinted`). The total cannot pass 199: a total below
+  `ushort` in the domain as `ItemLevel` is; `CK_ItemInstances_Instability`: `"Instability" >= 0`), the hidden running
+  total; `ItemInstances.Tainted` (`boolean NOT NULL`), held equal to the brick by `CK_ItemInstances_Tainted`:
+  `"Tainted" = ("Instability" >= 100)` (100 is `ItemInstability.BrickAt`); and `ItemInstanceModifiers.Imprinted`
+  (`boolean NOT NULL`, no index: nothing counts imprints). The trade record mirrors all three
+  (`TradeRecordItems.Instability` and `Tainted`, `required` on the record as `Identified` is, with
+  `CK_TradeRecordItems_Instability` and `CK_TradeRecordItems_Tainted`, and `TradeRecordItemModifiers.Imprinted`). The
+  migration adds each with a default of 0 or false, which only fills the rows that exist, and then drops the defaults,
+  as the model declares none, so no insert can leave a column out. The total cannot pass 199: a total below
   100 plus one draw of at most 100, after which a Tainted item is never imprinted again.
 - **Where instability lives in memory.** Only World-side: on the item's `ItemModifierStore` entry, beside its rolled
-  rows (`InstabilityOf(item)`, 0 for an item without an entry; `Load` reads the column; `Put` takes it and throws for a
-  total above 0 with no rolled rows, since an imprinted item always carries its imprint; `Take` returns it), and on
-  `CarriedItem` (its fourth member, `Instability`, with no default, so no path drops it silently) while the item is out
-  of every container: taken out for a sale and kept for the buyback, or planned into a trade (`TradeRules.ItemsInPlace`,
-  `TradeService.Completion`). It is never on `InventoryItem`, the modding API's view. `Tainted` is a visible fact of the
-  copy, on `InventoryItem` (World.Public, read-only, its last positional member, false by default), which
-  `InventoryAssembler` reads from the row. So both travel with the copy wherever `Identified` does: a save writes them
+  rows (`InstabilityOf(item)`, 0 for an item without an entry; `Load` reads the column; `Put` takes it; both throw for a
+  total above 0 with no rolled rows, since an imprinted item always carries its imprint, rather than drop a total every
+  later save would need; `Take` returns it), and on `CarriedItem` (its fourth member, `Instability`, with no default, so
+  no path drops it silently) while the item is out of every container: taken out for a sale and kept for the buyback, or
+  planned into a trade (`TradeRules.ItemsInPlace`, `TradeService.Completion`). It is never on `InventoryItem`, the
+  modding API's view. `Tainted` is a visible fact of the copy, on `InventoryItem` (World.Public, read-only, a positional
+  member with no default, so every copy built states it and none rebuilt untaints an item), which `InventoryAssembler`
+  reads from the row. So both travel with the copy wherever `Identified` does: a save writes them
   (`CharacterSaveSnapshot.ItemRow`, with the store's total), a trade's paired save (`TradeSaveBatch`, from the carried
   item) and its record (`TradeService.AddItems`) keep them and each row's `Imprinted` (`CopyRow` copies it), a sale and
   its buyback carry them, and the bank moves the copy within the character, so its store entry never leaves.
 - **A seal that moves is cleared first.** No part C path moves a seal (a brick keeps every row's id and progress, and
   an imprinted or glyph row is never sealed), but the save is made safe for a later one: `CharacterSaveRepository`'s
   rewrite pass, for each batch with modifier writes, first clears the stored seals in its own statement
-  (`ExecuteUpdateAsync`, `SealProgress = NULL` on stored rows of the rewritten items whose id the batch writes unsealed
-  and whose stored seal is set), before the tracked updates set any new seal, so a seal moving between two rows of one
-  item never meets the one-seal index twice. One statement per batch, and only when the batch writes an unsealed row.
+  (`ExecuteUpdateAsync`, `SealProgress = NULL` on stored rows whose id the batch writes unsealed and whose stored seal
+  is set, of the items whose new rows hold a seal), before the tracked updates set any new seal, so a seal moving
+  between two rows of one item never meets the one-seal index twice. One statement per batch, and only when an item
+  whose new rows hold a seal also has a row written unsealed: a seal on a row outside the new set went with the deletes
+  before it, and an item that keeps no seal has its rows written null by the tracked updates alone.
 - **The messages.** `ItemSlotDto.Tainted` (14) and `TradeItemDto.Tainted` (11) say whether a copy is Tainted, on every
   path an item travels (the login snapshot, inventory updates, item replies, the bank, the buyback list, the trade
   window). `ItemModifierDto.Imprinted` (5) is set on an imprinted line of an identified copy the client is shown, and

@@ -418,9 +418,9 @@ hidden instability. The total is never sent, shown, logged or exported, on any p
 not over REST (staff included), not in a log line or an exception message, not in the exports, and not on
 `InventoryItem`, the modding API's view of an item. No refusal reads it. A player learns of it only when an imprint
 breaks the item. With the defaults, the first and second imprints never brick an item (at most 45, then 90), the third
-does about 43 % of the time, and the fourth nearly always. A magic item has room for at most one imprint, so it never
+does about 44 % of the time, and the fourth nearly always. A magic item has room for at most one imprint, so it never
 bricks; a rare's risk lives on its third. If the second imprint should rarely brick rather than never, a maximum of 55
-gives about 4 % on the second and about 75 % by the third: a configuration change, to be judged in play.
+gives about 5 % on the second and about 75 % by the third: a configuration change, to be judged in play.
 
 **The brick.** When an imprint brings the total to `ItemInstability.BrickAt` (100) or more, the item **bricks**, and the
 imprint is answered `Bricked`, a success: the gold and the glyph are spent and the affix stays on. Each prefix and suffix
@@ -431,7 +431,11 @@ when only one is offered), then its values drawn within that tier as a drop draw
 ordinal, seal and progress, and its imprinted mark. Implicits, base stats and the item level are untouched. The
 catalog holds T9, T8 and T7 today, which are its three weakest tiers, so today a brick rerolls each affix among the
 tiers the item's level allows; it becomes a real downgrade once stronger tiers exist. The item level gate means a brick
-never gives an item a tier it could not have dropped with.
+never gives an item a tier it could not have dropped with. A family that offers no row at an item level it rolls at
+(a catalog whose weakest three tiers all weigh 0 on that base kind, say) never keeps the affix's own tier: the roller
+throws before anything is written, and the imprint is answered `InternalError`.
+`SeedIntegrityShould.Brick_every_seeded_affix_within_its_familys_three_weakest_tiers_and_its_item_level` holds the
+seed to offering at least one row for every affix, base kind and item level, exactly each allowed tier's lowest id.
 
 **Tainted.** A bricked item is **Tainted**, for good: it can be worn, banked, traded and sold, and can never be modified
 again: no extraction, no imprint, and its seal, if it has one, keeps the progress it had, frozen, and never fills or

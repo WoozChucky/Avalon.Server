@@ -2986,8 +2986,9 @@ public class SeedIntegrityShould
     /// <summary>
     /// #1180 part C (C-R14): a brick rerolls every seeded prefix and suffix within its family's three weakest tiers and its
     /// item's level. For each row, each base kind it weighs above 0 on, and each item level from its own to 10, the catalog
-    /// offers at least one row, each of the same group, of one of the group's three largest tier numbers, at most one per
-    /// tier, within the item level and weighing above 0 on the kind.
+    /// offers at least one row (a brick offered none fails rather than keep the tier), and exactly these, weakest first:
+    /// for each of the group's three largest tier numbers holding a row within the item level and weighing above 0 on the
+    /// kind, the lowest id of such rows.
     /// </summary>
     [Fact]
     public async Task Brick_every_seeded_affix_within_its_familys_three_weakest_tiers_and_its_item_level()
@@ -3007,16 +3008,16 @@ public class SeedIntegrityShould
                     int n = catalog.BrickTiers(row, weight.BaseKind, itemLevel, offered);
 
                     Assert.True(n >= 1, $"{row.Id} on {weight.BaseKind} at item level {itemLevel} is offered no tier");
-                    ItemModifier[] tiers = [.. offered.Take(n).Select(id => catalog.Find(id)!)];
-                    Assert.All(tiers, tier =>
-                    {
-                        Assert.Equal(row.GroupId, tier.GroupId);
-                        Assert.Contains(tier.Tier!.Value, weakest);
-                        Assert.True(tier.RequiredItemLevel <= itemLevel, $"{tier.Id} needs item level {tier.RequiredItemLevel}");
-                        Assert.True(tier.Weights.Any(w => w.BaseKind == weight.BaseKind && w.Weight > 0),
-                            $"{tier.Id} does not roll on {weight.BaseKind}");
-                    });
-                    Assert.Equal(n, tiers.Select(tier => tier.Tier).Distinct().Count());
+                    int[] expected =
+                    [
+                        .. weakest.Select(tier => seeded
+                                .Where(m => m.GroupId == row.GroupId && m.Tier == tier && m.RequiredItemLevel <= itemLevel
+                                            && m.Weights.Any(w => w.BaseKind == weight.BaseKind && w.Weight > 0))
+                                .Select(m => (int?)m.Id)
+                                .Min())
+                            .OfType<int>(),
+                    ];
+                    Assert.Equal(expected, offered[..n]);
                 }
             }
         }

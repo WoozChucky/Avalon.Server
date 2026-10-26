@@ -35,15 +35,15 @@ public class ItemConfigurationValidationShould
     [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, "TierUpChancePct 100.5")]
     [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, "TierUpChancePct NaN")]
     [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, "Weights:Boss 10000")]
-    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "ImprintCost:0 5")]
-    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "ImprintCost:10 5")]
-    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "ImprintCost:7 10000000000")]
-    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Imprint:InstabilityMinPct -1")]
-    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Imprint:InstabilityMaxPct 101")]
-    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Imprint:InstabilityMinPct 50, InstabilityMaxPct 40")]
-    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "Imprint:InstabilityMinPct 0, InstabilityMaxPct 0")]
-    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "Imprint:InstabilityMinPct 100, InstabilityMaxPct 100")]
-    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "ImprintCost:7 300")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Items:ImprintCost:0=5")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Items:ImprintCost:10=5")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Items:ImprintCost:7=10000000000")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Items:Imprint:InstabilityMinPct=-1")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Items:Imprint:InstabilityMaxPct=101")]
+    [InlineData(22.0, 3.0, 2, false, 50, 0UL, 5.0, null, "Items:Imprint:InstabilityMinPct=50; Items:Imprint:InstabilityMaxPct=40")]
+    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "Items:Imprint:InstabilityMinPct=0; Items:Imprint:InstabilityMaxPct=0")]
+    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "Items:Imprint:InstabilityMinPct=100; Items:Imprint:InstabilityMaxPct=100")]
+    [InlineData(22.0, 3.0, 2, true, 50, 0UL, 5.0, null, "Items:ImprintCost:7=300")]
     public void Refuse_game_items_settings_out_of_range(
         double magicPct, double rarePct, int magicSellFactor, bool accepted, int unidentifiedSellPercent = 50,
         ulong identifyCost = 0, double sealedRarePct = 5, string? awakening = null, string? imprint = null)
@@ -91,23 +91,11 @@ public class ItemConfigurationValidationShould
         ValidateOptionsResult result = new ItemConfigurationValidation().Validate(null, game);
 
         Assert.Equal(accepted, result.Succeeded);
-        if (imprint == "ImprintCost:7 300")
+        if (imprint == "Items:ImprintCost:7=300")
             Assert.Equal(new Dictionary<byte, ulong> { [9] = 25, [8] = 75, [7] = 300 }, game.Items.ImprintCost);
     }
 
-    /// <summary>
-    /// "ImprintCost:7 300" as Items:ImprintCost:7 = 300; "Imprint:InstabilityMinPct 50, InstabilityMaxPct 40" as both keys
-    /// under Items:Imprint, the section named once.
-    /// </summary>
-    private static IEnumerable<KeyValuePair<string, string?>> Settings(string imprint)
-    {
-        string[] pairs = imprint.Split(", ");
-        string section = pairs[0][..pairs[0].IndexOf(':')];
-        foreach (string pair in pairs)
-        {
-            string[] parts = pair.Split(' ');
-            string key = parts[0].StartsWith(section + ':', StringComparison.Ordinal) ? parts[0] : $"{section}:{parts[0]}";
-            yield return new KeyValuePair<string, string?>($"Items:{key}", parts[1]);
-        }
-    }
+    /// <summary>The row's settings, each a full key and its value ("key=value"), separated by "; ".</summary>
+    private static IEnumerable<KeyValuePair<string, string?>> Settings(string imprint) =>
+        imprint.Split("; ").Select(pair => pair.Split('=')).Select(kv => new KeyValuePair<string, string?>(kv[0], kv[1]));
 }

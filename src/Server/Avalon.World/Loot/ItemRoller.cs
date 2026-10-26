@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -63,15 +64,18 @@ public interface IItemRoller
     /// <summary>
     /// Imprints <paramref name="glyphRow" />, a glyph's one row, onto <paramref name="targetRows" />, the rows of
     /// <paramref name="target" />, an item of <paramref name="kind" /> at <paramref name="itemLevel" /> holding
-    /// <paramref name="instability" /> (#1180 part C), over <paramref name="catalog" />. A new list holds the target's rows in
-    /// their order, then the glyph row's copy (<see cref="ItemInstanceModifier.CopyAs" />) under a new id, at the next
-    /// ordinal after the highest, imprinted; neither the target's list nor any of its rows is written. Then one draw,
+    /// <paramref name="instability" /> (#1180 part C), over <paramref name="catalog" />. The caller passes an instability
+    /// below <see cref="ItemInstability.BrickAt" /> (a Tainted item is never imprinted), so the new total fits its ushort.
+    /// A new list holds the target's rows in their order, then the glyph row's copy
+    /// (<see cref="ItemInstanceModifier.CopyAs" />) under a new id, at the next ordinal after the highest, imprinted;
+    /// neither the target's list nor any of its rows is written. Then one draw,
     /// uniform within Game:Items:Imprint's bounds, even when they are equal, is added to the total, which bricks the item at
     /// <see cref="ItemInstability.BrickAt" /> or more. Only then, each prefix and suffix in the list's order, the imprinted
     /// one included, rerolls into one of the rows <see cref="ItemModifierCatalog.BrickTiers" /> offers: its tier drawn
     /// among them (no draw when only one is offered), then its values as a roll makes them, as a new row keeping its id,
-    /// item, ordinal, seal and imprinted mark. A row offered none, an implicit and a row the catalog no longer holds are
-    /// kept, the same objects.
+    /// item, ordinal, seal and imprinted mark. An implicit and a row the catalog no longer holds are kept, the same objects.
+    /// A prefix or suffix offered no row throws (SeedIntegrityShould holds the seed to offering one), never kept at a tier
+    /// outside the weakest three; it throws before anything is written, with no instability in its message.
     /// </summary>
     ImprintedRows Imprint(IReadOnlyList<ItemInstanceModifier> targetRows, ItemInstanceModifier glyphRow,
         ItemInstanceId target, ItemBaseKind kind, ushort itemLevel, ushort instability, ItemModifierCatalog catalog);
@@ -481,7 +485,10 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
     private bool DrawTierUp() =>
         _tierUpChancePct > 0 && (_tierUpChancePct >= 100 || random.NextDouble() * 100 < _tierUpChancePct);
 
-    /// <summary>The woken row: <paramref name="sealedRow" />'s id, item and ordinal, as <paramref name="modifierId" />, unsealed.</summary>
+    /// <summary>
+    /// The woken row: <paramref name="sealedRow" />'s id, item, ordinal and imprinted mark, as <paramref name="modifierId" />,
+    /// unsealed.
+    /// </summary>
     private static ItemInstanceModifier Woken(ItemInstanceModifier sealedRow, int modifierId,
         List<ItemInstanceModifierValue> values) => new()
         {
@@ -491,6 +498,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
             Ordinal = sealedRow.Ordinal,
             Values = values,
             SealProgress = null,
+            Imprinted = sealedRow.Imprinted,
         };
 
     /// <summary>A copy of each of the row's values, in its order.</summary>
@@ -542,6 +550,8 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
 
         modifiers.Add(glyphRow.CopyAs(itemIds.NextModifierId(), target, (byte)(highest + 1), imprinted: true));
 
+        // Below BrickAt plus a draw of at most 100, the total always fits the ushort it is returned as.
+        Debug.Assert(instability < ItemInstability.BrickAt, "A Tainted item is never imprinted.");
         int total = instability + Uniform(_instabilityMinPct, _instabilityMaxPct);
         bool bricked = total >= ItemInstability.BrickAt;
         if (bricked)
@@ -558,7 +568,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
     /// <paramref name="row" /> as a brick leaves it: a prefix or suffix offered a row by
     /// <see cref="ItemModifierCatalog.BrickTiers" /> becomes a new row of the offered tier it draws (no draw when only one
     /// is offered), its values rolled within that tier, keeping its id, item, ordinal, seal and imprinted mark; any other
-    /// row is returned as it was.
+    /// row is returned as it was. A prefix or suffix offered none throws: a brick never keeps a tier it cannot offer.
     /// </summary>
     private ItemInstanceModifier Bricked(ItemInstanceModifier row, ItemBaseKind kind, ushort itemLevel,
         ItemModifierCatalog catalog, Span<int> offered)
@@ -568,7 +578,10 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
 
         int n = catalog.BrickTiers(modifier, kind, itemLevel, offered);
         if (n == 0)
-            return row;
+        {
+            throw new InvalidOperationException(
+                $"Modifier {modifier.Id} is offered no brick tier on {kind} at item level {itemLevel}.");
+        }
 
         // The offered ids are rows of this catalog, so each is found.
         ItemModifier picked = catalog.Find(offered[n == 1 ? 0 : (int)random.NextInt64(0, n)])!;

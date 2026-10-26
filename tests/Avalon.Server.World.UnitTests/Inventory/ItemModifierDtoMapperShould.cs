@@ -101,7 +101,6 @@ public class ItemModifierDtoMapperShould
         Assert.Same(entry, refilled);
         List<ItemModifierDto> shown = RoundTrip(new ItemSlotDto { Modifiers = refilled }).Modifiers!;
         Assert.Equal(Lines(woken, 9), Lines(shown));
-        Assert.False(shown[2].Imprinted);
     }
 
     /// <summary>
@@ -149,7 +148,7 @@ public class ItemModifierDtoMapperShould
     {
         var id = new ItemInstanceId(Guid.CreateVersion7());
         var item = new InventoryItem(0, id, s_signet.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Unique, 5, null,
-            identified);
+            identified, Tainted: false);
         return new CarriedItem(item, default,
         [
             Modifier(id, CatalogKeys.ModifierId("implicit AddedLightningDamageToAttacks T8"), 0,

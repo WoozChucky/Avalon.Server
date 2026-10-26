@@ -10,6 +10,8 @@ namespace Avalon.Database.Character.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // #1180: the generated defaults only fill the rows that exist (none imprinted, none tainted): they are dropped
+            // below, as the model declares none, so no insert can leave a column out.
             migrationBuilder.AddColumn<short>(
                 name: "Instability",
                 table: "TradeRecordItems",
@@ -51,6 +53,60 @@ namespace Avalon.Database.Character.Migrations
                 type: "boolean",
                 nullable: false,
                 defaultValue: false);
+
+            migrationBuilder.AlterColumn<short>(
+                name: "Instability",
+                table: "TradeRecordItems",
+                type: "smallint",
+                nullable: false,
+                oldClrType: typeof(short),
+                oldType: "smallint",
+                oldDefaultValue: (short)0);
+
+            migrationBuilder.AlterColumn<bool>(
+                name: "Tainted",
+                table: "TradeRecordItems",
+                type: "boolean",
+                nullable: false,
+                oldClrType: typeof(bool),
+                oldType: "boolean",
+                oldDefaultValue: false);
+
+            migrationBuilder.AlterColumn<bool>(
+                name: "Imprinted",
+                table: "TradeRecordItemModifiers",
+                type: "boolean",
+                nullable: false,
+                oldClrType: typeof(bool),
+                oldType: "boolean",
+                oldDefaultValue: false);
+
+            migrationBuilder.AlterColumn<short>(
+                name: "Instability",
+                table: "ItemInstances",
+                type: "smallint",
+                nullable: false,
+                oldClrType: typeof(short),
+                oldType: "smallint",
+                oldDefaultValue: (short)0);
+
+            migrationBuilder.AlterColumn<bool>(
+                name: "Tainted",
+                table: "ItemInstances",
+                type: "boolean",
+                nullable: false,
+                oldClrType: typeof(bool),
+                oldType: "boolean",
+                oldDefaultValue: false);
+
+            migrationBuilder.AlterColumn<bool>(
+                name: "Imprinted",
+                table: "ItemInstanceModifiers",
+                type: "boolean",
+                nullable: false,
+                oldClrType: typeof(bool),
+                oldType: "boolean",
+                oldDefaultValue: false);
 
             migrationBuilder.AddCheckConstraint(
                 name: "CK_TradeRecordItems_Instability",

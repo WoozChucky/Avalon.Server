@@ -188,8 +188,8 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
         }
 
         // Extraction makes its glyphs of the one Glyph template (#1180 part C): without it the Workbench extracts nothing,
-        // and with more than one the lowest id stands.
-        int glyphs = templates.Count(t => t.SubClass == ItemSubClass.Glyph && !refused.Contains(t.Id.Value));
+        // and with more than one the lowest id stands. Counted as Glyph finds them: a template without an id is none.
+        int glyphs = templates.Count(t => t is { SubClass: ItemSubClass.Glyph, Id: { } id } && !refused.Contains(id.Value));
         if (glyphs != 1)
         {
             logger.LogError("The item templates hold {Count} Glyph templates, not one: {Outcome}", glyphs,

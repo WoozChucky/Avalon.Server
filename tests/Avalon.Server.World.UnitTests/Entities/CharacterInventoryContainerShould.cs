@@ -14,7 +14,8 @@ public class CharacterInventoryContainerShould
 {
     private static InventoryItem Item(byte slot, ulong template = 1, uint count = 1) =>
         new(slot, new ItemInstanceId(Guid.NewGuid()), new ItemTemplateId(template),
-            count, Durability: 100, ItemInstanceFlags.None, ItemRarity.Common, ItemLevel: 1, RareName: null, Identified: true);
+            count, Durability: 100, ItemInstanceFlags.None, ItemRarity.Common, ItemLevel: 1, RareName: null, Identified: true,
+            Tainted: false);
 
     private static CharacterInventoryContainer Bag() =>
         new(NullLoggerFactory.Instance, InventoryType.Bag);

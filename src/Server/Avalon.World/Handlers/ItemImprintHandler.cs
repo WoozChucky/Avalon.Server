@@ -14,12 +14,14 @@ namespace Avalon.World.Handlers;
 /// Imprints a glyph onto a Bag item at a Resonance Workbench (#1180 part C), on the tick, in the map pass. Every request
 /// gets exactly one SMSG_ITEM_IMPRINT_RESULT; a connection with no character gets nothing. ImprintRules decides; an Ok
 /// pays Game:Items:ImprintCost for the glyph's tier through the wallet (nothing when it is 0), then imprints through the
-/// inventory service, which may brick the item (answered Bricked, a success: the gold and the glyph are spent). The item,
-/// the emptied glyph slot and the gold reach the client in the tick's SMSG_INVENTORY_UPDATE. Nothing is held open
-/// between requests: each one re-checks the Workbench and its range. The item's instability is never logged.
+/// inventory service, which may brick the item (answered Bricked, a success: the gold and the glyph are spent). An
+/// imprint the service refuses after the rules allowed it, having written nothing, gets its gold back and is answered
+/// InternalError, logged at Error. The item, the emptied glyph slot and the gold reach the client in the tick's
+/// SMSG_INVENTORY_UPDATE. Nothing is held open between requests: each one re-checks the Workbench and its range. The
+/// item's instability is never logged.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_ITEM_IMPRINT)]
-public sealed class ItemImprintHandler(ILogger<ItemImprintHandler> logger, IWorld world, ICharacterEconomy economy)
+public sealed partial class ItemImprintHandler(ILogger<ItemImprintHandler> logger, IWorld world, ICharacterEconomy economy)
     : WorldPacketHandler<CItemImprintPacket>
 {
     public override void Execute(IWorldConnection connection, CItemImprintPacket packet)
@@ -37,10 +39,10 @@ public sealed class ItemImprintHandler(ILogger<ItemImprintHandler> logger, IWorl
         }
         catch (Exception e)
         {
-            // The request still gets its one reply, and nothing escapes onto the tick. The gold is taken before the item
-            // changes, so a failure caused by a bug loses value, never creates it, and is not rolled back; the inventory
-            // service makes the new list before it changes anything, so the glyph and the item are left as they were.
-            logger.LogError(e, "CMSG_ITEM_IMPRINT {RequestId} threw; answering InternalError", packet.RequestId);
+            // The request still gets its one reply, and nothing escapes onto the tick. A throw is a bug: the gold, taken
+            // before the item changes, is not given back, so it loses value and never creates it; the inventory service
+            // makes the new list and flags before it writes anything, so the glyph and the item are left as they were.
+            Log.Threw(logger, e, packet.RequestId);
             result = ItemImprintResult.InternalError;
         }
 
@@ -56,7 +58,7 @@ public sealed class ItemImprintHandler(ILogger<ItemImprintHandler> logger, IWorl
             packet.TargetBagSlot, world.Data.Items, world.Configuration.Items.ImprintCost, wallet, out ulong cost);
         if (result == ItemImprintResult.InternalError)
         {
-            logger.LogError("CMSG_ITEM_IMPRINT {RequestId}: the glyph's tier has no Game:Items:ImprintCost", packet.RequestId);
+            Log.NoCost(logger, packet.RequestId);
             return result;
         }
 
@@ -67,7 +69,26 @@ public sealed class ItemImprintHandler(ILogger<ItemImprintHandler> logger, IWorl
         if (cost > 0 && wallet.TrySpend(cost) != WalletResult.Ok)
             throw new InvalidOperationException($"Spending {cost} gold to imprint failed after ImprintRules allowed it.");
 
-        return economy.InventoryOf(character).TryImprint(packet.GlyphBagSlot, packet.TargetBagSlot)
-               ?? throw new InvalidOperationException("Imprinting failed after ImprintRules allowed it.");
+        if (economy.InventoryOf(character).TryImprint(packet.GlyphBagSlot, packet.TargetBagSlot) is { } imprinted)
+            return imprinted;
+
+        // Refused having written nothing: the gold goes back, so the failure neither loses value nor makes it.
+        WalletResult refund = cost > 0 ? wallet.TryAddGold(cost) : WalletResult.Ok;
+        Log.RefusedAfterAllowed(logger, packet.RequestId, cost, refund);
+        return ItemImprintResult.InternalError;
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Error, Message = "CMSG_ITEM_IMPRINT {RequestId} threw; answering InternalError")]
+        public static partial void Threw(ILogger logger, Exception exception, uint requestId);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "CMSG_ITEM_IMPRINT {RequestId}: the glyph's tier has no Game:Items:ImprintCost")]
+        public static partial void NoCost(ILogger logger, uint requestId);
+
+        [LoggerMessage(Level = LogLevel.Error,
+            Message = "CMSG_ITEM_IMPRINT {RequestId}: the inventory service refused the imprint ImprintRules allowed; " +
+                      "answering InternalError, its {Cost} gold given back: {Refund}")]
+        public static partial void RefusedAfterAllowed(ILogger logger, uint requestId, ulong cost, WalletResult refund);
     }
 }

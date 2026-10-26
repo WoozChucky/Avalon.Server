@@ -72,8 +72,8 @@ public static class InventoryAssembler
                 instance.ItemLevel,
                 instance.RareName,
                 instance.Identified,
-                instance.Charges,
-                instance.Tainted));
+                instance.Tainted,
+                instance.Charges));
         }
 
         return assembled;

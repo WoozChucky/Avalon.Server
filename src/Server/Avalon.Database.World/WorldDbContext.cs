@@ -3677,9 +3677,9 @@ public class WorldDbContext : DbContext
                 usable: (9, 902)));
 
         // The Resonance Workbench (#1179), in Glimmerdell's market: a click opens the client's Workbench window, and each
-        // request (identify, extract, imprint) names it and is checked against its range. Clicked, never spent, walk-through (its box is the
-        // town piece's, as the notice board's), with no script, loot or gate, so it is never hidden. An Unlimited doodad
-        // never shows its spent look; the column is not nullable, so it holds ShowUsed.
+        // request (identify, extract, imprint) names it and is checked against its range. Clicked, never spent,
+        // walk-through (its box is the town piece's, as the notice board's), with no script, loot or gate, so it is never
+        // hidden. An Unlimited doodad never shows its spent look; the column is not nullable, so it holds ShowUsed.
         builder.HasData(new DoodadTemplate
         {
             Id = 7,

@@ -2232,7 +2232,8 @@ character holds, in its Bag, an identified magic plate chest (template 37) at it
 "P11 T7", and an "S14 T9" glyph, with no gold.
 
 - `Refused_identify` (the baseline, #1179): names the chest, answered `AlreadyIdentified`.
-- `Refused_extract`: names the chest's implicit, walks every extract rule and is answered at the last, `NotExtractable`.
+- `Refused_extract`: names the chest's implicit, walks every extract rule to `NotExtractable`, where the row walk finds
+  the implicit and refuses it, and is answered `NotExtractable`.
 - `Refused_imprint`: imprints the glyph onto the chest, which has room for it, walks every imprint rule (room, group,
   base kind, item level, the cost lookup) and is answered at the last, `NotEnoughGold` (a T9 glyph costs 25).
 
