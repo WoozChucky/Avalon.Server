@@ -13,7 +13,11 @@ using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Combat;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
+using Avalon.World.Public.Scripts;
+using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Testing.Fakes;
 using Avalon.World.Testing.Scenarios;
@@ -34,12 +38,14 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <remarks>
 /// <para>
 /// The instance draws from a benchmark-local random that always answers 0.15: the hit is not evaded or blocked and does
-/// not crit (a level 1 warrior's crit chance is far under 15 %). The dummy has no script, so a hit leaves its health
-/// (<see cref="uint.MaxValue" />) as it is, and nothing ticks it or the instance: every iteration measures the same hit on
-/// the same unit. Its maximum health is 1, so whatever its armour leaves of a hit is worth at least its weight in points
-/// rather than a share of <see cref="uint.MaxValue" /> that rounds to nothing: the meter's add is the same few integer
-/// operations either way, and one hit then moves the bar, which the setup checks. The points pile up in the meter for
-/// the whole run, in 64 bits (some 10^4 per hit, far from overflowing in any run), and nothing settles them.
+/// not crit (a level 1 warrior's crit chance is far under 15 %). The dummy's script takes each hit off its health
+/// (<see cref="uint.MaxValue" /> at the start), since the meter reads the health a creature lost, and puts it back to
+/// <see cref="uint.MaxValue" /> once it falls below half, so it never dies; nothing ticks it or the instance: every
+/// iteration measures the same hit on the same unit, both rows paying the same script. Its maximum health is 1, so
+/// whatever its armour leaves of a hit is worth at least its weight in points rather than a share of
+/// <see cref="uint.MaxValue" /> that rounds to nothing: the meter's add is the same few integer operations either way,
+/// and one hit then moves the bar, which the setup checks. The points pile up in the meter for the whole run, in 64 bits
+/// (some 10^4 per hit, far from overflowing in any run), and nothing settles them.
 /// </para>
 /// <para>
 /// Setup fails the run unless, judged through public surfaces only, a first <see cref="Hit_SealedWorn" /> followed by a
@@ -100,6 +106,7 @@ public class AwakeningMeterBenchmarks
             CurrentHealth = uint.MaxValue,
             ControlResistance = ControlResistance.Of(template, data.CreatureRarityModifiers),
         };
+        _dummy.Script = new WoundScript(_dummy, _instance);
         _instance.AddCreature(_dummy);
 
         // A first sealed hit, then a save snapshot: the hit's point reaches the store's row and the snapshot's copy of it.
@@ -152,6 +159,22 @@ public class AwakeningMeterBenchmarks
         character.InstanceId = _instance.InstanceId;
         _instance.AddCharacter(new QuietConnection(character));
         return character;
+    }
+
+    /// <summary>Takes each hit off the creature's health, and puts it back to full once below half: it never dies.</summary>
+    private sealed class WoundScript(ICreature creature, ISimulationContext context) : AiScript(creature, context)
+    {
+        public override object State { get; set; } = 0;
+
+        public override TimeSpan NextUpdateIn => TimeSpan.MaxValue;
+
+        public override void OnHit(IUnit attacker, uint damage)
+        {
+            uint left = Creature.CurrentHealth - damage;
+            Creature.CurrentHealth = left < uint.MaxValue / 2 ? uint.MaxValue : left;
+        }
+
+        protected override bool ShouldRun() => false;
     }
 
     /// <summary>A clock that never moves.</summary>

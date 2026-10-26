@@ -212,7 +212,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
         // which ability hit it, or none for a swing (#521 item 8).
-        uint removed = Hit(attacker, target, damage, damage - absorbed, abilityId, report);
+        uint removed = Hit(attacker, target, damage, damage - absorbed, abilityId, report, out ICreature? hurt);
 
         // #770: a hit that dealt something to a unit it left alive may break the crowd control it holds, by chance.
         if (damage > 0 && !AuraSystem.IsDead(target))
@@ -235,7 +235,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         NotifyDeathIfApplicable(enc, target, attacker);
 
         // #1180 part A2: last, so a killing hit has already fired its wearer's Kill effects.
-        ReportResonance(attacker, target, result, absorbed, removed);
+        ReportResonance(attacker, target, result, absorbed, removed, hurt);
         return HitOutcome.Landed;
     }
 
@@ -246,15 +246,17 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// listen for one of them: a hit with none costs two type tests and a mask test, and allocates nothing. Each side is
     /// reported with the time its combat stamp just read (both sides were marked above), so a firing reads no clock.
     /// The striking character's Awakening meter (#1180) is fed first, whatever its effects listen for: the health
-    /// <paramref name="removed" /> from a creature, for a character wearing a seal, which a character without one pays
-    /// one compare for.
+    /// <paramref name="removed" /> from the creature <paramref name="hurt" />, for a character wearing a seal, which a
+    /// character without one pays one compare for. Hit answers health above 0 only for a creature, which it hands out as
+    /// <paramref name="hurt" />, so the target is not tested again.
     /// </summary>
-    private void ReportResonance(IUnit attacker, IUnit target, HitResult result, uint absorbed, uint removed)
+    private void ReportResonance(IUnit attacker, IUnit target, HitResult result, uint absorbed, uint removed,
+        ICreature? hurt)
     {
         if (attacker is CharacterEntity wearer)
         {
-            if (removed > 0 && wearer.Awakening.SealedWorn > 0 && target is ICreature creature)
-                MeterAwakening(wearer, creature, removed);
+            if (wearer.Awakening.SealedWorn > 0 && removed > 0)
+                MeterAwakening(wearer, hurt!, removed);
 
             ResonanceTriggers fired = (result & HitResult.Crit) != 0
                 ? ResonanceTriggers.Hit | ResonanceTriggers.Crit
@@ -281,9 +283,15 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// </summary>
     /// <param name="damage">The whole hit, the ward's part included: what the character is told it took.</param>
     /// <param name="life">What is left for health once the ward took its part (#1178).</param>
-    /// <returns>The health a creature target was handed, which it lost (#1180); 0 for a character.</returns>
-    private uint Hit(IUnit attacker, IUnit target, uint damage, uint life, AbilityId? abilityId, in HitReport report)
+    /// <param name="hurt">The target when it is a creature, else null.</param>
+    /// <returns>
+    /// The health a creature target actually lost (#1180): what its script took off, which is less than it was handed
+    /// when the script ignores or reduces the hit, and 0 when it gained health; 0 for a character.
+    /// </returns>
+    private uint Hit(IUnit attacker, IUnit target, uint damage, uint life, AbilityId? abilityId, in HitReport report,
+        out ICreature? hurt)
     {
+        hurt = null;
         if (target is CharacterEntity character)
         {
             bool wasDead = character.IsDead;
@@ -318,10 +326,12 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (target is not ICreature creature)
             return 0;
 
-        if (healthBefore > 0 && creature.CurrentHealth == 0)
+        hurt = creature;
+        uint healthAfter = creature.CurrentHealth;
+        if (healthBefore > 0 && healthAfter == 0)
             _outcomes?.CreatureKilled(creature, attacker);
 
-        return handed;
+        return healthBefore - Math.Min(healthBefore, healthAfter);
     }
 
     /// <summary>
