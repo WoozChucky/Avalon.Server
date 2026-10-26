@@ -28,34 +28,46 @@ variant populated
     element 0
       field 1 EquipmentSlot : uint = 4000000000
       field 2 Progress : uint = 300
+      field 3 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
     element 1
       field 1 EquipmentSlot : uint = 300
       field 2 Progress : uint = 4000000000
-  bytes 22
-    0a 09 08 80 d0 ac f3 0e 10 ac 02 0a 09 08 ac 02
-    10 80 d0 ac f3 0e
+      field 3 ItemInstanceId : Guid = 0f8fad5b-d9cb-469f-a165-70867728950e
+  bytes 62
+    0a 1d 08 80 d0 ac f3 0e 10 ac 02 1a 12 09 04 03
+    02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 0a
+    1d 08 ac 02 10 80 d0 ac f3 0e 1a 12 09 5b ad 8f
+    0f cb d9 9f 46 11 a1 65 70 86 77 28 95 0e
 
 variant maxima
   field 1 Items : List<AwakeningProgressDto> = 3 elements
     element 0
       field 1 EquipmentSlot : uint = 4294967295
       field 2 Progress : uint = 4294967295
+      field 3 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
     element 1
       field 1 EquipmentSlot : uint = 4294967295
       field 2 Progress : uint = 4294967295
+      field 3 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
     element 2
       field 1 EquipmentSlot : uint = 4294967295
       field 2 Progress : uint = 4294967295
-  bytes 42
-    0a 0c 08 ff ff ff ff 0f 10 ff ff ff ff 0f 0a 0c
-    08 ff ff ff ff 0f 10 ff ff ff ff 0f 0a 0c 08 ff
-    ff ff ff 0f 10 ff ff ff ff 0f
+      field 3 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
+  bytes 102
+    0a 20 08 ff ff ff ff 0f 10 ff ff ff ff 0f 1a 12
+    09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
+    ff ff 0a 20 08 ff ff ff ff 0f 10 ff ff ff ff 0f
+    1a 12 09 ff ff ff ff ff ff ff ff 11 ff ff ff ff
+    ff ff ff ff 0a 20 08 ff ff ff ff 0f 10 ff ff ff
+    ff 0f 1a 12 09 ff ff ff ff ff ff ff ff 11 ff ff
+    ff ff ff ff ff ff
 
 variant minima
   field 1 Items : List<AwakeningProgressDto> = 1 element
     element 0
       field 1 EquipmentSlot : uint = 0
       field 2 Progress : uint = 0
+      field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
   bytes 2
     0a 00
 
@@ -64,9 +76,13 @@ variant varint-edges
     element 0
       field 1 EquipmentSlot : uint = 2097151
       field 2 Progress : uint = 128
+      field 3 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
     element 1
       field 1 EquipmentSlot : uint = 268435456
       field 2 Progress : uint = 268435455
-  bytes 22
-    0a 07 08 ff ff 7f 10 80 01 0a 0b 08 80 80 80 80
-    01 10 ff ff ff 7f
+      field 3 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  bytes 62
+    0a 1b 08 ff ff 7f 10 80 01 1a 12 09 04 03 02 01
+    06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 0a 1f 08
+    80 80 80 80 01 10 ff ff ff 7f 1a 12 09 04 03 02
+    01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10

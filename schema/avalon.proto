@@ -171,6 +171,7 @@ enum AwakeningOutcome {
 message AwakeningProgressDto {
    uint32 EquipmentSlot = 1;
    uint32 Progress = 2;
+   .bcl.Guid ItemInstanceId = 3; // default value could not be applied: 00000000-0000-0000-0000-000000000000
 }
 enum BaseStat {
    BaseStat_Armour = 0;

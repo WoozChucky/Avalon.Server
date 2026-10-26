@@ -27,11 +27,17 @@ public class SAwakeningProgressPacket : Packet
     }
 }
 
-/// <summary>One worn sealed affix's bar (#1180): the Equipment slot of its item and the points it holds.</summary>
+/// <summary>
+/// One worn sealed affix's bar (#1180): the Equipment slot of its item, the points it holds, and the item's instance id
+/// (the one its <see cref="ItemSlotDto" /> carries), so a client applies the bar to that item even when this tick's
+/// inventory update, which follows, moves it to another slot.
+/// </summary>
 [ProtoContract]
 public class AwakeningProgressDto
 {
     [ProtoMember(1)] public uint EquipmentSlot { get; set; }
 
     [ProtoMember(2)] public uint Progress { get; set; }
+
+    [ProtoMember(3)] public Guid ItemInstanceId { get; set; }
 }
