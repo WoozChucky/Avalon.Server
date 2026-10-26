@@ -44,10 +44,13 @@ public static class TradeRules
     public const float KeepRange = NpcInteraction.LeashRange;
 
     /// <summary>
-    /// Tradeable unless NoTrade or a quest item. An item whose template is gone is not tradeable.
+    /// Tradeable unless NoTrade or a quest item, or the copy is Attuned: a woken sealed affix binds its item (#1180),
+    /// while a sealed copy that has not woken yet trades freely. An item whose template is gone is not tradeable.
     /// </summary>
-    public static bool IsTradeable(ItemTemplate? template) =>
-        template is not null && (template.Flags & (ItemTemplateFlags.NoTrade | ItemTemplateFlags.QuestItem)) == 0;
+    public static bool IsTradeable(ItemTemplate? template, ItemInstanceFlags flags) =>
+        template is not null
+        && (template.Flags & (ItemTemplateFlags.NoTrade | ItemTemplateFlags.QuestItem)) == 0
+        && (flags & ItemInstanceFlags.Attuned) == 0;
 
     /// <summary>
     /// Inclusive, so exactly <paramref name="range" /> is inside. A NaN distance compares false, so it is out of
@@ -114,7 +117,7 @@ public static class TradeRules
             if (!bag.TryGet(offered.Slot, out InventoryItem held)
                 || held.InstanceId != offered.InstanceId
                 || held.Count != offered.Count
-                || !IsTradeable(findTemplate(held.TemplateId)))
+                || !IsTradeable(findTemplate(held.TemplateId), held.Flags))
             {
                 return null;
             }

@@ -213,7 +213,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             return TradeResult.AlreadyOffered;
         if (side.Items[tradeSlot] is not null)
             return TradeResult.TradeSlotTaken;
-        if (!TradeRules.IsTradeable(_findTemplate(item.TemplateId)))
+        if (!TradeRules.IsTradeable(_findTemplate(item.TemplateId), item.Flags))
             return TradeResult.NotTradeable;
 
         side.Items[tradeSlot] = item;

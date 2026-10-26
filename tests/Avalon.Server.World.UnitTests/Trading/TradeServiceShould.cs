@@ -127,6 +127,7 @@ public class TradeServiceShould
         { "NoTrade item", TradeResult.NotTradeable },
         { "quest item", TradeResult.NotTradeable },
         { "template gone", TradeResult.NotTradeable },
+        { "attuned item", TradeResult.NotTradeable },
         { "offered twice", TradeResult.AlreadyOffered },
         { "occupied trade slot", TradeResult.TradeSlotTaken },
         { "remove from an empty trade slot", TradeResult.ItemNotFound },
@@ -141,10 +142,17 @@ public class TradeServiceShould
         Trader a = w.Online(1, gold: 100);
         Trader b = w.Online(2);
         InventoryItem sword = Item(0, Sword);
+        // #1180: a woken copy is bound; a sealed rare that has not woken yet trades freely.
+        InventoryItem sealedRare = Item(7, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9 };
+        ItemInstanceModifier sealedRow = Modifier(sealedRare.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
+        sealedRow.SealProgress = 9;
+        a.Character.ItemModifiers.Load(
+            [new ItemInstance { Id = sealedRare.InstanceId, TemplateId = Sword.Id, Identified = true, Modifiers = [sealedRow] }]);
         a.Character.Container(InventoryType.Bag).Load(
         [
             sword, Item(1, TradeTestWorld.Contraband), Item(2, TradeTestWorld.Token),
             Item(3, new ItemTemplate { Id = new ItemTemplateId(999), Name = "Gone" }), Item(4, Potion, count: 5),
+            Item(5, Sword) with { Flags = ItemInstanceFlags.Attuned }, sealedRare,
         ]);
 
         if (name != "not trading")
@@ -153,6 +161,8 @@ public class TradeServiceShould
         // An offer the row needs in place first: the refusal below must lock nothing more.
         if (name is "offered twice" or "occupied trade slot")
             Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, bagSlot: 0, tradeSlot: 0));
+        if (name == "attuned item")
+            Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, bagSlot: 7, tradeSlot: 0));
 
         InventoryItem[] bag = a.Character.Container(InventoryType.Bag).Held.ToArray();
         bool[] lockedBefore = bag.Select(i => a.Character.Locks.IsLocked(i.InstanceId)).ToArray();
@@ -162,10 +172,11 @@ public class TradeServiceShould
             "not trading" => w.Trades.OfferItem(a.Id, 0, 0),
             "trade slot 15" => w.Trades.OfferItem(a.Id, 0, 15),
             "bag slot 30" => w.Trades.OfferItem(a.Id, 30, 0),
-            "empty bag slot" => w.Trades.OfferItem(a.Id, 5, 0),
+            "empty bag slot" => w.Trades.OfferItem(a.Id, 6, 0),
             "NoTrade item" => w.Trades.OfferItem(a.Id, 1, 0),
             "quest item" => w.Trades.OfferItem(a.Id, 2, 0),
             "template gone" => w.Trades.OfferItem(a.Id, 3, 0),
+            "attuned item" => w.Trades.OfferItem(a.Id, 5, 1),
             "offered twice" => w.Trades.OfferItem(a.Id, 0, 1),
             "occupied trade slot" => w.Trades.OfferItem(a.Id, 4, 0),
             "remove from an empty trade slot" => w.Trades.RemoveItem(a.Id, 3),
@@ -174,10 +185,10 @@ public class TradeServiceShould
         };
 
         Assert.Equal(expected, result);
-        // A refusal locks nothing: no row but the two with an offer in place has anything locked.
+        // A refusal locks nothing: no row but the three with an offer in place has anything locked.
         Assert.Equal(lockedBefore, bag.Select(i => a.Character.Locks.IsLocked(i.InstanceId)));
         Assert.Equal(0UL, a.Character.Locks.HeldGold);
-        Assert.Equal(name is "offered twice" or "occupied trade slot", a.Character.Locks.Any);
+        Assert.Equal(name is "offered twice" or "occupied trade slot" or "attuned item", a.Character.Locks.Any);
     }
 
     /// <summary>
