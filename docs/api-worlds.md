@@ -380,8 +380,9 @@ singletons as in every host. Only their context factories differ in the API, whi
   world that has not migrated fails the same way on the formula's new columns: a character's abilities. To roll a
   world back to a build without the change, run `dotnet ef database update AddGlyphTemplate` against its World
   database: it restores `ClassStatFactors`, `ClassLevelStats.BaseMana`, `CostPowerType` and `PowerGainPerHit` with
-  their seed values and checks, puts the Mana Potion back in the `potion` group, and drops the three formula columns.
-  No world or API does that by itself.
+  their seed values and checks (a seeded row a live edit gave a cost while it was free goes on Mana, so the restored
+  check holds), puts the Mana Potion back in the `potion` group, and drops the three formula columns. No world or API
+  does that by itself.
 
 ## How a request reaches its world
 
@@ -588,7 +589,8 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   ranges and its type as one part where its low end stands (`2-4 to 6-8 Physical Damage`); one number for a range whose
   ends are equal. The wording file's `baseStats` rows (`stat`, `min`, `max`, and on the damage row `min2`, `max2` and
   `type`, with the `text`) hold it, and `StatWordingShould` checks each; they run ahead of the Dashboard's file as the
-  `spans` rows do, and so does the `IncreasedMaximumLife` row (`+5% increased Health`).
+  `spans` rows do, and so do the `IncreasedMaximumLife` row (`+5% increased Health`) and the two mana rows (#1181:
+  `+5% increased Mana`, `+5% increased Mana Regeneration`).
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.
 - **Not-found and unavailable pages** are titled "Not found · {SiteName}" and "Unavailable · {SiteName}" (or just

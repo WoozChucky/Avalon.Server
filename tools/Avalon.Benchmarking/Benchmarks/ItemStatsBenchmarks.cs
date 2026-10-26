@@ -11,13 +11,13 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <summary>
 /// The stats calculation a stats refresh runs (#1179): <see cref="CharacterStatsCalculator.Calculate" /> for a level-10
 /// Warrior (the seeded row: BaseHp 400, Stamina 40, Strength 41, Agility 33, Intellect 20) on the seeded formula,
-/// wearing a full forest kit: the five Barkplate pieces (items 12-16), the Bramblesteel Sword (7), the
-/// Alpha's Fang Pendant (58), the Heartwood Band (64) and the Thornheart Signet (65). <see cref="Calculate" /> wears each
-/// piece with no modifiers, as the kit was measured before instance modifiers; <see cref="CalculateModified" /> wears the
-/// same pieces with six modifiers each, local and global lines mixed (local defence and weapon lines, added damage to
-/// attacks and spells, attributes, resistances, crit); <see cref="CalculateThemed" /> wears those same lines renumbered to
-/// seeded affix rows of five Resonance themes and counts them (#1180) into one buffer bound once, as a character's is.
-/// The world passes the worn items as a list it reuses, so the benchmark does too; no auras. 0 B expected.
+/// wearing a full forest kit: the five Barkplate pieces (items 12-16), the Bramblesteel Sword (7), the Alpha's Fang
+/// Pendant (58), the Heartwood Band (64) and the Thornheart Signet (65). <see cref="Calculate" /> wears each piece with
+/// no modifiers, as the kit was measured before instance modifiers; <see cref="CalculateModified" /> wears the same
+/// pieces with six modifiers each, local and global lines mixed (local defence and weapon lines, added damage to
+/// attacks and spells, attributes, resistances, crit); <see cref="CalculateThemed" /> wears those same lines renumbered
+/// to seeded affix rows of five Resonance themes and counts them (#1180) into one buffer bound once, as a character's
+/// is. The world passes the worn items as a list it reuses, so the benchmark does too; no auras. 0 B expected.
 /// </summary>
 /// <remarks>
 /// The templates are literals of the seed rows as they stood before #1179 part A replaced them with bases (their old

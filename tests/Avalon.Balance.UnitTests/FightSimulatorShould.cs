@@ -193,7 +193,7 @@ public class FightSimulatorShould
         Assert.InRange(result.Seconds, FightSimulator.MaxSeconds - 1e-6, FightSimulator.MaxSeconds + Tick);
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Win_when_every_creature_is_dead_and_record_what_happened()
     {
         var boar = SimCreature.Create(Data, Data.Creature(4), 1, 0);
@@ -203,7 +203,8 @@ public class FightSimulatorShould
         Assert.True(result.Won);
         Assert.True(result.Seconds > 0);
         Assert.InRange(result.HealthLeftPct, 0.01, 100);
-        Assert.True(result.DamageDealt["Cleave"] > 0);
+        // #1181: the Warrior enters full, so its first entry, Ground Slam, is paid from the start.
+        Assert.True(result.DamageDealt["Ground Slam"] > 0);
         Assert.True(result.DamageTaken.Keys.All(k => k.StartsWith("Thornback Boar: ", StringComparison.Ordinal)));
     }
 

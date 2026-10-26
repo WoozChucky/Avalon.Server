@@ -12,10 +12,11 @@ public enum CostCheck
 
 /// <summary>
 /// The one power rule (#521 item 2, #1181). A cost above 0 is spent from mana, the one pool every character casts
-/// from: only a caster on Mana holding at least the cost may pay it. A cost of 0 needs no pool at all, and a caster with
-/// no pool (a creature) is refused anything that costs. <c>CastAbilityHandler</c> checks it, and
-/// <c>InstanceAbilityCastSystem</c> checks it again and pays it when it takes the cast, on the queued path and the
-/// instant path alike; a queued cast is paid once, when it is queued.
+/// from: only a caster on Mana holding at least the cost may pay it. A cost of 0 needs no pool at all, and any other
+/// caster is refused anything that costs; none reaches the check today, since creatures cast free
+/// (<c>InstanceAbilityCastSystem</c> skips the check for them, and no creature goes through <c>CastAbilityHandler</c>).
+/// <c>CastAbilityHandler</c> checks it, and <c>InstanceAbilityCastSystem</c> checks it again and pays it when it takes
+/// the cast, on the queued path and the instant path alike; a queued cast is paid once, when it is queued.
 /// </summary>
 public static class AbilityCost
 {

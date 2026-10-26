@@ -88,7 +88,7 @@ public class BalanceRunnerShould
             Assert.InRange(FightFactory.CreatureLevel(wolf, 1, scenarios.Find("forest-real"), random), 2, 4));
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Record_win_rate_percentiles_and_a_stat_snapshot()
     {
         BalanceRunner runner = Runner();
@@ -98,6 +98,6 @@ public class BalanceRunnerShould
         Assert.InRange(row.WinRatePct, 0, 100);
         Assert.True(row.FightSeconds.P10 <= row.FightSeconds.Median && row.FightSeconds.Median <= row.FightSeconds.P90);
         Assert.Equal(5, row.Snapshot.Abilities.Count);
-        Assert.True(row.DamageDealtPerRun.ContainsKey("Cleave"));
+        Assert.True(row.DamageDealtPerRun.ContainsKey("Ground Slam"));
     }
 }

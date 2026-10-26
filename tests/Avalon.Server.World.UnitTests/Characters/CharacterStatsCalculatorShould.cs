@@ -204,7 +204,8 @@ public class CharacterStatsCalculatorShould
     /// <summary>
     /// #1181: maximum mana folds as life does. A seeded level-1 Warrior (Intellect 20) has 100 + 20 x 4 = 180. Flat power
     /// and Intellect (11 x 4 = 44) add to the flat sum, which increased maximum mana then scales, never below 0. Increased
-    /// mana regeneration moves no maximum: it is summed for the regeneration rates.
+    /// mana regeneration moves no maximum: it is summed for the regeneration rates. A huge Intellect conversion caps
+    /// the maximum rather than wrapping it.
     /// </summary>
     [Theory]
     [InlineData("nothing", 180u, 0f)]
@@ -214,6 +215,7 @@ public class CharacterStatsCalculatorShould
     [InlineData("+20 power and +50 %", 300u, 0f)]
     [InlineData("-150 %", 0u, 0f)]
     [InlineData("+25 % increased mana regeneration", 180u, 25f)]
+    [InlineData("a huge Intellect conversion", uint.MaxValue, 0f)]
     public void Fold_flat_and_increased_maximum_mana_from_gear(string gear, uint maxMana, float increasedRegen)
     {
         (StatType Stat, int Value)[] lines = gear switch
@@ -224,13 +226,17 @@ public class CharacterStatsCalculatorShould
             "+50 % increased maximum mana" => [(StatType.IncreasedMaximumMana, 50)],
             "+20 power and +50 %" => [(StatType.Power, 20), (StatType.IncreasedMaximumMana, 50)],
             "-150 %" => [(StatType.IncreasedMaximumMana, -150)],
+            "a huge Intellect conversion" => [],
             _ => [(StatType.IncreasedManaRegeneration, 25)],
         };
         var amulet = new ItemTemplate { Name = "Amulet", Slot = ItemSlotType.Neck };
+        CombatFormula formula = TestCombat.Formula;
+        if (gear == "a huge Intellect conversion")
+            formula.ManaPerIntellect = float.MaxValue;
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1),
             lines.Length == 0 ? [] : [Rolled(amulet, [.. lines.Select(l => (l.Stat, l.Value, (int?)null))])],
-            TestCombat.Formula);
+            formula);
 
         Assert.Equal((maxMana, increasedRegen), (stats.MaxPower, stats.IncreasedManaRegenPct));
     }

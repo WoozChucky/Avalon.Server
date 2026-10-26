@@ -103,8 +103,10 @@ silent case.
 9. **NoAimPoint**: a cursor skill whose `GroundPos` is missing or has a non-finite component.
 10. **The power rule** (`AbilityCost`, #521 item 2, #1181): a cost of 0 is payable by anyone and needs
    no pool. A cost above 0 is spent from mana, the one pool every character has: a caster on
-   `PowerType.Mana` holding at least the cost pays it, and anything else is **NotEnoughPower**, too
-   little mana or no pool at all (a creature handed a costed ability).
+   `PowerType.Mana` holding at least the cost pays it, and anything else is **NotEnoughPower**: too
+   little mana, or a caster not on Mana (none is today: creatures cast free, since
+   `InstanceAbilityCastSystem` skips the rule for them and they never send a cast request, so a cost
+   a live template edit puts on a creature ability is never charged).
 11. **The instance**: the caster's instance must exist, and the cast system must accept the cast (its
    script found and built, and the caster's crowd control asked again, #770); otherwise **InternalError**.
 

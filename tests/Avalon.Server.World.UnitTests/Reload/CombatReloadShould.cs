@@ -109,6 +109,7 @@ public class CombatReloadShould
         { "CombatFormula 1", r => r.Formulas[0].CooldownRecoveryCap = float.NaN },
         // #1181: the mana formula's Intellect conversion is finite and 0 or more.
         { "CombatFormula 1", r => r.Formulas[0].ManaPerIntellect = float.NaN },
+        { "CombatFormula 1", r => r.Formulas[0].ManaPerIntellect = -1f },
     };
 
     [Theory]

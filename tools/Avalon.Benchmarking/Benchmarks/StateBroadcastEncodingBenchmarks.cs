@@ -179,7 +179,7 @@ public class StateBroadcastEncodingBenchmarks
         MoveState = MoveState.Running,
         Health = 1_200,
         CurrentHealth = 1_150,
-        PowerType = PowerType.Fury,
+        PowerType = PowerType.Mana,
         Power = 100,
         CurrentPower = 35,
         Level = 12,

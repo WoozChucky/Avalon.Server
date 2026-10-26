@@ -31,7 +31,8 @@ desktop; narrow it with `--class`, `--scenario` and `--runs` while iterating. Th
 
 - `overrides.json`: a flat map `"Table.key.Column": value`, empty on `main`. Tables and keys:
   `Ability.<id>`, `ClassLevelStat.<Class>.<level>`, `CombatFormula` (no key, which holds the mana terms
-  `ManaBase`, `ManaPerLevel` and `ManaPerIntellect` since #1181), `CreatureBaseStats.<level>`, `CreatureRarityModifiers.<Rarity>`, `CreatureTemplate.<id>`, `Item.<id>`, `Aura.<id>`,
+  `ManaBase`, `ManaPerLevel` and `ManaPerIntellect` since #1181), `CreatureBaseStats.<level>`,
+  `CreatureRarityModifiers.<Rarity>`, `CreatureTemplate.<id>`, `Item.<id>`, `Aura.<id>`,
   `AuraStatModifier.<auraId>.<Stat>`.
   Example: `{ "Ability.201.Cost": 18, "CombatFormula.ArmorBase": 60 }`. An unknown table, key or column stops
   the run naming it, as does a key given twice or a computed column; a value the server's validators would refuse
@@ -72,8 +73,8 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
   tick it is fired, a creature's one tick later. On the server a projectile flies at its `ProjectileSpeed`, so even
   at melee distance the first one lands a few ticks later than the simulator's.
 - **Combat is continuous.** Health does not regenerate and mana regenerates at the in-combat rate, because a fight
-  never leaves combat. That holds while hits land at least every 5 s
-  (the server's combat tag); a kiting player or a ranged opener that leaves gaps longer than that is not modelled.
+  never leaves combat. That holds while hits land at least every 5 s (the server's combat tag); a kiting player or a
+  ranged opener that leaves gaps longer than that is not modelled.
 - **Creature wind-ups always land**: nobody dodges a telegraph. Creatures use their script's kit, the first ready
   special whose reach fits, else the basic; the Blightfly never casts Blight Spit, since its script spits only while
   Sting cannot reach, and in melee it always can.

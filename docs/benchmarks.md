@@ -2316,10 +2316,13 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ManaRege
 **Nothing allocates on either side.** **In combat a character's update is 9.4 ns cheaper**, about 37 %: the second
 combat read, its clock read and the `PowerType` test are gone. Out of combat the two sides read the same within the
 base's spread (0.5 ns), as neither reads the clock there. The figure does not cover a cast in progress, where the base
-also read the clock every tick to keep the suppression window open and once more to test it; the branch reads none.
-With 1,800 players all in combat, that is some 17 µs a tick. Removing Fury also took its gain and its
-damage-taken gain off every hit and its decay off every tick, none of which the rows above exercise (a Wizard never had
-Fury).
+also read the clock every tick to keep the suppression window open and once more to test it; the branch reads none. With
+1,800 players all in combat, that is some 17 µs a tick. Both figures are lower bounds for production: the benchmark's
+clock is frozen, so each read it saves is a virtual call returning a field, where a live world's goes to the system
+clock. The rows also differ in how often the whole-point write runs, about once per point gained: 4 or 16 times a second
+on the branch, 2.5 or 15 on the base, in and out of combat, which is why the branch's out-of-combat row costs more than
+its in-combat one. Removing Fury also took its gain and its damage-taken gain off every hit and its decay off every
+tick, none of which the rows above exercise (a Wizard never had Fury).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

@@ -80,16 +80,10 @@ public static class Grader
             }
         }
 
-        // Resource flow.
+        // Resource flow. #1181: every class spends mana and enters full, so every class is graded on how long it
+        // starves, and nothing on how soon it first spends.
         foreach (RowResult r in graded.Where(r => r.Key.Scenario == g.ResourceScenario))
         {
-            if (r.Key.Class == CharacterClass.Warrior)
-            {
-                Add(r.Key, "resource flow", $"Warrior L{r.Key.Level} first spender", r.FirstSpenderSeconds?.Median,
-                    new Band { Min = 0, Max = g.WarriorFirstSpenderSeconds }, " s");
-            }
-
-            // #1181: every class spends mana, so every class is graded on how long it starves.
             Add(r.Key, "resource flow", $"{r.Key.Class} L{r.Key.Level} starved share", r.StarvedPct.Median,
                 new Band { Min = 0, Max = g.CasterStarvedPct }, " %");
         }

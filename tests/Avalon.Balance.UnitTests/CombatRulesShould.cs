@@ -49,28 +49,17 @@ public class CombatRulesShould
         Assert.Equal(25u, damage);    // floor(25.8)
     }
 
-    /// <summary>#1181: a hit on a creature takes its health and gives the attacker no mana.</summary>
-    [Fact]
-    public void Gain_no_mana_from_the_creatures_a_cleave_damages()
-    {
-        SimPlayer warrior = Warrior();
-        warrior.CurrentPower = 60;
-        SimCreature boar = Boar();
-        uint health = boar.CurrentHealth;
-
-        Assert.Equal(10u, CombatRules.HitCreature(boar, 10));
-        Assert.Equal(health - 10, boar.CurrentHealth);
-        Assert.Equal(60u, warrior.CurrentPower);
-    }
-
-    [Fact]
-    public void Take_nothing_from_a_creature_on_a_dodged_hit()
+    /// <summary>A hit on a creature takes the health it deals, and a dodged one (0) takes nothing.</summary>
+    [Theory]
+    [InlineData(10u)]
+    [InlineData(0u)]
+    public void Take_the_health_a_hit_on_a_creature_deals(uint damage)
     {
         SimCreature boar = Boar();
         uint health = boar.CurrentHealth;
 
-        Assert.Equal(0u, CombatRules.HitCreature(boar, 0));
-        Assert.Equal(health, boar.CurrentHealth);
+        Assert.Equal(damage, CombatRules.HitCreature(boar, damage));
+        Assert.Equal(health - damage, boar.CurrentHealth);
     }
 
     /// <summary>#1181: a hit on the player takes health and leaves its mana alone.</summary>

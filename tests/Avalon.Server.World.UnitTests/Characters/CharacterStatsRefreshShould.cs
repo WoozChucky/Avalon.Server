@@ -495,21 +495,18 @@ public class CharacterStatsRefreshShould
     }
 
     /// <summary>
-    /// #1181: every class's pool is mana, treated as health is: select and a level-up fill it, a gear change keeps its
-    /// share (60 of 200 is 30 %), and the regeneration rates follow the new maximum. The maximum is the formula's: the
-    /// Warrior's 100 + 20 x 4 = 180, the Wizard's 100 + 23 x 4 = 192.
+    /// #1181: mana is treated as health is: select and a level-up fill it, a gear change keeps its share (60 of 200 is
+    /// 30 %), and the regeneration rates follow the new maximum, the formula's 100 + 23 x 4 = 192 for a level 1 Wizard.
+    /// That every class is on mana is pinned at select (<c>CharacterSelectHandlerShould</c>).
     /// </summary>
     [Theory]
-    [InlineData(CharacterClass.Warrior, CurrentValues.EnterWorld, 180u)]
-    [InlineData(CharacterClass.Warrior, CurrentValues.Refill, 180u)]
-    [InlineData(CharacterClass.Warrior, CurrentValues.KeepShare, 54u)]
-    [InlineData(CharacterClass.Wizard, CurrentValues.EnterWorld, 192u)]
-    [InlineData(CharacterClass.Wizard, CurrentValues.Refill, 192u)]
-    [InlineData(CharacterClass.Wizard, CurrentValues.KeepShare, 58u)]
-    public void Fill_or_keep_the_share_of_mana_for_every_class(CharacterClass @class, CurrentValues current, uint expected)
+    [InlineData(CurrentValues.EnterWorld, 192u)]
+    [InlineData(CurrentValues.Refill, 192u)]
+    [InlineData(CurrentValues.KeepShare, 58u)]
+    public void Fill_or_keep_the_share_of_mana(CurrentValues current, uint expected)
     {
         CharacterEntity character = New();
-        character.Data!.Class = @class;
+        character.Data!.Class = CharacterClass.Wizard;
         character.PowerType = Avalon.Network.Packets.State.PowerType.Mana;
         character.Power = 200;
         character.CurrentPower = 60;

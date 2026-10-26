@@ -224,8 +224,8 @@ Silenced never, Crippled and Hexed 0 % / 0.5 %.
 | 224 Binding Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 15 s | 20 Mana | Damage: an attack at 168 % of the weapon, plus 2-4 blight | 13 Bound |
 | 235 Hush | Cleric | Projectile, 17 m/s | Cursor | reach 18 | 20 s | 20 Mana | none | 15 Silenced |
 
-All are instant. Every cost is mana, for every class (#1181). Every character of a class holds its class's new abilities. An Ally circle affects the caster too when
-the circle covers it.
+All are instant. Every cost is mana, for every class (#1181). Every character of a class holds its class's new
+abilities. An Ally circle affects the caster too when the circle covers it.
 
 ## 10. Crowd control
 

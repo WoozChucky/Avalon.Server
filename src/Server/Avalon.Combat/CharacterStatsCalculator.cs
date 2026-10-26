@@ -48,9 +48,12 @@ public static class CharacterStatsCalculator
 
         long flatLife = LocalScaling.Saturate((Int128)row.BaseHp + ((Int128)stamina * formula.LifePerStamina) + gear.Health);
         long maxHealth = LocalScaling.Increase(flatLife, gear.IncreasedMaximumLife);
+        // Intellect's share is held to the long's range before the sum, so a huge conversion caps the maximum
+        // rather than wrapping it, as life's does.
         long flatMana = LocalScaling.Saturate((Int128)formula.ManaBase
             + ((Int128)formula.ManaPerLevel * Math.Max(0, row.Level - 1))
-            + (long)(intellect * (double)formula.ManaPerIntellect) + gear.Power);
+            + (Int128)Math.Clamp(intellect * (double)formula.ManaPerIntellect, long.MinValue, long.MaxValue)
+            + gear.Power);
         long maxPower = LocalScaling.Increase(flatMana, gear.IncreasedMaximumMana);
         long armor = LocalScaling.Add(gear.Armor, (long)(strength * (double)formula.ArmorPerStrength));
         long evasion = LocalScaling.Add(gear.Evasion, (long)(agility * (double)formula.EvasionPerAgility));

@@ -338,6 +338,11 @@ namespace Avalon.Database.World.Migrations
                 column: "UseCooldownGroup",
                 value: "potion");
 
+            // A row a live template edit gave a cost while it was free is still at pool 0 here, which the
+            // re-added check refuses: put it on Mana. Rows just restored to Fury or Energy keep their pool.
+            migrationBuilder.Sql(
+                "UPDATE \"AbilityTemplates\" SET \"CostPowerType\" = 1 WHERE \"Cost\" > 0 AND \"CostPowerType\" = 0;");
+
             migrationBuilder.AddCheckConstraint(
                 name: "CK_AbilityTemplates_CostPowerType",
                 table: "AbilityTemplates",

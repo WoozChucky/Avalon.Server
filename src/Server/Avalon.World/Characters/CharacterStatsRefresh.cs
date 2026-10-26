@@ -39,9 +39,10 @@ public static class CharacterStatsRefresh
 
     /// <summary>
     /// False, changing nothing, when there is no ClassLevelStat row for the character's class and level. A worn item counts
-    /// only when its template exists and the slot it is in accepts it, so a row that put a gem in slot 8 or anything in the reserved slot 13 adds nothing. Each counts the
-    /// template the lookup holds now, and the base stats and modifiers its copy rolled (#1179), so a template edited live
-    /// reaches a worn copy's template lines and leaves its rolled base stats and modifiers as they were.
+    /// only when its template exists and the slot it is in accepts it, so a row that put a gem in slot 8 or anything in
+    /// the reserved slot 13 adds nothing. Each counts the template the lookup holds now, and the base stats and modifiers
+    /// its copy rolled (#1179), so a template edited live reaches a worn copy's template lines and leaves its rolled base
+    /// stats and modifiers as they were.
     /// <paramref name="formula" /> bounds the speeds (#1178) and movement speed (#627), and is required: the caller passes
     /// the generation it read. So is <paramref name="resonance" />, the table the character's Resonance counts are bound to
     /// and counted against (#1180): <see cref="ResonanceTable.Empty" /> for a caller without a catalog; and

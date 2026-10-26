@@ -54,7 +54,7 @@
     "AddedColdDamageToSpells": "Adds 5 Cold Damage to Spells",
     "AddedLightningDamageToSpells": "Adds 5 Lightning Damage to Spells",
     "IncreasedMaximumLife": "+5% increased Health",
-    "IncreasedMaximumMana": "+5% increased Maximum Mana",
+    "IncreasedMaximumMana": "+5% increased Mana",
     "IncreasedManaRegeneration": "+5% increased Mana Regeneration"
   },
   "negative": [

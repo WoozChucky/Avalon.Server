@@ -15,9 +15,8 @@ namespace Avalon.World.Characters;
 /// the sheet shows. ManaRegenInCombat and ManaRegenOutOfCombat (#1181) are the mana a second the same refresh fixed, in
 /// and out of combat, increased mana regeneration included. Only what is sent is kept, so a change the client is not
 /// shown sends nothing. A value type, so the last one sent can be compared with the current one without allocating. The
-/// Resonance counts (#1180) are not kept here:
-/// they are the character's live buffer, which the flusher compares with the counts it last sent, and are written into
-/// the packet by <see cref="ToPacket" />.
+/// Resonance counts (#1180) are not kept here: they are the character's live buffer, which the flusher compares with the
+/// counts it last sent, and are written into the packet by <see cref="ToPacket" />.
 /// </summary>
 public readonly record struct CharacterSheet(
     uint Stamina,
