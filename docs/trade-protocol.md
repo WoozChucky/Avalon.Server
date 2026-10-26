@@ -51,7 +51,10 @@ weapon numbers, null for an item without any) and 10 `Identified` (bool): the co
 name, base stats and whether it is identified, as an inventory slot carries them (#1179). An unidentified copy (magic,
 rare or unique) can be offered; its entry carries its implicit lines only in `Modifiers` and no `Name`, and both sides
 are sent the same entry, so the giver sees it as the receiver does. It arrives unidentified, and is worn only once it is
-identified ([inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)).
+identified ([inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)). Field 11
+`Tainted` (bool, #1180 part C) says an imprint bricked the copy: a Tainted copy trades, and is never modified or bound
+again; each shown modifier's `Imprinted` says the affix came from a glyph. How close an item is to bricking is never
+sent ([extraction and imprinting](inventory-and-saves.md#extraction-and-imprinting-1180-part-c)).
 
 `TradeId` is numbered from 1 each time the world server starts; it names one trade window for as long as it is open.
 

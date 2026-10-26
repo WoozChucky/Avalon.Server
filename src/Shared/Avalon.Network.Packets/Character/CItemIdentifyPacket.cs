@@ -6,7 +6,7 @@ namespace Avalon.Network.Packets.Character;
 
 /// <summary>
 /// Client to server (#1179): identify the item in one Bag slot at a Resonance Workbench, a doodad whose catalog service
-/// is Identify. Nothing is opened on the server first: the client opens its window when the player clicks the Workbench,
+/// is Workbench. Nothing is opened on the server first: the client opens its window when the player clicks the Workbench,
 /// and every request is checked afresh, the Workbench's range included. One item per request; identifying several is one
 /// request each. Answered with exactly one SItemIdentifyResultPacket.
 /// </summary>

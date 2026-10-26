@@ -10,8 +10,8 @@ namespace Avalon.World.Public.Characters;
 /// every copy, like its count and flags, and so are a rare's <see cref="RareName" />, the two words its roll gave it (#1179;
 /// null on every other copy), and whether it is <see cref="Identified" /> (a magic, rare or unique copy that drops or comes
 /// from a quest arrives unidentified), and whether it is <see cref="Tainted" /> (#1180: it bricked, and is never modified or
-/// attuned again); its modifiers and its instability are not here, since they are privileged state this surface never
-/// reaches.
+/// attuned again); its modifiers and the hidden total its imprints added are not here, since they are privileged state
+/// this surface never reaches.
 /// </summary>
 public readonly record struct InventoryItem(
     byte Slot,

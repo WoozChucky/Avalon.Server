@@ -310,8 +310,9 @@ sealed row gives no stat line (`ItemLines` skips it, so the world's stats refres
 and counts for no Resonance theme (`ResonanceCounts.AddItem` skips it). It still takes its affix slot and its group, so
 the rolling rules see it. An unidentified copy does not say it is sealed: the seal is on an affix, and an unidentified
 copy shows none ([identification](#identification)); once identified, the sealed line shows with its progress and its
-threshold. An unidentified copy cannot be worn, so its bar stays at 0 until then; and only an identified copy's seal
-fills (`Awakening.Fills`), so one in the Equipment by any other route would neither fill nor send its progress.
+threshold. An unidentified copy cannot be worn, so its bar stays at 0 until then; and only the seal of an identified
+copy fills (`Awakening.Fills`), so one in the Equipment by any other route would neither fill nor send its progress. A
+Tainted copy's seal never fills again either: it keeps the progress it had, frozen ([extraction](#extraction)).
 
 **The bar.** Points come from creatures, and only to the sealed affixes of items **worn** (in the Equipment container):
 an item in the bag or the bank gains nothing, keeps its progress when it is taken off, and goes on from it when worn
@@ -365,6 +366,83 @@ its best tier's maximum, so awakening cannot raise the worst case: it lets a low
 values earlier, on one line per rare. `SeedIntegrityShould.Reach_a_tier_up_target_only_within_the_catalog_and_three_item_levels`
 holds that every rise target is a row of the catalog within the reach. When T6 rows arrive, the reach lets an item
 level 7 or higher T7 rise to T6 with no rule change; that is the next zone's budget work.
+
+## Extraction
+
+At the Resonance Workbench a player can destroy an item to keep one of its affixes as a **glyph** (#1180 part C), and
+imprint a glyph onto a free affix slot of another item for gold, at a hidden risk of breaking that item. There is no
+crafting currency: the destroyed item pays for the glyph, and gold pays for the imprint. [Inventory and
+saves](inventory-and-saves.md#extraction-and-imprinting-1180-part-c) has the two requests, their refusal orders and
+how the world holds and saves what they make.
+
+**What can be extracted.** One awake prefix or suffix, chosen by the player, of an identified, untainted Magic or Rare
+copy of a rolled base whose template can be destroyed (not `NoDestroy`). An unidentified copy hides its affixes, a
+Common has none and a unique's lines are its own, so none of those can be extracted; neither can an implicit, which
+belongs to the base, a sealed affix, which must wake first, or a glyph. An imprinted affix on a healthy item can be
+extracted again. The item is destroyed whole, with every other line on it, and the glyph takes its Bag slot.
+Extraction costs no gold, and keeps the affix's exact values: nothing is rerolled.
+
+**The glyph.** One template, item 152, **Glyph** (World migration `AddGlyphTemplate`): `ItemClass.Crafting`,
+`ItemSubClass.Glyph` (401), no slot and no base kind, `MaxStackSize` 1, `BuyPrice` and `SellPrice` 0, no base stats and
+no linked modifier. The world finds it by its subclass (`ItemsPatch.Glyph`, the lowest id of that subclass; an items
+patch with none, or more than one, is logged at Error, and with none nothing can be extracted), never by its id. Each
+glyph is an ordinary copy of it carrying exactly one modifier row, the extracted affix: a copy of the row
+(`ItemInstanceModifier.CopyAs`) under a new row id, at ordinal 0, unsealed and not imprinted, with the same catalog
+modifier and values. The copy is Magic (so the magic naming rule names it by its affix, "<prefix> Glyph" or "Glyph <suffix>"),
+identified, its item level its modifier's `RequiredItemLevel` (1, 4 or 7 today: the item level a target needs), and
+**Attuned**: a glyph is bound to the character who extracted it. So it can be banked, destroyed and imprinted, never
+traded (`TradeResult.NotTradeable`, as any attuned copy) and never sold (its `SellPrice` is 0, which a vendor refuses).
+It carries a rolled row, so it never stacks.
+
+**Imprinting.** A glyph's affix goes onto an identified, untainted Magic or Rare copy of a rolled base in the Bag, by
+the same rules a drop's roll keeps, so an imprinted item is always one a drop could have made:
+
+1. **room:** the item's affixes of the glyph's kind (prefix or suffix), a sealed one included, are fewer than its
+   rarity allows (Magic 1, Rare 3);
+2. **one per family:** the item carries no affix of the glyph modifier's group (an implicit group is another group, so
+   a resistance implicit does not block a resistance glyph);
+3. **where the family rolls:** the glyph's modifier weighs above 0 on the item's base kind (`ItemModifierCatalog.RollsOn`);
+4. **item level:** the item's item level is at least the glyph modifier's `RequiredItemLevel`, so a T7 glyph needs an
+   item level 7 target.
+
+The affix lands at the next ordinal after the item's highest, a new row flagged `Imprinted`, awake, counting for stats
+and Resonance at once; a magic item's name follows its new affix. There is no count cap: an item takes as many imprints
+as its free room allows. Each imprint costs gold by the glyph modifier's tier, `Game:Items:ImprintCost` (T9 25, T8 75,
+T7 200 by default, keyed by tier rank so a later tier needs only configuration, [configuration](configuration-reference.md)),
+spends the glyph, and **binds the item** (it becomes Attuned, if it was not already). Without that, a bound glyph could
+be handed on by imprinting it onto any item and trading the item.
+
+**Instability.** Each imprint also adds one draw, uniform in whole numbers between `Game:Items:Imprint:InstabilityMinPct`
+and `InstabilityMaxPct` (20 and 45 by default, both ends included; at most 100 and checked at startup), to the item's
+hidden instability. The total is never sent, shown, logged or exported, on any path and to any caller: not on the wire,
+not over REST (staff included), not in a log line or an exception message, not in the exports, and not on
+`InventoryItem`, the modding API's view of an item. No refusal reads it. A player learns of it only when an imprint
+breaks the item. With the defaults, the first and second imprints never brick an item (at most 45, then 90), the third
+does about 43 % of the time, and the fourth nearly always. A magic item has room for at most one imprint, so it never
+bricks; a rare's risk lives on its third. If the second imprint should rarely brick rather than never, a maximum of 55
+gives about 4 % on the second and about 75 % by the third: a configuration change, to be judged in play.
+
+**The brick.** When an imprint brings the total to `ItemInstability.BrickAt` (100) or more, the item **bricks**, and the
+imprint is answered `Bricked`, a success: the gold and the glyph are spent and the affix stays on. Each prefix and suffix
+on the item, the new one included and a sealed one too, is rerolled within its own family: a tier drawn uniformly among
+the family's three weakest tiers (`ItemModifierCatalog.BrickTiers`: of the group's three largest tier numbers, each
+tier's lowest-id row that rolls on the item's base kind with a `RequiredItemLevel` at most the item's item level; no draw
+when only one is offered), then its values drawn within that tier as a drop draws them. A rerolled row keeps its row id,
+ordinal, seal and progress, and its imprinted mark. Implicits, base stats and the item level are untouched. The
+catalog holds T9, T8 and T7 today, which are its three weakest tiers, so today a brick rerolls each affix among the
+tiers the item's level allows; it becomes a real downgrade once stronger tiers exist. The item level gate means a brick
+never gives an item a tier it could not have dropped with.
+
+**Tainted.** A bricked item is **Tainted**, for good: it can be worn, banked, traded and sold, and can never be modified
+again: no extraction, no imprint, and its seal, if it has one, keeps the progress it had, frozen, and never fills or
+wakes (`ItemModification.Allowed`, identified and not Tainted, is the one lock `Awakening.Fills` asks too). Tainting
+clears `Attuned`, whether an imprint or a wake set it, and nothing binds a Tainted item again, so every Tainted item can
+be traded and sold. Tainted is shown: on the wire, over REST and in a trade window.
+
+**The budget is unmoved.** An imprint keeps every rule a drop keeps (room, one per family, where the family rolls, the
+item level), and a glyph carries values its own tier rolled, so an imprinted item is always one a drop could have made.
+A brick only draws tiers the item's level allows, within the family's weakest three. Neither can raise the worst case
+[the starting-zone budget](#the-starting-zone-budget) already counts, every slot at its best tier's maximum.
 
 ## Resonance themes
 

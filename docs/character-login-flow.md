@@ -332,6 +332,11 @@ Notes for a client implementer:
   none of its other modifiers and no `Name` until it is identified at the Resonance Workbench
   ([inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)).
   Every slot entry carries it, in the snapshot, the updates, the bank, the buyback and item replies.
+- **`Tainted`** (field 14, #1180 part C): an imprint at the Resonance Workbench bricked the copy, which
+  can be worn, banked, traded and sold but never modified or bound again; a sealed affix on it shows
+  its bar frozen. Each shown modifier's `Imprinted` (`ItemModifierDto` field 5) says the affix came
+  from a glyph. How close an item is to bricking is never sent
+  ([extraction and imprinting](inventory-and-saves.md#extraction-and-imprinting-1180-part-c)).
 
 ### `SInventoryUpdatePacket`
 
