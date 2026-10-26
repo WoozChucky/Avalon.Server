@@ -279,6 +279,89 @@ Glimmerdell's market, for `Game:Items:IdentifyCost` gold (0 today), which reveal
 rolled when it was made: identifying rolls nothing. [Inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)
 has the request and its rules.
 
+## Awakening
+
+A few rares drop with their best affix **sealed** (#1180 part B): the affix is shown once the copy is identified, but
+it adds nothing until it **wakes**. While the item is worn, kills and damage fill a bar on the affix; when the bar is
+full the affix wakes, sometimes a tier higher, and the item becomes attuned.
+
+**Which rares.** A rolled rare that carries at least one prefix or suffix seals with the share
+`Game:Items:SealedRarePct` (5 % by default, [configuration](configuration-reference.md)). At 0 no rare seals and at 100
+every one does, neither with a draw; any share between draws once, after the rare's two-word name, as the roll's last
+draw, so every draw before it is the one the copy made before seals existed. It applies to every rare a roll makes: a
+creature's or a chest's drop, and the boss's guaranteed rare, whose re-roll as Rare draws its own seal. A magic copy, a
+unique, a quest reward (always Magic), a vendor's copy, a starting item and an item script's copy never seal. Rares that
+existed before this part are not sealed (no backfill).
+
+**The top affix.** The sealed affix is picked among the prefixes and suffixes, never an implicit, with no draw
+(`ItemRoller.SealIndex`):
+
+1. the best tier, the lowest tier number;
+2. among equals, the highest roll of the first stat line within its range, `(value - min) / (max - min)`, or 1 for a
+   range of one value; an "adds" line sums its two ends against its two ranges summed. Rolls are compared by
+   cross-multiplying in 64-bit integers, never in floating point, so equal rolls tie exactly;
+3. among equals still, the lowest ordinal.
+
+The best tier is not a good roll: a T7 line may have rolled low in its range. An item carries at most one seal.
+
+**Inactive until awake.** The seal is the row's `SealProgress` (`ItemInstanceModifiers`, Character DB): the bar's
+points on a sealed affix, null on every awake one ([inventory and saves](inventory-and-saves.md#awakening-1180)). A
+sealed row gives no stat line (`ItemLines` skips it, so the world's stats refresh and the REST API's calculations agree)
+and counts for no Resonance theme (`ResonanceCounts.AddItem` skips it). It still takes its affix slot and its group, so
+the rolling rules see it. An unidentified copy does not say it is sealed: the seal is on an affix, and an unidentified
+copy shows none ([identification](#identification)); once identified, the sealed line shows with its progress and its
+threshold. An unidentified copy cannot be worn, so its bar stays at 0 until then.
+
+**The bar.** Points come from creatures, and only to the sealed affixes of items **worn** (in the Equipment container):
+an item in the bag or the bank gains nothing, keeps its progress when it is taken off, and goes on from it when worn
+again. Every sealed affix worn gains the same points. A creature is worth its rarity's weight,
+`Game:Items:Awakening:Weights` (Normal 1, Elite 3, Rare 6, Boss 20), twice over:
+
+- **a kill:** every character that shares it (the killer alone, or each eligible party member, as for quest credit)
+  gains the weight;
+- **damage:** each direct hit and each aura tick the wearer deals to a creature gives the weight times the share of the
+  creature's maximum health it removed (the health it lost, after its ward, never more than it had left). Damaging a
+  creature from full to dead is worth its weight again, so a solo Normal kill is 2 points.
+
+A creature more than `Game:Items:Awakening:LevelGap` (5) levels below the character gives nothing, by kill or by
+damage, and a player gives nothing. Damage is counted in thousandths of a point and written into the bar in whole
+points ([world simulation](world-simulation.md), Awakening). The bar's threshold is `ItemAwakening.Threshold`
+(`Avalon.Domain`), 40 + 10 × the copy's item level, code and not configuration, so the world and the REST API agree:
+
+| Item level | Threshold (points) | About |
+| --- | --- | --- |
+| 1 | 50 | 25 Normal creatures killed alone |
+| 4 | 80 | 40 |
+| 7 | 110 | 55 |
+| 10 | 140 | 70 |
+
+A bar never passes its threshold, and nothing caps the item level it reads.
+
+**The wake.** A worn affix whose bar reached its threshold wakes on the tick (`IItemRoller.Awaken`). One draw against
+`Game:Items:Awakening:TierUpChancePct` (20 %; none at 0 or 100) decides how:
+
+- **a miss** wakes it as it was sealed: the same tier and values (`Woken`);
+- **a rise** moves it to its group's next better tier (`ItemModifierCatalog.NextTier`: of the same group, the largest
+  tier number below its own, the lowest id among equals), when that tier's `RequiredItemLevel` is at most the copy's
+  item level plus the **reach**, `ItemAwakening.TierReach` (3). Its values roll anew within that tier, as a drop rolls
+  them (`TierRaised`). Today a T9 rises to T8 (item level 4, within reach of item level 1) and a T8 to T7 (item level
+  7, within reach of 4);
+- **a polish** is a rise with no better tier in reach: a T7 always, since T6 to T1 are not in the catalog yet, and a T8
+  below item level 4. Each line rolls again within its own tier and the line whose two ends sum higher is kept, the old
+  one on a tie (`Polished`), so a successful draw always improves or keeps the line.
+
+A sealed row the catalog no longer holds (a reload left it out) wakes as it was, with no draw. The woken row keeps its
+id and its ordinal, loses its seal and counts for stats and Resonance from then on. Waking binds the item: it becomes
+`Attuned` (`ItemInstanceFlags.Attuned`), which can no longer be traded but can still be banked, sold, bought back and
+destroyed ([trading](trading.md)). An item already attuned stays as it is.
+
+**The budget is unmoved.** A wake never makes a value above the best tier the catalog holds, T7 today, and the reach
+only names a tier the catalog holds. [The starting-zone budget](#the-starting-zone-budget) already counts every slot at
+its best tier's maximum, so awakening cannot raise the worst case: it lets a lower item level carry a better tier's
+values earlier, on one line per rare. `SeedIntegrityShould.Reach_a_tier_up_target_only_within_the_catalog_and_three_item_levels`
+holds that every rise target is a row of the catalog within the reach. When T6 rows arrive, the reach lets an item
+level 7 or higher T7 rise to T6 with no rule change; that is the next zone's budget work.
+
 ## Resonance themes
 
 Every affix family belongs to one **Resonance theme** (#1180): Ember, Rime, Storm, Wild, Iron, Thorn, Gale or Veil,
@@ -295,7 +378,8 @@ suffix of that theme:
 - only items worn in a slot that accepts them count, never one in the bags or the bank;
 - an item counts once per theme it carries, however many of its affixes share that theme (two Thorn affixes on one
   sword count 1 for Thorn), and once for each different theme;
-- only affixes count: an implicit and a unique's own line carry no theme.
+- only affixes count: an implicit and a unique's own line carry no theme;
+- only awake affixes count: a [sealed](#awakening) one counts nothing until it wakes.
 
 The catalog builds a `ResonanceTable` once per load (`ItemModifierCatalog.Resonance`): the distinct themes its accepted
 affix rows name, each given a slot, its position in that list sorted by id, and each affix modifier mapped to its

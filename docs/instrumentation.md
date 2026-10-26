@@ -37,6 +37,7 @@ The world update is followed by work no other histogram covers, about two thirds
 
 | `stage` | What it times |
 |---|---|
+| `awakening` | `AwakeningFlusher` over every connection (#1180): settles, wakes worn sealed affixes and sends their progress; two bool reads for a character with nothing due |
 | `quests` | `QuestFlusher` over every connection: quest counts, log, updates, lines and markers |
 | `inventory` | `InventoryUpdateFlusher` over every connection |
 | `sheet` | `CharacterSheetFlusher` over every connection |

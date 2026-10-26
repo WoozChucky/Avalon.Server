@@ -907,7 +907,8 @@ wait p50 X s, p95 Y s` over the whole ramp, the wait from a bot's first queued j
   when none did.
 - **Post-update stages**, for reading only (no limit is judged on them): one row per step, one column per stage of
   `world.post_update.duration` (`quests`, `inventory`, `sheet`, `ability_amounts`, `party_status`, `presence`,
-  `pings`, `outbox`, `continuations`, in the order the tick runs them; [instrumentation](instrumentation.md#tick-and-instance-time)),
+  `pings`, `outbox`, `continuations`, in the order the tick runs them, then any stage the report's list does not name,
+  by name: `awakening` (#1180), which the tick runs first; [instrumentation](instrumentation.md#tick-and-instance-time)),
   each `mean / p99` per tick in µs over the judged window. The mean is `sum by (stage)` of
   `rate(world_post_update_duration_microseconds_sum[w])` over the same of `_count`; the p99 is `histogram_quantile(0.99,
   sum by (stage, le)(rate(world_post_update_duration_microseconds_bucket[w])))`, interpolated within the stage buckets.

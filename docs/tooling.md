@@ -108,10 +108,10 @@ It exits 0 when every status is one its line expects, 1 when one is not (000: no
 ## The scenario runner
 
 `tools/Avalon.Scenarios` runs the world server's fixed scenarios (`town-idle`, `town-walk`, `town-social`,
-`many-instances`, `forest-combat`, `forest-resonance`, `town-doodads`, from `tests/Avalon.World.Testing`) in process, with the server's GC settings, and prints one row per
+`many-instances`, `forest-combat`, `forest-resonance`, `forest-awakening`, `town-doodads`, from `tests/Avalon.World.Testing`) in process, with the server's GC settings, and prints one row per
 scenario: the
 tick-thread bytes of one 60-tick window (the least of five, after the scenario's own fixed number of warm-up ticks,
-as the allocation gate measures them; for `forest-combat` and `forest-resonance`, fights of fixed length, the mean over the measured
+as the allocation gate measures them; for `forest-combat`, `forest-resonance` and `forest-awakening`, fights of fixed length, the mean over the measured
 minute), bytes per player per tick, tick times (mean, p50, p95, p99, max), the share of ticks over the
 60 Hz budget, and the timed phase's collections and GC pauses. Run it in Release;
 `--write-baseline perf/local/<host>.json` keeps a run (`perf/local/` is ignored by git), `--baseline <file>` prints
