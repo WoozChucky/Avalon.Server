@@ -284,13 +284,7 @@ public sealed class CharacterInventoryService(
             return null;
 
         IReadOnlyList<ItemInstanceModifier> rows = owner.ItemModifiers.Of(item.InstanceId);
-        int ready = -1;
-        for (int i = 0; i < rows.Count && ready < 0; i++)
-        {
-            if (Awakening.ReadyToWake(item, rows[i]))
-                ready = i;
-        }
-
+        int ready = Awakening.ReadyRowIndex(item, rows);
         if (ready < 0)
             return null;
 
@@ -314,12 +308,16 @@ public sealed class CharacterInventoryService(
 
     /// <summary>
     /// Before a change to <paramref name="container" /> when it is the Equipment (#1180): the worn seals' pending points
-    /// are settled into them, so an item taken off keeps what it earned and one put on gets none earned before it.
+    /// are settled into them, so an item taken off keeps what it earned and one put on gets none earned before it. The
+    /// meter then finds its seals' slots again at their next use, whether or not a refresh follows first.
     /// </summary>
     private void SettleIfWorn(InventoryType container)
     {
-        if (container == InventoryType.Equipment)
-            Awakening.Settle(owner);
+        if (container != InventoryType.Equipment)
+            return;
+
+        Awakening.Settle(owner);
+        owner.Awakening.EquipmentChanged();
     }
 
     /// <summary>The lowest empty Bag slot a completing trade has not reserved (#1175), or null when there is none.</summary>

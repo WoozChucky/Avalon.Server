@@ -248,6 +248,9 @@ public static class ServiceExtensions
         services.AddSingleton<PartyService>();
         // Face-to-face trades (#1175): World, WorldServer and the dialogue's NPC window path hold the one instance.
         services.AddSingleton<TradeService>();
+        // The characters whose Awakening meter has work (#1180): World attaches and detaches them, WorldServer's
+        // Awakening stage takes them each tick, so both must hold the one instance.
+        services.AddSingleton<AwakeningQueue>();
         // One chat budget per character, shared by plain chat, /p and /w (#722); World.LeaveWorldAsync forgets it.
         services.AddSingleton<ChatRateLimiter>();
         services.AddSingleton<ICommand, PvpCommand>();

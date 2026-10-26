@@ -128,6 +128,7 @@ public sealed class ScenarioWorld : IDisposable
     private readonly TradeService _trades;
     private readonly QuestService? _quests;
     private readonly AwakeningFlusher? _awakening;
+    private readonly AwakeningQueue? _awakeningQueue;
     private readonly List<MapTemplate> _templates = [];
     private readonly ScenarioInstanceFactory _factory = new();
     private readonly InstanceRegistry _registry;
@@ -193,6 +194,7 @@ public sealed class ScenarioWorld : IDisposable
             _quests = _services.GetRequiredService<QuestService>();
             Economy = _services.GetRequiredService<ICharacterEconomy>();
             _awakening = new AwakeningFlusher(Economy, new Logger<AwakeningFlusher>(_errorLog));
+            _awakeningQueue = new AwakeningQueue();
 
             _placement = new CreaturePlacementService(new CreatureSpawner(_errorLog, _world), reference.Chunks,
                 reference.SpawnTables, reference.AuthoredSpawns, reference.Scripts, _services, _errorLog);
@@ -364,14 +366,15 @@ public sealed class ScenarioWorld : IDisposable
             // WorldServer runs it: each character a kill or a moved bar made due settles its points into its worn seals and
             // is sent the progress. Without it a scenario would never settle a bar or send its progress (a scenario has no
             // saves and no equipment moves, the other settle points), so forest-awakening would measure the meter's adds
-            // and none of what follows them. A character with no seal worn is never due, so the other scenarios pay two
-            // reads per connection and their figures do not move. Production contains a throw per connection and logs it;
-            // here it reaches the caller and ends the scenario.
+            // and none of what follows them. Only the characters the queue took are visited, and a character with no seal
+            // worn is never queued, so the other scenarios pay one take of an empty queue and their figures do not move.
+            // Production contains a throw per character and logs it; here it reaches the caller and ends the scenario.
             if (_awakening is not null)
             {
                 StaticData data = _reference!.Data;
-                for (int i = 0; i < _connections.Count; i++)
-                    _awakening.Flush(_connections[i], data);
+                ReadOnlySpan<CharacterEntity> due = _awakeningQueue!.Take();
+                for (int i = 0; i < due.Length; i++)
+                    _awakening.Flush(due[i], data);
             }
 
             // The quest flush (a world with reference data has the quest service), before the inventory flush clears the
@@ -732,12 +735,14 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>
     /// A new <see cref="ScenarioConnection" /> for the character, in the world but in no instance yet, as a character is
     /// once it has entered the world: in a world with reference data the party service counts it online
-    /// (<c>World.SpawnInInstance</c>), so it can be invited (<see cref="FormParty" />) before it joins an instance.
+    /// (<c>World.SpawnInInstance</c>), so it can be invited (<see cref="FormParty" />) before it joins an instance, and
+    /// its Awakening meter queues it for the tick's flush.
     /// </summary>
     public ScenarioConnection Connect(CharacterEntity character, Action<ScenarioConnection>? onUpdateMap = null)
     {
         var connection = new ScenarioConnection(character, Scheduler, onUpdateMap);
         _parties?.CharacterOnline(connection);
+        _awakeningQueue?.Attach(character, connection);
 
         // CharacterSelectHandler's quest recount: the log settled against the catalog, nothing owed but the log itself.
         _quests?.RecountAtSelect(character);

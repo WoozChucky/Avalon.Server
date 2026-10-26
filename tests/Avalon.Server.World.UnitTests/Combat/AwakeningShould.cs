@@ -74,6 +74,8 @@ public class AwakeningShould
     [InlineData("an item level 1 amulet at 45, a Boss kill", 50)]
     [InlineData("an item level 1 amulet at 45, a Boss kill, then the tick's flush", 50)]
     [InlineData("a solo kill of a Normal creature in one hit, then the tick's flush", 2)]
+    [InlineData("an Elite with no script, which ignores the hit", 0)]
+    [InlineData("an unidentified copy worn, a solo Normal kill", 0)]
     public void Fill_the_bar_from_kills_and_damage_while_worn(string @case, int expected)
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, world: MapInstanceClients.NewWorld(Data),
@@ -200,6 +202,32 @@ public class AwakeningShould
                 break;
             }
 
+            case "an Elite with no script, which ignores the hit":
+            {
+                // The meter reads the health the creature lost, not what it was handed.
+                sealedItems = Dress(instance, wearer);
+                Creature foe = Foe(instance, 1180_992, CreatureRarity.Elite, health: 200, scripted: false);
+                combat.ApplyDamage(wearer, foe, 100);
+                Assert.Equal((200u, 0L), (foe.CurrentHealth, TestCharacters.AwakeningOf(wearer).PendingMilli));
+                break;
+            }
+
+            case "an unidentified copy worn, a solo Normal kill":
+            {
+                // Should one ever be worn, it neither fills nor tells its owner it is sealed: never counted, never queued.
+                sealedItems = Dress(instance, wearer, identified: false);
+                Creature foe = Foe(instance, 1180_993, CreatureRarity.Normal, health: 100);
+                combat.ApplyDamage(wearer, foe, 1000);
+                Assert.Equal(0u, foe.CurrentHealth);
+                Assert.Equal((0, 0L), (TestCharacters.AwakeningOf(wearer).SealedWorn, TestCharacters.AwakeningOf(wearer).PendingMilli));
+                var sent = new List<OutboundPacket>();
+                AwakeningStage stage = Stage(new ScriptedLootRandom([]));
+                stage.Queue.Attach(wearer, Recording(wearer, sent));
+                stage.Tick();
+                Assert.Empty(sent);
+                break;
+            }
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(@case), @case, null);
         }
@@ -213,7 +241,7 @@ public class AwakeningShould
 
         if (@case.EndsWith(", then the tick's flush", StringComparison.Ordinal))
         {
-            AssertFlushed(wearer, expected);
+            AssertFlushed(wearer, sealedItems[0], expected);
             return;
         }
 
@@ -284,11 +312,13 @@ public class AwakeningShould
         if (!setup.InBag)
             Assert.Equal("Thorn 1", ResonanceNamed(character));
 
+        // Attached after the refresh, as the world attaches a character entering an instance after its select: its meter,
+        // due since the refresh counted its seal, queues it then.
         var draws = new ScriptedLootRandom(setup.Doubles, setup.Integers);
-        AwakeningFlusher flusher = Flusher(draws);
+        AwakeningStage stage = Stage(draws);
         var sent = new List<OutboundPacket>();
-        IWorldConnection connection = Recording(character, sent);
-        flusher.Flush(connection, Data);
+        stage.Queue.Attach(character, Recording(character, sent));
+        stage.Tick();
 
         ItemInstanceModifier row = character.ItemModifiers.Of(amulet.InstanceId)[1];
         if (expected == "sealed")
@@ -320,7 +350,7 @@ public class AwakeningShould
 
         // Sent once: the next tick's flush has nothing to say.
         sent.Clear();
-        flusher.Flush(connection, Data);
+        stage.Tick();
         Assert.Empty(sent);
         Assert.True(draws.Exhausted);
         Assert.True(character.SaveState.TakeMarks().Items[amulet.InstanceId].Modifiers);
@@ -328,18 +358,19 @@ public class AwakeningShould
 
     /// <summary>
     /// The tick's Awakening flush for <paramref name="wearer" />, whose amulet on Neck settled to
-    /// <paramref name="progress" />, run twice: a full bar (item level 1's 50) wakes, sent once with no progress for it;
-    /// any other bar is sent once as Neck's progress. A wake misses its tier-up draw.
+    /// <paramref name="progress" />, run for two ticks once the wearer is attached: a full bar (item level 1's 50) wakes,
+    /// sent once with no progress for it; any other bar is sent once as Neck's progress, naming the amulet
+    /// <paramref name="amulet" />. A wake misses its tier-up draw.
     /// </summary>
-    private static void AssertFlushed(CharacterEntity wearer, int progress)
+    private static void AssertFlushed(CharacterEntity wearer, ItemInstanceId amulet, int progress)
     {
         bool full = progress == ItemAwakening.Threshold(1);
         var draws = new ScriptedLootRandom(full ? [0.5] : []);
-        AwakeningFlusher flusher = Flusher(draws);
+        AwakeningStage stage = Stage(draws);
         var sent = new List<OutboundPacket>();
-        IWorldConnection connection = Recording(wearer, sent);
-        flusher.Flush(connection, Data);
-        flusher.Flush(connection, Data);
+        stage.Queue.Attach(wearer, Recording(wearer, sent));
+        stage.Tick();
+        stage.Tick();
 
         List<SItemAwakenedPacket> woken = TestTown.Read<SItemAwakenedPacket>(sent, NetworkPacketType.SMSG_ITEM_AWAKENED);
         List<SAwakeningProgressPacket> bars = TestTown.Read<SAwakeningProgressPacket>(sent, NetworkPacketType.SMSG_AWAKENING_PROGRESS);
@@ -351,20 +382,33 @@ public class AwakeningShould
         else
         {
             Assert.Empty(woken);
-            Assert.Equal([((uint)EquipmentSlots.Neck, (uint)progress)],
-                Assert.Single(bars).Items.Select(entry => (entry.EquipmentSlot, entry.Progress)));
+            Assert.Equal([((uint)EquipmentSlots.Neck, amulet.Value, (uint)progress)],
+                Assert.Single(bars).Items.Select(entry => (entry.EquipmentSlot, entry.ItemInstanceId, entry.Progress)));
         }
 
         Assert.True(draws.Exhausted);
     }
 
-    /// <summary>The tick's Awakening flush over an economy on the seeded data, its roller drawing from <paramref name="draws" />.</summary>
-    private static AwakeningFlusher Flusher(ILootRandom draws)
+    /// <summary>
+    /// The tick's Awakening stage, as WorldServer runs it: the queue the world attaches characters to, and the flush over
+    /// an economy on the seeded data, its roller drawing from <paramref name="draws" />.
+    /// </summary>
+    private static AwakeningStage Stage(ILootRandom draws)
     {
         var ids = new ItemIdAllocator();
         var economy = new CharacterEconomy(MapInstanceClients.NewWorld(Data), ids,
             new ItemRoller(draws, ids, Options.Create(new GameConfiguration())));
-        return new AwakeningFlusher(economy, NullLogger.Instance);
+        return new AwakeningStage(new AwakeningFlusher(economy, NullLogger.Instance), new AwakeningQueue());
+    }
+
+    /// <summary>The stage's flush and its queue; a tick flushes each character the queue took.</summary>
+    private sealed record AwakeningStage(AwakeningFlusher Flusher, AwakeningQueue Queue)
+    {
+        public void Tick()
+        {
+            foreach (CharacterEntity character in Queue.Take())
+                Flusher.Flush(character, Data);
+        }
     }
 
     private static IWorldConnection Recording(CharacterEntity character, List<OutboundPacket> sent)
@@ -393,10 +437,11 @@ public class AwakeningShould
     /// <paramref name="character" />, at level 10, wearing (or holding in its bag) an identified rare amulet of
     /// <paramref name="itemLevel" /> with "S5 Fire T9" sealed at <paramref name="progress" />, and a second such piece
     /// (a ring on Finger1) when <paramref name="twoItems" /> says; its stats refreshed as it enters the world, which counts
-    /// the worn seals, and joined to the instance. Answers the sealed items' ids.
+    /// the worn seals, and joined to the instance. Answers the sealed items' ids. Unidentified when
+    /// <paramref name="identified" /> says so, which the equip rule never lets a character wear.
     /// </summary>
     private static ItemInstanceId[] Dress(MapInstance instance, CharacterEntity character, ushort itemLevel = 1,
-        int progress = 0, bool inBag = false, bool twoItems = false)
+        int progress = 0, bool inBag = false, bool twoItems = false, bool identified = true)
     {
         character.Level = WearerLevel;
         ItemModifierStat line = ItemModifierSeed.Stats().Where(l => l.ModifierId == s_sealedAffix).OrderBy(l => l.Index).First();
@@ -405,8 +450,8 @@ public class AwakeningShould
             : [(inBag ? (byte)0 : EquipmentSlots.Neck, 69)];
         InventoryItem[] pieces =
         [
-            .. kit.Select(piece => TestCharacters.Item(piece.Slot, Data.FindItemTemplate(new ItemTemplateId(piece.Template))!)
-                with { Rarity = ItemRarity.Rare, ItemLevel = itemLevel }),
+            .. kit.Select(piece => TestCharacters.Item(piece.Slot, Data.FindItemTemplate(new ItemTemplateId(piece.Template))!,
+                identified: identified) with { Rarity = ItemRarity.Rare, ItemLevel = itemLevel }),
         ];
         character.ItemModifiers.Load(
         [
@@ -417,7 +462,7 @@ public class AwakeningShould
                 sealedRow.SealProgress = progress;
                 return new ItemInstance
                 {
-                    Identified = true, Id = piece.InstanceId, TemplateId = piece.TemplateId, Modifiers = [sealedRow],
+                    Identified = identified, Id = piece.InstanceId, TemplateId = piece.TemplateId, Modifiers = [sealedRow],
                 };
             }),
         ]);
@@ -427,8 +472,12 @@ public class AwakeningShould
         return [.. pieces.Select(piece => piece.InstanceId)];
     }
 
-    /// <summary>A creature of <paramref name="rarity" /> beside the origin, with no armour or resistance.</summary>
-    private static Creature Foe(MapInstance instance, uint id, CreatureRarity rarity, uint health, ushort level = WearerLevel)
+    /// <summary>
+    /// A creature of <paramref name="rarity" /> beside the origin, with no armour or resistance, whose script takes each
+    /// hit off its health; with none when <paramref name="scripted" /> says so, so a hit takes nothing off.
+    /// </summary>
+    private static Creature Foe(MapInstance instance, uint id, CreatureRarity rarity, uint health, ushort level = WearerLevel,
+        bool scripted = true)
     {
         CreatureTemplate template = Loot.LootTestData.BoarTemplate(null);
         template.Rarity = rarity;
@@ -442,7 +491,8 @@ public class AwakeningShould
             CurrentHealth = health,
             ControlResistance = ControlResistance.Of(template, Data.CreatureRarityModifiers),
         };
-        creature.Script = new CombatResolutionShould.CountingWoundScript(creature);
+        if (scripted)
+            creature.Script = new CombatResolutionShould.CountingWoundScript(creature);
         instance.AddCreature(creature);
         return creature;
     }

@@ -18,6 +18,7 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
+using Avalon.World.Entities;
 using Avalon.World.GameAuth;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
@@ -263,7 +264,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ItemModifierDtoPool _inventoryModifierDtos = new();
 
     // The Awakening stage (#1180): settles, wakes worn sealed affixes and sends their progress, before the quest and
-    // inventory flushes, so a wake's item reaches the client in the same tick's inventory update.
+    // inventory flushes, so a wake's item reaches the client in the same tick's inventory update. It visits only the
+    // characters the queue took, so an idle tick costs nothing per connection.
+    private readonly AwakeningQueue _awakeningQueue;
     private readonly AwakeningFlusher _awakening;
     private readonly ThrottledErrorLog _awakeningFlushErrors;
     private readonly ThrottledErrorLog _questResetErrors;
@@ -377,6 +380,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest flush");
         _questResetErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest reset check");
+        _awakeningQueue = serviceProvider.GetRequiredService<AwakeningQueue>();
         _awakening = new AwakeningFlusher(serviceProvider.GetRequiredService<ICharacterEconomy>(), _logger);
         _awakeningFlushErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The awakening flush");
@@ -941,14 +945,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // Awakening (#1180): each character a kill or a moved bar made due settles its points and wakes the worn sealed
         // affixes whose bars are full, then is told the progress that moved. Before the quest and inventory flushes, so
-        // a woken item, now attuned, leaves in this tick's inventory update with its new stats behind it. Contained per
-        // connection: one character's throw costs nobody else.
+        // a woken item, now attuned, leaves in this tick's inventory update with its new stats behind it. Only the
+        // characters queued since the last tick are visited. Contained per character: one character's throw costs nobody
+        // else.
         StaticData data = _world.Data;
-        for (int i = 0; i < conns.Length; i++)
+        ReadOnlySpan<CharacterEntity> due = _awakeningQueue.Take();
+        for (int i = 0; i < due.Length; i++)
         {
             try
             {
-                _awakening.Flush(conns[i], data);
+                _awakening.Flush(due[i], data);
             }
             catch (Exception e)
             {

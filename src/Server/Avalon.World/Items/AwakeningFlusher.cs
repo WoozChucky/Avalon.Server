@@ -12,14 +12,14 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Items;
 
 /// <summary>
-/// The tick's Awakening stage (#1180), run by WorldServer per connection after both passes and before the quest and
-/// inventory flushes. For a character whose meter is due it settles the pending points (<see cref="Awakening.Settle" />),
-/// wakes every worn item whose sealed affix reached its threshold (<see cref="IInventoryService.TryAwaken" />), sends one
-/// SItemAwakenedPacket per wake and refreshes the stats when anything woke; for one whose progress moved, it sends one
-/// SAwakeningProgressPacket listing every worn sealed affix. This is the only place a seal wakes, and only a worn one: a
-/// settle never wakes, so a wake is sent once, from here. A character with neither due nor unsent costs two bool reads;
-/// the rest allocates nothing past the packets, its slots on the stack and its progress entries reused. One per
-/// WorldServer. Tick thread only.
+/// The tick's Awakening stage (#1180), run by WorldServer after both passes and before the quest and inventory flushes,
+/// for each character its <see cref="AwakeningQueue" /> took. For a character whose meter is due it settles the pending
+/// points (<see cref="Awakening.Settle" />), wakes every worn item whose sealed affix reached its threshold
+/// (<see cref="IInventoryService.TryAwaken" />), sends one SItemAwakenedPacket per wake and refreshes the stats when
+/// anything woke; for one whose progress moved, it sends one SAwakeningProgressPacket listing every worn sealed affix.
+/// This is the only place a seal wakes, and only a worn one: a settle never wakes, so a wake is sent once, from here.
+/// Each walk visits only the Equipment slots the meter keeps for its seals. Nothing is allocated past the packets, its
+/// slots on the stack and its progress entries reused. One per WorldServer. Tick thread only.
 /// </summary>
 public sealed class AwakeningFlusher(ICharacterEconomy economy, ILogger logger)
 {
@@ -28,41 +28,59 @@ public sealed class AwakeningFlusher(ICharacterEconomy economy, ILogger logger)
     private readonly List<AwakeningProgressDto> _entries = [];
     private readonly List<AwakeningProgressDto> _sent = [];
 
-    public void Flush(IWorldConnection connection, StaticData data)
+    /// <summary>
+    /// Flushes <paramref name="character" />, taken off its queue: nothing for one that left the world since it was
+    /// queued. Work left undone by a throw (progress not yet sent) queues it again for the next tick.
+    /// </summary>
+    public void Flush(CharacterEntity character, StaticData data)
     {
-        if (connection.Character is not CharacterEntity { Data: not null } character)
+        AwakeningMeter meter = character.Awakening;
+        meter.Dequeued();
+        if (meter.Connection is not { } connection || character.Data is null)
             return;
 
-        AwakeningMeter meter = character.Awakening;
-        if (meter.Due)
+        try
         {
-            // Cleared after the settle, which leaves the meter due when it moved progress: the look for a full bar it
-            // asks for is the one that follows. A refresh after a wake that still finds a seal worn makes it due again.
-            Awakening.Settle(character);
-            meter.Due = false;
-            Wake(connection, character, data);
-        }
+            if (meter.Due)
+            {
+                // Cleared after the settle, which leaves the meter due when it moved progress: the look for a full bar it
+                // asks for is the one that follows. A refresh after a wake that still finds a seal worn makes it due
+                // again, for the next tick.
+                Awakening.Settle(character);
+                meter.Due = false;
+                Wake(connection, character, data);
+            }
 
-        if (meter.Unsent)
+            if (meter.Unsent)
+            {
+                meter.Unsent = false;
+                SendProgress(connection, character);
+            }
+        }
+        finally
         {
-            meter.Unsent = false;
-            SendProgress(connection, character);
+            meter.QueueIfPending();
         }
     }
 
     /// <summary>
     /// Wakes each worn item with a full bar. The slots are found first, so the Equipment is not walked while a wake
-    /// changes it; a refresh follows when anything woke, which counts Resonance again since the item's list is new.
+    /// changes it; a refresh follows when anything woke, even when a later wake throws, which counts Resonance again
+    /// since the item's list is new.
     /// </summary>
     private void Wake(IWorldConnection connection, CharacterEntity character, StaticData data)
     {
         CharacterInventoryContainer equipment = character.Container(InventoryType.Equipment);
-        Span<byte> ready = stackalloc byte[equipment.Capacity];
+        ReadOnlySpan<byte> sealedSlots = character.Awakening.SealedSlots(character);
+        Span<byte> ready = stackalloc byte[sealedSlots.Length];
         int count = 0;
-        foreach (InventoryItem item in equipment.Held)
+        for (int s = 0; s < sealedSlots.Length; s++)
         {
-            if (HasReadyRow(character, item))
+            if (equipment.TryGet(sealedSlots[s], out InventoryItem item)
+                && Awakening.ReadyRowIndex(item, character.ItemModifiers.Of(item.InstanceId)) >= 0)
+            {
                 ready[count++] = item.Slot;
+            }
         }
 
         if (count == 0)
@@ -70,40 +88,37 @@ public sealed class AwakeningFlusher(ICharacterEconomy economy, ILogger logger)
 
         IInventoryService inventory = economy.InventoryOf(character);
         bool woke = false;
-        for (int i = 0; i < count; i++)
+        try
         {
-            if (inventory.TryAwaken(ready[i]) is not { } awakened)
-                continue;
+            for (int i = 0; i < count; i++)
+            {
+                if (inventory.TryAwaken(ready[i]) is not { } awakened)
+                    continue;
 
-            connection.Send(SItemAwakenedPacket.Create(awakened.EquipmentSlot, (uint)awakened.ModifierId, awakened.Outcome,
-                PacketEncoder.Shared));
-            woke = true;
+                woke = true;
+                connection.Send(SItemAwakenedPacket.Create(awakened.EquipmentSlot, (uint)awakened.ModifierId,
+                    awakened.Outcome, PacketEncoder.Shared));
+            }
         }
-
-        if (woke)
-            CharacterStatsRefresh.AfterGearChange(character, data, logger);
+        finally
+        {
+            if (woke)
+                CharacterStatsRefresh.AfterGearChange(character, data, logger);
+        }
     }
 
-    private static bool HasReadyRow(CharacterEntity character, in InventoryItem item)
-    {
-        IReadOnlyList<ItemInstanceModifier> rows = character.ItemModifiers.Of(item.InstanceId);
-        for (int i = 0; i < rows.Count; i++)
-        {
-            if (Awakening.ReadyToWake(item, rows[i]))
-                return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>Every worn row that fills, as (slot, progress) in Equipment slot order; nothing is sent for none.</summary>
+    /// <summary>
+    /// Every worn row that fills, as (slot, item, progress) in Equipment slot order; nothing is sent for none. The item's
+    /// instance id names which item the bar belongs to, whatever this tick's inventory update moves.
+    /// </summary>
     private void SendProgress(IWorldConnection connection, CharacterEntity character)
     {
         _sent.Clear();
         CharacterInventoryContainer equipment = character.Container(InventoryType.Equipment);
-        for (byte slot = 0; slot < equipment.Capacity; slot++)
+        ReadOnlySpan<byte> sealedSlots = character.Awakening.SealedSlots(character);
+        for (int s = 0; s < sealedSlots.Length; s++)
         {
-            if (!equipment.TryGet(slot, out InventoryItem item))
+            if (!equipment.TryGet(sealedSlots[s], out InventoryItem item))
                 continue;
 
             IReadOnlyList<ItemInstanceModifier> rows = character.ItemModifiers.Of(item.InstanceId);
@@ -116,7 +131,8 @@ public sealed class AwakeningFlusher(ICharacterEconomy economy, ILogger logger)
                     _entries.Add(new AwakeningProgressDto());
 
                 AwakeningProgressDto entry = _entries[_sent.Count];
-                entry.EquipmentSlot = slot;
+                entry.EquipmentSlot = item.Slot;
+                entry.ItemInstanceId = item.InstanceId.Value;
                 entry.Progress = (uint)rows[i].SealProgress.GetValueOrDefault();
                 _sent.Add(entry);
             }
