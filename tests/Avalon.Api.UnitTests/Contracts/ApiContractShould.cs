@@ -52,12 +52,12 @@ public class ApiContractShould
     /// <summary>
     /// An item's instability is never sent or shown (#1180): no client learns how close an item is to bricking. No packet
     /// (<see cref="ItemSlotDto" />'s assembly), REST contract (<see cref="CharacterInventoryDto" />'s) or modding-API type
-    /// (<see cref="InventoryItem" />'s) names it, and neither does any Avalon type those reach through a reachable member's
-    /// type, a parameter's or a return type, a generic argument or an element (an Avalon.Common enum such as
-    /// <see cref="ItemInstanceFlags" /> among them): not as a type, a property, a field, an enum value, a method, or a
-    /// constructor or method parameter (a record's positional members among them), under "instab" or "unstab" in any case.
-    /// A member the serializers reach without its being public (a protobuf or JSON attribute on a private one) counts as
-    /// public.
+    /// (<see cref="InventoryItem" />'s) names it, and neither does any Avalon type those reach through a base type, an
+    /// interface, a reachable member's type, a parameter's or a return type, a generic argument or an element (an
+    /// Avalon.Common enum such as <see cref="ItemInstanceFlags" /> among them): not as a type, a property, a field, an
+    /// enum value, a method, or a constructor or method parameter (a record's positional members among them), under
+    /// "instab" or "unstab" in any case. A member the serializers reach without its being public (a protobuf or JSON
+    /// attribute on a private one) counts as public.
     /// </summary>
     [Fact]
     public void Name_instability_on_no_client_facing_type()
@@ -76,6 +76,18 @@ public class ApiContractShould
             if (Hides(type.Name))
             {
                 offenders.Add(type.FullName!);
+            }
+
+            // An inherited member is declared on its base, so the bases and interfaces are walked too; each type is
+            // queued once, so the walk ends.
+            if (type.BaseType is { } baseType)
+            {
+                Walk(baseType);
+            }
+
+            foreach (Type contract in type.GetInterfaces())
+            {
+                Walk(contract);
             }
 
             foreach (MemberInfo member in type.GetMembers(Declared).Where(Reachable))
