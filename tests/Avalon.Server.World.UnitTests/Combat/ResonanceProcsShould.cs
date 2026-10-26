@@ -5,12 +5,10 @@ using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
-using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World;
-using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
@@ -495,12 +493,12 @@ public class ResonanceProcsShould
     /// <summary>
     /// A hit allocates nothing for Resonance when nothing fires: 1,000 hits of an Ember 4 and Thorn 4 wearer whose
     /// Burning III is on cooldown read 0 B, as do 1,000 of a wearer with no theme. A hit that places a new Burning III
-    /// allocates no more than the aura system's own application of it with an ability's source, each on a creature already
-    /// in the wearer's fight and holding no aura: the fewest bytes of three, so a background collection in one cannot
-    /// fail it.
+    /// allocates nothing either, once warm: its copy is the last one, removed and pooled by the instance's next aura pass,
+    /// placed again on the same creature, which holds none and is already in the wearer's fight. The fewest bytes of three
+    /// rounds, so a background collection in one cannot fail it.
     /// </summary>
     [Fact]
-    public void Allocate_nothing_per_hit_and_no_more_than_an_abilitys_aura_when_a_proc_places_one()
+    public void Allocate_nothing_per_hit_nor_when_a_proc_places_a_new_aura()
     {
         using MapInstance instance = TestMapInstances.Build(new QuietWorld(Data), random: _random, time: _clock);
         CharacterEntity themed = Quiet(instance, Dressed(TestCharacters.New(1180_601, time: _clock), "Ember", "Thorn"));
@@ -521,33 +519,30 @@ public class ResonanceProcsShould
             Assert.Equal(0, _random.DoublesLeft);
         }
 
-        GameAbility ability = AbilityTestData.Game(Seeded(204));
-        long proc = long.MaxValue, applied = long.MaxValue;
-        for (int round = 0; round < 3; round++)
+        // The first round is the warm-up: the creature's first copy is a new one.
+        Creature target = Boar(instance, 1180_962, health: uint.MaxValue);
+        long proc = long.MaxValue;
+        for (int round = 0; round < 4; round++)
         {
-            Creature procTarget = Boar(instance, (uint)(1180_962 + (2 * round)), health: uint.MaxValue);
-            Creature applyTarget = Boar(instance, (uint)(1180_963 + (2 * round)), health: uint.MaxValue);
-            // Both join the wearer's fight, its cooldown ready again and its chance missing.
+            // Its last Burning III ended, pooled as the next pass starts and its change sent; the cooldown ready again.
+            instance.Auras.RemoveAll(target, AuraRemoveReason.Expired);
+            instance.Auras.Update();
+            instance.Auras.Roster.ClearChanges();
             _clock.Advance(TimeSpan.FromSeconds(2));
-            Hit(instance, themed, applyTarget, chance: [Miss]);
-            Hit(instance, themed, procTarget, chance: [Miss]);
-            Assert.Empty(procTarget.Auras.All);
+            Assert.Empty(target.Auras.All);
 
             _random.Doubles(Miss, Miss, Miss, 0.1);
             long start = ThreadAllocations.BeforeQuietWindow();
-            instance.CombatService.ApplyDamage(themed, procTarget, 10);
-            proc = Math.Min(proc, GC.GetAllocatedBytesForCurrentThread() - start);
+            instance.CombatService.ApplyDamage(themed, target, 10);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
+            if (round > 0)
+                proc = Math.Min(proc, allocated);
 
-            start = ThreadAllocations.BeforeQuietWindow();
-            instance.Auras.Apply(themed, applyTarget, new AuraId(Burning3), AuraSource.Of(ability));
-            applied = Math.Min(applied, GC.GetAllocatedBytesForCurrentThread() - start);
-
-            Assert.Equal([Burning3], procTarget.Auras.All.Select(a => a.Id.Value));
-            Assert.Equal([Burning3], applyTarget.Auras.All.Select(a => a.Id.Value));
+            Assert.Equal([Burning3], target.Auras.All.Select(a => a.Id.Value));
             Assert.Equal(0, _random.DoublesLeft);
         }
 
-        Assert.InRange(proc, 1, applied);
+        Assert.Equal(0, proc);
     }
 
     private MapInstance Instance(MapType mapType = MapType.Normal, StaticData? data = null)
@@ -693,11 +688,5 @@ public class ResonanceProcsShould
                     $"{aura.Template.Name} on {pair.Key} from {names.GetValueOrDefault(aura.CasterGuid, "someone else")}"))
                 .Order(StringComparer.Ordinal),
         ];
-    }
-
-    private static AbilityTemplate Seeded(uint id)
-    {
-        Assert.True(Data.LoadedAbilities!.TryGet(new AbilityId(id), out AbilityTemplate? row));
-        return row;
     }
 }
