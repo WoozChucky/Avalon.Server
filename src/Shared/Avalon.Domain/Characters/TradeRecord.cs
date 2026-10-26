@@ -83,6 +83,10 @@ public class TradeRecordItemModifier
 
     /// <summary>The catalog modifier (<see cref="ItemInstanceModifier.ModifierId" />).</summary>
     public int ModifierId { get; set; }
+
+    /// <summary>A sealed affix's progress when the trade completed (<see cref="ItemInstanceModifier.SealProgress" />, #1180); null on an awake one.</summary>
+    public int? SealProgress { get; set; }
+
     public List<TradeRecordItemModifierValue> Values { get; set; } = [];
 }
 

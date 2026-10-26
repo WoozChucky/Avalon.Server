@@ -536,6 +536,7 @@ public sealed partial class TradeService
                     ItemInstanceId = item.InstanceId,
                     Ordinal = modifier.Ordinal,
                     ModifierId = modifier.ModifierId,
+                    SealProgress = modifier.SealProgress,
                 };
 
                 foreach (ItemInstanceModifierValue value in modifier.Values)

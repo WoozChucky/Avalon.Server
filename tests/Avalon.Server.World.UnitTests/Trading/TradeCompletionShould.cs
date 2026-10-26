@@ -31,6 +31,7 @@ public class TradeCompletionShould
         (TradeTestWorld w, Trader a, Trader b, InventoryItem sword, InventoryItem potion) = Confirmed();
         string modifiers = Describe(a.Character.ItemModifiers.Of(sword.InstanceId));
         string rolls = DescribeRolls(a.Character.ItemModifiers.Of(sword.InstanceId));
+        Assert.Contains(" sealed 23", rolls, StringComparison.Ordinal);
 
         Assert.True(a.States().Last().Completing);
         (TradeSidePlan first, TradeSidePlan second, TradeRecord record) = w.Saver.Trades.Single();
@@ -45,6 +46,10 @@ public class TradeCompletionShould
             DateTime.UnixEpoch);
         Assert.False(receiving.UpsertItems.Single(i => i.Id == sword.InstanceId).Identified);
         ItemModifierWrite received = receiving.Modifiers!;
+        Assert.Equal(rolls, DescribeRolls([.. received.Modifiers
+            .Where(m => m.ItemInstanceId == sword.InstanceId)
+            .OrderBy(m => m.Ordinal)
+            .Select(m => WithValues(m, received.Values))]));
         Assert.Equal(s_swordBaseStats, ItemBaseStats.Of(received.BaseStats.Where(s => s.ItemInstanceId == sword.InstanceId)));
         Assert.Equal((30UL, 0UL), (record.FirstGold, record.SecondGold));
         Assert.Equal(sword.InstanceId, At(a, 0).InstanceId);          // memory unchanged while the save is in flight
@@ -93,6 +98,7 @@ public class TradeCompletionShould
             // #1179: the receiver holds the sword's modifiers under their own ids, and the giver's next save names neither
             // (CharacterSaverShould writes the paired save itself).
             Assert.Equal(modifiers, Describe(b.Character.ItemModifiers.Of(sword.InstanceId)));
+            Assert.Equal(rolls, DescribeRolls(b.Character.ItemModifiers.Of(sword.InstanceId)));
             Assert.Equal(s_swordBaseStats, b.Character.ItemModifiers.BaseStatsOf(sword.InstanceId));
             Assert.Empty(a.Character.ItemModifiers.Of(sword.InstanceId));
             CharacterSaveBatch next = CharacterSaveSnapshot.Take(a.Character).Batch;
@@ -178,7 +184,8 @@ public class TradeCompletionShould
     /// <summary>
     /// A holds the Sword at Bag 0 and 100 gold and offers both and 30 gold; B offers its Potion ×5 at Bag 0; both
     /// confirm the current revision, so the paired save is in flight. The Sword is Magic, item level 7, with its base
-    /// stats and two modifiers, unidentified, and was added this session: New, its rolled rows marked, never saved (#1179).
+    /// stats and two modifiers, the first sealed at 23 points (#1180), unidentified, and was added this session: New, its
+    /// rolled rows marked, never saved (#1179).
     /// </summary>
     internal static (TradeTestWorld W, Trader A, Trader B, InventoryItem Sword, InventoryItem Potion) Confirmed()
     {
@@ -188,10 +195,12 @@ public class TradeCompletionShould
         InventoryItem sword = Item(0, Sword, identified: false) with { Rarity = ItemRarity.Magic, ItemLevel = 7 };
         InventoryItem potion = Item(0, Potion, count: 5);
         b.Character.Container(InventoryType.Bag).Load([potion]);
+        ItemInstanceModifier sealedRow = Modifier(sword.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
+        sealedRow.SealProgress = 23;
         Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(sword,
             s_swordBaseStats,
         [
-            Modifier(sword.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5)),
+            sealedRow,
             Modifier(sword.InstanceId, 10103, 1, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null)),
         ])));
         w.Open(a, b);
@@ -203,6 +212,14 @@ public class TradeCompletionShould
         Assert.Equal(TradeResult.Ok, w.Trades.Confirm(a.Id, revision));
         Assert.Equal(TradeResult.Ok, w.Trades.Confirm(b.Id, revision));
         return (w, a, b, sword, potion);
+    }
+
+    /// <summary>A save's modifier row with its value rows put back on it, as the store holds it.</summary>
+    private static ItemInstanceModifier WithValues(ItemInstanceModifier row, IReadOnlyList<ItemInstanceModifierValue> values)
+    {
+        ItemInstanceModifier whole = row.CopyRow();
+        whole.Values = [.. values.Where(v => v.ItemInstanceModifierId == row.Id).OrderBy(v => v.Index)];
+        return whole;
     }
 
     private static InventoryItem At(Trader trader, byte bagSlot) =>

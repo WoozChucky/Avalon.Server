@@ -17,7 +17,7 @@ namespace Avalon.Database.Character.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -549,11 +549,17 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<byte>("Ordinal")
                         .HasColumnType("smallint");
 
+                    b.Property<int?>("SealProgress")
+                        .HasColumnType("integer");
+
                     b.HasKey("TradeId", "ItemInstanceModifierId");
 
                     b.HasIndex("TradeId", "ItemInstanceId");
 
-                    b.ToTable("TradeRecordItemModifiers", (string)null);
+                    b.ToTable("TradeRecordItemModifiers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TradeRecordItemModifiers_SealProgress", "\"SealProgress\" IS NULL OR \"SealProgress\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifierValue", b =>
@@ -671,11 +677,21 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<byte>("Ordinal")
                         .HasColumnType("smallint");
 
+                    b.Property<int?>("SealProgress")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ItemInstanceId");
 
-                    b.ToTable("ItemInstanceModifiers");
+                    b.HasIndex(new[] { "ItemInstanceId" }, "IX_ItemInstanceModifiers_Sealed")
+                        .IsUnique()
+                        .HasFilter("\"SealProgress\" IS NOT NULL");
+
+                    b.ToTable("ItemInstanceModifiers", t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemInstanceModifiers_SealProgress", "\"SealProgress\" IS NULL OR \"SealProgress\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ItemInstanceModifierValue", b =>
