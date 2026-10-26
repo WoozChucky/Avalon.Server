@@ -69,15 +69,7 @@ public class StaticData(
     /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
     /// touches nothing live; a failure throws and leaves the current data exactly as it was.
     /// </summary>
-    public Task<StaticDataPatch> PrepareAsync(ReloadArea area, CancellationToken ct = default) =>
-        PrepareAsync(area, startup: false, ct);
-
-    /// <param name="startup">
-    /// The startup load (<see cref="LoadAsync" />), whose Items area, read just before from the same database, has held the
-    /// Resonance effects against the same aura rows and logged their refusals: the Auras area then leaves them as they are,
-    /// so each refusal is logged once per load.
-    /// </param>
-    private async Task<StaticDataPatch> PrepareAsync(ReloadArea area, bool startup, CancellationToken ct)
+    public async Task<StaticDataPatch> PrepareAsync(ReloadArea area, CancellationToken ct = default)
     {
         switch (area)
         {
@@ -124,7 +116,7 @@ public class StaticData(
                 // built from the aura as it was, active until the next /reload items. Reloads run one at a time
                 // (ReferenceDataReloader), so no items generation lands between this read and the apply.
                 AuraCatalog auras = await ReadAurasAsync(loggerFactory, ct);
-                ResonanceEffectCatalog? live = startup ? null : _items?.Effects;
+                ResonanceEffectCatalog? live = _items?.Effects;
                 return new AurasPatch(auras)
                 {
                     Effects = live?.Against(auras, loggerFactory.CreateLogger<ItemsPatch>()),
@@ -363,7 +355,7 @@ public class StaticData(
         // Startup: there is no tick yet, so applying directly is correct.
         foreach (ReloadArea area in Enum.GetValues<ReloadArea>())
         {
-            Apply(await PrepareAsync(area, startup: true, cancellationToken));
+            Apply(await PrepareAsync(area, cancellationToken));
         }
     }
 

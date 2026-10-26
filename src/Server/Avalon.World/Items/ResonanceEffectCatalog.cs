@@ -13,14 +13,24 @@ namespace Avalon.World.Items;
 /// immutable afterwards. A row that breaks a rule is logged and left out, and every other row still loads. The rows are
 /// kept, so an Auras reload builds a new catalog of the same rows against the auras its prepare read
 /// (<see cref="Against" />) and publishes it with them: an aura edit never leaves active an effect the rules refuse, nor
-/// a source built from the aura as it was.
+/// a source built from the aura as it was. Such a catalog logs only the refusals the one it replaces did not already
+/// report: the startup load, a full reload or <c>/reload items</c> then <c>/reload auras</c> log each refused row once.
 /// </summary>
 public sealed class ResonanceEffectCatalog
 {
     private readonly IReadOnlyCollection<ItemThemeEffect> _rows;
     private readonly ThemeEffects[] _themes;
 
+    // Each refused row's reason, by row id: what a catalog built from this one (Against) need not report again.
+    private readonly Dictionary<int, string> _refused = [];
+
     public ResonanceEffectCatalog(IReadOnlyCollection<ItemThemeEffect> rows, AuraCatalog auras, ILogger logger)
+        : this(rows, auras, logger, reported: null)
+    {
+    }
+
+    private ResonanceEffectCatalog(IReadOnlyCollection<ItemThemeEffect> rows, AuraCatalog auras, ILogger logger,
+        ResonanceEffectCatalog? reported)
     {
         _rows = rows;
         List<ResonanceEffect> accepted = [];
@@ -33,7 +43,9 @@ public sealed class ResonanceEffectCatalog
             string? reason = Refusal(row, auras) ?? (repeat ? "a second row for one theme, threshold and trigger" : null);
             if (reason is not null)
             {
-                logger.LogError("Resonance effect {EffectId} is left out: {Reason}", row.Id, reason);
+                _refused[row.Id] = reason;
+                if (reported is null || !reported._refused.TryGetValue(row.Id, out string? before) || before != reason)
+                    logger.LogError("Resonance effect {EffectId} is left out: {Reason}", row.Id, reason);
                 continue;
             }
 
@@ -67,9 +79,11 @@ public sealed class ResonanceEffectCatalog
 
     /// <summary>
     /// A new catalog of this one's rows, each held to the rules against <paramref name="auras" /> and, when accepted, given
-    /// a source built from its aura there: what an Auras reload publishes beside its auras. Built off the tick.
+    /// a source built from its aura there: what an Auras reload publishes beside its auras. Built off the tick. It logs
+    /// a refusal only when this catalog did not refuse that row for the same reason, so a refusal already reported (by the
+    /// items load before it) is not reported twice, and one the new auras cause is.
     /// </summary>
-    public ResonanceEffectCatalog Against(AuraCatalog auras, ILogger logger) => new(_rows, auras, logger);
+    public ResonanceEffectCatalog Against(AuraCatalog auras, ILogger logger) => new(_rows, auras, logger, reported: this);
 
     /// <summary>
     /// Why <paramref name="row" /> cannot load against <paramref name="auras" />, or null when it can: every rule but the

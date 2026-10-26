@@ -8,12 +8,16 @@ namespace Avalon.World.Auras;
 
 /// <summary>
 /// One aura on one unit: the template it was applied with (kept, so a reload never changes an aura already held), who
-/// applied it, its stacks, its snapshot and its schedule. Tick thread only. World-side. A copy the aura system placed
-/// comes from its pool and goes back to it once removed (<see cref="AuraSystem" />), so a copy is only ever read while a
-/// unit holds it, or by the caller that just removed it, within the tick.
+/// applied it, its stacks, its snapshot and its schedule. Tick thread only. World-side. A copy an aura system placed
+/// comes from that system's pool and goes back to it once that system removes it (<see cref="AuraSystem" />); any other
+/// copy is left to the collector. So a copy is only ever read while a unit holds it, or by the caller that just removed
+/// it, within the tick.
 /// </summary>
 public sealed class ActiveAura
 {
+    // Whom a pooled copy names as its caster: nobody, one guid for every pooled copy, so clearing one allocates nothing.
+    private static readonly ObjectGuid s_nobody = new();
+
     public ActiveAura(AuraTemplate template, ObjectGuid casterGuid, AuraSource source, uint stacks, AuraSnapshot snapshot,
         AuraSchedule schedule, uint durationMs, DateTime appliedAt)
     {
@@ -66,6 +70,13 @@ public sealed class ActiveAura
     /// </summary>
     public DateTimeOffset NextBreakRollAt { get; internal set; }
 
+    /// <summary>
+    /// The aura system that made it and pools it, set once when it made it; null for a copy made anywhere else (restored at
+    /// login), which no pool takes back. A copy is pooled only by its own instance, so a long-lived instance that ends
+    /// copies made elsewhere (a town ending a forest's buffs) never keeps them.
+    /// </summary>
+    internal AuraSystem? Pool { get; init; }
+
     /// <summary>Removed and given back to its aura system's pool, until the pool hands it out again.</summary>
     internal bool Returned { get; set; }
 
@@ -79,6 +90,20 @@ public sealed class ActiveAura
         Key = 0;
         Returned = false;
         Start(template, casterGuid, source, stacks, snapshot, schedule, durationMs, appliedAt);
+    }
+
+    /// <summary>
+    /// Joining its pool: every reference it holds is let go (its template, its caster's guid, its source and through it the
+    /// ability's id), so a pooled copy keeps nothing alive, an old template after a reload included. Nothing reads a
+    /// pooled copy; its template is null until <see cref="Reuse" />.
+    /// </summary>
+    internal void Clear()
+    {
+        Template = null!;
+        CasterGuid = s_nobody;
+        Source = default;
+        Snapshot = default;
+        Schedule = default;
     }
 
     /// <summary>

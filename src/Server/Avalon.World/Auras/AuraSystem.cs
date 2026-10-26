@@ -61,11 +61,13 @@ public sealed class AuraSystem
     private readonly List<List<ActiveAura>> _ending = [];
     private int _endingDepth;
 
-    // The pool of copies (#1180 part A2): every copy removed from a unit here waits in _removed until the next pass
-    // starts, when no walk, hook or caller of the tick it was removed in can still be reading it, and then joins _free,
-    // which every new aura placed here is taken from before one is made. So a placement allocates nothing once the pool
-    // holds as many copies as this instance's units shed between two passes, and a copy is never reused while anything
-    // that saw it removed is still running. Both grow to what the instance needs and are never trimmed.
+    // The pool of copies (#1180 part A2): every copy this system made (ActiveAura.Pool) that is removed from a unit here
+    // waits in _removed until the next pass starts, when no walk, hook or caller of the tick it was removed in can still
+    // be reading it, and then joins _free, its references let go, which every new aura placed here is taken from before
+    // one is made. So a placement allocates nothing once the pool holds as many copies as this instance's units shed
+    // between two passes, and a copy is never reused while anything that saw it removed is still running. A copy made
+    // elsewhere (by another instance, or restored at login) is left to the collector, so the pool never holds more copies
+    // than this instance itself had made, its own peak: a long-lived town ending copies its visitors bring keeps none.
     private readonly List<ActiveAura> _removed = [];
     private readonly Stack<ActiveAura> _free = new();
 
@@ -352,20 +354,30 @@ public sealed class AuraSystem
         AuraSchedule schedule, uint durationMs, DateTime appliedAt)
     {
         if (!_free.TryPop(out ActiveAura? aura))
-            return new ActiveAura(template, casterGuid, source, 1, snapshot, schedule, durationMs, appliedAt);
+        {
+            return new ActiveAura(template, casterGuid, source, 1, snapshot, schedule, durationMs, appliedAt)
+            {
+                Pool = this,
+            };
+        }
 
         aura.Reuse(template, casterGuid, source, 1, snapshot, schedule, durationMs, appliedAt);
         return aura;
     }
 
     /// <summary>
-    /// The copies removed since the last pass join the pool: called as a pass starts, outside every walk and hook, so
-    /// nothing still reads one of them.
+    /// The copies removed since the last pass join the pool, each letting go of what it referenced: called as a pass
+    /// starts, outside every walk and hook, so nothing still reads one of them.
     /// </summary>
     private void PoolRemoved()
     {
         for (int i = 0; i < _removed.Count; i++)
-            _free.Push(_removed[i]);
+        {
+            ActiveAura aura = _removed[i];
+            aura.Clear();
+            _free.Push(aura);
+        }
+
         _removed.Clear();
     }
 
@@ -754,17 +766,21 @@ public sealed class AuraSystem
     /// <summary>
     /// Ends one aura on <paramref name="unit" />, for <paramref name="reason" />, then tells its script. Nothing if it no
     /// longer holds it, so its script hears of it once however often removal is reached (a hook that kills while its
-    /// aura ends included). The copy goes back to the pool once, here, and is placed again no sooner than after the next
-    /// pass starts; the caller may still read it until its own call returns, but must not keep it.
+    /// aura ends included). A copy this system made goes back to its pool once, here, and is placed again no sooner than
+    /// after the next pass starts; one made elsewhere is left to the collector. The caller may still read it until its own
+    /// call returns, but must not keep it.
     /// </summary>
     public void Remove(IUnit unit, ActiveAura aura, AuraRemoveReason reason)
     {
         if (AuraHolders.Of(unit) is not { } auras || !auras.Remove(aura, _time.GetUtcNow()))
             return;
 
-        Debug.Assert(!aura.Returned, "An aura removed from its unit was already given back to the pool");
-        aura.Returned = true;
-        _removed.Add(aura);
+        if (ReferenceEquals(aura.Pool, this))
+        {
+            Debug.Assert(!aura.Returned, "An aura removed from its unit was already given back to the pool");
+            aura.Returned = true;
+            _removed.Add(aura);
+        }
 
         try
         {

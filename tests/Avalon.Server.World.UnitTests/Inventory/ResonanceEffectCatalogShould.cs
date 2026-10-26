@@ -110,32 +110,41 @@ public class ResonanceEffectCatalogShould
     }
 
     /// <summary>
-    /// A row the rules refuse is logged once per load: once at startup, where the Items area holds the effects against the
-    /// auras and the Auras area, read from the same database, leaves them as they are; and once more by a reload that
-    /// holds them again, a /reload auras here.
+    /// A refused row is logged once per reload of its rows, however many areas hold it after them: the startup load (the
+    /// Items area, then the Auras area against the same rows), and a <c>/reload items</c> then <c>/reload auras</c>, each
+    /// log the stunning row once. An aura edit that newly breaks a row is logged, once: the Burn turned helpful.
     /// </summary>
     [Fact]
-    public async Task Log_a_refused_row_once_per_load()
+    public async Task Log_each_refused_row_once_per_reload_of_its_rows()
     {
         AuraTemplate stunned = AuraTestData.Stunned();
         ItemThemeEffect row = Row(Subject);
         (row.AuraId, row.DamageType) = (stunned.Id, null);
-        IReadOnlyCollection<ItemThemeEffect> rows = [row];
+        IReadOnlyCollection<ItemThemeEffect> rows = [row, Row(Sound)];
         IItemModifierRepository modifiers = Substitute.For<IItemModifierRepository>();
         modifiers.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(_ => ItemModifierRepositories.EmptyCatalog());
         modifiers.GetThemeEffectsAsync(Arg.Any<CancellationToken>()).Returns(_ => rows);
+        AuraTemplate burn = AuraTestData.Burn();
         var log = new TestLog();
-        var data = (TestStaticData.Repositories(auras: () => [AuraTestData.Burn(), stunned]) with
-        {
-            ItemModifiers = modifiers,
-        }).ToStaticData(log);
-        string refusal = $"Resonance effect {Subject} is left out: an aura that stuns";
+        var data = (TestStaticData.Repositories(auras: () => [burn, stunned]) with { ItemModifiers = modifiers })
+            .ToStaticData(log);
+        string stuns = $"Resonance effect {Subject} is left out: an aura that stuns";
+        string helpful = $"Resonance effect {Sound} is left out: a helpful aura on an enemy";
+        int Logged(string refusal) => log.Errors.Count(e => e.Message == refusal);
 
         await data.LoadAsync();
-        Assert.Single(log.Errors, e => e.Message == refusal);
+        Assert.Equal(1, Logged(stuns));
 
+        data.Apply(await data.PrepareAsync(ReloadArea.Items));
         data.Apply(await data.PrepareAsync(ReloadArea.Auras));
-        Assert.Equal(2, log.Errors.Count(e => e.Message == refusal));
+        Assert.Equal(2, Logged(stuns));
+
+        burn = AuraTestData.Burn();
+        (burn.Kind, burn.PeriodicKind) = (AuraKind.Helpful, AuraPeriodicKind.Heal);
+        data.Apply(await data.PrepareAsync(ReloadArea.Auras));
+        data.Apply(await data.PrepareAsync(ReloadArea.Auras));
+        Assert.Equal((2, 1), (Logged(stuns), Logged(helpful)));
+        Assert.Empty(data.ResonanceEffects.Effects);
     }
 
     /// <summary>A sound row: Burn on the hit target of a Hit at count 2, typed Fire.</summary>

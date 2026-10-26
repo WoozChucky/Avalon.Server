@@ -1,3 +1,5 @@
+using System.Reflection;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -333,12 +335,13 @@ public class AuraApplyShould
     }
 
     /// <summary>
-    /// The removal paths copy the auras they end into lists the system keeps (#883), and every copy they end goes back to
-    /// the system's pool (#1180 part A2), which the next pass opens to new placements. So once a round of the same work
-    /// has warmed them, a round of it allocates nothing for auras with no script and no stat modifier: placing new copies
-    /// on units that held some, the owner's cancel, the removal on death and the removal on a creature's reset. Nor does an
-    /// application that is refused: an ability's aura on a corpse costs nothing before its refusal. Every copy the round
-    /// placed is one the round before ended, never one still held.
+    /// The removal paths copy the auras they end into lists the system keeps (#883), and every copy the system made goes
+    /// back to its pool when they end it (#1180 part A2), which the next pass opens to new placements. So once a round of
+    /// the same work has warmed them, a round of it allocates nothing for auras with no script and no stat modifier:
+    /// placing new copies on units that held some, the owner's cancel, the removal on death and the removal on a
+    /// creature's reset. Nor does an application that is refused: an ability's aura on a corpse costs nothing before its
+    /// refusal. Every copy the round placed is one the round before ended, never one still held. Copies made elsewhere and
+    /// ended here never join the pool, which stays at this system's own ten, each holding no template.
     /// </summary>
     [Fact]
     public void Place_refuse_and_end_auras_without_allocating()
@@ -356,6 +359,12 @@ public class AuraApplyShould
         Creature[] creatures = [.. dying, .. resetting];
         IUnit[] holders = [.. cancelling, .. creatures];
 
+        // A visitor, as in a town, ends copies made elsewhere every round: two by another instance's aura system and one
+        // restored at login. They are left to the collector, so this pool holds only the copies it made.
+        var elsewhere = new AuraHarness();
+        elsewhere.Use(AuraTestData.Bleed(), AuraTestData.Burn());
+        Creature visitor = _h.Creature(909_960);
+
         // The copies the last round ended, by reference, against which the next round's placements are checked.
         HashSet<ActiveAura> ended = new(ReferenceEqualityComparer.Instance);
         long allocated = 0;
@@ -366,6 +375,11 @@ public class AuraApplyShould
             // Between rounds a pass starts, which pools what the last round ended, and the broadcast clears the changes.
             _h.Auras.Update();
             _h.Auras.Roster.ClearChanges();
+            for (int a = 0; a < harmful.Length; a++)
+                elsewhere.Auras.Apply(null, visitor, harmful[a], AuraSource.None);
+            visitor.Auras.Add(new ActiveAura(AuraTestData.Fortified(), new ObjectGuid(), AuraSource.None, 1, default,
+                AuraSchedule.Start(AuraHarness.T0, 60_000, 0), 60_000, AuraHarness.T0.UtcDateTime), AuraHarness.T0);
+            visitor.Auras.ClearChanges();
 
             long before = ThreadAllocations.BeforeQuietWindow();
             for (int i = 0; i < cancelling.Length; i++)
@@ -394,9 +408,17 @@ public class AuraApplyShould
                 _h.Auras.RemoveAll(dying[i], AuraRemoveReason.Death);
             for (int i = 0; i < resetting.Length; i++)
                 _h.Auras.RemoveHarmful(resetting[i], AuraRemoveReason.Reset);
+            _h.Auras.RemoveAll(visitor, AuraRemoveReason.Expired);
             allocated = placing + GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
+        // The pool, once the last round's copies joined it: this instance's ten, holding nothing they last referenced.
+        _h.Auras.Update();
+        var pool = (Stack<ActiveAura>)typeof(AuraSystem).GetField("_free", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(_h.Auras)!;
+        Assert.Equal(10, pool.Count);
+        Assert.All(pool, copy => Assert.Null(copy.Template));
+        Assert.Equal(0, visitor.Auras.Count);
         Assert.Equal(0, allocated);
         Assert.Equal(AuraApplyResult.Refused, refused);
         Assert.Equal((AuraCancelResult.Ok, AuraCancelResult.Ok), cancelled);
