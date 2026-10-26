@@ -201,7 +201,7 @@ public class InventoryFlushBenchmarks
             Flags = (uint)item.Flags,
             Rarity = item.Rarity,
             ItemLevel = item.ItemLevel,
-            Modifiers = ItemModifierDtoMapper.ToDtos(modifiers, _items.Modifiers, item.Identified),
+            Modifiers = ItemModifierDtoMapper.ToDtos(modifiers, _items.Modifiers, item.Identified, item.ItemLevel),
             Name = item.Identified
                 ? ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, modifiers, _items)
                 : null,

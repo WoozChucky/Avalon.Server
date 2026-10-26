@@ -546,6 +546,8 @@ enum ItemIdentifyResult {
 message ItemModifierDto {
    uint32 ModifierId = 1;
    repeated ItemModifierValueDto Values = 2;
+   optional uint32 SealProgress = 3;
+   optional uint32 SealThreshold = 4;
 }
 message ItemModifierValueDto {
    ItemStat Stat = 1;

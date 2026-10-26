@@ -53,6 +53,8 @@ variant populated
                 field 1 Stat : ItemStat = IncreasedDamage (19)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
+            field 3 SealProgress : uint? = 7
+            field 4 SealThreshold : uint? = 42
           element 1
             field 1 ModifierId : uint = 1000000
             field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -64,6 +66,8 @@ variant populated
                 field 1 Stat : ItemStat = IncreasedDamage (19)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
+            field 3 SealProgress : uint? = 1000000
+            field 4 SealThreshold : uint? = 19
         field 11 Name : string = "Ωμέγα ΔΕΛΤΑ" (11 chars, 21 bytes utf-8)
         field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
           element 0
@@ -98,6 +102,8 @@ variant populated
                 field 1 Stat : ItemStat = IncreasedDamage (19)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
+            field 3 SealProgress : uint? = 7
+            field 4 SealThreshold : uint? = 42
           element 1
             field 1 ModifierId : uint = 1000000
             field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -109,6 +115,8 @@ variant populated
                 field 1 Stat : ItemStat = IncreasedDamage (19)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
+            field 3 SealProgress : uint? = 1000000
+            field 4 SealThreshold : uint? = 19
         field 11 Name : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
         field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
           element 0
@@ -119,32 +127,33 @@ variant populated
             field 2 Value : int = -262144
         field 13 Identified : bool = true
   field 2 Gold : ulong? = 42
-  bytes 386
-    0a be 01 08 01 10 13 1a b7 01 08 01 10 13 18 80
+  bytes 406
+    0a c8 01 08 01 10 13 1a c1 01 08 01 10 13 18 80
     d0 ac f3 0e 22 12 09 5b ad 8f 0f cb d9 9f 46 11
     a1 65 70 86 77 28 95 0e 28 2a 30 ac 02 38 ac 02
-    40 01 48 c0 84 3d 52 27 08 07 12 11 08 0f 10 f0
+    40 01 48 c0 84 3d 52 2b 08 07 12 11 08 0f 10 f0
     a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12 10 08
-    13 10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 52
-    29 08 c0 84 3d 12 11 08 0f 10 f0 a2 04 18 f7 ff
-    ff ff ff ff ff ff ff 01 12 10 08 13 10 e8 07 18
-    fd ff ff ff ff ff ff ff ff 01 5a 15 ce a9 ce bc
-    ce ad ce b3 ce b1 20 ce 94 ce 95 ce 9b ce a4 ce
-    91 62 0d 08 05 10 f7 ff ff ff ff ff ff ff ff 01
-    62 0d 08 04 10 80 80 f0 ff ff ff ff ff ff 01 68
-    01 0a bc 01 08 02 10 2a 1a b5 01 08 02 10 2a 18
-    c0 84 3d 22 12 09 04 03 02 01 06 05 08 07 11 09
-    0a 0b 0c 0d 0e 0f 10 28 13 30 2a 38 2a 40 03 48
-    80 d0 ac f3 0e 52 27 08 07 12 11 08 0f 10 f0 a2
+    13 10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 18
+    07 20 2a 52 2f 08 c0 84 3d 12 11 08 0f 10 f0 a2
     04 18 f7 ff ff ff ff ff ff ff ff 01 12 10 08 13
-    10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 52 29
-    08 c0 84 3d 12 11 08 0f 10 f0 a2 04 18 f7 ff ff
-    ff ff ff ff ff ff 01 12 10 08 13 10 e8 07 18 fd
-    ff ff ff ff ff ff ff ff 01 5a 15 65 6d 6f 6a 69
-    20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72 61 6c
-    62 0d 08 05 10 f7 ff ff ff ff ff ff ff ff 01 62
-    0d 08 04 10 80 80 f0 ff ff ff ff ff ff 01 68 01
-    10 2a
+    10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 18 c0
+    84 3d 20 13 5a 15 ce a9 ce bc ce ad ce b3 ce b1
+    20 ce 94 ce 95 ce 9b ce a4 ce 91 62 0d 08 05 10
+    f7 ff ff ff ff ff ff ff ff 01 62 0d 08 04 10 80
+    80 f0 ff ff ff ff ff ff 01 68 01 0a c6 01 08 02
+    10 2a 1a bf 01 08 02 10 2a 18 c0 84 3d 22 12 09
+    04 03 02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f
+    10 28 13 30 2a 38 2a 40 03 48 80 d0 ac f3 0e 52
+    2b 08 07 12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff
+    ff ff ff ff ff 01 12 10 08 13 10 e8 07 18 fd ff
+    ff ff ff ff ff ff ff 01 18 07 20 2a 52 2f 08 c0
+    84 3d 12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff
+    ff ff ff ff 01 12 10 08 13 10 e8 07 18 fd ff ff
+    ff ff ff ff ff ff 01 18 c0 84 3d 20 13 5a 15 65
+    6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73
+    74 72 61 6c 62 0d 08 05 10 f7 ff ff ff ff ff ff
+    ff ff 01 62 0d 08 04 10 80 80 f0 ff ff ff ff ff
+    ff 01 68 01 10 2a
 
 variant maxima
   field 1 Slots : InventorySlotUpdateDto[] = 3 elements
@@ -177,6 +186,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
           element 1
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -192,6 +203,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
           element 2
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -207,6 +220,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
         field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
         field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
           element 0
@@ -248,6 +263,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
           element 1
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -263,6 +280,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
           element 2
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -278,6 +297,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
         field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
         field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
           element 0
@@ -319,6 +340,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
           element 1
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -334,6 +357,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
           element 2
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -349,6 +374,8 @@ variant maxima
                 field 1 Stat : ItemStat = IncreasedMaximumLife (53)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+            field 3 SealProgress : uint? = 4294967295
+            field 4 SealThreshold : uint? = 4294967295
         field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
         field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
           element 0
@@ -362,23 +389,53 @@ variant maxima
             field 2 Value : int = 2147483647
         field 13 Identified : bool = true
   field 2 Gold : ulong? = 18446744073709551615
-  bytes 1235
-    0a 95 03 08 02 10 ff 01 1a 8d 03 08 02 10 ff 01
+  bytes 1343
+    0a b9 03 08 02 10 ff 01 1a b1 03 08 02 10 ff 01
     18 ff ff ff ff ff ff ff ff ff 01 22 12 09 ff ff
     ff ff ff ff ff ff 11 ff ff ff ff ff ff ff ff 28
     ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff ff ff ff
-    0f 40 03 48 ff ff ff ff 0f 52 36 08 ff ff ff ff
+    0f 40 03 48 ff ff ff ff 0f 52 42 08 ff ff ff ff
     0f 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
     07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
     07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 52 36 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff
+    07 18 ff ff ff ff 0f 20 ff ff ff ff 0f 52 42 08
+    ff ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 18 ff ff ff ff 0f 20 ff ff ff ff
+    0f 52 42 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff
     ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff
     ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff ff ff
+    ff ff 07 18 ff ff ff ff 07 18 ff ff ff ff 0f 20
+    ff ff ff ff 0f 5a 84 01 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 62 08 08 06
+    10 ff ff ff ff 07 62 08 08 06 10 ff ff ff ff 07
+    62 08 08 06 10 ff ff ff ff 07 68 01 0a b9 03 08
+    02 10 ff 01 1a b1 03 08 02 10 ff 01 18 ff ff ff
+    ff ff ff ff ff ff 01 22 12 09 ff ff ff ff ff ff
+    ff ff 11 ff ff ff ff ff ff ff ff 28 ff ff ff ff
+    0f 30 ff ff ff ff 0f 38 ff ff ff ff 0f 40 03 48
+    ff ff ff ff 0f 52 42 08 ff ff ff ff 0f 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 18 ff ff
+    ff ff 0f 20 ff ff ff ff 0f 52 42 08 ff ff ff ff
     0f 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
     07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
     07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 5a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    07 18 ff ff ff ff 0f 20 ff ff ff ff 0f 52 42 08
+    ff ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 18 ff ff ff ff 0f 20 ff ff ff ff
+    0f 5a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -388,48 +445,24 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 62 08 08 06 10 ff ff ff
     ff 07 62 08 08 06 10 ff ff ff ff 07 62 08 08 06
-    10 ff ff ff ff 07 68 01 0a 95 03 08 02 10 ff 01
-    1a 8d 03 08 02 10 ff 01 18 ff ff ff ff ff ff ff
+    10 ff ff ff ff 07 68 01 0a b9 03 08 02 10 ff 01
+    1a b1 03 08 02 10 ff 01 18 ff ff ff ff ff ff ff
     ff ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff
     ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff
     ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff ff ff
-    0f 52 36 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff
+    0f 52 42 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff
     ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff
     ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff ff ff
+    ff ff 07 18 ff ff ff ff 07 18 ff ff ff ff 0f 20
+    ff ff ff ff 0f 52 42 08 ff ff ff ff 0f 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 18 ff ff
+    ff ff 0f 20 ff ff ff ff 0f 52 42 08 ff ff ff ff
     0f 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
     07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
     07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 52 36 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 5a 84 01 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    62 08 08 06 10 ff ff ff ff 07 62 08 08 06 10 ff
-    ff ff ff 07 62 08 08 06 10 ff ff ff ff 07 68 01
-    0a 95 03 08 02 10 ff 01 1a 8d 03 08 02 10 ff 01
-    18 ff ff ff ff ff ff ff ff ff 01 22 12 09 ff ff
-    ff ff ff ff ff ff 11 ff ff ff ff ff ff ff ff 28
-    ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff ff ff ff
-    0f 40 03 48 ff ff ff ff 0f 52 36 08 ff ff ff ff
-    0f 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 52 36 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff ff ff
-    0f 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff
-    07 5a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    07 18 ff ff ff ff 0f 20 ff ff ff ff 0f 5a 84 01
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -437,10 +470,10 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 62 08 08 06 10 ff ff ff
-    ff 07 62 08 08 06 10 ff ff ff ff 07 62 08 08 06
-    10 ff ff ff ff 07 68 01 10 ff ff ff ff ff ff ff
-    ff ff 01
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 62 08 08 06 10 ff ff ff ff 07 62 08
+    08 06 10 ff ff ff ff 07 62 08 08 06 10 ff ff ff
+    ff 07 68 01 10 ff ff ff ff ff ff ff ff ff 01
 
 variant minima
   field 1 Slots : InventorySlotUpdateDto[] = 1 element
@@ -465,6 +498,8 @@ variant minima
                 field 1 Stat : ItemStat = Stamina (0)
                 field 2 Value : int = -2147483648
                 field 3 Value2 : int? = -2147483648
+            field 3 SealProgress : uint? = 0
+            field 4 SealThreshold : uint? = 0
         field 11 Name : string = "\0" (1 chars, 1 bytes utf-8)
         field 12 BaseStats : List<ItemBaseStatDto> = 1 element
           element 0
@@ -472,10 +507,11 @@ variant minima
             field 2 Value : int = -2147483648
         field 13 Identified : bool = false
   field 2 Gold : ulong? = 0
-  bytes 48
-    0a 2c 1a 2a 52 18 12 16 10 80 80 80 80 f8 ff ff
-    ff ff 01 18 80 80 80 80 f8 ff ff ff ff 01 5a 01
-    00 62 0b 10 80 80 80 80 f8 ff ff ff ff 01 10 00
+  bytes 52
+    0a 30 1a 2e 52 1c 12 16 10 80 80 80 80 f8 ff ff
+    ff ff 01 18 80 80 80 80 f8 ff ff ff ff 01 18 00
+    20 00 5a 01 00 62 0b 10 80 80 80 80 f8 ff ff ff
+    ff 01 10 00
 
 variant varint-edges
   field 1 Slots : InventorySlotUpdateDto[] = 2 elements
@@ -504,6 +540,8 @@ variant varint-edges
                 field 1 Stat : ItemStat = <not a declared member> (54)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
+            field 3 SealProgress : uint? = 2097151
+            field 4 SealThreshold : uint? = 16383
           element 1
             field 1 ModifierId : uint = 2097152
             field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -515,6 +553,8 @@ variant varint-edges
                 field 1 Stat : ItemStat = <not a declared member> (54)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
+            field 3 SealProgress : uint? = 268435456
+            field 4 SealThreshold : uint? = 2097152
         field 11 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
         field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
           element 0
@@ -549,6 +589,8 @@ variant varint-edges
                 field 1 Stat : ItemStat = <not a declared member> (54)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
+            field 3 SealProgress : uint? = 2097151
+            field 4 SealThreshold : uint? = 16383
           element 1
             field 1 ModifierId : uint = 2097152
             field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -560,6 +602,8 @@ variant varint-edges
                 field 1 Stat : ItemStat = <not a declared member> (54)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
+            field 3 SealProgress : uint? = 268435456
+            field 4 SealThreshold : uint? = 2097152
         field 11 Name : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
         field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
           element 0
@@ -570,15 +614,16 @@ variant varint-edges
             field 2 Value : int = 2097152
         field 13 Identified : bool = true
   field 2 Gold : ulong? = 268435456
-  bytes 547
-    0a 8d 02 08 03 10 80 01 1a 85 02 08 03 10 80 01
+  bytes 583
+    0a 9f 02 08 03 10 80 01 1a 97 02 08 03 10 80 01
     18 80 01 22 12 09 04 03 02 01 06 05 08 07 11 09
     0a 0b 0c 0d 0e 0f 10 28 ff ff ff 7f 30 ff ff 7f
-    38 ff ff ff 7f 40 04 48 ff ff ff 7f 52 1d 08 ff
+    38 ff ff ff 7f 40 04 48 ff ff ff 7f 52 24 08 ff
     7f 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12 0b
-    08 36 10 80 80 80 01 18 80 80 01 52 1f 08 80 80
-    80 01 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12
-    0b 08 36 10 80 80 80 01 18 80 80 01 5a 7f 78 78
+    08 36 10 80 80 80 01 18 80 80 01 18 ff ff 7f 20
+    ff 7f 52 2a 08 80 80 80 01 12 0b 08 36 10 ff ff
+    ff 7f 18 ff ff 7f 12 0b 08 36 10 80 80 80 01 18
+    80 80 01 18 80 80 80 80 01 20 80 80 80 01 5a 7f
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -586,23 +631,24 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 62 06 08
-    07 10 ff ff 7f 62 07 08 07 10 80 80 80 01 68 01
-    0a 8a 02 08 03 10 7f 1a 83 02 08 03 10 7f 18 ff
-    7f 22 12 09 04 03 02 01 06 05 08 07 11 09 0a 0b
-    0c 0d 0e 0f 10 28 80 01 30 80 80 80 80 01 38 80
-    01 40 04 48 80 01 52 1d 08 ff 7f 12 0b 08 36 10
-    ff ff ff 7f 18 ff ff 7f 12 0b 08 36 10 80 80 80
-    01 18 80 80 01 52 1f 08 80 80 80 01 12 0b 08 36
-    10 ff ff ff 7f 18 ff ff 7f 12 0b 08 36 10 80 80
-    80 01 18 80 80 01 5a 81 01 c3 a9 c3 a9 c3 a9 c3
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 62
+    06 08 07 10 ff ff 7f 62 07 08 07 10 80 80 80 01
+    68 01 0a 9c 02 08 03 10 7f 1a 95 02 08 03 10 7f
+    18 ff 7f 22 12 09 04 03 02 01 06 05 08 07 11 09
+    0a 0b 0c 0d 0e 0f 10 28 80 01 30 80 80 80 80 01
+    38 80 01 40 04 48 80 01 52 24 08 ff 7f 12 0b 08
+    36 10 ff ff ff 7f 18 ff ff 7f 12 0b 08 36 10 80
+    80 80 01 18 80 80 01 18 ff ff 7f 20 ff 7f 52 2a
+    08 80 80 80 01 12 0b 08 36 10 ff ff ff 7f 18 ff
+    ff 7f 12 0b 08 36 10 80 80 80 01 18 80 80 01 18
+    80 80 80 80 01 20 80 80 80 01 5a 81 01 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 62 06 08 07 10 ff
-    ff 7f 62 07 08 07 10 80 80 80 01 68 01 10 80 80
-    80 80 01
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 62 06
+    08 07 10 ff ff 7f 62 07 08 07 10 80 80 80 01 68
+    01 10 80 80 80 80 01

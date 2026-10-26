@@ -26,7 +26,7 @@ public static class ItemSlotDtoMapper
         ItemsPatch items, ItemModifierDtoPool pool)
     {
         ItemModifierStore.Held held = modifiers.Describe(item, items);
-        return Slot(container, item, pool.Rent(held.Modifiers, items.Modifiers, item.Identified),
+        return Slot(container, item, pool.Rent(held.Modifiers, items.Modifiers, item.Identified, item.ItemLevel),
             pool.RentBaseStats(in held.BaseStats), held.Name);
     }
 
@@ -38,7 +38,8 @@ public static class ItemSlotDtoMapper
     public static ItemSlotDto ToDto(InventoryType container, CarriedItem carried, ItemsPatch items)
     {
         InventoryItem item = carried.Item;
-        return Slot(container, item, ItemModifierDtoMapper.ToDtos(carried.Modifiers, items.Modifiers, item.Identified),
+        return Slot(container, item,
+            ItemModifierDtoMapper.ToDtos(carried.Modifiers, items.Modifiers, item.Identified, item.ItemLevel),
             ItemModifierDtoMapper.ToBaseStatDtos(carried.BaseStats),
             ItemVisibility.NameShown(item.Identified) ? NameOf(item.TemplateId, item.Rarity, item.RareName, carried.Modifiers, items) : null);
     }

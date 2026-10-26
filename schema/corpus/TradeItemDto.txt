@@ -61,6 +61,8 @@ variant populated
           field 1 Stat : ItemStat = IncreasedDamage (19)
           field 2 Value : int = 1000
           field 3 Value2 : int? = -3
+      field 3 SealProgress : uint? = 7
+      field 4 SealThreshold : uint? = 42
     element 1
       field 1 ModifierId : uint = 1000000
       field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -72,6 +74,8 @@ variant populated
           field 1 Stat : ItemStat = IncreasedDamage (19)
           field 2 Value : int = 1000
           field 3 Value2 : int? = -3
+      field 3 SealProgress : uint? = 1000000
+      field 4 SealThreshold : uint? = 19
   field 8 Name : string = "alpha" (5 chars, 5 bytes utf-8)
   field 9 BaseStats : List<ItemBaseStatDto> = 2 elements
     element 0
@@ -81,17 +85,18 @@ variant populated
       field 1 Stat : BaseStat = DamageMin (4)
       field 2 Value : int = -262144
   field 10 Identified : bool = true
-  bytes 158
+  bytes 168
     08 2a 10 80 d0 ac f3 0e 1a 12 09 5b ad 8f 0f cb
     d9 9f 46 11 a1 65 70 86 77 28 95 0e 20 07 28 02
-    30 ac 02 3a 27 08 07 12 11 08 0f 10 f0 a2 04 18
+    30 ac 02 3a 2b 08 07 12 11 08 0f 10 f0 a2 04 18
     f7 ff ff ff ff ff ff ff ff 01 12 10 08 13 10 e8
-    07 18 fd ff ff ff ff ff ff ff ff 01 3a 29 08 c0
-    84 3d 12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff
-    ff ff ff ff 01 12 10 08 13 10 e8 07 18 fd ff ff
-    ff ff ff ff ff ff 01 42 05 61 6c 70 68 61 4a 0d
-    08 05 10 f7 ff ff ff ff ff ff ff ff 01 4a 0d 08
-    04 10 80 80 f0 ff ff ff ff ff ff 01 50 01
+    07 18 fd ff ff ff ff ff ff ff ff 01 18 07 20 2a
+    3a 2f 08 c0 84 3d 12 11 08 0f 10 f0 a2 04 18 f7
+    ff ff ff ff ff ff ff ff 01 12 10 08 13 10 e8 07
+    18 fd ff ff ff ff ff ff ff ff 01 18 c0 84 3d 20
+    13 42 05 61 6c 70 68 61 4a 0d 08 05 10 f7 ff ff
+    ff ff ff ff ff ff 01 4a 0d 08 04 10 80 80 f0 ff
+    ff ff ff ff ff 01 50 01
 
 variant maxima
   field 1 TradeSlot : byte = 255
@@ -116,6 +121,8 @@ variant maxima
           field 1 Stat : ItemStat = IncreasedMaximumLife (53)
           field 2 Value : int = 2147483647
           field 3 Value2 : int? = 2147483647
+      field 3 SealProgress : uint? = 4294967295
+      field 4 SealThreshold : uint? = 4294967295
     element 1
       field 1 ModifierId : uint = 4294967295
       field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -131,6 +138,8 @@ variant maxima
           field 1 Stat : ItemStat = IncreasedMaximumLife (53)
           field 2 Value : int = 2147483647
           field 3 Value2 : int? = 2147483647
+      field 3 SealProgress : uint? = 4294967295
+      field 4 SealThreshold : uint? = 4294967295
     element 2
       field 1 ModifierId : uint = 4294967295
       field 2 Values : List<ItemModifierValueDto> = 3 elements
@@ -146,6 +155,8 @@ variant maxima
           field 1 Stat : ItemStat = IncreasedMaximumLife (53)
           field 2 Value : int = 2147483647
           field 3 Value2 : int? = 2147483647
+      field 3 SealProgress : uint? = 4294967295
+      field 4 SealThreshold : uint? = 4294967295
   field 8 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
   field 9 BaseStats : List<ItemBaseStatDto> = 3 elements
     element 0
@@ -158,31 +169,34 @@ variant maxima
       field 1 Stat : BaseStat = AttackTime (6)
       field 2 Value : int = 2147483647
   field 10 Identified : bool = true
-  bytes 383
+  bytes 419
     08 ff 01 10 ff ff ff ff ff ff ff ff ff 01 1a 12
     09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
     ff ff 20 ff ff ff ff 0f 28 03 30 ff ff ff ff 0f
-    3a 36 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff
+    3a 42 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff
     ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff
     ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff
-    ff 07 18 ff ff ff ff 07 3a 36 08 ff ff ff ff 0f
+    ff 07 18 ff ff ff ff 07 18 ff ff ff ff 0f 20 ff
+    ff ff ff 0f 3a 42 08 ff ff ff ff 0f 12 0e 08 35
+    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
+    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
+    10 ff ff ff ff 07 18 ff ff ff ff 07 18 ff ff ff
+    ff 0f 20 ff ff ff ff 0f 3a 42 08 ff ff ff ff 0f
     12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff 07
     12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff 07
     12 0e 08 35 10 ff ff ff ff 07 18 ff ff ff ff 07
-    3a 36 08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff
-    ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff
-    ff 07 18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff
-    ff 07 18 ff ff ff ff 07 42 84 01 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    18 ff ff ff ff 0f 20 ff ff ff ff 0f 42 84 01 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 4a
-    08 08 06 10 ff ff ff ff 07 4a 08 08 06 10 ff ff
-    ff ff 07 4a 08 08 06 10 ff ff ff ff 07 50 01
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 4a 08 08 06 10 ff ff ff ff 07 4a 08 08
+    06 10 ff ff ff ff 07 4a 08 08 06 10 ff ff ff ff
+    07 50 01
 
 variant minima
   field 1 TradeSlot : byte = 0
@@ -199,16 +213,18 @@ variant minima
           field 1 Stat : ItemStat = Stamina (0)
           field 2 Value : int = -2147483648
           field 3 Value2 : int? = -2147483648
+      field 3 SealProgress : uint? = 0
+      field 4 SealThreshold : uint? = 0
   field 8 Name : string = "\0" (1 chars, 1 bytes utf-8)
   field 9 BaseStats : List<ItemBaseStatDto> = 1 element
     element 0
       field 1 Stat : BaseStat = Armour (0)
       field 2 Value : int = -2147483648
   field 10 Identified : bool = false
-  bytes 42
-    3a 18 12 16 10 80 80 80 80 f8 ff ff ff ff 01 18
-    80 80 80 80 f8 ff ff ff ff 01 42 01 00 4a 0b 10
-    80 80 80 80 f8 ff ff ff ff 01
+  bytes 46
+    3a 1c 12 16 10 80 80 80 80 f8 ff ff ff ff 01 18
+    80 80 80 80 f8 ff ff ff ff 01 18 00 20 00 42 01
+    00 4a 0b 10 80 80 80 80 f8 ff ff ff ff 01
 
 variant varint-edges
   field 1 TradeSlot : byte = 128
@@ -229,6 +245,8 @@ variant varint-edges
           field 1 Stat : ItemStat = <not a declared member> (54)
           field 2 Value : int = 2097152
           field 3 Value2 : int? = 16384
+      field 3 SealProgress : uint? = 2097151
+      field 4 SealThreshold : uint? = 16383
     element 1
       field 1 ModifierId : uint = 2097152
       field 2 Values : List<ItemModifierValueDto> = 2 elements
@@ -240,6 +258,8 @@ variant varint-edges
           field 1 Stat : ItemStat = <not a declared member> (54)
           field 2 Value : int = 2097152
           field 3 Value2 : int? = 16384
+      field 3 SealProgress : uint? = 268435456
+      field 4 SealThreshold : uint? = 2097152
   field 8 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
   field 9 BaseStats : List<ItemBaseStatDto> = 2 elements
     element 0
@@ -249,14 +269,15 @@ variant varint-edges
       field 1 Stat : BaseStat = <not a declared member> (7)
       field 2 Value : int = 2097152
   field 10 Identified : bool = true
-  bytes 251
+  bytes 269
     08 80 01 10 80 80 01 1a 12 09 04 03 02 01 06 05
     08 07 11 09 0a 0b 0c 0d 0e 0f 10 20 ff ff ff 7f
-    28 04 30 ff ff ff 7f 3a 1d 08 ff 7f 12 0b 08 36
+    28 04 30 ff ff ff 7f 3a 24 08 ff 7f 12 0b 08 36
     10 ff ff ff 7f 18 ff ff 7f 12 0b 08 36 10 80 80
-    80 01 18 80 80 01 3a 1f 08 80 80 80 01 12 0b 08
-    36 10 ff ff ff 7f 18 ff ff 7f 12 0b 08 36 10 80
-    80 80 01 18 80 80 01 42 7f 78 78 78 78 78 78 78
+    80 01 18 80 80 01 18 ff ff 7f 20 ff 7f 3a 2a 08
+    80 80 80 01 12 0b 08 36 10 ff ff ff 7f 18 ff ff
+    7f 12 0b 08 36 10 80 80 80 01 18 80 80 01 18 80
+    80 80 80 01 20 80 80 80 01 42 7f 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -264,5 +285,5 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 4a 06 08 07 10 ff ff 7f
-    4a 07 08 07 10 80 80 80 01 50 01
+    78 78 78 78 78 78 78 78 78 78 4a 06 08 07 10 ff
+    ff 7f 4a 07 08 07 10 80 80 80 01 50 01

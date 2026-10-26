@@ -585,7 +585,8 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             ItemModifierStore.Held held = side.Character.ItemModifiers.Describe(item, generation);
             entry.Rarity = item.Rarity;
             entry.ItemLevel = item.ItemLevel;
-            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, held.Modifiers, generation.Modifiers, item.Identified);
+            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, held.Modifiers, generation.Modifiers, item.Identified,
+                item.ItemLevel);
             entry.BaseStats = _modifierDtos.RefillBaseStats(entry.BaseStats, in held.BaseStats);
             entry.Name = held.Name;
             entry.Identified = item.Identified;

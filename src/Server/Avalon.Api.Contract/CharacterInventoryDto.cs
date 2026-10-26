@@ -35,6 +35,10 @@ public sealed class CharacterInventoryItemDto
     /// base stats and implicit lines, and no other modifier and no name.
     /// </summary>
     public bool Identified { get; set; }
+    /// <summary>
+    /// Whether this copy is attuned (#1180): one of its affixes has woken, and it can no longer be traded.
+    /// </summary>
+    public bool Attuned { get; set; }
 }
 
 /// <summary>One base stat an item copy rolled (#1179): its own number, which its local modifiers scale.</summary>
@@ -58,6 +62,16 @@ public sealed class CharacterInventoryModifierDto
     /// and when the catalog no longer holds the modifier.
     /// </summary>
     public int? ThemeId { get; set; }
+    /// <summary>
+    /// A sealed affix's points toward waking (#1180): set exactly on a sealed line the read shows, null on an awake one. A
+    /// sealed affix adds nothing to the item until it wakes.
+    /// </summary>
+    public int? SealProgress { get; set; }
+    /// <summary>
+    /// The points a sealed affix wakes at, for the copy's item level (#1180): set exactly when <see cref="SealProgress" />
+    /// is, null otherwise.
+    /// </summary>
+    public int? SealThreshold { get; set; }
 }
 
 /// <summary>One rolled number of an item's modifier: the stat it gives and how much (#1179).</summary>

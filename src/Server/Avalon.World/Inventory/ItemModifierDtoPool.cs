@@ -26,7 +26,7 @@ public sealed class ItemModifierDtoPool
     /// encoded.
     /// </summary>
     public List<ItemModifierDto>? Rent(IReadOnlyList<ItemInstanceModifier> modifiers, ItemModifierCatalog catalog,
-        bool identified) => Refill(null, modifiers, catalog, identified);
+        bool identified, ushort itemLevel) => Refill(null, modifiers, catalog, identified, itemLevel);
 
     /// <summary>
     /// <paramref name="baseStats" /> in a list from this pool, null for none: for an entry built just now, whose list is
@@ -76,10 +76,12 @@ public sealed class ItemModifierDtoPool
     /// <paramref name="current" /> (an entry's list, or null) refilled with exactly the <paramref name="modifiers" /> a
     /// client is shown: every one of an identified copy, and an unidentified copy's implicit lines only (#1179,
     /// <see cref="ItemVisibility.Shows" />), each looked up once in <paramref name="catalog" />, and only for an
-    /// unidentified copy. The list to send, null for none, with the one it replaced kept here.
+    /// unidentified copy. The list to send, null for none, with the one it replaced kept here. Every member of a kept
+    /// entry is written, its seal included (#1180), so an entry an earlier sealed row filled shows an awake row as awake.
     /// </summary>
+    /// <param name="itemLevel">The copy's item level: the threshold a sealed affix it shows wakes at (#1180).</param>
     public List<ItemModifierDto>? Refill(List<ItemModifierDto>? current, IReadOnlyList<ItemInstanceModifier> modifiers,
-        ItemModifierCatalog catalog, bool identified)
+        ItemModifierCatalog catalog, bool identified, ushort itemLevel)
     {
         // Filled in one pass, then trimmed to what was kept: a list is taken from the pool only once a row is kept.
         List<ItemModifierDto>? target = current;
@@ -96,6 +98,7 @@ public sealed class ItemModifierDtoPool
 
             ItemModifierDto entry = target[at++];
             entry.ModifierId = (uint)shown.ModifierId;
+            ItemModifierDtoMapper.FillSeal(entry, shown, itemLevel);
             RefillValues(entry.Values, shown.Values);
         }
 

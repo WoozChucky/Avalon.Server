@@ -11,6 +11,18 @@ public class ItemModifierDto
 
     /// <summary>In the order of the catalog modifier's stat lines.</summary>
     [ProtoMember(2)] public List<ItemModifierValueDto> Values { get; set; } = [];
+
+    /// <summary>
+    /// A sealed affix's points toward waking (#1180): set exactly on a sealed modifier the client is shown, null on an
+    /// awake one. A sealed affix adds nothing to its item until it wakes.
+    /// </summary>
+    [ProtoMember(3)] public uint? SealProgress { get; set; }
+
+    /// <summary>
+    /// The points a sealed affix wakes at, for its copy's item level (#1180): set exactly when <see cref="SealProgress" />
+    /// is, null otherwise.
+    /// </summary>
+    [ProtoMember(4)] public uint? SealThreshold { get; set; }
 }
 
 /// <summary>
