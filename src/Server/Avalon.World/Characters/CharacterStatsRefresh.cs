@@ -11,19 +11,18 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Characters;
 
 /// <summary>
-/// What happens to the current health and power pools when the maximums change. Fury (#526) is the one
-/// pool that is not filled up: Refill and KeepShare keep its value, capped at the new maximum, and
-/// EnterWorld empties it.
+/// What happens to the current health and mana when the maximums change (#1181: every class's pool is mana, treated as
+/// health is).
 /// </summary>
 public enum CurrentValues
 {
-    /// <summary>Health and a Mana or Energy pool are filled to the new maximum: a level-up.</summary>
+    /// <summary>Health and mana are filled to the new maximum: a level-up.</summary>
     Refill,
 
-    /// <summary>Health and a Mana or Energy pool keep their share of the new maximum: a gear change.</summary>
+    /// <summary>Health and mana keep their share of the new maximum: a gear change.</summary>
     KeepShare,
 
-    /// <summary>Select: health and a Mana or Energy pool are filled, and Fury starts empty (#526).</summary>
+    /// <summary>Select: health and mana are filled.</summary>
     EnterWorld,
 }
 

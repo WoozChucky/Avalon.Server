@@ -54,7 +54,6 @@ public class CombatAssemblyShould
     [InlineData(typeof(CasterPace))]
     [InlineData(typeof(HealRules))]
     [InlineData(typeof(PowerPool))]
-    [InlineData(typeof(Fury))]
     [InlineData(typeof(DerivedCharacterStats))]
     [InlineData(typeof(CharacterStatsCalculator))]
     [InlineData(typeof(CreatureStatDeriver))]
@@ -67,7 +66,7 @@ public class CombatAssemblyShould
     [InlineData(typeof(AbilityRules))]
     [InlineData(typeof(CombatDataRules))]
     [InlineData(typeof(CreatureTemplateRules))]
-    [InlineData(typeof(ClassPowerType))]
+    [InlineData(typeof(ManaRegenRates))]
     public void Hold_every_moved_rule(Type type)
     {
         Assert.Same(s_combat, type.Assembly);

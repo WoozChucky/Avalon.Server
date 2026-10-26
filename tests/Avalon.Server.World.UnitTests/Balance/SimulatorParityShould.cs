@@ -60,7 +60,7 @@ public class SimulatorParityShould
         params AbilityTemplate[] abilities)
     {
         MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id, time: time));   // a Warrior
-        warrior.Character.PowerType = PowerType.Fury;
+        warrior.Character.PowerType = PowerType.Mana;
         warrior.Character.Level = Level;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
         warrior.Character.Container(InventoryType.Equipment)
@@ -120,7 +120,7 @@ public class SimulatorParityShould
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
-        Assert.Equal(real.Character.RegenStat, sim.RegenStat);
+        Assert.Equal(Internal<ManaRegenRates>(real.Character, "ManaRegen"), sim.ManaRegen);
         Assert.Equal(Internal<AttackerCombat>(real.Character, "Combat"), sim.Attack);
         Assert.Equal(Internal<DefenderCombat>(real.Character, "Defence"), sim.Defence);
     }
@@ -155,7 +155,7 @@ public class SimulatorParityShould
     }
 
     [Fact(Skip = BalancePause.Reason)]
-    public void Deal_the_same_cleave_damage_and_fury_hit_for_hit()
+    public void Deal_the_same_cleave_damage_and_mana_hit_for_hit()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_111, Row(200));
@@ -176,7 +176,7 @@ public class SimulatorParityShould
 
             instance.CombatService.ApplyDamage(real.Character, realBoar, realCleave);
             (uint damage, _) = CombatRules.Damage(simWarrior, simBoar, simCleave, Data.Combat.Formula, simRng);
-            CombatRules.HitCreature(simWarrior, simBoar, damage, simCleave);
+            CombatRules.HitCreature(simBoar, damage);
 
             Assert.Equal(realBefore - realBoar.CurrentHealth, simBefore - simBoar.CurrentHealth);
             Assert.Equal(real.Character.CurrentPower, simWarrior.CurrentPower);
@@ -184,7 +184,7 @@ public class SimulatorParityShould
     }
 
     [Fact(Skip = BalancePause.Reason)]
-    public void Take_the_same_gore_damage_and_fury_hit_for_hit()
+    public void Take_the_same_gore_damage_and_mana_hit_for_hit()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_121, Row(200));
@@ -214,7 +214,7 @@ public class SimulatorParityShould
     /// A fight ten seconds long, tick by tick, through the real cast handler, cast system and combat service (see
     /// <see cref="Exchange" />): the server must cast exactly what the simulated Warrior casts, on the same tick,
     /// and refuse every rotation entry the simulator passed over; after every tick the boar's health, the Warrior's
-    /// Fury, both cooldowns and the casting state must match. Cleave (a cone) hits as it fires; Hurled Axe (a
+    /// mana, both cooldowns and the casting state must match. Cleave (a cone) hits as it fires; Hurled Axe (a
     /// projectile) hits in the cast system's script pass, and the boar stands inside its first step, so the tick it
     /// lands on is the simulator's.
     /// </summary>
@@ -236,7 +236,7 @@ public class SimulatorParityShould
             Assert.True(simBoar.CurrentHealth == realBoar.CurrentHealth,
                 $"tick {tick}: the boar has {realBoar.CurrentHealth} health on the server, {simBoar.CurrentHealth} simulated");
             Assert.True(simWarrior.CurrentPower == real.Character.CurrentPower,
-                $"tick {tick}: the Warrior has {real.Character.CurrentPower} Fury on the server, {simWarrior.CurrentPower} simulated");
+                $"tick {tick}: the Warrior has {real.Character.CurrentPower} mana on the server, {simWarrior.CurrentPower} simulated");
         }, clock);
 
         Assert.True(cast[200] >= 5, $"Cleave was cast {cast[200]} times");
@@ -245,15 +245,15 @@ public class SimulatorParityShould
 
     /// <summary>
     /// A level-1 Wizard casting Flame Burst (0.6 s wind-up, 25 Mana, 5 s cooldown) through the real handler and cast
-    /// system, against the simulator, Mana compared after every tick for 30 s: the cast is paid when it is taken,
-    /// regeneration stops while it winds up and for PowerRegenCastSuppressSeconds after, and resumes; the second cast
-    /// waits on the Mana that comes back. The character's clock is a test clock moved to each tick's simulated time,
-    /// because the suppression window is timed by it. The simulator fights in continuous combat, so the character is
+    /// system, against the simulator, Mana compared after every tick for 30 s: the cast is paid when it is taken, and
+    /// regeneration carries on while it winds up and after it (#1181); the second cast waits on the Mana that comes back.
+    /// The character's clock is a test clock moved to each tick's simulated time, as the simulator's is. The simulator
+    /// fights in continuous combat, so the character is
     /// kept in combat every tick (MarkCombat, as each hit would); without that its combat tag would lapse 5 s after the
     /// last hit and the out-of-combat rate would apply.
     /// </summary>
     [Fact(Skip = BalancePause.Reason)]
-    public void Suppress_and_resume_mana_regen_around_a_wind_up_as_a_character_entity()
+    public void Keep_regenerating_mana_through_a_wind_up_as_a_character_entity()
     {
         const uint StartMana = 40;
         var clock = new FakeTimeProvider(s_clockStart);
@@ -321,7 +321,7 @@ public class SimulatorParityShould
         MaxStacks = 3,
     };
 
-    private static AbilityTemplate TestRend(int powerGainPerHit = 0, SpellEffect effects = SpellEffect.Damage) => new()
+    private static AbilityTemplate TestRend(SpellEffect effects = SpellEffect.Damage) => new()
     {
         Id = new Avalon.Common.ValueObjects.AbilityId(9203),
         Name = "Test Rend",
@@ -338,7 +338,6 @@ public class SimulatorParityShould
         AllowedClasses = [CharacterClass.Warrior],
         AuraId = new Avalon.Common.ValueObjects.AuraId(9901),
         ThreatMultiplier = 1f,
-        PowerGainPerHit = powerGainPerHit,
     };
 
     /// <summary>
@@ -402,8 +401,8 @@ public class SimulatorParityShould
     /// <summary>
     /// Auras from a creature: the boar's Gore carrying a poison scaled by a roll of its natural damage (a creature has no
     /// damage stats), cast once through the real cast system and the aura system and once by the simulated boar, the
-    /// Warrior's health and Fury compared after every tick for 10 s: the hit and its draws, the poison's roll right
-    /// after them, each tick's crit roll, the Warrior's armour, the carry, and the Fury each tick's lost health gives.
+    /// Warrior's health and mana compared after every tick for 10 s: the hit and its draws, the poison's roll right
+    /// after them, each tick's crit roll, the Warrior's armour, the carry, and the mana no tick gives (#1181).
     /// </summary>
     [Fact(Skip = BalancePause.Reason)]
     public async Task Poison_from_a_creatures_natural_damage_the_same_as_the_aura_system_tick_for_tick()
@@ -472,7 +471,7 @@ public class SimulatorParityShould
             Assert.True(simWarrior.CurrentHealth == real.Character.CurrentHealth,
                 $"tick {tick}: the Warrior has {real.Character.CurrentHealth} health on the server, {simWarrior.CurrentHealth} simulated");
             Assert.True(simWarrior.CurrentPower == real.Character.CurrentPower,
-                $"tick {tick}: the Warrior has {real.Character.CurrentPower} Fury on the server, {simWarrior.CurrentPower} simulated");
+                $"tick {tick}: the Warrior has {real.Character.CurrentPower} mana on the server, {simWarrior.CurrentPower} simulated");
             Assert.Equal(real.Character.Auras.Count, simWarrior.Auras.Count);
             if (simWarrior.Auras is [{ } simPoison])
             {
@@ -487,27 +486,25 @@ public class SimulatorParityShould
     }
 
     /// <summary>
-    /// Auras: a bleeding cone that also gives Fury for each unit it damages, which every bleed tick gives again, through
-    /// the real handler, cast system and aura system against the simulator, the boar's health and the Warrior's Fury
-    /// compared after every tick for 15 s.
+    /// Auras: a bleeding cone, whose hits and bleed ticks give no mana (#1181), through the real handler, cast system
+    /// and aura system against the simulator, the boar's health and the Warrior's mana compared after every tick for 15 s.
     /// </summary>
     [Fact(Skip = BalancePause.Reason)]
-    public async Task Gain_the_same_fury_from_each_bleed_tick_as_the_aura_system()
+    public async Task Gain_no_mana_from_a_bleeding_cone_or_its_ticks_as_the_aura_system()
     {
-        const int Gain = 8;
         var clock = new FakeTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            abilities: () => [TestRend(Gain)], auras: () => [TestBleed()]));
+            abilities: () => [TestRend()], auras: () => [TestBleed()]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
-        MapInstanceClient real = RealWarrior(instance, 6760_172, clock, TestRend(Gain));
+        MapInstanceClient real = RealWarrior(instance, 6760_172, clock, TestRend());
 
         SeedTables seed = SeedSource.Load();
         seed.AuraTemplates.Add(TestBleed());
-        seed.AbilityTemplates.Add(TestRend(Gain));
+        seed.AbilityTemplates.Add(TestRend());
         var data = BalanceData.From(seed);
         var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
-        simWarrior.Abilities.Add(new SimAbility(TestRend(Gain)));
+        simWarrior.Abilities.Add(new SimAbility(TestRend()));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_972, simBoar);
         CompiledRotationEntry[] rotation = [new(9203, [])];
@@ -519,14 +516,12 @@ public class SimulatorParityShould
                 Assert.True(simBoar.CurrentHealth == realBoar.CurrentHealth,
                     $"tick {tick}: the boar has {realBoar.CurrentHealth} health on the server, {simBoar.CurrentHealth} simulated");
                 Assert.True(simWarrior.CurrentPower == real.Character.CurrentPower,
-                    $"tick {tick}: the Warrior has {real.Character.CurrentPower} Fury on the server, {simWarrior.CurrentPower} simulated");
+                    $"tick {tick}: the Warrior has {real.Character.CurrentPower} mana on the server, {simWarrior.CurrentPower} simulated");
             },
             clock);
 
-        uint furyAfterHits = (uint)(cast[9203] * Gain);
         Assert.True(cast[9203] >= 3, $"the bleeding cone was cast {cast[9203]} times");
-        Assert.True(real.Character.CurrentPower > furyAfterHits,
-            $"{real.Character.CurrentPower} Fury: the bleed ticks gave none beyond the {furyAfterHits} the hits gave");
+        Assert.Equal(real.Character.Power, real.Character.CurrentPower);   // the free cone neither took nor gave mana
     }
 
     /// <summary>
@@ -625,12 +620,12 @@ public class SimulatorParityShould
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, Data.Combat.Formula));
 
         var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
-        sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0), 0));
+        sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0)));
         sim.ApplyAuraStats(Data);
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
-        Assert.Equal(real.Character.RegenStat, sim.RegenStat);
+        Assert.Equal(Internal<ManaRegenRates>(real.Character, "ManaRegen"), sim.ManaRegen);
         Assert.Equal(Internal<AttackerCombat>(real.Character, "Combat"), sim.Attack);
         Assert.Equal(Internal<DefenderCombat>(real.Character, "Defence"), sim.Defence);
         Assert.Equal(real.Character.Health, sim.Health);
@@ -765,7 +760,7 @@ public class SimulatorParityShould
     [Fact(Skip = BalancePause.Reason)]
     public void Regenerate_the_same_mana_in_combat_as_a_character_entity()
     {
-        // The simulated Wizard casts Arcane Bolt (instant, free: never suppresses regen) at a boar that never swings.
+        // The simulated Wizard casts Arcane Bolt (instant and free) at a boar that never swings.
         var sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         sim.CurrentPower = 10;
         var dummy = SimCreature.Create(Data, Data.Creature(4), 1, 0);
@@ -780,10 +775,9 @@ public class SimulatorParityShould
         {
             Data = row,
             PowerType = PowerType.Mana,
-            CurrentHealth = sim.Health,
-            CurrentPower = 10,
-            RegenStat = sim.RegenStat,
         };
+        real.ApplyStats(sim.Stats, CurrentValues.EnterWorld, Data.Combat.Formula);
+        real.CurrentPower = 10;
         real.Spells.Load(Array.Empty<IAbility>());
         real.MarkCombat();
 
@@ -795,7 +789,7 @@ public class SimulatorParityShould
                 $"tick {tick}: {real.CurrentPower} Mana on the server, {sim.CurrentPower} simulated");
         }
 
-        Assert.Equal(21u, sim.CurrentPower);   // 10 + floor(23 x 0.05 x 10 s)
+        Assert.Equal(10u + (uint)Math.Floor(sim.ManaRegen.InCombat * 10 + 1e-3), sim.CurrentPower);   // 10 s at 1 % a second
     }
 
     /// <summary>

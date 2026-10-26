@@ -511,8 +511,8 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// A level 1 character of <paramref name="characterClass" /> on the world's clock, as character creation makes it
-    /// and character select loads it: the class's level 1 stats (health and power at their maximums, a Fury pool
-    /// empty) and its starting abilities from the seed's <see cref="CharacterCreateInfo" />, off cooldown. Its id is
+    /// and character select loads it: the class's level 1 stats (health and mana at their maximums) and its starting
+    /// abilities from the seed's <see cref="CharacterCreateInfo" />, off cooldown. Its id is
     /// the world's next (1, 2, ...); it carries nothing, as a new character's starting items wait in its bag, which no
     /// scenario reads. Only a world with reference data makes one.
     /// </summary>
@@ -546,16 +546,15 @@ public sealed class ScenarioWorld : IDisposable
         };
 
         // CharacterSelectHandler's entity, its stats refreshed and its abilities loaded.
-        var character = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), Clock,
-            _world.Configuration.FuryDecayPerSecond)
+        var character = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), Clock)
         {
             Data = row,
             EnteredWorld = Clock.GetUtcNow().UtcDateTime,
             RequiredExperience = data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == row.Level)?.Experience ?? 0,
         };
         character.CurrentHealth = character.Health;
-        character.PowerType = ClassPowerType.Of(characterClass);
-        character.CurrentPower = character.PowerType == PowerType.Fury ? 0u : character.Power;
+        character.PowerType = PowerType.Mana;
+        character.CurrentPower = character.Power;
         if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
             throw new InvalidOperationException($"The seed has no stats or stat factors for {characterClass}");
 

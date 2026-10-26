@@ -340,7 +340,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // combat formula once. Both fall back, so an instance built without them (tests) still fights.
         _awakening = new AwakeningRules(world.Configuration.Items.Awakening);
         _combatService = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
-            furyFromDamageTaken: world.Configuration.FuryFromDamageTaken,
             random: serviceProvider.GetService<ICombatRandom>(),
             formula: () => world.Data?.Combat?.Formula ?? s_seededFormula, awakening: _awakening);
         _threatBroadcast = new ThreatBroadcastService(combatConfig, _time);
@@ -690,10 +689,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
             if (forgotten.Count > 0)
                 connection.Send(SInstanceStateRemovePacket.Create(forgotten, _replicationEncoder));
-
-            // #526: every instance move comes through here (map entry, respawn at a town, a portal), and
-            // each one starts with no Fury. Mana and Energy are kept.
-            arriving.ResetFury();
         }
 
         // An instance that stood empty skips the ticks its units were owed meanwhile now, before the arrival is a member:

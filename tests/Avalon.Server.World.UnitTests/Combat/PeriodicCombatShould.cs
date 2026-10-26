@@ -129,19 +129,19 @@ public class PeriodicCombatShould
         _outcomes.DidNotReceiveWithAnyArgs().PeriodicTick(default, default!, default, default!, default, default);
     }
 
-    /// <summary>A Fury character gains its share of the health a tick took, as from any hit (#526).</summary>
+    /// <summary>A tick takes a character's health and, as any hit, gives it no mana (#1181).</summary>
     [Fact]
-    public void Hurt_a_character_and_grant_fury_from_the_health_lost()
+    public void Hurt_a_character_and_leave_its_mana()
     {
         CharacterEntity warrior = Warrior();
-        warrior.PowerType = PowerType.Fury;
+        warrior.PowerType = PowerType.Mana;
         warrior.Power = 100;
         warrior.CurrentPower = 0;
 
         _combat.ApplyPeriodicDamage(Tick(caster: null, warrior, amount: 50f));
 
         Assert.Equal(450u, warrior.CurrentHealth);
-        Assert.Equal(5u, warrior.CurrentPower);   // floor(50 / 500 x 50)
+        Assert.Equal(0u, warrior.CurrentPower);
         Assert.True(warrior.IsInCombat);
         _outcomes.Received(1).PeriodicTick(null, warrior, 50u, s_bleed, new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
     }

@@ -140,23 +140,10 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
 
         var aim = new AbilityAim(facing, point);
 
-        if (!godMode)
+        if (!godMode && AbilityCost.Check(caster, meta) == CostCheck.NotEnoughPower)
         {
-            switch (AbilityCost.Check(caster, meta))
-            {
-                case CostCheck.NotEnoughPower:
-                    Refuse(connection, packet, CastRejectReason.NotEnoughPower);
-                    return;
-                case CostCheck.WrongPowerType:
-                    // #652: an ability spent from another pool (given to this character by hand, say).
-                    Refuse(connection, packet, CastRejectReason.WrongPowerType);
-                    return;
-                case CostCheck.NoCostPowerType:
-                    logger.LogWarning("Cast reject NoCostPowerType ability={AbilityId} cost={Cost}",
-                        packet.AbilityId, meta.Cost);
-                    Refuse(connection, packet, CastRejectReason.InternalError);
-                    return;
-            }
+            Refuse(connection, packet, CastRejectReason.NotEnoughPower);
+            return;
         }
 
         ISimulationContext? context = world.InstanceRegistry.GetInstanceById(caster.InstanceId);

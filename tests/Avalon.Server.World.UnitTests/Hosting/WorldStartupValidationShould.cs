@@ -52,8 +52,8 @@ public class WorldStartupValidationShould
 
     /// <summary>
     /// A Game setting out of its range stops the start, naming the setting: a row at each bound with a reason. The
-    /// floats must be finite (#532, #593, #526): the interest radius at least 1 m, the interest remove margin and both
-    /// Fury rates 0 or more. The crowd-control diminishing window (#770) is above 0 and at most 7 s. The tick's CPU
+    /// floats must be finite (#532, #593): the interest radius at least 1 m, the interest remove margin 0 or more. The
+    /// crowd-control diminishing window (#770) is above 0 and at most 7 s. The tick's CPU
     /// (#1002) is a CPU number a mask can name, on every system.
     /// </summary>
     [Theory]
@@ -62,10 +62,6 @@ public class WorldStartupValidationShould
     [InlineData("InterestRadius", "Infinity")]
     [InlineData("InterestRemoveMargin", "-0.5")]
     [InlineData("InterestRemoveMargin", "Infinity")]
-    [InlineData("FuryFromDamageTaken", "-1")]
-    [InlineData("FuryFromDamageTaken", "Infinity")]
-    [InlineData("FuryDecayPerSecond", "-1")]
-    [InlineData("FuryDecayPerSecond", "Infinity")]
     [InlineData("MaxPartySize", "1")]
     [InlineData("MaxPartySize", "41")]
     [InlineData("PartyInviteTimeoutSeconds", "0")]
@@ -106,23 +102,19 @@ public class WorldStartupValidationShould
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>#593, #526: 0 turns the interest remove margin and either Fury rate off, and is allowed.</summary>
+    /// <summary>#593: 0 turns the interest remove margin off, and is allowed.</summary>
     [Fact]
     public async Task Accept_zero_for_the_settings_it_turns_off()
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Game:InterestRemoveMargin"] = "0",
-            ["Game:FuryFromDamageTaken"] = "0",
-            ["Game:FuryDecayPerSecond"] = "0",
         });
 
         host.Services.GetRequiredService<IStartupValidator>().Validate();
 
         GameConfiguration configuration = host.Services.GetRequiredService<IOptions<GameConfiguration>>().Value;
         Assert.Equal(0f, configuration.InterestRemoveMargin);
-        Assert.Equal(0f, configuration.FuryFromDamageTaken);
-        Assert.Equal(0f, configuration.FuryDecayPerSecond);
     }
 
     /// <summary>#593: Game:InterestRadius replaces Game:EffectBroadcastRadius outright, with no alias.</summary>

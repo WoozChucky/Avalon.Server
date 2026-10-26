@@ -441,7 +441,7 @@ public class AuraTickShould
         Assert.Equal(497u, player.CurrentHealth);   // the tick lands
         Assert.Null(h.Encounters.FindEncounterContaining(boar));
 
-        h.Auras.Apply(healer, player, s_renew, new AuraSource(new AbilityId(233), 1f, 0.5f, 0));
+        h.Auras.Apply(healer, player, s_renew, new AuraSource(new AbilityId(233), 1f, 0.5f));
         h.Advance(TimeSpan.FromSeconds(3));
         h.Auras.Update();
 

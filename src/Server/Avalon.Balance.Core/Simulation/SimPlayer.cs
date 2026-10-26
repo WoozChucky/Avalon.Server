@@ -7,12 +7,16 @@ namespace Avalon.Balance.Core;
 
 public sealed class SimPlayer : SimUnit
 {
+    /// <summary>The default regeneration settings, as the server's appsettings carry them.</summary>
+    private static readonly RegenConfiguration s_regen = new();
+
     public required CharacterClass Class { get; init; }
 
     /// <summary>Its derived stats, its auras folded in (set again whenever an aura with modifiers changes).</summary>
     public required DerivedCharacterStats Stats { get; set; }
 
-    public required uint RegenStat { get; set; }
+    /// <summary>As CharacterEntity.ManaRegen: its mana rates from the stored maximum, fixed at each stats refresh (#1181).</summary>
+    public required ManaRegenRates ManaRegen { get; set; }
 
     /// <summary>As CharacterEntity.Pace: its speeds, each capped, and its main hand's attack time, from its derived stats.</summary>
     public CasterPace Pace { get; private set; }
@@ -28,13 +32,13 @@ public sealed class SimPlayer : SimUnit
     public void GainPower(uint amount)
     {
         uint current = CurrentPower ?? 0;
-        uint next = PowerPool.Gain(PowerType, IsDead, current, Power ?? 0, amount);
+        uint next = PowerPool.Gain(IsDead, current, Power ?? 0, amount);
         if (next != current) CurrentPower = next;
     }
 
     /// <summary>
     /// As the server's stats refresh after an aura change (CharacterStatsRefresh with KeepShare): the stats again with
-    /// the auras folded in, each Mana or Energy pool and health keeping its share, Fury kept and capped.
+    /// the auras folded in, mana and health keeping their share.
     /// </summary>
     public void ApplyAuraStats(BalanceData data)
     {
@@ -43,41 +47,37 @@ public sealed class SimPlayer : SimUnit
         DerivedCharacterStats next = data.CharacterStats(Class, Level, Worn, AuraTotals());
 
         Stats = next;
-        RegenStat = PowerRegen.StatOf(Class, next);
+        ManaRegen = ManaRegenRates.Of(s_regen, next.MaxPower, next.IncreasedManaRegenPct);
         Attack = next.AttackerAt(Level);
         Defence = next.Defence;
         Pace = CasterPace.From(next.Offence, next.Weapon.AttackTimeMs / 1000f, data.Combat.Formula);
         Health = next.MaxHealth;
         CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, next.MaxHealth);
         Power = next.MaxPower;
-        uint current = CurrentPower ?? 0;
-        CurrentPower = PowerType == PowerType.Fury
-            ? Math.Min(current, next.MaxPower)
-            : CharacterStatsCalculator.KeepShare(current, oldPower, next.MaxPower);
+        CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, next.MaxPower);
     }
 
-    /// <summary>A character entering the world: full health, a full pool except Fury, which enters empty (#526).</summary>
+    /// <summary>A character entering the world: full health and full mana, every class on mana (#1181).</summary>
     public static SimPlayer Create(BalanceData data, CharacterClass characterClass, ushort level, IEnumerable<ItemTemplate> worn)
     {
         var wearing = worn.ToList();
         DerivedCharacterStats stats = data.CharacterStats(characterClass, level, wearing);
-        PowerType pool = ClassPowerType.Of(characterClass);
         var player = new SimPlayer
         {
             Name = characterClass.ToString(),
             Class = characterClass,
             Stats = stats,
             Worn = wearing,
-            RegenStat = PowerRegen.StatOf(characterClass, stats),
+            ManaRegen = ManaRegenRates.Of(s_regen, stats.MaxPower, stats.IncreasedManaRegenPct),
             Attack = stats.AttackerAt(level),
             Defence = stats.Defence,
             Pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, data.Combat.Formula),
             Level = level,
             Health = stats.MaxHealth,
             CurrentHealth = stats.MaxHealth,
-            PowerType = pool,
+            PowerType = PowerType.Mana,
             Power = stats.MaxPower,
-            CurrentPower = PowerPool.EmptiesOnReset(pool) ? 0u : stats.MaxPower,
+            CurrentPower = stats.MaxPower,
         };
         player.Abilities.AddRange(data.KitOf(characterClass).Select(t => new SimAbility(t)));
         return player;

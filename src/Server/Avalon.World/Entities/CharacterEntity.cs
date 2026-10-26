@@ -10,7 +10,6 @@ using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Combat;
-using Avalon.World.Configuration;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
@@ -40,23 +39,14 @@ public partial class CharacterEntity : ICharacter
     // Dirty-field tracking (matches Creature pattern; initialize to None so first consume is a no-op)
     private GameEntityFields _dirtyFields = GameEntityFields.None;
 
-    // Power regen cast-suppression (5-second rule)
-    private DateTime _lastCastTime = DateTime.MinValue;
-
     // Combat state
     private DateTime _lastCombatTime = DateTime.MinValue;
 
-    // The container's clock (#614): the combat tag and the cast-regen suppression time by it.
+    // The container's clock (#614): the combat tag and the ward time by it.
     private readonly TimeProvider _time = TimeProvider.System;
 
-    // Fury decay (#526): points lost per second out of combat, and the fraction of a point owed but
-    // not yet taken, carried between ticks. World-side and never saved.
-    private readonly float _furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond;
-    private double _furyDecayRemainder;
-    private const double FuryDecayTolerance = 1e-3;
-
-    // Mana and Energy regeneration (PowerRegen): the fraction of a point earned but not yet given, carried between
-    // ticks so the per-second rate holds at any tick rate; dropped whenever the pool cannot regenerate, full included.
+    // Mana regeneration (#1181): the fraction of a point earned but not yet given, carried between ticks so the
+    // per-second rate holds at any tick rate; dropped whenever the pool cannot regenerate, full included.
     private double _powerRegenCarry;
 
     // Out-of-combat health regeneration: the same carry, dropped whenever health cannot regenerate (in combat,
@@ -81,17 +71,14 @@ public partial class CharacterEntity : ICharacter
     }
 
     /// <param name="time">The container's clock, the one the instance and combat time by (#614).</param>
-    /// <param name="furyDecayPerSecond">Game:FuryDecayPerSecond (#526); the setting's default when omitted.</param>
     /// <param name="tickThread">The tick-thread assertion its ignore list makes (#639); none when omitted.</param>
     public CharacterEntity(ILoggerFactory loggerFactory, Character character,
-        RegenConfiguration regenConfig, TimeProvider? time = null,
-        float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond, TickThreadGuard? tickThread = null)
+        RegenConfiguration regenConfig, TimeProvider? time = null, TickThreadGuard? tickThread = null)
     {
         Quests = new QuestLog(SaveState);
         Auras = new UnitAuras(SaveState.AurasChanged);
         Ignores = new IgnoreList(SaveState, tickThread);
         _time = time ?? TimeProvider.System;
-        _furyDecayPerSecond = furyDecayPerSecond;
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
         Data = character;
         _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
@@ -121,17 +108,22 @@ public partial class CharacterEntity : ICharacter
     public DateTime EnteredWorld { get; set; }
 
     public uint Stamina { get; set; }
-    public uint RegenStat { get; set; }
+
+    /// <summary>
+    /// Mana regained a second in and out of combat (#1181), fixed at the last stats refresh from the stored maximum and
+    /// the worn increased mana regeneration; (0, 0) until the first refresh, so a character with no class row does not
+    /// regenerate. World-side and read-only: the modding API cannot change it.
+    /// </summary>
+    internal ManaRegenRates ManaRegen { get; private set; }
 
     /// <summary>What the stats calculator last derived; null until the first calculation.</summary>
     public DerivedCharacterStats? Stats { get; private set; }
 
     /// <summary>
     /// Tick thread. Writes derived stats: the maximums (which the row stores and replication sends),
-    /// the current pools per <paramref name="current" />, the regen attributes, and a mark so the
+    /// the current pools per <paramref name="current" />, the regeneration rates, and a mark so the
     /// next save writes the CharacterStats row. EnterWorld is for select, Refill for a level-up, and
-    /// KeepShare for a gear change, which keeps the same share of each pool. Fury is not a fill-up pool
-    /// (#526): EnterWorld empties it, and Refill and KeepShare keep its value, capped at the new maximum.
+    /// KeepShare for a gear change, which keeps the same share of each pool; health and mana alike (#1181).
     /// </summary>
     /// <param name="formula">
     /// Bounds the speeds (#1178) and movement speed (#627): the current generation's, so a /reload combat reaches the
@@ -158,18 +150,7 @@ public partial class CharacterEntity : ICharacter
             CurrentHealth = maxHealth;
         }
 
-        if (PowerType == PowerType.Fury)
-        {
-            // The fraction of decay owed is forgotten only when Fury is set: entering the world, or a cap
-            // that lowers it. A gear change that leaves it alone must not, or swapping gear quickly
-            // enough would stop the decay.
-            uint fury = CurrentPower ?? 0;
-            uint kept = current == CurrentValues.EnterWorld ? 0u : Math.Min(fury, maxPower);
-            if (current == CurrentValues.EnterWorld || kept != fury)
-                _furyDecayRemainder = 0d;
-            CurrentPower = kept;
-        }
-        else if (current == CurrentValues.KeepShare)
+        if (current == CurrentValues.KeepShare)
         {
             CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, maxPower);
         }
@@ -188,7 +169,7 @@ public partial class CharacterEntity : ICharacter
         MarkWard(oldWard, oldMaxWard);
 
         Stamina = stats.Stamina;
-        RegenStat = PowerRegen.StatOf(Class, stats);
+        ManaRegen = ManaRegenRates.Of(_regenConfig, maxPower, stats.IncreasedManaRegenPct);
 
         // #627, #1178: bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
         Pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
@@ -646,26 +627,14 @@ public partial class CharacterEntity : ICharacter
     internal DateTime CombatMarkedAt => _lastCombatTime;
 
     /// <summary>
-    /// Adds <paramref name="amount" /> to the current power, capped at the maximum (#526). Only a pool a
-    /// cast spends (Mana, Energy or Fury) gains, and a dead character gains nothing. World-side only, not
-    /// on ICharacter or IUnit: the modding API cannot grant power.
+    /// Adds <paramref name="amount" /> of mana, capped at the maximum (#526, #1181); a dead character gains nothing.
+    /// World-side only, not on ICharacter or IUnit: the modding API cannot grant power.
     /// </summary>
     internal void GainPower(uint amount)
     {
         uint current = CurrentPower ?? 0;
-        uint next = PowerPool.Gain(PowerType, IsDead, current, Power ?? 0, amount);
+        uint next = PowerPool.Gain(IsDead, current, Power ?? 0, amount);
         if (next != current) CurrentPower = next;
-    }
-
-    /// <summary>
-    /// Empties a Fury pool and forgets any fraction of decay owed (#526): the one place death and every
-    /// instance transfer set Fury. A Mana or Energy pool is left alone. World-side only.
-    /// </summary>
-    internal void ResetFury()
-    {
-        _furyDecayRemainder = 0d;
-        if (PowerPool.EmptiesOnReset(PowerType) && CurrentPower != 0)
-            CurrentPower = 0;
     }
 
     /// <summary>
@@ -876,9 +845,6 @@ public partial class CharacterEntity : ICharacter
             {
                 Velocity = Vector3.zero;
 
-                // Death empties Fury (#526), whatever set the flag.
-                ResetFury();
-
                 _ward.Empty(_time.GetUtcNow().UtcDateTime);
             }
             else
@@ -920,19 +886,16 @@ public partial class CharacterEntity : ICharacter
     {
         Spells.Update(deltaTime);
 
+        // Read once: health and mana regeneration both ask it.
+        bool inCombat = IsInCombat;
+
         // #1178: a ward that is not full recharges by the clock; a dead character's does not. A full one reads no clock.
         if (!IsDead && _ward.Current < _ward.Max)
             AdvanceWard(_time.GetUtcNow().UtcDateTime);
 
-        // Track cast-suppression window: as long as a spell is casting, keep refreshing the timer.
-        if (Spells.IsCasting)
-        {
-            _lastCastTime = _time.GetUtcNow().UtcDateTime;
-        }
-
         // Health regeneration (skipped if dead or in combat). The fraction of a point is carried between ticks,
-        // as power's is, and dropped whenever health cannot regenerate.
-        if (!IsInCombat && !IsDead && CurrentHealth > 0 && CurrentHealth < Health && Stamina > 0)
+        // as mana's is, and dropped whenever health cannot regenerate.
+        if (!inCombat && !IsDead && CurrentHealth > 0 && CurrentHealth < Health && Stamina > 0)
         {
             uint regen = PowerRegen.TakeWholePoints(
                 Stamina * (double)_regenConfig.HealthRegenOutOfCombatPerStamina * deltaTime.TotalSeconds,
@@ -947,49 +910,18 @@ public partial class CharacterEntity : ICharacter
             _healthRegenCarry = 0d;
         }
 
-        // Fury (#526) never regenerates. Out of combat it drains, carrying the fraction of a point owed
-        // between ticks so that a per-second rate is lost exactly at any tick rate; in combat it holds,
-        // and the fraction starts over when the fight ends.
-        if (PowerType == PowerType.Fury)
+        // Mana regeneration (#1181): a share of the maximum a second, the rate picked by the combat state alone; a cast
+        // does not pause it. The fraction of a point is carried between ticks and dropped whenever the pool cannot
+        // regenerate, so a full pool banks nothing.
+        double manaRate = inCombat ? ManaRegen.InCombat : ManaRegen.OutOfCombat;
+        uint currentPower = CurrentPower ?? 0;
+        uint maxPower = Power ?? 0;
+        if (!IsDead && currentPower < maxPower && manaRate > 0d)
         {
-            if (IsInCombat || IsDead || _furyDecayPerSecond <= 0f || (CurrentPower ?? 0) == 0)
-            {
-                _furyDecayRemainder = 0d;
-            }
-            else
-            {
-                _furyDecayRemainder += _furyDecayPerSecond * deltaTime.TotalSeconds;
-
-                // A 1/60 s TimeSpan is truncated to whole ticks, so sixty of them fall a few millionths of
-                // a second short of one; the tolerance keeps that from costing a whole point. What is
-                // left may dip that far below 0 and is repaid by the next tick.
-                double owed = Math.Floor(_furyDecayRemainder + FuryDecayTolerance);
-                uint whole = owed >= uint.MaxValue ? uint.MaxValue : (uint)owed;
-                if (whole > 0)
-                {
-                    _furyDecayRemainder -= whole;
-                    uint current = CurrentPower ?? 0;
-                    CurrentPower = whole >= current ? 0u : current - whole;
-                }
-            }
-        }
-
-        // Power regeneration (Mana / Energy only). The fraction of a point is carried between ticks
-        // (PowerRegen.Amount), and dropped whenever the pool cannot regenerate, so a full pool banks nothing.
-        if (!IsDead && CurrentPower.HasValue && Power.HasValue &&
-            CurrentPower.Value < Power.Value &&
-            RegenStat > 0 &&
-            PowerType is PowerType.Mana or PowerType.Energy)
-        {
-            bool castSuppressed =
-                _lastCastTime != DateTime.MinValue &&
-                (_time.GetUtcNow().UtcDateTime - _lastCastTime).TotalSeconds < _regenConfig.PowerRegenCastSuppressSeconds;
-
-            uint regen = PowerRegen.Amount(_regenConfig, RegenStat, IsInCombat, castSuppressed,
-                deltaTime.TotalSeconds, ref _powerRegenCarry);
+            uint regen = PowerRegen.TakeWholePoints(manaRate * deltaTime.TotalSeconds, ref _powerRegenCarry);
             if (regen > 0)
             {
-                CurrentPower = Math.Min(Power.Value, CurrentPower.Value + regen);
+                CurrentPower = (uint)Math.Min(maxPower, (ulong)currentPower + regen);
             }
         }
         else

@@ -236,18 +236,14 @@ public class CastAbilityHandlerShould
 
     /// <summary>
     /// A requirement the Mana caster does not meet is refused with its reason and no time left, and nothing is
-    /// dispatched. The power rule itself is AbilityCostShould's (#521, #652): a cost spent from another pool is
-    /// WrongPowerType, and a cost whose row names no pool is a data fault the catalog refuses, so one that slips
-    /// through is InternalError.
+    /// dispatched. The power rule itself is AbilityCostShould's (#521, #1181).
     /// </summary>
     [Theory]
-    [InlineData(AbilityFlags.RequiresOutOfCombat, true, 100u, 0u, PowerType.None, CastRejectReason.RequiresOutOfCombat)]
-    [InlineData(AbilityFlags.RequiresInCombat, false, 100u, 0u, PowerType.None, CastRejectReason.RequiresInCombat)]
-    [InlineData(AbilityFlags.None, false, 5u, 30u, PowerType.Mana, CastRejectReason.NotEnoughPower)]
-    [InlineData(AbilityFlags.None, false, 100u, 20u, PowerType.Fury, CastRejectReason.WrongPowerType)]
-    [InlineData(AbilityFlags.None, false, 100u, 20u, PowerType.None, CastRejectReason.InternalError)]
+    [InlineData(AbilityFlags.RequiresOutOfCombat, true, 100u, 0u, CastRejectReason.RequiresOutOfCombat)]
+    [InlineData(AbilityFlags.RequiresInCombat, false, 100u, 0u, CastRejectReason.RequiresInCombat)]
+    [InlineData(AbilityFlags.None, false, 5u, 30u, CastRejectReason.NotEnoughPower)]
     public void Refuse_a_requirement_the_caster_does_not_meet(AbilityFlags flags, bool inCombat, uint power, uint cost,
-        PowerType costPool, CastRejectReason expected)
+        CastRejectReason expected)
     {
         var f = new Fixture();
         f.Character.IsInCombat.Returns(inCombat);
@@ -258,7 +254,6 @@ public class CastAbilityHandlerShould
             ScriptName = "x",
             Flags = flags,
             Cost = cost,
-            CostPowerType = costPool,
         });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });

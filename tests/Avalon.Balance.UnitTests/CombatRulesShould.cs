@@ -18,24 +18,24 @@ public class CombatRulesShould
     private static SimCreature Boar(ushort level = 1) => SimCreature.Create(Data, Data.Creature(4), level, 0);
 
     [Fact]
-    public void Start_a_warrior_full_of_health_and_empty_of_fury()
+    public void Start_a_warrior_full_of_health_and_mana()
     {
         SimPlayer warrior = Warrior();
 
         Assert.Equal(240u, warrior.CurrentHealth);
-        Assert.Equal(PowerType.Fury, warrior.PowerType);
-        Assert.Equal(0u, warrior.CurrentPower);
+        Assert.Equal(PowerType.Mana, warrior.PowerType);
+        Assert.Equal(100u, warrior.CurrentPower);
         Assert.Equal(100u, warrior.Power);
         Assert.Equal([200u, 201u, 202u, 203u, 204u], warrior.Abilities.Select(a => a.Id));
     }
 
     [Fact]
-    public void Start_a_wizard_full_of_mana_regenerating_from_intellect()
+    public void Start_a_wizard_full_of_mana_regenerating_a_share_of_its_maximum()
     {
         var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
 
         Assert.Equal(wizard.Power, wizard.CurrentPower);
-        Assert.Equal(wizard.Stats.Intellect, wizard.RegenStat);
+        Assert.Equal(ManaRegenRates.Of(new RegenConfiguration(), wizard.Power!.Value, 0f), wizard.ManaRegen);
     }
 
     [Fact(Skip = BalancePause.Reason)]
@@ -49,75 +49,56 @@ public class CombatRulesShould
         Assert.Equal(25u, damage);    // floor(25.8)
     }
 
+    /// <summary>#1181: a hit on a creature takes its health and gives the attacker no mana.</summary>
     [Fact]
-    public void Gain_cleaves_fury_per_creature_damaged_up_to_the_maximum()
+    public void Gain_no_mana_from_the_creatures_a_cleave_damages()
     {
         SimPlayer warrior = Warrior();
+        warrior.CurrentPower = 60;
         SimCreature boar = Boar();
+        uint health = boar.CurrentHealth;
 
-        CombatRules.HitCreature(warrior, boar, 10, warrior.Ability(200));
-        Assert.Equal(8u, warrior.CurrentPower);
-
-        warrior.CurrentPower = 97;
-        CombatRules.HitCreature(warrior, boar, 10, warrior.Ability(200));
-        Assert.Equal(100u, warrior.CurrentPower);
+        Assert.Equal(10u, CombatRules.HitCreature(boar, 10));
+        Assert.Equal(health - 10, boar.CurrentHealth);
+        Assert.Equal(60u, warrior.CurrentPower);
     }
 
     [Fact]
-    public void Gain_no_fury_from_a_dodged_hit()
+    public void Take_nothing_from_a_creature_on_a_dodged_hit()
     {
-        SimPlayer warrior = Warrior();
+        SimCreature boar = Boar();
+        uint health = boar.CurrentHealth;
 
-        CombatRules.HitCreature(warrior, Boar(), 0, warrior.Ability(200));
-
-        Assert.Equal(0u, warrior.CurrentPower);
+        Assert.Equal(0u, CombatRules.HitCreature(boar, 0));
+        Assert.Equal(health, boar.CurrentHealth);
     }
 
+    /// <summary>#1181: a hit on the player takes health and leaves its mana alone.</summary>
     [Fact]
-    public void Gain_fury_from_the_health_a_hit_takes()
-    {
-        SimPlayer warrior = Warrior();
-
-        uint lost = CombatRules.HitPlayer(warrior, 48);
-
-        Assert.Equal(48u, lost);
-        Assert.Equal(Fury.FromDamageTaken(48, 240, 240, Fury.DefaultFromDamageTaken), warrior.CurrentPower);
-        Assert.Equal(10u, warrior.CurrentPower);   // floor(48 / 240 x 50)
-    }
-
-    [Fact]
-    public void Gain_nothing_from_the_hit_that_kills()
-    {
-        SimPlayer warrior = Warrior();
-
-        CombatRules.HitPlayer(warrior, 1000);
-
-        Assert.True(warrior.IsDead);
-        Assert.Equal(0u, warrior.CurrentPower);
-    }
-
-    [Fact]
-    public void Empty_fury_on_the_hit_that_kills()
+    public void Take_the_health_a_hit_takes_and_leave_the_mana()
     {
         SimPlayer warrior = Warrior();
         warrior.CurrentPower = 60;
 
-        CombatRules.HitPlayer(warrior, 1000);
+        uint lost = CombatRules.HitPlayer(warrior, 48);
 
-        Assert.True(warrior.IsDead);
-        Assert.Equal(0u, warrior.CurrentPower);
+        Assert.Equal(48u, lost);
+        Assert.Equal(60u, warrior.CurrentPower);
     }
 
-    [Fact]
-    public void Keep_mana_on_the_hit_that_kills()
+    /// <summary>#1181: the hit that kills leaves the mana as it was, for every class.</summary>
+    [Theory]
+    [InlineData(CharacterClass.Warrior)]
+    [InlineData(CharacterClass.Wizard)]
+    public void Keep_mana_on_the_hit_that_kills(CharacterClass @class)
     {
-        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
-        uint mana = wizard.CurrentPower!.Value;
+        var player = SimPlayer.Create(Data, @class, 1, []);
+        player.CurrentPower = 60;
 
-        CombatRules.HitPlayer(wizard, 100_000);
+        CombatRules.HitPlayer(player, 100_000);
 
-        Assert.True(wizard.IsDead);
-        Assert.Equal(mana, wizard.CurrentPower);
+        Assert.True(player.IsDead);
+        Assert.Equal(60u, player.CurrentPower);
     }
 
     [Fact(Skip = BalancePause.Reason)]

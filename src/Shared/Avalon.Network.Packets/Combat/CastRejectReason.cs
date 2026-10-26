@@ -51,10 +51,7 @@ public enum CastRejectReason : byte
     /// <summary>Another cast by this caster is still in progress (#521).</summary>
     AlreadyCasting = 13,
 
-    /// <summary>
-    /// The ability's cost is spent from a pool the caster does not have, a Mana ability on a Fury caster say (#652).
-    /// Points in the caster's own pool never pay for it.
-    /// </summary>
+    /// <summary>Never sent since #1181.</summary>
     WrongPowerType = 14,
 
     /// <summary>The caster is stunned (#770): it casts nothing, not its basic attack either, until it ends.</summary>

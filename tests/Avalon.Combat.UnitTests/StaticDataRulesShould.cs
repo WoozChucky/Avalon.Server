@@ -348,8 +348,4 @@ public class StaticDataRulesShould
             return ex.Message;
         }
     }
-
-    [Fact]
-    public void Give_a_warrior_fury() =>
-        Assert.Equal(Avalon.Network.Packets.State.PowerType.Fury, ClassPowerType.Of(CharacterClass.Warrior));
 }

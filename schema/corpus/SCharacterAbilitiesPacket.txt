@@ -40,7 +40,6 @@ variant populated
       field 14 ProjectileSpeed : float = -2.25 (0xc0100000)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-      field 17 CostPowerType : PowerType = Fury (2)
       field 18 AmountKind : AbilityAmountKind = Healing (2)
       field 19 AmountMin : uint = 19
       field 20 AmountMax : uint = 300
@@ -63,7 +62,6 @@ variant populated
       field 14 ProjectileSpeed : float = 3.14159274 (0x40490fdb)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-      field 17 CostPowerType : PowerType = Energy (3)
       field 18 AmountKind : AbilityAmountKind = Damage (1)
       field 19 AmountMin : uint = 42
       field 20 AmountMax : uint = 4000000000
@@ -71,20 +69,19 @@ variant populated
       field 22 AmountTypes : DamageTypeMask = Lightning (8)
       field 23 CooldownMs : uint = 42
       field 24 CastTimeMs : uint = 4000000000
-  bytes 194
-    0a 5d 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
+  bytes 188
+    0a 5a 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
     20 ce 94 ce 95 ce 9b ce a4 ce 91 28 ac 02 30 2a
     3d db 0f 49 40 40 01 48 01 50 01 5d 00 00 c0 3f
     65 00 00 10 c0 6d b0 0f a1 b3 75 00 00 10 c0 78
-    01 80 01 01 88 01 02 90 01 02 98 01 13 a0 01 ac
-    02 a8 01 04 b0 01 10 b8 01 ac 02 c0 01 ac 02 0a
-    61 08 13 12 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0
-    9f 9a 80 20 61 73 74 72 61 6c 28 2a 30 13 3d 00
-    00 10 c0 40 01 48 02 50 01 5d cd cc cc 3d 65 db
-    0f 49 40 6d f9 02 15 50 75 db 0f 49 40 78 01 80
-    01 01 88 01 03 90 01 01 98 01 2a a0 01 80 d0 ac
-    f3 0e a8 01 01 b0 01 08 b8 01 2a c0 01 80 d0 ac
-    f3 0e
+    01 80 01 01 90 01 02 98 01 13 a0 01 ac 02 a8 01
+    04 b0 01 10 b8 01 ac 02 c0 01 ac 02 0a 5e 08 13
+    12 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80
+    20 61 73 74 72 61 6c 28 2a 30 13 3d 00 00 10 c0
+    40 01 48 02 50 01 5d cd cc cc 3d 65 db 0f 49 40
+    6d f9 02 15 50 75 db 0f 49 40 78 01 80 01 01 90
+    01 01 98 01 2a a0 01 80 d0 ac f3 0e a8 01 01 b0
+    01 08 b8 01 2a c0 01 80 d0 ac f3 0e
 
 variant maxima
   field 1 Abilities : AbilityInfo[] = 3 elements
@@ -103,7 +100,6 @@ variant maxima
       field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-      field 17 CostPowerType : PowerType = Energy (3)
       field 18 AmountKind : AbilityAmountKind = Healing (2)
       field 19 AmountMin : uint = 4294967295
       field 20 AmountMax : uint = 4294967295
@@ -126,7 +122,6 @@ variant maxima
       field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-      field 17 CostPowerType : PowerType = Energy (3)
       field 18 AmountKind : AbilityAmountKind = Healing (2)
       field 19 AmountMin : uint = 4294967295
       field 20 AmountMax : uint = 4294967295
@@ -149,7 +144,6 @@ variant maxima
       field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-      field 17 CostPowerType : PowerType = Energy (3)
       field 18 AmountKind : AbilityAmountKind = Healing (2)
       field 19 AmountMin : uint = 4294967295
       field 20 AmountMax : uint = 4294967295
@@ -157,8 +151,8 @@ variant maxima
       field 22 AmountTypes : DamageTypeMask = Blight (16)
       field 23 CooldownMs : uint = 4294967295
       field 24 CastTimeMs : uint = 4294967295
-  bytes 690
-    0a e3 01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce
+  bytes 681
+    0a e0 01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -169,10 +163,24 @@ variant maxima
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     28 ff ff ff ff 0f 30 ff ff 03 3d ff ff 7f 7f 40
     01 48 02 50 01 5d ff ff 7f 7f 65 ff ff 7f 7f 6d
-    ff ff 7f 7f 75 ff ff 7f 7f 78 01 80 01 01 88 01
-    03 90 01 02 98 01 ff ff ff ff 0f a0 01 ff ff ff
+    ff ff 7f 7f 75 ff ff 7f 7f 78 01 80 01 01 90 01
+    02 98 01 ff ff ff ff 0f a0 01 ff ff ff ff 0f a8
+    01 40 b0 01 10 b8 01 ff ff ff ff 0f c0 01 ff ff
+    ff ff 0f 0a e0 01 08 ff ff ff ff 0f 12 84 01 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 28 ff ff ff ff 0f 30 ff ff 03 3d ff ff
+    7f 7f 40 01 48 02 50 01 5d ff ff 7f 7f 65 ff ff
+    7f 7f 6d ff ff 7f 7f 75 ff ff 7f 7f 78 01 80 01
+    01 90 01 02 98 01 ff ff ff ff 0f a0 01 ff ff ff
     ff 0f a8 01 40 b0 01 10 b8 01 ff ff ff ff 0f c0
-    01 ff ff ff ff 0f 0a e3 01 08 ff ff ff ff 0f 12
+    01 ff ff ff ff 0f 0a e0 01 08 ff ff ff ff 0f 12
     84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -184,24 +192,9 @@ variant maxima
     ce a9 78 ce a9 78 28 ff ff ff ff 0f 30 ff ff 03
     3d ff ff 7f 7f 40 01 48 02 50 01 5d ff ff 7f 7f
     65 ff ff 7f 7f 6d ff ff 7f 7f 75 ff ff 7f 7f 78
-    01 80 01 01 88 01 03 90 01 02 98 01 ff ff ff ff
-    0f a0 01 ff ff ff ff 0f a8 01 40 b0 01 10 b8 01
-    ff ff ff ff 0f c0 01 ff ff ff ff 0f 0a e3 01 08
-    ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 28 ff ff ff
-    ff 0f 30 ff ff 03 3d ff ff 7f 7f 40 01 48 02 50
-    01 5d ff ff 7f 7f 65 ff ff 7f 7f 6d ff ff 7f 7f
-    75 ff ff 7f 7f 78 01 80 01 01 88 01 03 90 01 02
-    98 01 ff ff ff ff 0f a0 01 ff ff ff ff 0f a8 01
-    40 b0 01 10 b8 01 ff ff ff ff 0f c0 01 ff ff ff
-    ff 0f
+    01 80 01 01 90 01 02 98 01 ff ff ff ff 0f a0 01
+    ff ff ff ff 0f a8 01 40 b0 01 10 b8 01 ff ff ff
+    ff 0f c0 01 ff ff ff ff 0f
 
 variant minima
   field 1 Abilities : AbilityInfo[] = 1 element
@@ -220,7 +213,6 @@ variant minima
       field 14 ProjectileSpeed : float = -3.40282347E+38 (0xff7fffff)
       field 15 Pierce : bool = false
       field 16 Affects : AbilityAffects = Hostile (0)
-      field 17 CostPowerType : PowerType = None (0)
       field 18 AmountKind : AbilityAmountKind = None (0)
       field 19 AmountMin : uint = 0
       field 20 AmountMax : uint = 0
@@ -249,7 +241,6 @@ variant varint-edges
       field 14 ProjectileSpeed : float = 1.17549435E-38 (0x00800000)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = <not a declared member> (2)
-      field 17 CostPowerType : PowerType = <not a declared member> (4)
       field 18 AmountKind : AbilityAmountKind = <not a declared member> (3)
       field 19 AmountMin : uint = 128
       field 20 AmountMax : uint = 268435456
@@ -272,7 +263,6 @@ variant varint-edges
       field 14 ProjectileSpeed : float = 1.17549449E-38 (0x00800001)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = <not a declared member> (2)
-      field 17 CostPowerType : PowerType = <not a declared member> (4)
       field 18 AmountKind : AbilityAmountKind = <not a declared member> (3)
       field 19 AmountMin : uint = 268435455
       field 20 AmountMax : uint = 2097151
@@ -280,8 +270,8 @@ variant varint-edges
       field 22 AmountTypes : DamageTypeMask = Physical, Blight (17)
       field 23 CooldownMs : uint = 268435456
       field 24 CastTimeMs : uint = 16383
-  bytes 428
-    0a d2 01 08 ff ff 7f 12 80 01 79 79 79 79 79 79
+  bytes 422
+    0a cf 01 08 ff ff 7f 12 80 01 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -292,9 +282,9 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 28 7f 30 ff 7f 3d
     00 00 80 00 40 02 48 03 50 02 5d 00 00 80 00 65
     00 00 80 00 6d 00 00 80 00 75 00 00 80 00 78 01
-    80 01 02 88 01 04 90 01 03 98 01 80 01 a0 01 80
-    80 80 80 01 a8 01 41 b0 01 11 b8 01 ff ff 7f c0
-    01 80 80 80 01 0a d4 01 08 80 80 80 80 01 12 7f
+    80 01 02 90 01 03 98 01 80 01 a0 01 80 80 80 80
+    01 a8 01 41 b0 01 11 b8 01 ff ff 7f c0 01 80 80
+    80 01 0a d1 01 08 80 80 80 80 01 12 7f 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -302,12 +292,12 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 28
-    80 80 01 30 80 01 3d 01 00 80 00 40 02 48 03 50
-    02 5d 01 00 80 00 65 01 00 80 00 6d 01 00 80 00
-    75 01 00 80 00 78 01 80 01 02 88 01 04 90 01 03
-    98 01 ff ff ff 7f a0 01 ff ff 7f a8 01 41 b0 01
-    11 b8 01 80 80 80 80 01 c0 01 ff 7f
+    78 78 78 78 78 78 78 78 78 78 78 78 28 80 80 01
+    30 80 01 3d 01 00 80 00 40 02 48 03 50 02 5d 01
+    00 80 00 65 01 00 80 00 6d 01 00 80 00 75 01 00
+    80 00 78 01 80 01 02 90 01 03 98 01 ff ff ff 7f
+    a0 01 ff ff 7f a8 01 41 b0 01 11 b8 01 80 80 80
+    80 01 c0 01 ff 7f
 
 variant float-specials
   field 1 Abilities : AbilityInfo[] = 2 elements
@@ -326,7 +316,6 @@ variant float-specials
       field 14 ProjectileSpeed : float = 1.40129846E-45 (0x00000001)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-      field 17 CostPowerType : PowerType = Fury (2)
       field 18 AmountKind : AbilityAmountKind = Healing (2)
       field 19 AmountMin : uint = 19
       field 20 AmountMax : uint = 300
@@ -349,7 +338,6 @@ variant float-specials
       field 14 ProjectileSpeed : float = 1.17549421E-38 (0x007fffff)
       field 15 Pierce : bool = true
       field 16 Affects : AbilityAffects = Ally (1)
-      field 17 CostPowerType : PowerType = Energy (3)
       field 18 AmountKind : AbilityAmountKind = Damage (1)
       field 19 AmountMin : uint = 42
       field 20 AmountMax : uint = 4000000000
@@ -357,16 +345,16 @@ variant float-specials
       field 22 AmountTypes : DamageTypeMask = Lightning (8)
       field 23 CooldownMs : uint = 42
       field 24 CastTimeMs : uint = 4000000000
-  bytes 184
-    0a 58 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
+  bytes 178
+    0a 55 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
     20 ce 94 ce 95 ce 9b ce a4 ce 91 28 ac 02 30 2a
     40 01 48 01 50 01 5d ff ff 7f 7f 65 ff ff 7f 00
-    6d 00 00 80 ff 75 01 00 00 00 78 01 80 01 01 88
-    01 02 90 01 02 98 01 13 a0 01 ac 02 a8 01 04 b0
-    01 10 b8 01 ac 02 c0 01 ac 02 0a 5c 08 13 12 15
-    65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61
-    73 74 72 61 6c 28 2a 30 13 3d 01 00 00 00 40 01
-    48 02 50 01 5d 00 00 c0 ff 65 ff ff 7f 7f 75 ff
-    ff 7f 00 78 01 80 01 01 88 01 03 90 01 01 98 01
-    2a a0 01 80 d0 ac f3 0e a8 01 01 b0 01 08 b8 01
-    2a c0 01 80 d0 ac f3 0e
+    6d 00 00 80 ff 75 01 00 00 00 78 01 80 01 01 90
+    01 02 98 01 13 a0 01 ac 02 a8 01 04 b0 01 10 b8
+    01 ac 02 c0 01 ac 02 0a 59 08 13 12 15 65 6d 6f
+    6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72
+    61 6c 28 2a 30 13 3d 01 00 00 00 40 01 48 02 50
+    01 5d 00 00 c0 ff 65 ff ff 7f 7f 75 ff ff 7f 00
+    78 01 80 01 01 90 01 01 98 01 2a a0 01 80 d0 ac
+    f3 0e a8 01 01 b0 01 08 b8 01 2a c0 01 80 d0 ac
+    f3 0e

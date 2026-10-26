@@ -77,9 +77,9 @@ public class InstanceAbilityCastSystemShould
         Assert.Equal(!accepted, ArrivalProtection.IsProtected(caster));
     }
 
-    /// <summary>An ability whose cost, if any, is spent from <paramref name="pool" /> (#652): Mana, the default caster's.</summary>
+    /// <summary>An ability whose cost, if any, is spent from mana (#1181).</summary>
     private static GameAbility Ability(uint cost = 0, float castTime = 0f, string script = "Recording",
-        PowerType pool = PowerType.Mana, AbilityFlags flags = AbilityFlags.None) => new()
+        AbilityFlags flags = AbilityFlags.None) => new()
         {
             AbilityId = new AbilityId(1),
             Metadata = new AbilityMetadata
@@ -87,7 +87,6 @@ public class InstanceAbilityCastSystemShould
                 Name = "x",
                 ScriptName = script,
                 Cost = cost,
-                CostPowerType = cost > 0 ? pool : PowerType.None,
                 CastTime = castTime,
                 Cooldown = 2f,
                 Flags = flags,
@@ -401,55 +400,32 @@ public class InstanceAbilityCastSystemShould
     }
 
     /// <summary>
-    /// #652: the cast system refuses a cost spent from another pool on both paths, however much the caster's own pool
-    /// holds, before anything is built, paid or marked casting.
+    /// #1181: a cast the caster's mana can pay is taken and charged on both paths; one it cannot pay is refused before
+    /// anything is built, paid or marked casting.
     /// </summary>
     [Theory]
-    [InlineData(0f)]
-    [InlineData(1f)]
-    public void Refuse_a_cost_spent_from_another_pool_on_both_paths(float castTime)
+    [InlineData(0f, 30u, true)]
+    [InlineData(0f, 19u, false)]
+    [InlineData(1.5f, 30u, true)]
+    [InlineData(1.5f, 19u, false)]
+    public void Take_a_cast_the_mana_can_pay_and_refuse_one_it_cannot_on_both_paths(float castTime, uint mana, bool taken)
     {
-        ICharacter warrior = Caster(PowerType.Fury, power: 100);
-        GameAbility flameSurge = Ability(cost: 20, castTime: castTime, pool: PowerType.Mana);
-
-        bool accepted = castTime > 0 ? _sut.QueueAbility(warrior, s_aim, flameSurge) : _sut.RunInstant(warrior, s_aim, flameSurge);
-
-        Assert.False(accepted);
-        Assert.False(flameSurge.Casting);
-        warrior.DidNotReceive().CurrentPower = Arg.Any<uint?>();
-        Assert.Empty(RecordingAbilityScript.Prepared);
-        Assert.Null(RecordingAbilityScript.LastBuilt);
-    }
-
-    /// <summary>Fury is spendable on both paths (#526), and nothing generates it yet.</summary>
-    [Theory]
-    [InlineData(0f)]
-    [InlineData(1f)]
-    public void Take_and_charge_a_Fury_cast_the_pool_can_pay_on_both_paths(float castTime)
-    {
-        ICharacter caster = Caster(PowerType.Fury, power: 30);
-        GameAbility ability = Ability(cost: 20, castTime: castTime, pool: PowerType.Fury);
+        ICharacter caster = Caster(PowerType.Mana, power: mana);
+        GameAbility ability = Ability(cost: 20, castTime: castTime);
 
         bool accepted = castTime > 0 ? _sut.QueueAbility(caster, s_aim, ability) : _sut.RunInstant(caster, s_aim, ability);
 
-        Assert.True(accepted);
-        caster.Received(1).CurrentPower = 10u;
-    }
-
-    [Theory]
-    [InlineData(0f)]
-    [InlineData(1f)]
-    public void Refuse_a_Fury_cast_the_pool_cannot_pay_on_both_paths(float castTime)
-    {
-        ICharacter caster = Caster(PowerType.Fury, power: 19);
-        GameAbility ability = Ability(cost: 20, castTime: castTime, pool: PowerType.Fury);
-
-        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, s_aim, ability) : _sut.RunInstant(caster, s_aim, ability);
-
-        Assert.False(accepted);
-        Assert.False(ability.Casting);
-        caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
-        Assert.Empty(RecordingAbilityScript.Prepared);
+        Assert.Equal(taken, accepted);
+        if (taken)
+        {
+            caster.Received(1).CurrentPower = mana - 20u;
+        }
+        else
+        {
+            Assert.False(ability.Casting);
+            caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+            Assert.Empty(RecordingAbilityScript.Prepared);
+        }
     }
 
     [Fact]

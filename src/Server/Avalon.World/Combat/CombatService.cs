@@ -6,9 +6,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
-using Avalon.Network.Packets.State;
 using Avalon.World.Auras;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Items;
 using Avalon.World.Public.Abilities;
@@ -31,7 +29,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     private readonly PvpToggle? _pvp;
     private readonly ICombatOutcomes? _outcomes;
     private readonly TimeProvider _time;
-    private readonly float _furyFromDamageTaken;
     private readonly ICombatRandom _random;
     private readonly Func<CombatFormula> _formula;
     private readonly AwakeningRules _awakening;
@@ -41,7 +38,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <param name="outcomes">Where hits and kills are reported (#546): the instance this service belongs to.</param>
     /// <param name="time">The instance's clock, the one taunts end by (#614).</param>
-    /// <param name="furyFromDamageTaken">Game:FuryFromDamageTaken (#526); the setting's default when omitted.</param>
     /// <param name="random">Every combat roll (#506); <see cref="CombatRandom.Steady" /> when omitted.</param>
     /// <param name="formula">
     /// The current combat formula (#506), read once per hit at its own resolve, so a reload that lands between
@@ -52,14 +48,12 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// </param>
     public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null,
         PvpToggle? pvp = null, ICombatOutcomes? outcomes = null, TimeProvider? time = null,
-        float furyFromDamageTaken = GameConfiguration.DefaultFuryFromDamageTaken, ICombatRandom? random = null,
-        Func<CombatFormula>? formula = null, AwakeningRules? awakening = null)
+        ICombatRandom? random = null, Func<CombatFormula>? formula = null, AwakeningRules? awakening = null)
     {
         _awakening = awakening ?? AwakeningRules.Defaults;
         _random = random ?? CombatRandom.Steady;
         _formula = formula ?? (() => s_seededFormula);
         _time = time ?? TimeProvider.System;
-        _furyFromDamageTaken = furyFromDamageTaken;
         _config = config;
         _registry = registry;
         _context = context;
@@ -143,8 +137,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// guards cover them all.
     /// </summary>
     /// <param name="ability">
-    /// The ability that hit, or null for a raw hit: it multiplies the threat, names the hit to the character hit, and gives
-    /// its PowerGainPerHit to the caster per unit damaged (#526).
+    /// The ability that hit, or null for a raw hit: it multiplies the threat and names the hit to the character hit.
     /// </param>
     /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no evasion roll.</param>
     private HitOutcome ResolveHit(IUnit attacker, IUnit target, in AttackerCombat attackerCombat, in DamageParts parts,
@@ -158,7 +151,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         float threatMultiplier = metadata?.ThreatMultiplier ?? 1.0f;
         AbilityId? abilityId = ability?.AbilityId;
-        uint powerGainPerHit = metadata is null ? 0u : (uint)Math.Max(0, metadata.PowerGainPerHit);
 
         if ((result & HitResult.Dodged) != 0)
         {
@@ -166,7 +158,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             return HitOutcome.Dodged;
         }
 
-        // Everything below reads the resolved damage (#506): threat, the hit, the gain and the PvP reset read the whole
+        // Everything below reads the resolved damage (#506): threat, the hit and the PvP reset read the whole
         // hit, the ward's part included (#1178).
         uint damage = hit.Total;
         // Staff testing still resolves and reports the hit, forms an encounter, and tags combat.
@@ -207,9 +199,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             enc.AddThreat(target, attacker, threat);
         }
 
-        // Past every early return above, so a creature target has health left; a character may be dead.
-        bool targetWasAlive = target is ICharacter victim ? !victim.IsDead : target.CurrentHealth > 0;
-
         // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
         // which ability hit it, or none for a swing (#521 item 8).
         uint removed = Hit(attacker, target, damage, damage - absorbed, abilityId, report, out ICreature? hurt);
@@ -217,12 +206,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // #770: a hit that dealt something to a unit it left alive may break the crowd control it holds, by chance.
         if (damage > 0 && !AuraSystem.IsDead(target))
             _outcomes?.DamageTaken(target);
-
-        // #526: an ability that damaged a living unit gives its caster the ability's gain, once per unit
-        // damaged, capped at the caster's maximum; after the hit, before the death detection. Only a
-        // character has a pool a cast spends, so a creature attacker gains nothing.
-        if (damage > 0 && targetWasAlive && powerGainPerHit > 0 && attacker is CharacterEntity caster)
-            caster.GainPower(powerGainPerHit);
 
         // Combat tag — MarkCombat exists only on ICharacter (see ICharacter.cs). Apply to whichever
         // participants are characters; creature in-combat state is tracked through encounter membership.
@@ -295,13 +278,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (target is CharacterEntity character)
         {
             bool wasDead = character.IsDead;
-            uint characterHealthBefore = character.CurrentHealth;
             character.OnHit(attacker, life);
             if (!wasDead)
-            {
-                GainFuryFromDamage(character, characterHealthBefore);
                 _outcomes?.CharacterDamaged(character, attacker, damage, abilityId, report);
-            }
             return 0;
         }
 
@@ -344,20 +323,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         int weight = _awakening.WeightOf(creature, wearer.Level);
         if (weight > 0)
             wearer.Awakening.AddDamage(removed, creature.Health, weight);
-    }
-
-    /// <summary>
-    /// #526: a Fury character gains a share of the health it lost, from any source: what it actually lost, not the
-    /// damage it was handed, so it stays right once armour reduces a hit (#506). A hit that kills it gains nothing:
-    /// GainPower refuses the dead, and death empties Fury anyway.
-    /// </summary>
-    private void GainFuryFromDamage(CharacterEntity character, uint healthBefore)
-    {
-        if (character.PowerType != PowerType.Fury)
-            return;
-
-        uint lost = healthBefore > character.CurrentHealth ? healthBefore - character.CurrentHealth : 0u;
-        character.GainPower(Fury.FromDamageTaken(lost, healthBefore, character.Health, _furyFromDamageTaken));
     }
 
     /// <summary>
@@ -741,7 +706,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (target is CharacterEntity character)
         {
             character.OnPeriodicHit(life);
-            GainFuryFromDamage(character, healthBefore);
         }
         else if (life > 0)
         {
@@ -771,9 +735,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // #770: a tick that dealt something to a unit it left alive may break the crowd control it holds, by chance.
         if (dealt > 0 && !AuraSystem.IsDead(target))
             _outcomes?.DamageTaken(target);
-
-        if (dealt > 0 && healthBefore > 0 && hit.Source.PowerGainPerHit > 0 && caster is CharacterEntity gainer)
-            gainer.GainPower(hit.Source.PowerGainPerHit);
 
         if (caster is ICharacter casterCharacter) casterCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();

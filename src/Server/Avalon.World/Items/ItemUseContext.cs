@@ -7,7 +7,6 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
-using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
@@ -53,7 +52,6 @@ public sealed class ItemUseContext(
     public CharacterClass Class => character.Class;
     public uint Health => character.CurrentHealth;
     public uint MaxHealth => character.Health;
-    public PowerType PowerType => character.PowerType;
     public uint Power => character.CurrentPower ?? 0u;
     public uint MaxPower => character.Power ?? 0u;
     public Vector3 Position => character.Position;

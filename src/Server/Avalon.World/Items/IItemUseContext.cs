@@ -2,7 +2,6 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Quest;
-using Avalon.Network.Packets.State;
 
 namespace Avalon.World.Items;
 
@@ -22,7 +21,6 @@ public interface IItemUseContext
     CharacterClass Class { get; }
     uint Health { get; }
     uint MaxHealth { get; }
-    PowerType PowerType { get; }
     uint Power { get; }
     uint MaxPower { get; }
     Vector3 Position { get; }
@@ -63,7 +61,7 @@ public interface IItemUseContext
     /// <summary>Heals the user through the combat service, never past its maximum; answers what was restored.</summary>
     uint RestoreHealth(uint amount);
 
-    /// <summary>Adds to the user's power, capped; nothing for a dead user or a pool no cast spends.</summary>
+    /// <summary>Adds to the user's mana, capped; nothing for a dead user.</summary>
     uint RestorePower(uint amount);
 
     /// <summary>Living units of the user's instance within <paramref name="radius" /> that are hostile to it, nearest first.</summary>

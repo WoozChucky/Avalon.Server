@@ -1,6 +1,5 @@
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
-using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Abilities;
@@ -17,10 +16,7 @@ public sealed class AbilityMetadata
 
     public float Cooldown { get; init; } // in seconds (the template stores milliseconds; the mapper divides by 1000)
 
-    public uint Cost { get; init; } // in power points
-
-    /// <summary>The pool <see cref="Cost" /> is spent from (#652); None only with a cost of 0.</summary>
-    public PowerType CostPowerType { get; init; }
+    public uint Cost { get; init; } // in mana
     public string ScriptName { get; init; }
     public SpellRange Range { get; init; } // in meters
 
@@ -60,9 +56,6 @@ public sealed class AbilityMetadata
 
     /// <summary>Hostile units are damaged, allies are healed.</summary>
     public AbilityAffects Affects { get; init; } = AbilityAffects.Hostile;
-
-    /// <summary>Power the caster gains per unit this ability damages (#526); 0 gains nothing.</summary>
-    public int PowerGainPerHit { get; init; }
 
     /// <summary>
     /// The type of damage the ability deals (#1178), or null: the caster's base type (a creature's template's, a
@@ -109,7 +102,6 @@ public sealed class AbilityMetadata
             CastTime = CastTime,
             Cooldown = Cooldown,
             Cost = Cost,
-            CostPowerType = CostPowerType,
             ScriptName = ScriptName,
             Range = Range,
             Effects = Effects,
@@ -127,7 +119,6 @@ public sealed class AbilityMetadata
             ProjectileSpeed = ProjectileSpeed,
             Pierce = Pierce,
             Affects = Affects,
-            PowerGainPerHit = PowerGainPerHit,
             DamageType = DamageType,
             Tags = Tags,
             DamageEffectiveness = DamageEffectiveness,

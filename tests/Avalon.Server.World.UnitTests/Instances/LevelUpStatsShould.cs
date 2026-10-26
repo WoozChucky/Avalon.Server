@@ -72,14 +72,13 @@ public class LevelUpStatsShould
     }
 
     /// <summary>
-    /// #526 end to end: a Warrior's Cleave kills a creature and the kill levels it up through the real
-    /// CreatureKilled. The refill keeps Fury, capped at the new maximum (100 here), and the kill's own
-    /// Cleave gain (8) is counted: 60 becomes 68, and 150 of a former 200 ends at 100.
+    /// #1181 end to end: a Warrior's Cleave kills a creature and the kill levels it up through the real
+    /// CreatureKilled. The refill fills its mana to the new maximum (100 here), from below it or above it.
     /// </summary>
     [Theory]
-    [InlineData(100u, 60u, 68u)]
+    [InlineData(100u, 60u, 100u)]
     [InlineData(200u, 150u, 100u)]
-    public async Task Keep_a_warriors_fury_capped_through_a_level_up_its_cleave_caused(uint maxBefore, uint furyBefore, uint furyAfter)
+    public async Task Refill_a_warriors_mana_through_a_level_up_its_cleave_caused(uint maxBefore, uint manaBefore, uint manaAfter)
     {
         StaticData data = await TestStaticData.LoadAsync(
             classStats: s_warriorRows,
@@ -92,18 +91,17 @@ public class LevelUpStatsShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: world);
 
         MapInstanceClient warrior = MapInstanceClients.Join(instance, 526_401);
-        warrior.Character.PowerType = PowerType.Fury;
+        warrior.Character.PowerType = PowerType.Mana;
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, data, CurrentValues.EnterWorld));
         warrior.Character.Power = maxBefore;
-        warrior.Character.CurrentPower = furyBefore;
+        warrior.Character.CurrentPower = manaBefore;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);   // facing +Z
         AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f);
-        cleave.PowerGainPerHit = 8;
         warrior.Character.Spells.Load([AbilityTestData.Game(cleave)]);
 
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 526_901u + furyBefore),
+            Guid = new ObjectGuid(ObjectType.Creature, 526_901u + manaBefore),
             Metadata = Loot.LootTestData.BoarTemplate(null),
             Position = new Vector3(0f, 0f, 2f),
             Health = 5,
@@ -119,7 +117,7 @@ public class LevelUpStatsShould
         Assert.Equal((ushort)2, warrior.Character.Level);
         Assert.Equal(100u, warrior.Character.Power);
         Assert.Equal(warrior.Character.Health, warrior.Character.CurrentHealth);
-        Assert.Equal(furyAfter, warrior.Character.CurrentPower);
+        Assert.Equal(manaAfter, warrior.Character.CurrentPower);
     }
 
     /// <summary>

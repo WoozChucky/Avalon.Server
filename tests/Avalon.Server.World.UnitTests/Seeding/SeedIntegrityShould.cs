@@ -842,13 +842,11 @@ public class SeedIntegrityShould
             {
                 AbilityTemplate ability = abilities.Single(a => a.Id.Value == id);
                 IUnit caster = Substitute.For<IUnit>();
-                caster.PowerType.Returns(ClassPowerType.Of(cls));
+                caster.PowerType.Returns(PowerType.Mana);
                 caster.CurrentPower.Returns(ability.Cost);
 
                 Assert.True(AbilityCost.Check(caster, AbilityMetadataMapper.From(ability)) == CostCheck.Payable,
                     $"{cls} cannot pay for ability {id} '{ability.Name}' ({ability.Cost} power)");
-                // #652: a cost is spent from the class's own pool, and a free ability names none.
-                Assert.Equal(ability.Cost > 0 ? ClassPowerType.Of(cls) : PowerType.None, ability.CostPowerType);
                 Assert.True(ability.Cost <= maxPower,
                     $"ability {id} '{ability.Name}' costs {ability.Cost}, above a level-1 {cls}'s {maxPower} power");
             }

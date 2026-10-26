@@ -190,6 +190,10 @@ public enum PowerType
 {
     None,
     Mana,
+
+    /// <summary>Never sent since #1181: every character spends mana.</summary>
     Fury,
+
+    /// <summary>Never sent since #1181: every character spends mana.</summary>
     Energy
 }

@@ -1,4 +1,3 @@
-using Avalon.Network.Packets.State;
 using Avalon.World.Items;
 using Avalon.World.Items.Scripts;
 using NSubstitute;
@@ -33,34 +32,35 @@ public class ItemScriptsShould
         Assert.Equal("You are already at full health.", new RestoreHealth().CanUse(_ctx));
     }
 
+    /// <summary>
+    /// #1181: every class drinks the Mana Potion; only a full pool (a maximum of 0 included) refuses it. The use is run as
+    /// the item-use pipeline runs it: OnUse only once CanUse found nothing to refuse.
+    /// </summary>
     [Theory]
-    [InlineData(PowerType.Mana)]
-    [InlineData(PowerType.Energy)]
-    public void Restore_a_percentage_of_mana_or_energy_and_consume_one(PowerType pool)
+    [InlineData(40u, 200u, null, 60u)]
+    [InlineData(200u, 200u, "Your mana is already full.", 0u)]
+    [InlineData(0u, 0u, "Your mana is already full.", 0u)]
+    public void Restore_a_percentage_of_mana_and_refuse_a_full_pool(uint power, uint max, string? refusal, uint restored)
     {
-        _ctx.PowerType.Returns(pool);
-        _ctx.MaxPower.Returns(200u);
-        _ctx.Power.Returns(10u);
+        _ctx.MaxPower.Returns(max);
+        _ctx.Power.Returns(power);
         _ctx.UseValue.Returns(30u);
 
-        Assert.Null(new RestorePower().CanUse(_ctx));
-        new RestorePower().OnUse(_ctx);
+        string? answer = new RestorePower().CanUse(_ctx);
+        if (answer is null)
+            new RestorePower().OnUse(_ctx);
 
-        _ctx.Received(1).RestorePower(60u);
-        _ctx.Received(1).Consume(1u);
-    }
-
-    [Theory]
-    [InlineData(PowerType.Fury, 0u, "You cannot drink this.")]
-    [InlineData(PowerType.None, 0u, "You cannot drink this.")]
-    [InlineData(PowerType.Mana, 200u, "Your mana is already full.")]
-    public void Refuse_a_mana_potion_to_a_pool_it_cannot_fill_or_a_full_one(PowerType pool, uint power, string refusal)
-    {
-        _ctx.PowerType.Returns(pool);
-        _ctx.MaxPower.Returns(200u);
-        _ctx.Power.Returns(power);
-
-        Assert.Equal(refusal, new RestorePower().CanUse(_ctx));
+        Assert.Equal(refusal, answer);
+        if (refusal is null)
+        {
+            _ctx.Received(1).RestorePower(restored);
+            _ctx.Received(1).Consume(1u);
+        }
+        else
+        {
+            _ctx.DidNotReceiveWithAnyArgs().RestorePower(default);
+            _ctx.DidNotReceiveWithAnyArgs().Consume(default);
+        }
     }
 
     [Fact]

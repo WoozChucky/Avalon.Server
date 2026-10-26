@@ -103,7 +103,6 @@ message AbilityInfo {
    float ProjectileSpeed = 14;
    bool Pierce = 15;
    AbilityAffects Affects = 16;
-   PowerType CostPowerType = 17;
    AbilityAmountKind AmountKind = 18;
    uint32 AmountMin = 19;
    uint32 AmountMax = 20;
