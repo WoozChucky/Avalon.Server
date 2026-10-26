@@ -38,6 +38,12 @@ public interface IScenario
     /// <see cref="Length" /> is set: a fixed-length scenario has its own warm-up ticks.
     /// </summary>
     int SteadyWarmupTicks => ScenarioMeasurement.DefaultWarmupTicks;
+
+    /// <summary>
+    /// What the run did that the report should show beside its figures (a themed fight's Resonance firings), read once
+    /// after <see cref="Verify" />, outside the measured ticks; null, the default, for nothing.
+    /// </summary>
+    string? Notes(ScenarioWorld world) => null;
 }
 
 /// <summary>

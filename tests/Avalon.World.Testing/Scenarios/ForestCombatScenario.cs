@@ -2,12 +2,12 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
-using Avalon.World.Items;
 using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
 
@@ -42,8 +42,9 @@ namespace Avalon.World.Testing.Scenarios;
 /// Built themed (<c>forest-resonance</c>, #1180 part A2), the same fight is fought in the Resonance kit
 /// (<see cref="ScenarioWorld.WearResonanceKit" />): every fighter wears four pieces, each with one T9 affix of each of its
 /// class's two themes (<see cref="s_kitAffixes" />), so each of the eight themes is at 4 on some fighter and its effects
-/// fire on the fight's hits, crits, kills and strikes. Its check adds a floor of its own: across the roster, each of those
-/// four triggers fired at least once (<see cref="TriggersFired" />).
+/// fire on the fight's hits, crits, kills and strikes. Its check adds floors of its own, over the measured ticks: across
+/// the roster, the effects fired at least about half as often as they do on these seeds, and each of those four triggers
+/// fired at least once (<see cref="Fires" />); the report lists every trigger's firings (<see cref="Notes" />).
 /// </para>
 /// </remarks>
 public sealed class ForestCombatScenario : IScenario
@@ -91,9 +92,15 @@ public sealed class ForestCombatScenario : IScenario
         [CharacterClass.Cleric] = [("P11", null), ("P8", DamageType.Cold)],        // Wild, Rime
     };
 
-    // The triggers a themed fight must have fired, across the roster; Evaded and WardBroken are reported, not floored.
-    private const ResonanceTriggers FlooredTriggers =
-        ResonanceTriggers.Hit | ResonanceTriggers.Crit | ResonanceTriggers.Kill | ResonanceTriggers.Struck;
+    // The triggers a themed fight must fire during the measured ticks, across the roster; Evaded and WardBroken are
+    // reported (Notes), not floored.
+    private static readonly ResonanceTrigger[] s_flooredTriggers =
+        [ResonanceTrigger.Hit, ResonanceTrigger.Crit, ResonanceTrigger.Kill, ResonanceTrigger.Struck];
+
+    // The least Resonance effects a themed fight must fire during the measured ticks, about half of what it fires on these
+    // seeds (152: 44 Hit, 21 Crit, 27 Kill, 51 Struck, 3 Evaded, 6 WardBroken): a change that cut the firings by half or
+    // more fails here, rather than passing the allocation gate as a saving.
+    private const int MinResonanceFires = 75;
 
     private static readonly PropertyInfo s_resonanceProcs =
         typeof(CharacterEntity).GetProperty("ResonanceProcs", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -134,6 +141,7 @@ public sealed class ForestCombatScenario : IScenario
             var fighters = new List<LoopFighter>(Players);
             var roster = new List<CharacterEntity>(Players);
             var forests = new List<FightForest>(s_forestSeeds.Length);
+            ResonanceWatch? watch = _themed ? new ResonanceWatch() : null;
 
             foreach (int seed in s_forestSeeds)
             {
@@ -153,7 +161,8 @@ public sealed class ForestCombatScenario : IScenario
                     characters[m] = character;
                     roster.Add(character);
                     var fighter = new LoopFighter(handlers, character, seed: fighters.Count + 1);
-                    members[m] = world.Connect(character, fighter.Step);
+                    members[m] = world.Connect(character,
+                        watch is null ? fighter.Step : watch.Watching(character, fighter.Step));
                     party[m] = fighter;
                     fighters.Add(fighter);
                 }
@@ -169,7 +178,7 @@ public sealed class ForestCombatScenario : IScenario
                 }
             }
 
-            var fight = new Fight(fighters, forests, roster);
+            var fight = new Fight(fighters, forests, roster, watch);
             world.Marked += fight.Mark;
             _fights.AddOrUpdate(world, fight);
             return world;
@@ -231,37 +240,45 @@ public sealed class ForestCombatScenario : IScenario
 
         if (_themed)
         {
-            ResonanceTriggers fired = TriggersFired(world);
-            if ((fired & FlooredTriggers) != FlooredTriggers)
-            {
-                throw new InvalidOperationException(
-                    $"{Name}: across the roster only {fired} fired, not each of {FlooredTriggers}. A fight whose Resonance " +
-                    "effects stopped firing measures cheaper than it is and would pass the allocation gate as an improvement.");
-            }
+            IReadOnlyDictionary<ResonanceTrigger, int> fired = Fires(world);
+            RequireAtLeast(fired.Values.Sum(), MinResonanceFires, "fired Resonance effects");
+            foreach (ResonanceTrigger trigger in s_flooredTriggers)
+                RequireAtLeast(fired[trigger], 1, $"fired {trigger} Resonance effects");
         }
     }
 
     /// <summary>
-    /// The Resonance triggers that fired for any fighter since the world was built: those of every active effect whose
-    /// cooldown was ever spent. A cooldown is spent only by a firing, and is kept for the character's life. Evaded and
-    /// WardBroken are reported here, and not floored by <see cref="Verify" />.
-    /// <see cref="ResonanceTriggers.None" /> for an unthemed fight. The procs are World-side and internal, so they are
-    /// read by reflection; not on a measured tick.
+    /// The Resonance effects the roster fired during the measured ticks, by trigger, every trigger listed; all 0 for an
+    /// unthemed fight. A firing spends its effect's cooldown, which is how it is counted (<see cref="ResonanceWatch" />).
     /// </summary>
-    public ResonanceTriggers TriggersFired(ScenarioWorld world)
+    public IReadOnlyDictionary<ResonanceTrigger, int> Fires(ScenarioWorld world)
     {
-        ResonanceTriggers fired = ResonanceTriggers.None;
-        foreach (CharacterEntity character in FightOf(world).Characters)
-        {
-            var procs = (ResonanceProcs)s_resonanceProcs.GetValue(character)!;
-            for (int slot = 0; slot < procs.Count; slot++)
-            {
-                if (procs.ReadyAt(slot) != default)
-                    fired |= procs.EffectAt(slot).Bit;
-            }
-        }
+        Fight fight = FightOf(world);
+        Dictionary<ResonanceTrigger, int> fired = Enum.GetValues<ResonanceTrigger>().ToDictionary(t => t, _ => 0);
+        if (fight.Watch is not { } watch)
+            return fired;
 
+        if (fight.MarkedFires is not { } marked)
+            throw new InvalidOperationException($"{Name}: the fight's progress was not marked before its measured ticks");
+
+        watch.LookAtEveryone();
+        foreach (ResonanceTrigger trigger in fired.Keys)
+            fired[trigger] = watch.Fired[trigger] - marked[trigger];
         return fired;
+    }
+
+    /// <summary>
+    /// For the report: what the themed fight fired during the measured ticks, by trigger, Evaded and WardBroken included,
+    /// which the check does not floor; null for an unthemed fight.
+    /// </summary>
+    public string? Notes(ScenarioWorld world)
+    {
+        if (!_themed)
+            return null;
+
+        IReadOnlyDictionary<ResonanceTrigger, int> fired = Fires(world);
+        return $"Resonance effects fired in the measured ticks: {fired.Values.Sum()} " +
+               $"({string.Join(", ", fired.Select(pair => $"{pair.Key} {pair.Value}"))})";
     }
 
     private void RequireAtLeast(int count, int least, string what)
@@ -301,9 +318,12 @@ public sealed class ForestCombatScenario : IScenario
             ? fight
             : throw new ArgumentException($"The world was not built by {Name}", nameof(world));
 
-    /// <summary>One world's fighters, their characters and forests, and their casts, kills and outcome when its progress was marked.</summary>
+    /// <summary>
+    /// One world's fighters, their characters and forests, the themed fight's Resonance watch, and their casts, kills,
+    /// outcome and Resonance firings when its progress was marked.
+    /// </summary>
     private sealed class Fight(IReadOnlyList<LoopFighter> fighters, IReadOnlyList<FightForest> forests,
-        IReadOnlyList<CharacterEntity> characters)
+        IReadOnlyList<CharacterEntity> characters, ResonanceWatch? watch)
     {
         public IReadOnlyList<LoopFighter> Fighters { get; } = fighters;
 
@@ -311,11 +331,15 @@ public sealed class ForestCombatScenario : IScenario
 
         public IReadOnlyList<FightForest> Forests { get; } = forests;
 
+        public ResonanceWatch? Watch { get; } = watch;
+
         public int[] MarkedCasts { get; } = new int[fighters.Count];
 
         public int[] MarkedKills { get; } = new int[forests.Count];
 
         public FightOutcome? MarkedOutcome { get; private set; }
+
+        public IReadOnlyDictionary<ResonanceTrigger, int>? MarkedFires { get; private set; }
 
         public bool Marked => MarkedOutcome is not null;
 
@@ -326,6 +350,11 @@ public sealed class ForestCombatScenario : IScenario
             for (int f = 0; f < Forests.Count; f++)
                 MarkedKills[f] = Forests[f].Kills;
             MarkedOutcome = Outcome();
+            if (Watch is { } resonance)
+            {
+                resonance.LookAtEveryone();
+                MarkedFires = new Dictionary<ResonanceTrigger, int>(resonance.Fired);
+            }
         }
 
         public FightOutcome Outcome()
@@ -350,6 +379,62 @@ public sealed class ForestCombatScenario : IScenario
             }
 
             return new FightOutcome(kills, deaths, heals, landed, accepted, credits, completed, pickups, destroyed, givenUp);
+        }
+    }
+
+    /// <summary>
+    /// Counts the themed roster's Resonance firings, by trigger. A firing spends its effect's cooldown, so a slot whose
+    /// ready time moved since the last look fired once: each fighter's procs are looked at in its own step, every tick,
+    /// and every cooldown is at least 2 s, so no firing is missed or counted twice (at count 4 no two active slots share a
+    /// cooldown). Looking reads the procs' public members into arrays sized at the build, so it allocates nothing on a
+    /// measured tick; the procs are World-side and internal, so they are found by reflection, once, at the build.
+    /// </summary>
+    private sealed class ResonanceWatch
+    {
+        private readonly List<(ResonanceProcs Procs, DateTime[] Seen)> _watched = [];
+
+        /// <summary>Every firing since the build, by trigger, every trigger listed.</summary>
+        public Dictionary<ResonanceTrigger, int> Fired { get; } =
+            Enum.GetValues<ResonanceTrigger>().ToDictionary(trigger => trigger, _ => 0);
+
+        /// <summary>
+        /// <paramref name="step" />, which also looks at <paramref name="character" />'s procs once it has stepped. The
+        /// character wears its kit already: its procs keep these slots for the fight (no refresh recounts it).
+        /// </summary>
+        public Action<ScenarioConnection> Watching(CharacterEntity character, Action<ScenarioConnection> step)
+        {
+            var procs = (ResonanceProcs)s_resonanceProcs.GetValue(character)!;
+            int index = _watched.Count;
+            _watched.Add((procs, new DateTime[procs.Count]));
+            return connection =>
+            {
+                step(connection);
+                Look(index);
+            };
+        }
+
+        /// <summary>Looks at every fighter: at the mark and at the check, so a firing after a fighter's last step counts.</summary>
+        public void LookAtEveryone()
+        {
+            for (int i = 0; i < _watched.Count; i++)
+                Look(i);
+        }
+
+        private void Look(int index)
+        {
+            (ResonanceProcs procs, DateTime[] seen) = _watched[index];
+            if (procs.Count != seen.Length)
+                throw new InvalidOperationException("A fighter's Resonance effects were rebuilt during the fight");
+
+            for (int slot = 0; slot < seen.Length; slot++)
+            {
+                DateTime readyAt = procs.ReadyAt(slot);
+                if (readyAt == seen[slot])
+                    continue;
+
+                seen[slot] = readyAt;
+                Fired[procs.EffectAt(slot).Trigger]++;
+            }
         }
     }
 }

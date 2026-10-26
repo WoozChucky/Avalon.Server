@@ -89,6 +89,13 @@ static void PrintReports(IReadOnlyList<ScenarioReport> reports)
     }
 
     PrintTable(rows);
+
+    // What a scenario reports beside its figures (a themed fight's Resonance firings), one line each.
+    foreach (ScenarioReport r in reports)
+    {
+        if (r.Notes is { } notes)
+            Console.WriteLine($"{r.Scenario}: {notes}");
+    }
 }
 
 static void PrintBroadcastCensus(IReadOnlyList<IScenario> scenarios, int ticks)
