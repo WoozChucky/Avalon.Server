@@ -138,6 +138,35 @@ public class ItemModifierCatalogShould
     }
 
     /// <summary>
+    /// #1180: the tier a wake rises to. A T9 prefix rolling on swords and maces names the lowest T8 row of its group that
+    /// rolls on both, so a rise never lands on a row the item's base could not roll; with none, it names nothing (the wake
+    /// polishes), even when a T7 row would fit: a rise is one tier. <paramref name="expected" /> is the row's id, 0 for none.
+    /// </summary>
+    [Theory]
+    [InlineData("a T8 row on the same kinds", 11)]
+    [InlineData("the lowest T8 row on swords only, a later one on swords, maces and staves", 12)]
+    [InlineData("every T8 row on swords only, a T7 row on both", 0)]
+    public void Rise_only_to_a_row_of_the_next_tier_that_rolls_where_the_row_does(string @case, int expected)
+    {
+        ItemBaseKind[] both = [ItemBaseKind.Sword, ItemBaseKind.Mace];
+        ItemModifier[] rows = @case switch
+        {
+            "a T8 row on the same kinds" => [Affix(10, 9, both), Affix(11, 8, both)],
+            "the lowest T8 row on swords only, a later one on swords, maces and staves" =>
+                [Affix(10, 9, both), Affix(11, 8, [ItemBaseKind.Sword]),
+                 Affix(12, 8, [ItemBaseKind.Sword, ItemBaseKind.Mace, ItemBaseKind.Staff])],
+            "every T8 row on swords only, a T7 row on both" =>
+                [Affix(10, 9, both), Affix(11, 8, [ItemBaseKind.Sword]), Affix(12, 7, both)],
+            _ => throw new ArgumentOutOfRangeException(nameof(@case), @case, null),
+        };
+
+        var catalog = new ItemModifierCatalog(rows, [], NullLogger.Instance);
+
+        Assert.Equal(rows.Length, catalog.Count);
+        Assert.Equal(expected, catalog.NextTier(catalog.Find(10)!)?.Id ?? 0);
+    }
+
+    /// <summary>
     /// #1179: a template's own base-stat rows held to its kind (ItemBaseStatRules.Problem), and a unique's named base to
     /// its kind and level (ItemBaseStatRules.NamedBaseProblem), beside a sound sword. The template that breaks it is left out
     /// whole, and the log names it; the sword stays.
@@ -214,6 +243,16 @@ public class ItemModifierCatalogShould
         BaseTemplateId = new ItemTemplateId(CommonTemplate),
         RequiredLevel = level,
     };
+
+    /// <summary>A prefix row of group 1 at <paramref name="tier" />, weighing 1000 on each of <paramref name="kinds" />.</summary>
+    private static ItemModifier Affix(int id, byte tier, ItemBaseKind[] kinds)
+    {
+        ItemModifier row = Row(id, ItemModifierKind.Prefix, tier);
+        row.GroupId = 1;
+        row.Group.Id = 1;
+        row.Weights = [.. kinds.Select(kind => new ItemModifierWeight { ModifierId = id, BaseKind = kind, Weight = 1000 })];
+        return row;
+    }
 
     private static ItemModifier Row(int id, ItemModifierKind kind, byte? tier) => new()
     {

@@ -4,9 +4,9 @@ using Avalon.World.Public.Enums;
 namespace Avalon.World.Configuration;
 
 /// <summary>
-/// Game:Items (#1179): the odds of a made item's rarity, what a sale pays for each rarity and while unidentified, and
-/// what identifying an item costs, tunable without a migration like the other loot knobs. Read at startup; a value out
-/// of range stops the start (<see cref="ItemConfigurationValidation" />).
+/// Game:Items (#1179): the odds of a made item's rarity, what a sale pays for each rarity and while unidentified, what
+/// identifying an item costs, the share of rares that drop sealed and what fills their bars (#1180), tunable without a migration like the
+/// other loot knobs. Read at startup; a value out of range stops the start (<see cref="ItemConfigurationValidation" />).
 /// </summary>
 public sealed class ItemConfiguration
 {
@@ -27,6 +27,16 @@ public sealed class ItemConfiguration
     /// default, spends nothing and needs no gold.
     /// </summary>
     public ulong IdentifyCost { get; set; }
+
+    /// <summary>
+    /// Game:Items:SealedRarePct (#1180): the share, in percent (0-100), of rolled rares whose best prefix or suffix is
+    /// sealed, adding nothing until it wakes. 0 seals none and 100 every rare, neither with a draw; any share between
+    /// draws once per rare, after its name.
+    /// </summary>
+    public double SealedRarePct { get; set; } = 5;
+
+    /// <summary>Game:Items:Awakening (#1180): what fills a worn sealed affix's bar, and the chance a wake rises a tier.</summary>
+    public AwakeningConfiguration Awakening { get; set; } = new();
 
     /// <summary>
     /// Null when every setting is in range, else a message naming the first one that is not. <paramref name="maxGold" /> is
@@ -66,7 +76,13 @@ public sealed class ItemConfiguration
         if (IdentifyCost > maxGold)
             return $"Game:Items:IdentifyCost must be at most Game:MaxGold, {maxGold} (was {IdentifyCost})";
 
-        return null;
+        if (!double.IsFinite(SealedRarePct) || SealedRarePct is < 0 or > 100)
+            return $"Game:Items:SealedRarePct must be 0-100 (was {SealedRarePct})";
+
+        if (Awakening is null)
+            return "Game:Items:Awakening must be set";
+
+        return Awakening.Problem();
     }
 }
 

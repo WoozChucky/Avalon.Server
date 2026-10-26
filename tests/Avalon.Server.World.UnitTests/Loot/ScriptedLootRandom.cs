@@ -1,3 +1,4 @@
+using System.Text;
 using Avalon.World.Loot;
 
 namespace Avalon.Server.World.UnitTests.Loot;
@@ -10,6 +11,7 @@ internal sealed class ScriptedLootRandom : ILootRandom
 {
     private readonly Queue<double> _doubles;
     private readonly Queue<long> _integers;
+    private readonly StringBuilder _order = new();
 
     public ScriptedLootRandom(double[] doubles, long[]? integers = null)
     {
@@ -17,8 +19,17 @@ internal sealed class ScriptedLootRandom : ILootRandom
         _integers = new Queue<long>(integers ?? []);
     }
 
-    public double NextDouble() =>
-        _doubles.TryDequeue(out double next) ? next : throw new InvalidOperationException("no scripted double left");
+    public double NextDouble()
+    {
+        _order.Append('d');
+        return _doubles.TryDequeue(out double next) ? next : throw new InvalidOperationException("no scripted double left");
+    }
+
+    /// <summary>
+    /// The kinds of the draws made so far, in order: <c>d</c> for each double and <c>i</c> for each integer, so a test can
+    /// pin how the two kinds interleave, which the two separate scripts cannot.
+    /// </summary>
+    public string Order => _order.ToString();
 
     /// <summary>True when every scripted number was drawn: a draw the code under test skipped shows here.</summary>
     public bool Exhausted => _doubles.Count == 0 && _integers.Count == 0;
@@ -29,6 +40,7 @@ internal sealed class ScriptedLootRandom : ILootRandom
     public long NextInt64(long minInclusive, long maxExclusive)
     {
         LastIntegerRange = (minInclusive, maxExclusive);
+        _order.Append('i');
         if (!_integers.TryDequeue(out long next))
             throw new InvalidOperationException($"no scripted integer left for [{minInclusive}, {maxExclusive})");
         if (next < minInclusive || next >= maxExclusive)

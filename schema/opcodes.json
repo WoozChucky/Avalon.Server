@@ -875,6 +875,24 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_AWAKENING_PROGRESS",
+      "opcode": 12435,
+      "hex": "0x3093",
+      "message": "SAwakeningProgressPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_ITEM_AWAKENED",
+      "opcode": 12436,
+      "hex": "0x3094",
+      "message": "SItemAwakenedPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_VENDOR_LIST",
       "opcode": 12448,
       "hex": "0x30A0",

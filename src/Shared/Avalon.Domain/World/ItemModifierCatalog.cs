@@ -30,6 +30,9 @@ public sealed class ItemModifierCatalog
     private readonly Dictionary<ulong, ItemModifier[]> _links;
     private readonly ItemModifierCandidate[][] _candidates;
 
+    // Each tiered row's next better row of its own group (#1180), by the row's id: a row with none has no entry.
+    private readonly Dictionary<int, ItemModifier> _nextTier;
+
     public ItemModifierCatalog(
         IReadOnlyCollection<ItemModifier> modifiers, IReadOnlyCollection<ItemTemplateModifier> links, ILogger logger)
     {
@@ -46,6 +49,7 @@ public sealed class ItemModifierCatalog
         }
 
         Resonance = new ResonanceTable(_modifiers.Values);
+        _nextTier = NextTiers(_modifiers.Values);
 
         _links = [];
         foreach (IGrouping<ulong, ItemTemplateModifier> template in links
@@ -79,6 +83,7 @@ public sealed class ItemModifierCatalog
     private ItemModifierCatalog(ItemModifierCatalog from, Dictionary<ulong, ItemModifier[]> links)
     {
         _modifiers = from._modifiers;
+        _nextTier = from._nextTier;
         _candidates = from._candidates;
         Resonance = from.Resonance;
         _links = links;
@@ -102,6 +107,17 @@ public sealed class ItemModifierCatalog
 
     /// <summary>The accepted modifier of that id, with its group, stat lines and weights; null when there is none.</summary>
     public ItemModifier? Find(int modifierId) => _modifiers.GetValueOrDefault(modifierId);
+
+    /// <summary>
+    /// The accepted row one tier better than <paramref name="modifier" /> in its own group (#1180): of the same
+    /// <see cref="ItemModifier.GroupId" />, the largest <see cref="ItemModifier.Tier" /> below its own (tiers count down,
+    /// T1 the best), the lowest id among the rows of that tier that roll on every base kind <paramref name="modifier" />
+    /// rolls on, so a rise never lands on a row the item's base could not roll. Null for an untiered row, a row the
+    /// catalog does not hold, the best tier of its group, and a row whose next tier rolls on fewer kinds (it polishes
+    /// instead). Worked out when the catalog is built, so asking allocates nothing. It knows nothing of item levels: the
+    /// wake decides whether the row is within an item's reach.
+    /// </summary>
+    public ItemModifier? NextTier(ItemModifier modifier) => _nextTier.GetValueOrDefault(modifier.Id);
 
     /// <summary>The modifiers every copy of the template rolls, in link order; empty when it links none.</summary>
     public IReadOnlyList<ItemModifier> LinkedTo(ItemTemplateId template) =>
@@ -129,6 +145,52 @@ public sealed class ItemModifierCatalog
         ItemRarity.Unique or ItemRarity.Common => null,
         _ => linked.Count > 0 ? $"a {rarity} template links no modifier" : null,
     };
+
+    /// <summary>
+    /// For each tiered row, the next better row of its group (<see cref="NextTier" />). Each group's rows are sorted best
+    /// tier first, then by id; for a row, the tier just before its own is the next better one, and that tier's first row
+    /// rolling on every kind the row rolls on, the lowest id, is the one named. The best tier has none.
+    /// </summary>
+    private static Dictionary<int, ItemModifier> NextTiers(IEnumerable<ItemModifier> accepted)
+    {
+        var next = new Dictionary<int, ItemModifier>();
+        foreach (IGrouping<int, ItemModifier> group in accepted.Where(m => m.Tier is not null).GroupBy(m => m.GroupId))
+        {
+            ItemModifier[] sorted = [.. group.OrderBy(m => m.Tier).ThenBy(m => m.Id)];
+            int betterStart = -1, tierStart = 0;
+            for (int i = 1; i < sorted.Length; i++)
+            {
+                if (sorted[i].Tier != sorted[i - 1].Tier)
+                    (betterStart, tierStart) = (tierStart, i);
+
+                if (betterStart < 0)
+                    continue;
+
+                for (int b = betterStart; b < tierStart; b++)
+                {
+                    if (RollsOnEveryKindOf(sorted[b], sorted[i]))
+                    {
+                        next[sorted[i].Id] = sorted[b];
+                        break;
+                    }
+                }
+            }
+        }
+
+        return next;
+    }
+
+    /// <summary>Whether <paramref name="candidate" /> weighs above 0 on every base kind <paramref name="row" /> does.</summary>
+    private static bool RollsOnEveryKindOf(ItemModifier candidate, ItemModifier row)
+    {
+        foreach (ItemModifierWeight weight in row.Weights)
+        {
+            if (weight.Weight > 0 && WeightOn(candidate, weight.BaseKind) <= 0)
+                return false;
+        }
+
+        return true;
+    }
 
     private static int WeightOn(ItemModifier modifier, ItemBaseKind kind)
     {

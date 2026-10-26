@@ -11,10 +11,11 @@ public readonly record struct ItemLine(StatType Stat, int Min, int Max);
 
 /// <summary>
 /// Every stat line a worn item gives (#1179): its template's stat pairs that have both a type and a value
-/// (<c>Max = Min</c>), then each modifier's values in list order (<c>Min = Value</c>, <c>Max = Value2 ?? Value</c>). Read
-/// by index into the template and the lists, so a <c>foreach</c> over it allocates nothing. A fold over the lines must
-/// not depend on their order: the world holds an item's modifiers in ordinal order, while the worlds API reads them in
-/// the order the database loads them, and both must reach the same stats.
+/// (<c>Max = Min</c>), then each modifier's values in list order (<c>Min = Value</c>, <c>Max = Value2 ?? Value</c>),
+/// skipping a sealed modifier (#1180), which gives nothing until it wakes. Read by index into the template and the
+/// lists, so a <c>foreach</c> over it allocates nothing. A fold over the lines must not depend on their order: the world
+/// holds an item's modifiers in ordinal order, while the worlds API reads them in the order the database loads them, and
+/// both must reach the same stats.
 /// </summary>
 public readonly ref struct ItemLines
 {
@@ -68,8 +69,9 @@ public readonly ref struct ItemLines
 
             while (_modifier < modifiers.Count)
             {
-                List<ItemInstanceModifierValue> values = modifiers[_modifier].Values;
-                if (_value < values.Count)
+                ItemInstanceModifier modifier = modifiers[_modifier];
+                List<ItemInstanceModifierValue> values = modifier.Values;
+                if (!modifier.Sealed && _value < values.Count)
                 {
                     ItemInstanceModifierValue line = values[_value++];
                     Current = new ItemLine(line.Stat, line.Value, line.Value2 ?? line.Value);

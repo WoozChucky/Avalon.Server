@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Items;
 using Avalon.World.Loot;
 
 namespace Avalon.World.Inventory;
@@ -100,4 +101,18 @@ public interface IInventoryService
     /// trade's lock, the cost) first.
     /// </summary>
     bool TryIdentify(byte bagSlot);
+
+    /// <summary>
+    /// Wakes the sealed affix of the item worn in <paramref name="equipmentSlot" /> (#1180) when its bar is full
+    /// (Items.Awakening.ReadyToWake): IItemRoller.Awaken makes the woken row, which takes the sealed row's place in a new
+    /// list the store puts as the item's (ItemModifierStore.ReplaceModifiers, never a field written in the old list), and
+    /// the rows are marked for the next save. The item becomes Attuned, marked Changed and its slot recorded for the
+    /// client; an item already Attuned keeps its flags, and only its slot is recorded. Null, changing nothing, for an
+    /// empty slot (a slot past the Equipment included) or an item with no row ready. It does not refresh stats: the caller
+    /// does, as after every gear change.
+    /// </summary>
+    AwakenedItem? TryAwaken(byte equipmentSlot);
 }
+
+/// <summary>A wake <see cref="IInventoryService.TryAwaken" /> made (#1180): the slot, the row's catalog modifier now, and how it woke.</summary>
+public readonly record struct AwakenedItem(byte EquipmentSlot, int ModifierId, AwakeningOutcome Outcome);

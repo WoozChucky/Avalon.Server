@@ -91,6 +91,9 @@ internal static class TestCharacters
     public static ResonanceProcs ResonanceProcsOf(CharacterEntity character) =>
         Internal<ResonanceProcs>(character, "ResonanceProcs");
 
+    /// <summary>The character's Awakening meter (#1180), World-side and internal, read by reflection.</summary>
+    public static AwakeningMeter AwakeningOf(CharacterEntity character) => Internal<AwakeningMeter>(character, "Awakening");
+
     private static T Internal<T>(CharacterEntity character, string property) =>
         (T)(typeof(CharacterEntity).GetProperty(property, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 ?.GetValue(character)

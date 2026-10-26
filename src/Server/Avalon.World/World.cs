@@ -14,6 +14,7 @@ using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
@@ -99,6 +100,9 @@ public class World : IWorld
     private readonly InstanceTicker _instanceTicker;
     private readonly PartyService? _parties;
     private readonly TradeService? _trades;
+    // The characters whose Awakening meter has work for WorldServer's Awakening stage (#1180): attached on entering an
+    // instance, detached on leaving the world.
+    private readonly AwakeningQueue? _awakening;
     private readonly ChatRateLimiter _chatRateLimiter;
     private readonly ThrottledErrorLog _partyTickErrors;
     private readonly ThrottledErrorLog _tradeTickErrors;
@@ -149,10 +153,12 @@ public class World : IWorld
         TickThreadGuard? tickThread = null,
         IAuraTemplateRepository? auraTemplateRepository = null,
         IDoodadTemplateRepository? doodadTemplateRepository = null,
-        TradeService? trades = null)
+        TradeService? trades = null,
+        AwakeningQueue? awakening = null)
     {
         _parties = parties;
         _trades = trades;
+        _awakening = awakening;
         _tick = tickThread;
         _chatRateLimiter = chatRateLimiter;
         _logger = loggerFactory.CreateLogger<World>();
@@ -203,8 +209,15 @@ public class World : IWorld
         _tick?.AssertOnTick("World.SpawnInInstance");
 
         instance.AddCharacter(connection);
-        if (connection.Character is CharacterEntity arriving && instance is IAuraHost host)
-            ArrivalProtection.Start(arriving, host.Auras);
+        if (connection.Character is CharacterEntity arriving)
+        {
+            if (instance is IAuraHost host)
+                ArrivalProtection.Start(arriving, host.Auras);
+
+            // From now on its Awakening meter queues it for the tick's stage when it has work (#1180); again on each
+            // instance it enters, which changes nothing.
+            _awakening?.Attach(arriving, connection);
+        }
 
         // The party learns the character is online, and its members get the roster (2026-09-30). Contained: a throw
         // must not cost the character its online row below.
@@ -322,6 +335,11 @@ public class World : IWorld
 
         if (connection.Character is not { } character)
             return false;
+
+        // Its Awakening meter queues it no more (#1180): the despawn save below settles the bar, and nothing is sent to a
+        // connection that is leaving. Cannot throw: three field writes.
+        if (character is CharacterEntity leaving)
+            AwakeningQueue.Detach(leaving);
 
         _logger.LogInformation("Character {CharacterName} of account {AccountId} left the world",
             character.Name, connection.AccountId?.Value);

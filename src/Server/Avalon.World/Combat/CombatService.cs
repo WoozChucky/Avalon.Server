@@ -34,6 +34,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     private readonly float _furyFromDamageTaken;
     private readonly ICombatRandom _random;
     private readonly Func<CombatFormula> _formula;
+    private readonly AwakeningRules _awakening;
 
     /// <summary>The seeded formula, for a service built without an accessor (tests).</summary>
     private static readonly CombatFormula s_seededFormula = CombatSeed.Formula();
@@ -46,11 +47,15 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// The current combat formula (#506), read once per hit at its own resolve, so a reload that lands between
     /// two hits of one cast changes the second and never half of one; the seeded formula when omitted.
     /// </param>
+    /// <param name="awakening">
+    /// What a creature's damage is worth to a worn sealed affix's bar (#1180); the default settings' when omitted.
+    /// </param>
     public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null,
         PvpToggle? pvp = null, ICombatOutcomes? outcomes = null, TimeProvider? time = null,
         float furyFromDamageTaken = GameConfiguration.DefaultFuryFromDamageTaken, ICombatRandom? random = null,
-        Func<CombatFormula>? formula = null)
+        Func<CombatFormula>? formula = null, AwakeningRules? awakening = null)
     {
+        _awakening = awakening ?? AwakeningRules.Defaults;
         _random = random ?? CombatRandom.Steady;
         _formula = formula ?? (() => s_seededFormula);
         _time = time ?? TimeProvider.System;
@@ -207,7 +212,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
         // which ability hit it, or none for a swing (#521 item 8).
-        Hit(attacker, target, damage, damage - absorbed, abilityId, report);
+        uint removed = Hit(attacker, target, damage, damage - absorbed, abilityId, report, out ICreature? hurt);
 
         // #770: a hit that dealt something to a unit it left alive may break the crowd control it holds, by chance.
         if (damage > 0 && !AuraSystem.IsDead(target))
@@ -230,7 +235,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         NotifyDeathIfApplicable(enc, target, attacker);
 
         // #1180 part A2: last, so a killing hit has already fired its wearer's Kill effects.
-        ReportResonance(attacker, target, result, absorbed);
+        ReportResonance(attacker, target, result, absorbed, removed, hurt);
         return HitOutcome.Landed;
     }
 
@@ -240,11 +245,19 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// held something before), for a character struck. Each side is reported to the instance only when its active effects
     /// listen for one of them: a hit with none costs two type tests and a mask test, and allocates nothing. Each side is
     /// reported with the time its combat stamp just read (both sides were marked above), so a firing reads no clock.
+    /// The striking character's Awakening meter (#1180) is fed first, whatever its effects listen for: the health
+    /// <paramref name="removed" /> from the creature <paramref name="hurt" />, for a character wearing a seal, which a
+    /// character without one pays one compare for. Hit answers health above 0 only for a creature, which it hands out as
+    /// <paramref name="hurt" />, so the target is not tested again.
     /// </summary>
-    private void ReportResonance(IUnit attacker, IUnit target, HitResult result, uint absorbed)
+    private void ReportResonance(IUnit attacker, IUnit target, HitResult result, uint absorbed, uint removed,
+        ICreature? hurt)
     {
         if (attacker is CharacterEntity wearer)
         {
+            if (wearer.Awakening.SealedWorn > 0 && removed > 0)
+                MeterAwakening(wearer, hurt!, removed);
+
             ResonanceTriggers fired = (result & HitResult.Crit) != 0
                 ? ResonanceTriggers.Hit | ResonanceTriggers.Crit
                 : ResonanceTriggers.Hit;
@@ -270,8 +283,15 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// </summary>
     /// <param name="damage">The whole hit, the ward's part included: what the character is told it took.</param>
     /// <param name="life">What is left for health once the ward took its part (#1178).</param>
-    private void Hit(IUnit attacker, IUnit target, uint damage, uint life, AbilityId? abilityId, in HitReport report)
+    /// <param name="hurt">The target when it is a creature, else null.</param>
+    /// <returns>
+    /// The health a creature target actually lost (#1180): what its script took off, which is less than it was handed
+    /// when the script ignores or reduces the hit, and 0 when it gained health; 0 for a character.
+    /// </returns>
+    private uint Hit(IUnit attacker, IUnit target, uint damage, uint life, AbilityId? abilityId, in HitReport report,
+        out ICreature? hurt)
     {
+        hurt = null;
         if (target is CharacterEntity character)
         {
             bool wasDead = character.IsDead;
@@ -282,28 +302,48 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
                 GainFuryFromDamage(character, characterHealthBefore);
                 _outcomes?.CharacterDamaged(character, attacker, damage, abilityId, report);
             }
-            return;
+            return 0;
         }
 
         // A creature's script is handed at most the health it has left, so a script that subtracts
         // the damage it is given cannot wrap its uint health past 0 (#588), and only the part its ward left
         // (#1178): a hit the ward took whole hands it 0. Threat above still counts the whole hit.
         uint healthBefore = target.CurrentHealth;
+        uint handed = target is ICreature ? Math.Min(life, healthBefore) : life;
 
         // The creature script broadcasts the hit itself; for exactly the length of its OnHit the instance
         // marks that broadcast with how the hit went (#506) and adds the ward's part back (#1178).
         if (_outcomes is not null) _outcomes.HitInFlight = report;
         try
         {
-            target.OnHit(attacker, target is ICreature ? Math.Min(life, healthBefore) : life);
+            target.OnHit(attacker, handed);
         }
         finally
         {
             if (_outcomes is not null) _outcomes.HitInFlight = HitReport.None;
         }
 
-        if (target is ICreature creature && healthBefore > 0 && creature.CurrentHealth == 0)
+        if (target is not ICreature creature)
+            return 0;
+
+        hurt = creature;
+        uint healthAfter = creature.CurrentHealth;
+        if (healthBefore > 0 && healthAfter == 0)
             _outcomes?.CreatureKilled(creature, attacker);
+
+        return healthBefore - Math.Min(healthBefore, healthAfter);
+    }
+
+    /// <summary>
+    /// A sealed wearer's damage to <paramref name="creature" /> (#1180): <paramref name="removed" /> of its maximum health,
+    /// worth the creature's weight for the whole of it, added to the meter and nothing else. A few integer operations,
+    /// no allocation, no save mark, no client change and no clock read.
+    /// </summary>
+    private void MeterAwakening(CharacterEntity wearer, ICreature creature, uint removed)
+    {
+        int weight = _awakening.WeightOf(creature, wearer.Level);
+        if (weight > 0)
+            wearer.Awakening.AddDamage(removed, creature.Health, weight);
     }
 
     /// <summary>
@@ -706,7 +746,12 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         else if (life > 0)
         {
             // Written only when it changes, so a tick that deals nothing does not mark the health for a broadcast.
-            target.CurrentHealth = healthBefore - Math.Min(life, healthBefore);
+            uint removed = Math.Min(life, healthBefore);
+            target.CurrentHealth = healthBefore - removed;
+
+            // #1180: a sealed wearer's tick feeds its Awakening meter as a hit does.
+            if (removed > 0 && caster is CharacterEntity { Awakening.SealedWorn: > 0 } wearer && target is ICreature hurt)
+                MeterAwakening(wearer, hurt, removed);
         }
 
         if (points > 0)

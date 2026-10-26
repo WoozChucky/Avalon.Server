@@ -50,7 +50,9 @@ public sealed class CharacterServiceShould : IDisposable
     /// cold, T8) a two-range line, its suffix (of the Owl, T8) a plain one. The unique copy, a Thornheart Signet, carries
     /// its base's implicit and its own three lines, read back in reverse. The plate chest carries the armour it rolled, a
     /// base stat; the rings carry none. An unidentified rare chest shows its rarity, item level, armour and implicit, and
-    /// neither its prefix, its suffix nor its name, to every caller.
+    /// neither its prefix, its suffix nor its name, to every caller. Each rare chest's prefix is sealed (#1180): the
+    /// identified one shows the seal's progress and the threshold for its item level, the unidentified one neither. Only
+    /// the attuned ring reads attuned.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
@@ -66,6 +68,7 @@ public sealed class CharacterServiceShould : IDisposable
         var uniqueId = new ItemInstanceId(Guid.CreateVersion7());
         var chestId = new ItemInstanceId(Guid.CreateVersion7());
         var rareChestId = new ItemInstanceId(Guid.CreateVersion7());
+        var sealedChestId = new ItemInstanceId(Guid.CreateVersion7());
 
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
@@ -78,6 +81,7 @@ public sealed class CharacterServiceShould : IDisposable
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 4, ItemId = uniqueId },
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 5, ItemId = chestId },
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 6, ItemId = rareChestId },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 7, ItemId = sealedChestId },
         });
 
         static ItemInstanceModifier Rolled(ItemInstanceId item, int modifierId, byte ordinal,
@@ -93,6 +97,12 @@ public sealed class CharacterServiceShould : IDisposable
                 ],
             };
 
+        static ItemInstanceModifier SealedAt(int progress, ItemInstanceModifier row)
+        {
+            row.SealProgress = progress;
+            return row;
+        }
+
         IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
         items.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<ItemInstance>
         {
@@ -100,7 +110,7 @@ public sealed class CharacterServiceShould : IDisposable
             {
                 Identified = true,
                 Id = itemId, TemplateId = new ItemTemplateId(68), CharacterId = id, Count = 4, Durability = 7,
-                Rarity = Avalon.Common.ItemRarity.Magic, ItemLevel = 7,
+                Rarity = Avalon.Common.ItemRarity.Magic, ItemLevel = 7, Flags = ItemInstanceFlags.Attuned,
                 Modifiers =
                 [
                     Rolled(itemId, owl, 2, (0, Avalon.Domain.World.StatType.Intellect, 2, null)),
@@ -139,7 +149,18 @@ public sealed class CharacterServiceShould : IDisposable
                 [
                     Rolled(rareChestId, Seeded("S14", null, 9), 2, (0, Avalon.Domain.World.StatType.IncreasedMaximumLife, 1, null)),
                     Rolled(rareChestId, chestLife, 0, (0, Avalon.Domain.World.StatType.IncreasedMaximumLife, 2, null)),
-                    Rolled(rareChestId, Seeded("P11", null, 7), 1, (0, Avalon.Domain.World.StatType.Health, 5, null)),
+                    SealedAt(5, Rolled(rareChestId, Seeded("P11", null, 7), 1, (0, Avalon.Domain.World.StatType.Health, 5, null))),
+                ],
+            },
+            new()
+            {
+                Identified = true,
+                Id = sealedChestId, TemplateId = new ItemTemplateId(37), CharacterId = id, Count = 1,
+                Rarity = Avalon.Common.ItemRarity.Rare, ItemLevel = 12, RareName = "Grave Hide",
+                Modifiers =
+                [
+                    SealedAt(5, Rolled(sealedChestId, Seeded("P11", null, 7), 1, (0, Avalon.Domain.World.StatType.Health, 5, null))),
+                    Rolled(sealedChestId, chestLife, 0, (0, Avalon.Domain.World.StatType.IncreasedMaximumLife, 2, null)),
                 ],
             },
         });
@@ -163,7 +184,7 @@ public sealed class CharacterServiceShould : IDisposable
         static string Described(CharacterInventoryItemDto item) => string.Join(' ', item.Modifiers.Select(m =>
             $"{m.ModifierId} {m.Kind} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]"));
 
-        Assert.Equal(4, inventory!.Items.Count);
+        Assert.Equal(5, inventory!.Items.Count);
         CharacterInventoryItemDto item = Assert.Single(inventory.Items, i => i.ItemId == itemId.Value);
         Assert.Equal(4u, item.Count);
         Assert.Equal(7u, item.Durability);
@@ -201,6 +222,14 @@ public sealed class CharacterServiceShould : IDisposable
             item.Modifiers.Select(m => (m.ModifierId, m.ThemeId)));
         Assert.All(unique.Modifiers, m => Assert.Null(m.ThemeId));
         Assert.Equal([(chestLife, (int?)null)], rareChest.Modifiers.Select(m => (m.ModifierId, m.ThemeId)));
+
+        // #1180: the identified rare chest's sealed prefix shows its 5 points and the 160 it wakes at (item level 12:
+        // 40 + 120), its implicit no seal; the unidentified chest hides its sealed prefix with its numbers.
+        CharacterInventoryItemDto sealedChest = Assert.Single(inventory.Items, i => i.ItemId == sealedChestId.Value);
+        Assert.Equal([(chestLife, (int?)null, (int?)null), (Seeded("P11", null, 7), 5, 160)],
+            sealedChest.Modifiers.Select(m => (m.ModifierId, m.SealProgress, m.SealThreshold)));
+        Assert.All(rareChest.Modifiers, m => Assert.Equal(((int?)null, (int?)null), (m.SealProgress, m.SealThreshold)));
+        Assert.Equal([itemId.Value], inventory.Items.Where(i => i.Attuned).Select(i => i.ItemId));
     }
 
     /// <summary>A seeded Resonance theme's id, by its name (#1180): no test holds an id.</summary>
@@ -311,12 +340,16 @@ public sealed class CharacterServiceShould : IDisposable
     private static ItemInstance Saved(ItemTemplate template,
         params (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values) => Saved(template, default, values);
 
+    private static ItemInstance Saved(ItemTemplate template, ItemBaseStats baseStats,
+        params (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values) =>
+        Saved(template, baseStats, sealedOrdinal: null, values);
+
     /// <summary>
     /// A saved copy of <paramref name="template" /> as the Character database loads it: a row per base stat it rolled,
-    /// and one modifier per value with its value.
+    /// and one modifier per value with its value, the one at <paramref name="sealedOrdinal" /> sealed (#1180).
     /// </summary>
-    private static ItemInstance Saved(ItemTemplate template, ItemBaseStats baseStats,
-        params (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values)
+    private static ItemInstance Saved(ItemTemplate template, ItemBaseStats baseStats, int? sealedOrdinal,
+        (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values)
     {
         var id = new ItemInstanceId(Guid.CreateVersion7());
         List<ItemInstanceBaseStat> rows = [];
@@ -339,6 +372,7 @@ public sealed class CharacterServiceShould : IDisposable
                     ItemInstanceId = id,
                     ModifierId = 1,
                     Ordinal = (byte)ordinal,
+                    SealProgress = ordinal == sealedOrdinal ? 0 : null,
                     Values =
                     [
                         new ItemInstanceModifierValue
@@ -359,12 +393,14 @@ public sealed class CharacterServiceShould : IDisposable
     /// 700 ms: Cleave rolls 3..7 at 315 % effectiveness and 80.5 % increased physical attack damage, 17..39. With the same
     /// ring on both fingers (10 % increased physical damage each), both count, as in the world: 100.5 %, 18..44. With the
     /// sword's own added fire 2..5 and a Copper Band's added physical damage to attacks 1..3, each read from its saved
-    /// instance's modifiers: 29..72.
+    /// instance's modifiers: 29..72. With the sword's added fire sealed (#1180), it adds nothing, on either side: the
+    /// starter gear's 17..39.
     /// </summary>
     [Theory]
     [InlineData("starter gear", 17u, 39u)]
     [InlineData("two rings", 18u, 44u)]
     [InlineData("a modified sword and a global ring", 29u, 72u)]
+    [InlineData("a sword whose added fire is sealed", 17u, 39u)]
     public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character(string gear, uint min, uint max)
     {
         var id = new CharacterId(42);
@@ -396,6 +432,9 @@ public sealed class CharacterServiceShould : IDisposable
             case "a modified sword and a global ring":
                 worn.Add(Saved(templates[32], s_rolledSword, (Avalon.Domain.World.StatType.AddedFireDamage, 2, 5)));
                 worn.Add(Saved(templates[68], (Avalon.Domain.World.StatType.AddedPhysicalDamageToAttacks, 1, 3)));
+                break;
+            case "a sword whose added fire is sealed":
+                worn.Add(Saved(templates[32], s_rolledSword, sealedOrdinal: 0, [(Avalon.Domain.World.StatType.AddedFireDamage, 2, 5)]));
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(gear), gear, null);

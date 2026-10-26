@@ -11,13 +11,17 @@ using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
+using Avalon.World.Configuration;
 using Avalon.World.Doodads;
 using Avalon.World.Doodads.Scripts;
+using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
@@ -27,6 +31,7 @@ using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using CreatureRarity = Avalon.World.Public.Enums.CreatureRarity;
 
@@ -2887,6 +2892,63 @@ public class SeedIntegrityShould
     // An added-damage line's worth: the average of its two ends at their maximum.
     private static Func<StatType, int, int?, double> Average(StatType added) =>
         (stat, max, max2) => stat != added ? 0 : max2 is { } high ? (max + high) / 2.0 : max;
+
+    /// <summary>
+    /// #1180 part B: a sealed affix that wakes on a successful tier-up draw, at every item level 1-10, rises only to the
+    /// next better row of its own group whose item level is within the copy's plus 3, and otherwise polishes, its values
+    /// within the tier it wakes at and each high end at or above its low end. No T7 row has a target, so a wake never
+    /// passes the best seeded tier: the starting zone's budget holds.
+    /// </summary>
+    [Fact]
+    public async Task Reach_a_tier_up_target_only_within_the_catalog_and_three_item_levels()
+    {
+        ItemModifierCatalog catalog = await ItemModifierRepositories.SeededCatalog();
+        var roller = new ItemRoller(new SteadyLootRandom(0), new ItemIdAllocator(),
+            Options.Create(new GameConfiguration()));
+        int raised = 0;
+        foreach (ItemModifier seeded in ItemModifierSeed.Modifiers())
+        {
+            ItemModifier row = catalog.Find(seeded.Id)!;
+            if (row.Group.Kind is not (ItemModifierKind.Prefix or ItemModifierKind.Suffix))
+                continue;
+
+            for (ushort itemLevel = 1; itemLevel <= 10; itemLevel++)
+            {
+                var sealedRow = new ItemInstanceModifier
+                {
+                    Id = Guid.CreateVersion7(),
+                    ModifierId = row.Id,
+                    Values = [.. row.Stats.Select(line => new ItemInstanceModifierValue
+                        { Index = line.Index, Stat = line.Stat, Value = line.Min, Value2 = line.Min2 })],
+                    SealProgress = ItemAwakening.Threshold(itemLevel),
+                };
+                AwakenedModifier woken = roller.Awaken(sealedRow, itemLevel, catalog);
+                ItemModifier target = catalog.Find(woken.Row.ModifierId)!;
+                if (woken.Outcome == AwakeningOutcome.TierRaised)
+                {
+                    raised++;
+                    Assert.Equal((row.GroupId, row.Tier - 1), (target.GroupId, (int?)target.Tier));
+                    Assert.True(target.RequiredItemLevel <= itemLevel + ItemAwakening.TierReach,
+                        $"{row.Id} at item level {itemLevel} rose to {target.Id}, which needs {target.RequiredItemLevel}");
+                    Assert.NotEqual((byte?)7, row.Tier);
+                }
+                else
+                {
+                    Assert.Equal((AwakeningOutcome.Polished, row.Id), (woken.Outcome, target.Id));
+                }
+
+                foreach (ItemInstanceModifierValue value in woken.Row.Values)
+                {
+                    ItemModifierStat line = target.Stats.Single(l => l.Index == value.Index);
+                    Assert.InRange(value.Value, line.Min, line.Max);
+                    if (line.Min2 is { } min2 && line.Max2 is { } max2)
+                        Assert.InRange(value.Value2!.Value, Math.Max(min2, value.Value), max2);
+                }
+            }
+        }
+
+        Assert.True(raised > 0, "no seeded affix rose a tier at any item level");
+    }
 
     /// <summary>
     /// #1179: every catalog row keeps the id it was seeded with, since items store it: ids are literal in the seed and

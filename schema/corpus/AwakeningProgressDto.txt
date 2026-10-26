@@ -1,0 +1,58 @@
+# AwakeningProgressDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message AwakeningProgressDto
+
+variant absent
+  field 1 EquipmentSlot : uint = 0
+  field 2 Progress : uint = 0
+  field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  bytes 0
+
+variant empty
+  field 1 EquipmentSlot : uint = 0
+  field 2 Progress : uint = 0
+  field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  bytes 0
+
+variant populated
+  field 1 EquipmentSlot : uint = 4000000000
+  field 2 Progress : uint = 300
+  field 3 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  bytes 29
+    08 80 d0 ac f3 0e 10 ac 02 1a 12 09 04 03 02 01
+    06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10
+
+variant maxima
+  field 1 EquipmentSlot : uint = 4294967295
+  field 2 Progress : uint = 4294967295
+  field 3 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
+  bytes 32
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 1a 12 09 ff
+    ff ff ff ff ff ff ff 11 ff ff ff ff ff ff ff ff
+
+variant minima
+  field 1 EquipmentSlot : uint = 0
+  field 2 Progress : uint = 0
+  field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  bytes 0
+
+variant varint-edges
+  field 1 EquipmentSlot : uint = 2097151
+  field 2 Progress : uint = 128
+  field 3 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  bytes 27
+    08 ff ff 7f 10 80 01 1a 12 09 04 03 02 01 06 05
+    08 07 11 09 0a 0b 0c 0d 0e 0f 10

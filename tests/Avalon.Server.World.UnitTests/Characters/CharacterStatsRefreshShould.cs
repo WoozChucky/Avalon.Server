@@ -249,6 +249,7 @@ public class CharacterStatsRefreshShould
     [InlineData("both rings", "Ember 2")]
     [InlineData("one item of two themes", "Ember 1, Thorn 1")]
     [InlineData("a helm with its two Ember affixes apart, then an Ember ring", "Ember 2, Thorn 1")]
+    [InlineData("a helm with a sealed Ember affix before an awake one, and a ring whose only Ember affix is sealed", "Ember 1")]
     [InlineData("an Ember affix in the bag", "")]
     [InlineData("an item in a slot it does not fit", "")]
     [InlineData("implicits and a unique's lines", "")]
@@ -257,39 +258,47 @@ public class CharacterStatsRefreshShould
         ResonanceTable seeded = await ItemModifierRepositories.SeededResonance();
         int[] emberRing = [CatalogKeys.ModifierId("P8 Fire T9"), CatalogKeys.ModifierId("P10 Fire T9")];
         int heartwoodBase = ItemModifierSeed.TemplateLinks().Single(link => link.TemplateId.Value == 112).ModifierId;
-        (InventoryType Container, byte Slot, ulong Template, int[] Modifiers)[] items = gear switch
+        (InventoryType Container, byte Slot, ulong Template, int[] Modifiers, int[] Sealed)[] items = gear switch
         {
             "nothing" => [],
-            "a ring with two Ember affixes" => [(InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing)],
+            "a ring with two Ember affixes" => [(InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing, [])],
             "two Ember items" =>
             [
-                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing),
-                (InventoryType.Equipment, EquipmentSlots.Neck, 69, [CatalogKeys.ModifierId("S5 Fire T9")]),
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing, []),
+                (InventoryType.Equipment, EquipmentSlots.Neck, 69, [CatalogKeys.ModifierId("S5 Fire T9")], []),
             ],
             "both rings" =>
             [
-                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing),
-                (InventoryType.Equipment, EquipmentSlots.Finger2, 68, emberRing),
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing, []),
+                (InventoryType.Equipment, EquipmentSlots.Finger2, 68, emberRing, []),
             ],
             "one item of two themes" =>
             [
                 (InventoryType.Equipment, EquipmentSlots.Head, 36,
-                    [CatalogKeys.ModifierId("S5 Fire T9"), CatalogKeys.ModifierId("S10 T9")]),
+                    [CatalogKeys.ModifierId("S5 Fire T9"), CatalogKeys.ModifierId("S10 T9")], []),
             ],
             // The helm counts Ember once though a Thorn affix sits between its two, and the ring after it counts Ember
-            // again. Part B's row goes here too: a sealed Ember affix before an awake one still counts Ember 1.
+            // again.
             "a helm with its two Ember affixes apart, then an Ember ring" =>
             [
                 (InventoryType.Equipment, EquipmentSlots.Head, 36,
-                    [CatalogKeys.ModifierId("P8 Fire T9"), CatalogKeys.ModifierId("S10 T9"), CatalogKeys.ModifierId("S5 Fire T9")]),
-                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing),
+                    [CatalogKeys.ModifierId("P8 Fire T9"), CatalogKeys.ModifierId("S10 T9"), CatalogKeys.ModifierId("S5 Fire T9")], []),
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing, []),
             ],
-            "an Ember affix in the bag" => [(InventoryType.Bag, 0, 68, emberRing)],
-            "an item in a slot it does not fit" => [(InventoryType.Equipment, EquipmentSlots.Head, 68, emberRing)],
+            // #1180 part B: a sealed affix counts nothing. The helm counts Ember once, from its awake affix, which its
+            // sealed one before it never hides; the ring, whose one Ember affix is sealed, counts nothing.
+            "a helm with a sealed Ember affix before an awake one, and a ring whose only Ember affix is sealed" =>
+            [
+                (InventoryType.Equipment, EquipmentSlots.Head, 36,
+                    [CatalogKeys.ModifierId("P8 Fire T9"), CatalogKeys.ModifierId("S5 Fire T9")], [0]),
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, [CatalogKeys.ModifierId("P10 Fire T9")], [0]),
+            ],
+            "an Ember affix in the bag" => [(InventoryType.Bag, 0, 68, emberRing, [])],
+            "an item in a slot it does not fit" => [(InventoryType.Equipment, EquipmentSlots.Head, 68, emberRing, [])],
             "implicits and a unique's lines" =>
             [
-                (InventoryType.Equipment, EquipmentSlots.Head, 36, [CatalogKeys.ModifierId("implicit FireResistance T9")]),
-                (InventoryType.Equipment, EquipmentSlots.Finger1, 64, [heartwoodBase, CatalogKeys.ModifierId("unique 64")]),
+                (InventoryType.Equipment, EquipmentSlots.Head, 36, [CatalogKeys.ModifierId("implicit FireResistance T9")], []),
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 64, [heartwoodBase, CatalogKeys.ModifierId("unique 64")], []),
             ],
             _ => throw new ArgumentOutOfRangeException(nameof(gear), gear, null),
         };
@@ -344,11 +353,11 @@ public class CharacterStatsRefreshShould
             (EquipmentSlots.Head, 36), (EquipmentSlots.Chest, 37), (EquipmentSlots.Legs, 38), (EquipmentSlots.Hands, 39),
             (EquipmentSlots.Feet, 40),
         ];
-        (InventoryType, byte, ulong, int[])[] items =
+        (InventoryType, byte, ulong, int[], int[])[] items =
         [
             .. plate
                 .Select((piece, i) => (Container: InventoryType.Equipment, piece.Slot, piece.Template,
-                    Modifiers: counts.Where(c => c.Count > i).Select(c => affixOf[c.Theme]).ToArray()))
+                    Modifiers: counts.Where(c => c.Count > i).Select(c => affixOf[c.Theme]).ToArray(), Sealed: (int[])[]))
                 .Where(item => item.Modifiers.Length > 0),
         ];
         CharacterEntity character = New();
@@ -365,14 +374,14 @@ public class CharacterStatsRefreshShould
 
     /// <summary>
     /// Puts <paramref name="items" /> in the character's containers, each copy with the modifiers named, each with its
-    /// seeded first line's low end as its one value.
+    /// seeded first line's low end as its one value, and those at its <c>Sealed</c> ordinals sealed at progress 0 (#1180).
     /// </summary>
     private static void Hold(CharacterEntity character,
-        IEnumerable<(InventoryType Container, byte Slot, ulong Template, int[] Modifiers)> items)
+        IEnumerable<(InventoryType Container, byte Slot, ulong Template, int[] Modifiers, int[] Sealed)> items)
     {
         ILookup<int, ItemModifierStat> lines = ItemModifierSeed.Stats().ToLookup(line => line.ModifierId);
         var held = items
-            .Select(i => (i.Container, Item: Item(i.Slot, s_equipment[new ItemTemplateId(i.Template)]), i.Modifiers))
+            .Select(i => (i.Container, Item: Item(i.Slot, s_equipment[new ItemTemplateId(i.Template)]), i.Modifiers, i.Sealed))
             .ToList();
         character.ItemModifiers.Load(
         [
@@ -386,7 +395,10 @@ public class CharacterStatsRefreshShould
                     .. h.Modifiers.Select((id, ordinal) =>
                     {
                         ItemModifierStat line = lines[id].OrderBy(l => l.Index).First();
-                        return TestModifiers.Modifier(h.Item.InstanceId, id, (byte)ordinal, (0, line.Stat, line.Min, line.Min2));
+                        ItemInstanceModifier modifier =
+                            TestModifiers.Modifier(h.Item.InstanceId, id, (byte)ordinal, (0, line.Stat, line.Min, line.Min2));
+                        modifier.SealProgress = h.Sealed.Contains(ordinal) ? 0 : null;
+                        return modifier;
                     }),
                 ],
             }),

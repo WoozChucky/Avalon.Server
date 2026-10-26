@@ -257,6 +257,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                             ItemInstanceId = sword.Id,
                             Ordinal = 0,
                             ModifierId = 202,
+                            SealProgress = 17,
                             Values =
                             [
                                 new TradeRecordItemModifierValue
@@ -290,7 +291,8 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             Assert.Equal([(ItemBaseStat.DamageMin, 4), (ItemBaseStat.DamageMax, 9)],
                 moved.BaseStats.OrderBy(s => s.Stat).Select(s => (s.Stat, s.Value)));
             TradeRecordItemModifier modifier = Assert.Single(moved.Modifiers);
-            Assert.Equal((modifierId, (byte)0, 202), (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId));
+            Assert.Equal((modifierId, (byte)0, 202, (int?)17),
+                (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId, modifier.SealProgress));
             Assert.Equal([(StatType.AddedFireDamage, 2, (int?)5), (StatType.Strength, 4, null)],
                 modifier.Values.OrderBy(v => v.Index).Select(v => (v.Stat, v.Value, v.Value2)));
         }
@@ -311,6 +313,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Rare, itemLevel: 7, rareName: "Thorn Bite", identified: false);
         ItemInstance untouched = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 4);
         ItemInstanceModifier a = Modifier(item.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
+        a.SealProgress = 0;   // every seal starts at 0 (B-R4): the check accepts it
         ItemInstanceModifier b = Modifier(item.Id, 10103, 1, Value(0, StatType.Strength, 8, null));
         ItemInstanceModifier other = Modifier(untouched.Id, 10103, 0, Value(0, StatType.Strength, 5, null));
         await _saves.WriteAsync([Batch(row, upsertItems: [item, untouched],
@@ -321,6 +324,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance saved = await SavedAsync(row.Id, item.Id);
         Assert.Equal((ItemRarity.Rare, (ushort)7, "Thorn Bite", false), (saved.Rarity, saved.ItemLevel, saved.RareName, saved.Identified));
         Assert.Equal(Describe(a, b), Describe([.. saved.Modifiers]));
+        Assert.Equal([0, null], saved.Modifiers.OrderBy(m => m.Ordinal).Select(m => m.SealProgress));
         Assert.Equal([(ItemBaseStat.Armour, 9), (ItemBaseStat.BlockChance, 6)], BaseStatsOf(saved));
 
         ItemInstanceModifier kept = Modifier(item.Id, 202, 1, Value(0, StatType.AddedFireDamage, 3, 6), a.Id);
@@ -332,6 +336,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance rewritten = await SavedAsync(row.Id, item.Id);
         Assert.True(rewritten.Identified);
         Assert.Equal(Describe(added, kept), Describe([.. rewritten.Modifiers]));
+        Assert.All(rewritten.Modifiers, m => Assert.Null(m.SealProgress));     // kept woke: updated in place under a's id
         Assert.Equal([(ItemBaseStat.Armour, 11)], BaseStatsOf(rewritten));
         ItemInstance left = await SavedAsync(row.Id, untouched.Id);
         Assert.Equal(Describe(other), Describe([.. left.Modifiers]));
@@ -346,6 +351,30 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance unidentifiedCommon = Item(row.Id, count: 1, identified: false);
         await Assert.ThrowsAnyAsync<DbUpdateException>(() => _saves.WriteAsync(
             [Batch(row, upsertItems: [unidentifiedCommon], upsertSlots: [Slot(row.Id, 2, unidentifiedCommon.Id)])]));
+
+        // #1180: a seal's progress is never negative (CK_ItemInstanceModifiers_SealProgress), and an item carries at most
+        // one seal (IX_ItemInstanceModifiers_Sealed). Either refuses the whole save.
+        ItemInstanceModifier Row(ItemInstanceModifier like, int? sealProgress)
+        {
+            ItemInstanceModifierValue first = like.Values[0];
+            ItemInstanceModifier copy = Modifier(item.Id, (ushort)like.ModifierId, like.Ordinal,
+                Value(first.Index, first.Stat, first.Value, first.Value2), like.Id);
+            copy.SealProgress = sealProgress;
+            return copy;
+        }
+
+        ItemInstanceModifier[][] refused = [[Row(added, null), Row(kept, -1)], [Row(added, 0), Row(kept, 5)]];
+        foreach (ItemInstanceModifier[] modifiers in refused)
+        {
+            await Assert.ThrowsAnyAsync<DbUpdateException>(() => _saves.WriteAsync([Batch(row,
+                upsertItems: [Item(row.Id, count: 1, item.Id, ItemRarity.Rare, 7, "Thorn Bite")],
+                modifiers: Write([BaseStat(item.Id, ItemBaseStat.Armour, 12)], modifiers))]));
+        }
+
+        ItemInstance unchanged = await SavedAsync(row.Id, item.Id);
+        Assert.Equal(Describe(added, kept), Describe([.. unchanged.Modifiers]));
+        Assert.All(unchanged.Modifiers, m => Assert.Null(m.SealProgress));
+        Assert.Equal([(ItemBaseStat.Armour, 11)], BaseStatsOf(unchanged));
     }
 
     /// <summary>
@@ -495,7 +524,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     /// </summary>
     private static ItemModifierWrite Write(ItemInstanceBaseStat[] baseStats, params ItemInstanceModifier[] modifiers) => new(
         [.. modifiers.Select(m => m.ItemInstanceId).Concat(baseStats.Select(s => s.ItemInstanceId)).Distinct()],
-        [.. modifiers.Select(m => new ItemInstanceModifier { Id = m.Id, ItemInstanceId = m.ItemInstanceId, ModifierId = m.ModifierId, Ordinal = m.Ordinal })],
+        [.. modifiers.Select(m => m.CopyRow())],
         [.. modifiers.SelectMany(m => m.Values)],
         baseStats);
 

@@ -84,7 +84,7 @@ player it is sent to: "this player" is the recipient, "the other player" the par
 | 16 | `NotTrading` | An offer, a remove, a gold change, a confirm or a cancel with no open trade. |
 | 17 | `InvalidSlot` | A trade slot past 14, or a Bag slot the Bag does not have. |
 | 18 | `ItemNotFound` | The named Bag slot is empty, or (a remove) the named trade slot is empty. |
-| 19 | `NotTradeable` | The item is NoTrade, a quest item, or its template no longer exists. |
+| 19 | `NotTradeable` | The item is NoTrade, a quest item, or its template no longer exists, or the copy is attuned (#1180: one of its affixes woke). |
 | 20 | `AlreadyOffered` | That item is already in the trade. |
 | 21 | `TradeSlotTaken` | The trade slot already holds an item: remove it first. |
 | 22 | `NotEnoughGold` | The gold offered is more than this player's balance. |
@@ -258,7 +258,7 @@ A client that loses its connection or leaves the world forgets the window; nothi
 ## 5. What can be traded
 
 - Items from the **Bag** only: never Equipment or the Bank. A stack goes in whole; split it in the Bag first.
-- Every item is tradeable unless its template is NoTrade or a quest item (`NotTradeable`).
+- Every item is tradeable unless its template is NoTrade or a quest item, or the copy is attuned (#1180, `ItemSlotDto.Flags` value 1) (`NotTradeable`). A sealed rare that has not woken trades like any other, with its bar.
 - Up to 15 items a side, and any gold amount from 0 to the player's balance. A balance may not pass the gold cap after
   the trade (`GoldCapReached`), and no one may end up with two copies of a Unique item (`UniqueAlreadyOwned`).
 

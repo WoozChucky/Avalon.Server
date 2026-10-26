@@ -18,12 +18,17 @@ message ItemModifierDto
 variant absent
   field 1 ModifierId : uint = 0
   field 2 Values : List<ItemModifierValueDto> = null
+  field 3 SealProgress : uint? = null
+  field 4 SealThreshold : uint? = null
   bytes 0
 
 variant empty
   field 1 ModifierId : uint = 0
   field 2 Values : List<ItemModifierValueDto> = 0 elements
-  bytes 0
+  field 3 SealProgress : uint? = 0
+  field 4 SealThreshold : uint? = 0
+  bytes 4
+    18 00 20 00
 
 variant populated
   field 1 ModifierId : uint = 7
@@ -36,10 +41,12 @@ variant populated
       field 1 Stat : ItemStat = IncreasedDamage (19)
       field 2 Value : int = 1000
       field 3 Value2 : int? = -3
-  bytes 39
+  field 3 SealProgress : uint? = 7
+  field 4 SealThreshold : uint? = 42
+  bytes 43
     08 07 12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff
     ff ff ff ff 01 12 10 08 13 10 e8 07 18 fd ff ff
-    ff ff ff ff ff ff 01
+    ff ff ff ff ff ff 01 18 07 20 2a
 
 variant maxima
   field 1 ModifierId : uint = 4294967295
@@ -56,11 +63,14 @@ variant maxima
       field 1 Stat : ItemStat = IncreasedMaximumLife (53)
       field 2 Value : int = 2147483647
       field 3 Value2 : int? = 2147483647
-  bytes 54
+  field 3 SealProgress : uint? = 4294967295
+  field 4 SealThreshold : uint? = 4294967295
+  bytes 66
     08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07
     18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07
     18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07
-    18 ff ff ff ff 07
+    18 ff ff ff ff 07 18 ff ff ff ff 0f 20 ff ff ff
+    ff 0f
 
 variant minima
   field 1 ModifierId : uint = 0
@@ -69,9 +79,11 @@ variant minima
       field 1 Stat : ItemStat = Stamina (0)
       field 2 Value : int = -2147483648
       field 3 Value2 : int? = -2147483648
-  bytes 24
+  field 3 SealProgress : uint? = 0
+  field 4 SealThreshold : uint? = 0
+  bytes 28
     12 16 10 80 80 80 80 f8 ff ff ff ff 01 18 80 80
-    80 80 f8 ff ff ff ff 01
+    80 80 f8 ff ff ff ff 01 18 00 20 00
 
 variant varint-edges
   field 1 ModifierId : uint = 16383
@@ -84,6 +96,9 @@ variant varint-edges
       field 1 Stat : ItemStat = <not a declared member> (54)
       field 2 Value : int = 2097152
       field 3 Value2 : int? = 16384
-  bytes 29
+  field 3 SealProgress : uint? = 2097151
+  field 4 SealThreshold : uint? = 16383
+  bytes 36
     08 ff 7f 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f
-    12 0b 08 36 10 80 80 80 01 18 80 80 01
+    12 0b 08 36 10 80 80 80 01 18 80 80 01 18 ff ff
+    7f 20 ff 7f

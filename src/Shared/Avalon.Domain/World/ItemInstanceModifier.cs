@@ -23,6 +23,16 @@ public class ItemInstanceModifier
     public List<ItemInstanceModifierValue> Values { get; set; } = [];
 
     /// <summary>
+    /// Set exactly on a sealed affix (#1180): the points its bar holds toward waking, at least 0 and at most the item's
+    /// <see cref="ItemAwakening.Threshold" />. Null on an awake affix, which every other row is. An item carries at most one
+    /// seal (the database's partial unique index), and a sealed row adds nothing to stats or Resonance until it wakes.
+    /// </summary>
+    public int? SealProgress { get; set; }
+
+    /// <summary>Whether this affix is sealed: <see cref="SealProgress" /> is set. Not a column of its own.</summary>
+    public bool Sealed => SealProgress is not null;
+
+    /// <summary>
     /// A copy of the row alone, its <see cref="Values" /> its own empty list: what a save takes on the tick beside copies
     /// of the value rows (<see cref="ItemInstanceModifierValue.Copy" />), so the write shares nothing the tick changes and
     /// every value is a row of its own.
@@ -33,6 +43,7 @@ public class ItemInstanceModifier
         ItemInstanceId = ItemInstanceId,
         ModifierId = ModifierId,
         Ordinal = Ordinal,
+        SealProgress = SealProgress,
     };
 }
 

@@ -65,6 +65,7 @@ public class TradeRulesShould
         { "offered item moved from its slot", TradeResult.OfferInvalid, 0 },
         { "offered item now NoTrade (a reload)", TradeResult.OfferInvalid, 0 },
         { "offered item is a quest item", TradeResult.OfferInvalid, 1 },
+        { "offered item woke and became Attuned after the offer", TradeResult.OfferInvalid, 1 },
         { "giver holds less gold than offered", TradeResult.OfferInvalid, 0 },
         { "receiver bag full after its own leave", TradeResult.BagFull, 1 },
         { "receiver would own two Unique Relics", TradeResult.UniqueAlreadyOwned, 1 },
@@ -104,6 +105,11 @@ public class TradeRulesShould
 
             case "offered item is a quest item":
                 return (new TradeOffer(a, [sword], 0), new TradeOffer(Holding(2, 0, [token]), [token], 0), NoCap);
+
+            case "offered item woke and became Attuned after the offer":
+                InventoryItem bound = TestCharacters.Item(0, TestCharacters.Sword);
+                CharacterEntity woken = Holding(2, 0, [bound with { Flags = ItemInstanceFlags.Attuned }]);
+                return (new TradeOffer(a, [sword], 0), new TradeOffer(woken, [bound], 0), NoCap);
 
             case "giver holds less gold than offered":
                 return (new TradeOffer(a, [], 51), new TradeOffer(Holding(2, 0, []), [], 0), NoCap);

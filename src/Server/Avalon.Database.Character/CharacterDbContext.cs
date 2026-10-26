@@ -188,7 +188,9 @@ public partial class CharacterDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<TradeRecordItemModifier> builder)
     {
-        builder.ToTable("TradeRecordItemModifiers");
+        // A sealed affix's progress as it was (#1180), under the item's own rule. No one-seal index: the record is history.
+        builder.ToTable("TradeRecordItemModifiers", t => t.HasCheckConstraint("CK_TradeRecordItemModifiers_SealProgress",
+            "\"SealProgress\" IS NULL OR \"SealProgress\" >= 0"));
         // Keyed by the modifier's own id, not its place: a modifier keeps its id when its item's modifiers are reordered.
         builder.HasKey(m => new { m.TradeId, m.ItemInstanceModifierId });
         builder.Property(m => m.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
@@ -417,7 +419,9 @@ public partial class CharacterDbContext : DbContext
     /// <summary>
     /// An item's modifiers (#1179). Keyed by an id the world server allocates, so a modifier kept across saves is updated
     /// in place. No unique index on the item and the ordinal: a reorder saved row by row would trip it. ModifierId names
-    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none.
+    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none. A sealed affix
+    /// (#1180) carries its bar's points in SealProgress, never negative, and NULL on every awake row; an item carries at most
+    /// one seal, which a partial unique index on the item holds.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemInstanceModifier> builder)
     {
@@ -429,6 +433,11 @@ public partial class CharacterDbContext : DbContext
             .HasForeignKey(v => v.ItemInstanceModifierId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(m => m.ItemInstanceId);
+        builder.HasIndex(m => m.ItemInstanceId, "IX_ItemInstanceModifiers_Sealed")
+            .IsUnique()
+            .HasFilter("\"SealProgress\" IS NOT NULL");
+        builder.ToTable(t => t.HasCheckConstraint("CK_ItemInstanceModifiers_SealProgress",
+            "\"SealProgress\" IS NULL OR \"SealProgress\" >= 0"));
     }
 
     /// <summary>A modifier's rolled numbers. The stat is stored here, so a catalog edit never changes an existing item.</summary>

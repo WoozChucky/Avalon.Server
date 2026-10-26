@@ -54,10 +54,10 @@ public sealed class ResonanceCounts
 
     /// <summary>
     /// The one per-item step of the count: adds 1 to each theme <paramref name="modifiers" /> (one worn item's, null for
-    /// none) carries, once per item however many of its affixes share that theme. Only prefixes and suffixes count, through
-    /// the table; an implicit or a unique line has no theme. Reads the list by index, one table lookup per modifier, and
-    /// allocates nothing: the item stamps each slot it counts with its number, so a later affix of that theme on the same
-    /// item finds the slot stamped.
+    /// none) carries, once per item however many of its affixes share that theme. Only awake prefixes and suffixes count,
+    /// through the table; an implicit or a unique line has no theme, and a sealed affix (#1180) counts nothing until it
+    /// wakes. Reads the list by index, one table lookup per modifier, and allocates nothing: the item stamps each slot it
+    /// counts with its number, so a later affix of that theme on the same item finds the slot stamped.
     /// </summary>
     public void AddItem(List<ItemInstanceModifier>? modifiers)
     {
@@ -69,8 +69,9 @@ public sealed class ResonanceCounts
         for (int i = 0; i < modifiers.Count; i++)
         {
             // An affix that does not count is skipped here, before its slot is stamped, so it never hides a later affix
-            // of its theme on the same item: part B's sealed affix (`if (modifier.Sealed) continue;`) goes first.
+            // of its theme on the same item.
             ItemInstanceModifier modifier = modifiers[i];
+            if (modifier.Sealed) continue;
             if (!table.TrySlotOfModifier(modifier.ModifierId, out int slot) || _stamps[slot] == item)
                 continue;
 

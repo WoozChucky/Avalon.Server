@@ -20,8 +20,9 @@ public static class ItemModifierDtoMapper
     /// </summary>
     /// <param name="catalog">The current generation's catalog: what kind each modifier of an unidentified copy is.</param>
     /// <param name="identified">Whether the copy is identified; an unidentified one shows its implicit lines only.</param>
+    /// <param name="itemLevel">The copy's item level: the threshold a sealed affix it shows wakes at (#1180).</param>
     public static List<ItemModifierDto>? ToDtos(IReadOnlyList<ItemInstanceModifier> modifiers,
-        ItemModifierCatalog catalog, bool identified)
+        ItemModifierCatalog catalog, bool identified, ushort itemLevel)
     {
         int total = modifiers.Count;
         if (total == 0)
@@ -49,6 +50,7 @@ public static class ItemModifierDtoMapper
             // The entry's own list, sized once: replacing it would throw away the one its initializer made.
             ItemInstanceModifier modifier = modifiers[i];
             var dto = new ItemModifierDto { ModifierId = (uint)modifier.ModifierId };
+            FillSeal(dto, modifier, identified, itemLevel);
             dto.Values.Capacity = modifier.Values.Count;
             for (int v = 0; v < modifier.Values.Count; v++)
             {
@@ -74,6 +76,27 @@ public static class ItemModifierDtoMapper
             dtos.Add(new ItemBaseStatDto { Stat = (BaseStat)stat, Value = value });
 
         return dtos;
+    }
+
+    /// <summary>
+    /// A shown modifier's seal (#1180), written over whatever <paramref name="target" /> held: its progress and the
+    /// threshold for <paramref name="itemLevel" /> on a sealed row of an identified copy, and neither on an awake one, so
+    /// a reused entry never keeps an earlier row's seal. The caller has already asked <see cref="ItemVisibility.Shows" />,
+    /// and a sealed affix is a prefix or a suffix, which an unidentified copy never shows; an unidentified copy still
+    /// sends no seal on any line it shows, whatever wrote the seal.
+    /// </summary>
+    internal static void FillSeal(ItemModifierDto target, ItemInstanceModifier modifier, bool identified, ushort itemLevel)
+    {
+        if (identified && modifier.SealProgress is { } progress)
+        {
+            target.SealProgress = (uint)progress;
+            target.SealThreshold = (uint)ItemAwakening.Threshold(itemLevel);
+        }
+        else
+        {
+            target.SealProgress = null;
+            target.SealThreshold = null;
+        }
     }
 
     /// <summary>One rolled value, written over whatever <paramref name="target" /> held.</summary>

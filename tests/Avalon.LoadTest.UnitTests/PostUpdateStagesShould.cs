@@ -8,7 +8,7 @@ public class PostUpdateStagesShould
     [Fact]
     public void Tell_an_older_world_from_missing_data_and_keep_the_tick_order()
     {
-        var mean = new Dictionary<string, double> { ["outbox"] = 3900, ["quests"] = 40, ["custom"] = 5 };
+        var mean = new Dictionary<string, double> { ["outbox"] = 3900, ["quests"] = 40, ["custom"] = 5, ["awakening"] = 2 };
         var p99 = new Dictionary<string, double> { ["outbox"] = 9800, ["quests"] = double.NaN, ["inventory"] = 12 };
 
         // A world build from before the histogram: it reports its ticks (the count's anchor) and no stage.
@@ -27,6 +27,7 @@ public class PostUpdateStagesShould
         Assert.Equal(PostUpdateReadout.Reported, read.Readout);
         Assert.Equal(
             [
+                new StageTiming("awakening", 2, null),
                 new StageTiming("quests", 40, null),
                 new StageTiming("inventory", null, 12),
                 new StageTiming("outbox", 3900, 9800),

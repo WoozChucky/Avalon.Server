@@ -19,7 +19,7 @@ public static class LootDropMapper
         if (drop.Rolled is { } rolled)
         {
             dto.Modifiers = ItemModifierDtoMapper.ToDtos(rolled.Modifiers, data.Items.Modifiers,
-                ItemVisibility.IdentifiedWhenRolled(rolled.Rarity));
+                ItemVisibility.IdentifiedWhenRolled(rolled.Rarity), rolled.ItemLevel);
             dto.BaseStats = ItemModifierDtoMapper.ToBaseStatDtos(rolled.BaseStats);
         }
 
@@ -38,13 +38,14 @@ public static class LootDropMapper
         if (drop.Rolled is { } rolled)
         {
             dto.Modifiers = pool.Refill(dto.Modifiers, rolled.Modifiers, data.Items.Modifiers,
-                ItemVisibility.IdentifiedWhenRolled(rolled.Rarity));
+                ItemVisibility.IdentifiedWhenRolled(rolled.Rarity), rolled.ItemLevel);
             dto.BaseStats = pool.RefillBaseStats(dto.BaseStats, rolled.BaseStats);
         }
         else
         {
             // Not under one conditional with the branch above: the empty collection would be made a new list, one per drop.
-            dto.Modifiers = pool.Refill(dto.Modifiers, [], data.Items.Modifiers, identified: true);
+            // No row is shown, so no seal reads the item level.
+            dto.Modifiers = pool.Refill(dto.Modifiers, [], data.Items.Modifiers, identified: true, itemLevel: default);
             dto.BaseStats = pool.RefillBaseStats(dto.BaseStats, default);
         }
 

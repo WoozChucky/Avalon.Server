@@ -84,3 +84,82 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   `InternalError`, 9) loses value and never makes it: the gold of a cost above 0 may be spent and is not given back.
   The revealed item, with its name and every modifier, and the gold reach the client in the tick's
   `SMSG_INVENTORY_UPDATE`.
+
+## Awakening (#1180)
+
+What a sealed affix is, which rares carry one, its bar and its wake are in [item modifiers](item-modifiers.md#awakening);
+this section is how the world holds, saves, sends and wakes it.
+
+- **The seal is one column on the modifier row.** `ItemInstanceModifiers.SealProgress` (`integer NULL`,
+  Character DB, migration `AddModifierSeals`) is set exactly on a sealed affix, the points its bar holds, and null on
+  every awake one; in the domain, `ItemInstanceModifier.SealProgress` (`int?`) with `Sealed` (whether it is set, not a
+  column of its own). One nullable column and not a flag beside a bar: a bar that is `NOT NULL` would need a value on
+  every awake row that means "not applicable", and null already says that, as `ItemInstances.RareName` does. The
+  database holds the rest: `CK_ItemInstanceModifiers_SealProgress` (`"SealProgress" IS NULL OR "SealProgress" >= 0`)
+  and the partial unique index `IX_ItemInstanceModifiers_Sealed` (`ItemInstanceId` where it is set), so an item carries
+  at most one seal. The bar never passes its threshold, which the settle (below) holds.
+- **The bar travels with the copy.** It is on the row, so it goes wherever the row goes, with no path of its own:
+  `ItemInstanceModifier.CopyRow` copies it, so every save (`CharacterSaveSnapshot`) and a trade's paired save
+  (`TradeSaveBatch`) write it; the trade record keeps it (`TradeRecordItemModifiers.SealProgress`, the same check, no
+  index: the record is history); a sale keeps it in the buyback list's carried rows, which the buyback writes again;
+  the bank keeps the rows where they are. A new owner goes on from the same point when it wears the item.
+- **The meter, and the one in-place write.** Each character has an `AwakeningMeter` (`CharacterEntity.Awakening`,
+  World-side and `internal`, never on `ICharacter`, never saved): `SealedWorn`, the sealed rows `Awakening.Fills`
+  accepts (a seal on an identified copy) on the items in the Equipment container, counted again by every stats refresh
+  that counts Resonance again (an item put on or taken off, a wake, a reload), with the Equipment slots they are in,
+  kept so the settle, the wake check and the progress packet visit only those (found again after an Equipment change);
+  `PendingMilli`, the points earned and not yet settled, in thousandths; and two bits, `Due` (the tick's flush must
+  settle and look for a full bar) and `Unsent` (progress moved since the client was told). Setting either queues the
+  character, once, on the world's `AwakeningQueue` while it is in the world ([world simulation](world-simulation.md),
+  Awakening). A recount that finds no seal worn drops the pending fraction; one that finds any sets `Due`, so a seal
+  worn again with a full bar, or at login, wakes at the next flush. A hit or a kill only adds to
+  `PendingMilli` ([world simulation](world-simulation.md), Awakening): no row, no save mark, no client change.
+  `Awakening.Settle` moves the whole points into each worn row `Fills` accepts, **in place on the store's row**, each
+  capped at its item's threshold, and keeps the fraction pending; it marks each item whose bar moved for the next save
+  (`SaveState.ItemModifiersChanged`), sets `Due` and `Unsent`, records no client slot and never wakes anything. This is
+  the one field written inside a held modifier list: the bar feeds no stat, no Resonance count and no name, so nothing
+  that caches a list by reference needs to see it. A fraction of a point left at a logout is lost.
+- **The settle points.** Before every save (`CharacterSaveSnapshot.Take`, its first statement: the periodic save, the
+  logout and despawn save, a trade's save), so damage dealt with no kill, a fight that ends in a logout, is written;
+  before every inventory change that touches the Equipment (`CharacterInventoryService`: `TryMove` on either side,
+  `TryDestroy`, `TakeOut` and `TryRemove` of a worn item), so an item taken off keeps what it earned and one put on gets
+  nothing earned before it; and in the tick's Awakening flush.
+- **The wake, through `IInventoryService.TryAwaken(equipmentSlot)`.** Only the tick's flush calls it, and only for a
+  worn item. It answers null and changes nothing unless the slot holds an item with a row `Awakening.ReadyToWake`
+  accepts (it fills and its bar is at its threshold). Otherwise `IItemRoller.Awaken` makes the woken row, a new object
+  with the sealed row's id, item and ordinal, no seal and a values list of its own; a new list, the old one with the
+  woken row in the sealed one's place, **replaces** the item's (`ItemModifierStore.ReplaceModifiers`, which refuses the
+  list the item already holds); the rows are marked for the save; and the item becomes **Attuned** (replaced with
+  `ItemInstanceFlags.Attuned` set, marked `Changed`, its slot recorded for the client), or, already attuned, has its
+  slot recorded. It never writes a field inside the old list: a stats refresh counts Resonance again only for a worn
+  list it has not seen, by reference, so the woken affix counts because its list is new. It answers
+  `AwakenedItem(EquipmentSlot, ModifierId, Outcome)` and does not refresh stats: the flush does, after its wakes
+  (`CharacterStatsRefresh.AfterGearChange`). An item taken off in the very tick its bar filled wakes when it is next
+  worn.
+- **Attuned.** `ItemInstanceFlags.Attuned` (1, in `ItemInstances.Flags`) is the one binding bit: a wake sets it, and
+  nothing clears it. It reaches the client in `ItemSlotDto.Flags` (7) and the REST read as `attuned`. An attuned copy
+  is refused in a face-to-face trade ([trading](trading.md)); it can still be banked, sold, bought back as itself and
+  destroyed. The template attunement flags are unchanged: public tooltips show them, and no rule reads them.
+- **The messages.** `ItemModifierDto.SealProgress` (3) and `SealThreshold` (4, `ItemAwakening.Threshold` of the copy's
+  item level), both `uint?`, are set exactly on a sealed modifier of an identified copy the client is shown, on every
+  path an item's modifiers travel (the login snapshot, inventory updates, item replies, the bank, the buyback, the trade
+  window), and null otherwise; a reused pooled entry is always overwritten. An unidentified copy shows no affix, and no
+  line it shows carries a seal, so nothing says it has one. Progress itself is never sent by rebuilding an item entry:
+  - `SMSG_AWAKENING_PROGRESS` (`0x3093`, `SAwakeningProgressPacket`: `Items` 1, a list of `AwakeningProgressDto`
+    with `EquipmentSlot` 1, `Progress` 2 and `ItemInstanceId` 3, the item's instance id as `ItemSlotDto` carries it),
+    to the owner only, at most once a tick and only on a tick its progress moved: every worn sealed affix, in Equipment
+    slot order (a woken one is no longer sealed, so it is not listed), from entries the flusher reuses. The stage runs
+    before the inventory flush, so the slots are the ones this tick's `SMSG_INVENTORY_UPDATE` leaves; a client applies
+    each bar to the item its instance id names, so a same-tick swap never shows one item's bar on another;
+  - `SMSG_ITEM_AWAKENED` (`0x3094`, `SItemAwakenedPacket`: `EquipmentSlot` 1, `ModifierId` 2, the catalog modifier it
+    woke as, and `Outcome` 3), to the owner only, once per wake. The item itself, attuned and with its woken modifier,
+    arrives in the same tick's `SMSG_INVENTORY_UPDATE`, whose flush runs after the Awakening stage.
+  - `AwakeningOutcome`, an append-only wire enum (`Avalon.Network.Packets.Items`): `Woken` 0 (the same tier and
+    values), `TierRaised` 1 (one tier better, values rolled anew), `Polished` 2 (the same tier, each line the better of
+    old and new).
+
+  Both are server to client only, so no session filter lists them.
+- **REST.** The inventory read (`GET /world/{worldId}/character/{id}/inventory`) gives each modifier line it shows its
+  `sealProgress` and `sealThreshold` (both null on an awake line, and on every line of an unidentified copy), the bar
+  as the character's last save left it, and each item `attuned`. `/stats` leaves a sealed affix out of the stats and the Resonance counts, through the same `ItemLines`
+  and per-item count the world uses ([multi-world API](api-worlds.md)).

@@ -18,8 +18,10 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
+using Avalon.World.Entities;
 using Avalon.World.GameAuth;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
 using Avalon.World.Maintenance;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
@@ -260,6 +262,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     // The inventory flush's modifier entries (#1179): taken by each connection's update and given back once it is
     // encoded. The flush runs on the tick, after both passes, one connection at a time.
     private readonly ItemModifierDtoPool _inventoryModifierDtos = new();
+
+    // The Awakening stage (#1180): settles, wakes worn sealed affixes and sends their progress, before the quest and
+    // inventory flushes, so a wake's item reaches the client in the same tick's inventory update. It visits only the
+    // characters the queue took, so an idle tick costs nothing per connection.
+    private readonly AwakeningQueue _awakeningQueue;
+    private readonly AwakeningFlusher _awakening;
+    private readonly ThrottledErrorLog _awakeningFlushErrors;
     private readonly ThrottledErrorLog _questResetErrors;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
@@ -319,6 +328,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private Histogram<double> _postUpdateDuration;
 
     // The stages after the world update (#875), one tag each, cached so timing a stage allocates nothing.
+    private static readonly KeyValuePair<string, object?> s_awakeningStage = new("stage", "awakening");
     private static readonly KeyValuePair<string, object?> s_questsStage = new("stage", "quests");
     private static readonly KeyValuePair<string, object?> s_inventoryStage = new("stage", "inventory");
     private static readonly KeyValuePair<string, object?> s_sheetStage = new("stage", "sheet");
@@ -370,6 +380,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest flush");
         _questResetErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest reset check");
+        _awakeningQueue = serviceProvider.GetRequiredService<AwakeningQueue>();
+        _awakening = new AwakeningFlusher(serviceProvider.GetRequiredService<ICharacterEconomy>(), _logger);
+        _awakeningFlushErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The awakening flush");
         _world = world;
         // Optional, like the clock: the tests that build a WorldServer from a bare provider have none.
         _tickThreadGuard = serviceProvider.GetService<TickThreadGuard>();
@@ -928,6 +942,27 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Each stage below is timed into world.post_update.duration by its stage tag (#875): StageDone records the
         // time since the previous stage ended and returns now, the next stage's start.
         long stageStart = t2;
+
+        // Awakening (#1180): each character a kill or a moved bar made due settles its points and wakes the worn sealed
+        // affixes whose bars are full, then is told the progress that moved. Before the quest and inventory flushes, so
+        // a woken item, now attuned, leaves in this tick's inventory update with its new stats behind it. Only the
+        // characters queued since the last tick are visited. Contained per character: one character's throw costs nobody
+        // else.
+        StaticData data = _world.Data;
+        ReadOnlySpan<CharacterEntity> due = _awakeningQueue.Take();
+        for (int i = 0; i < due.Length; i++)
+        {
+            try
+            {
+                _awakening.Flush(due[i], data);
+            }
+            catch (Exception e)
+            {
+                _awakeningFlushErrors.Failed(e);
+            }
+        }
+
+        stageStart = StageDone(stageStart, s_awakeningStage);
 
         // Quest counts, log, updates, lines and markers (#433), before the inventory flush below clears the slot
         // changes the collect recount reads. Each step is contained inside the flush (a throwing recount still lets the

@@ -114,7 +114,12 @@ public static class CharacterStatsRefresh
             DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula,
                 character.Auras.StatTotals, recount ? character.Resonance : null);
             if (recount)
+            {
                 counted.Remember(resonance, worn);
+
+                // #1180: the worn seals are counted with the gear they are on, so a hit reads one count.
+                character.Awakening.Recount(character);
+            }
 
             character.ApplyStats(stats, current, formula);
 

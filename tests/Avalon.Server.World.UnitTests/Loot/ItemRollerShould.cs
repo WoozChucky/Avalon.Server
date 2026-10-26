@@ -9,6 +9,7 @@ using Avalon.World.Loot;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Avalon.World.Testing.Scenarios;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.World.UnitTests.Loot;
@@ -32,8 +33,10 @@ public class ItemRollerShould
 
     private static ItemModifierCatalog Catalog => s_items.Modifiers;
 
-    private static ItemRoller Roller(ILootRandom random) =>
-        new(random, new ItemIdAllocator(), Options.Create(new GameConfiguration()));
+    // The seal's share is 0 unless a test sets it, so every other scripted roll draws exactly what it always did.
+    private static ItemRoller Roller(ILootRandom random, double sealedRarePct = 0) =>
+        new(random, new ItemIdAllocator(),
+            Options.Create(new GameConfiguration { Items = new ItemConfiguration { SealedRarePct = sealedRarePct } }));
 
     private static ItemTemplate Template(ulong id) => s_items.Find(new ItemTemplateId(id))!;
 
@@ -139,11 +142,12 @@ public class ItemRollerShould
     public void Make_one_drop_rare_when_a_boss_kill_rolled_none()
     {
         // Every draw at its lowest: under the Boss odds each base rolls Magic with one affix. The chest drop names two
-        // copies; a rolled drop is one item.
+        // copies; a rolled drop is one item. At a seal share of 5 %, the re-roll as Rare draws its own seal (#1180), whose
+        // lowest draw seals it; no magic copy or unique draws one.
         var context = new DropContext(5, CreatureRarity.Boss, false);
         List<RolledDrop> drops = [Drop(65), RolledDrop.GoldPile(12), RolledDrop.Item(new ItemTemplateId(37), 2), Drop(68)];
 
-        Roller(EdgeRandom.Low()).RollDrops(drops, context, s_items);
+        Roller(EdgeRandom.Low(), sealedRarePct: 5).RollDrops(drops, context, s_items);
 
         Assert.Equal(4, drops.Count);
         RolledItem unique = drops[0].Rolled!, upgraded = drops[2].Rolled!, magic = drops[3].Rolled!;
@@ -158,7 +162,9 @@ public class ItemRollerShould
         Assert.Equal(new ItemBaseStats { Armour = Armour(13).Min }, upgraded.BaseStats);
         Assert.Equal(1 + 3, upgraded.Modifiers.Count);
         Assert.Equal("Thorn Shell", upgraded.RareName);
+        Assert.Equal(1, upgraded.Modifiers.Count(m => m.Sealed));
         Assert.Equal(ItemRarity.Magic, magic.Rarity);
+        Assert.DoesNotContain(unique.Modifiers.Concat(magic.Modifiers), m => m.Sealed);
 
         // A kill whose first base already rolled Rare upgrades nothing else. Every draw is scripted, in the contracted
         // order, so an extra, missing or reordered draw fails. Each pick of 0.0 lands on the first eligible row.
@@ -190,10 +196,164 @@ public class ItemRollerShould
             again.Select(drop => drop.Rolled!.Modifiers.Select(m => KeyOf(m.ModifierId)).ToArray()));
     }
 
+    /// <summary>
+    /// #1180 part B (Review Focus 5): a rare seals its best prefix or suffix at Game:Items:SealedRarePct, with one draw
+    /// after its two words, and only strictly between 0 and 100 %; a magic copy and a unique never seal and never draw.
+    /// The best affix: the lowest tier, then the highest roll of its first line within its range (a line whose range is
+    /// one value counts as rolled at the top), then the lowest ordinal. Each row rolls the plate chest at item level 5
+    /// with every draw scripted in the contracted order (as in <see cref="Make_one_drop_rare_when_a_boss_kill_rolled_none" />),
+    /// so an extra, missing or early draw fails. Its candidates there, by id: P11, P12 and P13 (prefixes), S1, S5 Blight
+    /// and S14 (suffixes), each at T9 (weight 1000) and T8 (800).
+    /// </summary>
+    [Theory]
+    [InlineData("0 %: no draw and today's draws exactly", 0, "none")]
+    [InlineData("100 %: no draw, and the T8 affix over two T9s however they rolled", 100, "P12 T8 sealed 0")]
+    [InlineData("100 %: of two T9s, the one rolled higher in its range", 100, "P12 T9 sealed 0")]
+    [InlineData("100 %: two T9s rolled alike, the lower ordinal", 100, "S1 T9 sealed 0")]
+    [InlineData("5 %, a draw of 0.0499: sealed", 5, "P11 T9 sealed 0")]
+    [InlineData("5 %, a draw of 0.05: not sealed", 5, "none")]
+    [InlineData("100 %, a magic copy: no draw", 100, "none")]
+    [InlineData("100 %, a unique: no draw", 100, "none")]
+    [InlineData("100 %, a sword: an adds line, at the top of its one-value ranges, over a T9 rolled below its top", 100,
+        "P1 T9 sealed 0")]
+    public void Seal_a_rares_best_affix_at_the_configured_share(string @case, double sealedPct, string expected)
+    {
+        ItemModifierStat Line(string key) => Catalog.Find(CatalogKeys.ModifierId(key))!.Stats.Single();
+
+        // A rare plate chest: rarity 0.5 (Rare under the Boss odds), its armour, its implicit, the count 3, then per affix
+        // its pick and its value, then the two words; the seal's draw, when there is one, last.
+        Draws Rare((double Pick, string Key, int Value)[] affixes, params double[] seal) => new(
+            [0.5, .. affixes.Select(a => a.Pick), .. seal],
+            [Armour(13).Max, Line("implicit IncreasedMaximumLife T8").Min, 3, .. affixes.Select(a => (long)a.Value), 0, 0],
+            [.. affixes.Select(a => a.Key)]);
+
+        // Every pick of 0.0 lands on the first eligible row, the next prefix group each time.
+        (double, string, int)[] lowest = [(0.0, "P11 T9", 1), (0.0, "P12 T9", 1), (0.0, "P13 T9", 5)];
+        ItemTemplate unique = Template(65);
+        (ItemTemplate Template, Draws Draws) roll = @case switch
+        {
+            "0 %: no draw and today's draws exactly" => (Template(13), Rare(lowest)),
+            // 0.15 of the 9000 left after P11 lands on P12 T8; both T9s rolled their best, the T8 its worst.
+            "100 %: no draw, and the T8 affix over two T9s however they rolled" =>
+                (Template(13), Rare([(0.0, "P11 T9", 2), (0.15, "P12 T8", 2), (0.0, "P13 T9", 8)])),
+            // Three T9s: P12's 2 of 1-2 is the top of its range, above P13's 7 of 5-8 (the higher number) and P11's 1.
+            "100 %: of two T9s, the one rolled higher in its range" =>
+                (Template(13), Rare([(0.0, "P11 T9", 1), (0.0, "P12 T9", 2), (0.0, "P13 T9", 7)])),
+            // 0.55 of the 10800 lands on S1 T9, whose one value (1 of 1-1) counts as the top; P12's 2 of 1-2 ties it.
+            "100 %: two T9s rolled alike, the lower ordinal" =>
+                (Template(13), Rare([(0.55, "S1 T9", 1), (0.0, "P11 T9", 1), (0.0, "P12 T9", 2)])),
+            "5 %, a draw of 0.0499: sealed" => (Template(13), Rare(lowest, 0.0499)),
+            "5 %, a draw of 0.05: not sealed" => (Template(13), Rare(lowest, 0.05)),
+            // Rarity 0.0 (Magic), its armour, its implicit, the count 1, one pick and its value.
+            "100 %, a magic copy: no draw" =>
+                (Template(13), new Draws([0.0, 0.0],
+                    [Armour(13).Max, Line("implicit IncreasedMaximumLife T8").Min, 1, Line("P11 T9").Min], ["P11 T9"])),
+            // Its base's implicit, then its own lines: each low end, and an "adds" line's high end after it.
+            "100 %, a unique: no draw" => (unique, new Draws([],
+            [
+                .. Catalog.LinkedTo(unique.BaseTemplateId!).Concat(Catalog.LinkedTo(unique.Id))
+                    .SelectMany(m => m.Stats)
+                    .SelectMany(line => line.Min2 is { } min2 ? (long[])[line.Min, min2] : [line.Min]),
+            ], ["unique 65"])),
+            // A rare sword at item level 5: rarity 0.5, its base stats (each low end, in base-stat order), its implicit,
+            // the count 3, then 0.56 of the 16200 its nine groups weigh lands on P6 T9 (rolled 7 of 5-8), and two picks
+            // of 0.0 on P1 T9 and P2 T9, whose "adds" lines (1-1 to 1-1) each draw both ends; then the two words.
+            "100 %, a sword: an adds line, at the top of its one-value ranges, over a T9 rolled below its top" =>
+                (Sword(), new Draws([0.5, 0.56, 0.0, 0.0],
+                [
+                    .. Sword().BaseStats.OrderBy(range => range.Stat).Select(range => (long)range.Min),
+                    .. Catalog.LinkedTo(Sword().Id).SelectMany(m => m.Stats)
+                        .SelectMany(line => line.Min2 is { } min2 ? (long[])[line.Min, min2] : [line.Min]),
+                    3, 7, 1, 1, 1, 1, 0, 0,
+                ], ["P6 T9", "P1 T9", "P2 T9"])),
+            _ => throw new ArgumentOutOfRangeException(nameof(@case), @case, null),
+        };
+        var script = new ScriptedLootRandom(roll.Draws.Doubles, roll.Draws.Integers);
+
+        RolledItem rolled = Roller(script, sealedPct).Roll(roll.Template, new DropContext(5, CreatureRarity.Boss, false), s_items)!;
+
+        Assert.True(script.Exhausted, "the roll left scripted draws unused");
+        if (sealedPct is > 0 and < 100 && rolled.Rarity == ItemRarity.Rare)
+            Assert.EndsWith("iid", script.Order); // the seal's draw comes after the rare's two words
+
+        Assert.Equal(roll.Draws.Rolled, rolled.Modifiers.Skip(1).Select(m => KeyOf(m.ModifierId)));
+        Assert.False(rolled.Modifiers[0].Sealed, "the implicit was sealed");
+        Assert.InRange(rolled.Modifiers.Count(m => m.Sealed), 0, 1);
+        Assert.Equal(expected, rolled.Modifiers.SingleOrDefault(m => m.Sealed) is { } row
+            ? $"{KeyOf(row.ModifierId)} sealed {row.SealProgress}"
+            : "none");
+    }
+
+    /// <summary>A roll's scripted draws, and the modifiers after its implicit they make, by key.</summary>
+    private sealed record Draws(double[] Doubles, long[] Integers, string[] Rolled);
+
+    /// <summary>The sword base an item level 5 copy of the Ironwood Sword's line rolls on.</summary>
+    private static ItemTemplate Sword() => ItemRoller.TierAt(Template(32), 5, s_items);
+
     private static string KeyOf(int modifierId) => CatalogKeys.All().Single(row => row.ModifierId == modifierId).Key;
 
     private static ItemTemplateBaseStat Armour(ulong template) =>
         Template(template).BaseStats.Single(range => range.Stat == ItemBaseStat.Armour);
+
+    /// <summary>
+    /// #1180 part B: a wake's draws, over a catalog of one "adds" prefix group, T9 (row 10: 1-2 to 3-4) and T8 (row 11:
+    /// 1-3 to 4-6). A row the catalog no longer holds wakes as it was, and so does any row at a tier-up chance of 0 %,
+    /// neither with a draw; at 100 % a row rises with no chance draw, its values rolled within the better tier; a polish
+    /// whose new roll sums the same as the old keeps the old line whole. Every draw is scripted, so an extra or missing
+    /// one fails. <paramref name="expected" /> is "{outcome} {row} {low}..{high}".
+    /// </summary>
+    [Theory]
+    [InlineData("a row the catalog no longer holds, at 20 %", "Woken 99 1..4")]
+    [InlineData("T9 at 0 %", "Woken 10 1..4")]
+    [InlineData("T9 at 100 %", "TierRaised 11 2..5")]
+    [InlineData("T8 at 100 %, the new roll 3..4 summing as the old 1..6", "Polished 11 1..6")]
+    public void Wake_with_only_the_draws_its_chance_needs(string @case, string expected)
+    {
+        (int row, int low, int high, double pct, long[] integers) = @case switch
+        {
+            "a row the catalog no longer holds, at 20 %" => (99, 1, 4, 20.0, (long[])[]),
+            "T9 at 0 %" => (10, 1, 4, 0.0, []),
+            "T9 at 100 %" => (10, 1, 4, 100.0, [2, 5]),
+            "T8 at 100 %, the new roll 3..4 summing as the old 1..6" => (11, 1, 6, 100.0, [3, 4]),
+            _ => throw new ArgumentOutOfRangeException(nameof(@case), @case, null),
+        };
+        ItemModifier Adds(int id, byte tier, int max, int min2, int max2) => new()
+        {
+            Id = id,
+            GroupId = 1,
+            Group = new ItemModifierGroup { Id = 1, Kind = ItemModifierKind.Prefix, Code = "P1", ThemeId = 1, Name = "Adds" },
+            Tier = tier,
+            RequiredItemLevel = 1,
+            Stats =
+            [
+                new ItemModifierStat
+                {
+                    ModifierId = id, Index = 0, Stat = StatType.AddedFireDamage, Min = 1, Max = max, Min2 = min2, Max2 = max2,
+                },
+            ],
+            Weights = [new ItemModifierWeight { ModifierId = id, BaseKind = ItemBaseKind.Sword, Weight = 1000 }],
+        };
+        var catalog = new ItemModifierCatalog([Adds(10, 9, 2, 3, 4), Adds(11, 8, 3, 4, 6)], [], NullLogger.Instance);
+        var sealedRow = new ItemInstanceModifier
+        {
+            Id = Guid.CreateVersion7(),
+            ModifierId = row,
+            Values = [new ItemInstanceModifierValue { Index = 0, Stat = StatType.AddedFireDamage, Value = low, Value2 = high }],
+            SealProgress = ItemAwakening.Threshold(1),
+        };
+        var script = new ScriptedLootRandom([], integers);
+        var roller = new ItemRoller(script, new ItemIdAllocator(), Options.Create(new GameConfiguration
+        {
+            Items = new ItemConfiguration { Awakening = new AwakeningConfiguration { TierUpChancePct = pct } },
+        }));
+
+        AwakenedModifier woken = roller.Awaken(sealedRow, 1, catalog);
+
+        Assert.True(script.Exhausted, "the wake left scripted draws unused");
+        ItemInstanceModifierValue value = Assert.Single(woken.Row.Values);
+        Assert.Equal(expected, $"{woken.Outcome} {woken.Row.ModifierId} {value.Value}..{value.Value2}");
+        Assert.Equal((sealedRow.Id, (int?)null), (woken.Row.Id, woken.Row.SealProgress));
+    }
 
     [Fact]
     public void Drop_no_unique_whose_modifier_the_catalog_left_out()

@@ -398,6 +398,13 @@ public partial class CharacterEntity : ICharacter
     /// </summary>
     internal ResonanceCounts ResonanceSent { get; } = new();
 
+    /// <summary>
+    /// The points kills and damage earned for the sealed affixes this character wears (#1180), settled into the rows
+    /// by <see cref="Items.Awakening.Settle" />. Made once with the character; World-side, never on ICharacter, and never
+    /// saved itself. Tick thread only.
+    /// </summary>
+    internal AwakeningMeter Awakening { get; } = new();
+
     /// <summary>Slots and gold the client must be told about at the end of this tick.</summary>
     public InventoryClientChanges ClientChanges { get; } = new();
 

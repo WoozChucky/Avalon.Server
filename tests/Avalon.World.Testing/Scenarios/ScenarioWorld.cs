@@ -20,6 +20,7 @@ using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
@@ -75,10 +76,11 @@ namespace Avalon.World.Testing.Scenarios;
 /// (<see cref="IWorld" />, which a creature's AI reads its abilities through), the catalog's chunk library, the aura scripts,
 /// the loot roller and allocator, each roll seeded, and the <see cref="PartyService" /> (<see cref="FormParty" />),
 /// which <see cref="Tick()" /> ticks and flushes as the World server does, the character economy (<see cref="Economy" />,
-/// over item ids handed out in order) and the <see cref="QuestService" /> (<see cref="Quests" />), which an instance
-/// tells of every kill and <see cref="Tick()" /> flushes as the World server does. Its loggers all write to one
-/// <see cref="ErrorLog" />: an error logged while a forest is built or ticked, which the instance contains and goes on
-/// without, ends the scenario instead. Still left out: the periodic save.
+/// over item ids handed out in order, which <see cref="Tick()" />'s Awakening flush wakes through) and the
+/// <see cref="QuestService" /> (<see cref="Quests" />), which an instance tells of every kill and <see cref="Tick()" />
+/// flushes as the World server does. Its loggers all write to one <see cref="ErrorLog" />: an error logged while a forest
+/// is built or ticked, which the instance contains and goes on without, ends the scenario instead. Still left out: the
+/// periodic save.
 /// </para>
 /// </remarks>
 public sealed class ScenarioWorld : IDisposable
@@ -125,6 +127,8 @@ public sealed class ScenarioWorld : IDisposable
     private readonly PartyService? _parties;
     private readonly TradeService _trades;
     private readonly QuestService? _quests;
+    private readonly AwakeningFlusher? _awakening;
+    private readonly AwakeningQueue? _awakeningQueue;
     private readonly List<MapTemplate> _templates = [];
     private readonly ScenarioInstanceFactory _factory = new();
     private readonly InstanceRegistry _registry;
@@ -189,6 +193,8 @@ public sealed class ScenarioWorld : IDisposable
             _parties.AttachInstances(_registry);
             _quests = _services.GetRequiredService<QuestService>();
             Economy = _services.GetRequiredService<ICharacterEconomy>();
+            _awakening = new AwakeningFlusher(Economy, new Logger<AwakeningFlusher>(_errorLog));
+            _awakeningQueue = new AwakeningQueue();
 
             _placement = new CreaturePlacementService(new CreatureSpawner(_errorLog, _world), reference.Chunks,
                 reference.SpawnTables, reference.AuthoredSpawns, reference.Scripts, _services, _errorLog);
@@ -314,9 +320,9 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>
     /// One world tick, in <c>World.Update</c>'s order for the registry: the builds finished since the last tick
     /// published, the parties (in a world with reference data), the trades, then every instance through the registry's tick
-    /// snapshot (<c>TickInstances</c>); then, as <c>WorldServer</c> runs them after the world update, the inventory,
-    /// sheet and ability-amount flushers, the party members' status and the outbox stage's wake-up, followed here by the
-    /// send thread's pass; then the clock moves on a tick.
+    /// snapshot (<c>TickInstances</c>); then, as <c>WorldServer</c> runs them after the world update, the Awakening,
+    /// quest, inventory, sheet and ability-amount flushers, the party members' status and the outbox stage's wake-up,
+    /// followed here by the send thread's pass; then the clock moves on a tick.
     /// The ticker contains an instance's throw, as it does in production; here it ends the scenario instead, since a
     /// tick cut short would be measured as a cheap one. So does an error logged to the <see cref="ErrorLog" />.
     /// </summary>
@@ -355,6 +361,21 @@ public sealed class ScenarioWorld : IDisposable
                 throw new InvalidOperationException("An instance threw during a scenario tick", failure);
             if (_errorLog.First is { } error)
                 throw new InvalidOperationException("An instance or a handler logged an error during a tick", error);
+
+            // The Awakening flush (a world with reference data has the character economy it wakes through), first, as
+            // WorldServer runs it: each character a kill or a moved bar made due settles its points into its worn seals and
+            // is sent the progress. Without it a scenario would never settle a bar or send its progress (a scenario has no
+            // saves and no equipment moves, the other settle points), so forest-awakening would measure the meter's adds
+            // and none of what follows them. Only the characters the queue took are visited, and a character with no seal
+            // worn is never queued, so the other scenarios pay one take of an empty queue and their figures do not move.
+            // Production contains a throw per character and logs it; here it reaches the caller and ends the scenario.
+            if (_awakening is not null)
+            {
+                StaticData data = _reference!.Data;
+                ReadOnlySpan<CharacterEntity> due = _awakeningQueue!.Take();
+                for (int i = 0; i < due.Length; i++)
+                    _awakening.Flush(due[i], data);
+            }
 
             // The quest flush (a world with reference data has the quest service), before the inventory flush clears the
             // slot changes its recount reads, then the flushers that need no service, in WorldServer's order after the
@@ -586,29 +607,7 @@ public sealed class ScenarioWorld : IDisposable
 
             var modifiers = new List<ItemInstanceModifier>(modifierIds.Length);
             for (int ordinal = 0; ordinal < modifierIds.Length; ordinal++)
-            {
-                ItemModifier row = data.Items.Modifiers.Find(modifierIds[ordinal])
-                                   ?? throw new InvalidOperationException($"The catalog has no modifier {modifierIds[ordinal]}");
-                var modifierId = new Guid(owner, slot, (short)ordinal, 0, 0, 0, 0, 0, 0, 0, 4);
-                modifiers.Add(new ItemInstanceModifier
-                {
-                    Id = modifierId,
-                    ItemInstanceId = id,
-                    ModifierId = row.Id,
-                    Ordinal = (byte)ordinal,
-                    Values =
-                    [
-                        .. row.Stats.Select(line => new ItemInstanceModifierValue
-                        {
-                            ItemInstanceModifierId = modifierId,
-                            Index = line.Index,
-                            Stat = line.Stat,
-                            Value = line.Min,
-                            Value2 = line.Min2,
-                        }),
-                    ],
-                });
-            }
+                modifiers.Add(KitModifier(data, owner, slot, id, ordinal, modifierIds[ordinal], sealProgress: null));
 
             instances[piece] = new ItemInstance { Id = id, TemplateId = template.Id, Identified = true, Modifiers = modifiers };
         }
@@ -617,6 +616,81 @@ public sealed class ScenarioWorld : IDisposable
         character.Container(InventoryType.Equipment).Load(worn);
         if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
             throw new InvalidOperationException($"The seed has no stats or stat factors for {character.Class}");
+    }
+
+    /// <summary>
+    /// <paramref name="character" /> wearing the sealed kit (#1180 part B): one identified rare amulet (69) at its neck, at
+    /// item level <see cref="SealedKitItemLevel" />, carrying one affix, a sealed T9 "S5 Fire" (progress 0) at its low end,
+    /// loaded as character select loads a character's equipment; then its stats refreshed as it enters the world, which
+    /// counts the seal for its Awakening meter. A sealed affix adds nothing to stats or Resonance, and the amulet carries
+    /// nothing else (no awake affix, no implicit), so the kit leaves the character's fight as it was: a scenario fought in
+    /// it fights the same fight as without it, and what it adds is the meter's cost alone. At that item level the bar's
+    /// threshold is 10,040 points, which no fight of a few minutes fills, so the seal never wakes: what its kills and
+    /// damage earn is settled into the row and sent, and nothing else changes. The amulet's ids are made from the
+    /// character's id, so the same character always wears the same item. Setup only: before the character joins, and
+    /// before anything is put in its bag (the load replaces every item's modifiers).
+    /// </summary>
+    /// <returns>The amulet's sealed row, as the character's modifier store holds it.</returns>
+    public static ItemInstanceModifier WearSealedKit(CharacterEntity character, StaticData data)
+    {
+        ArgumentNullException.ThrowIfNull(character);
+        ArgumentNullException.ThrowIfNull(data);
+
+        byte slot = EquipmentSlots.Neck;
+        ItemTemplate template = data.FindItemTemplate(new ItemTemplateId(SealedKitTemplate))
+                                ?? throw new InvalidOperationException($"The seed has no item template {SealedKitTemplate}");
+        int owner = checked((int)character.Data!.Id.Value);
+        var id = new ItemInstanceId(new Guid(owner, slot, 0, 0, 0, 0, 0, 0, 0, 0, 5));
+        List<ItemInstanceModifier> modifiers = [KitModifier(data, owner, slot, id, 0, T9Of("S5", DamageType.Fire), sealProgress: 0)];
+
+        character.ItemModifiers.Load([new ItemInstance { Id = id, TemplateId = template.Id, Identified = true, Modifiers = modifiers }]);
+        character.Container(InventoryType.Equipment).Load(
+        [
+            new InventoryItem(slot, id, template.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Rare, SealedKitItemLevel,
+                RareName: "Dusk Knot", Identified: true),
+        ]);
+        if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
+            throw new InvalidOperationException($"The seed has no stats or stat factors for {character.Class}");
+
+        return character.ItemModifiers.Of(id).Single(row => row.Sealed);
+    }
+
+    // The sealed kit's item level: a threshold of 10,040 points, never reached.
+    private const ushort SealedKitItemLevel = 1000;
+
+    // The sealed kit's amulet template.
+    private const ulong SealedKitTemplate = 69;
+
+    /// <summary>
+    /// A kit item's modifier row <paramref name="ordinal" />: the catalog's row <paramref name="modifierId" />, every line
+    /// at its low end, sealed at <paramref name="sealProgress" />, or awake when it is null. Its id is made from the owner,
+    /// the slot and the ordinal.
+    /// </summary>
+    private static ItemInstanceModifier KitModifier(StaticData data, int owner, byte slot, ItemInstanceId item, int ordinal,
+        int modifierId, int? sealProgress)
+    {
+        ItemModifier row = data.Items.Modifiers.Find(modifierId)
+                           ?? throw new InvalidOperationException($"The catalog has no modifier {modifierId}");
+        var id = new Guid(owner, slot, (short)ordinal, 0, 0, 0, 0, 0, 0, 0, 4);
+        return new ItemInstanceModifier
+        {
+            Id = id,
+            ItemInstanceId = item,
+            ModifierId = row.Id,
+            Ordinal = (byte)ordinal,
+            SealProgress = sealProgress,
+            Values =
+            [
+                .. row.Stats.Select(line => new ItemInstanceModifierValue
+                {
+                    ItemInstanceModifierId = id,
+                    Index = line.Index,
+                    Stat = line.Stat,
+                    Value = line.Min,
+                    Value2 = line.Min2,
+                }),
+            ],
+        };
     }
 
     // The Resonance kit's pieces: where each is worn, and its template.
@@ -661,12 +735,14 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>
     /// A new <see cref="ScenarioConnection" /> for the character, in the world but in no instance yet, as a character is
     /// once it has entered the world: in a world with reference data the party service counts it online
-    /// (<c>World.SpawnInInstance</c>), so it can be invited (<see cref="FormParty" />) before it joins an instance.
+    /// (<c>World.SpawnInInstance</c>), so it can be invited (<see cref="FormParty" />) before it joins an instance, and
+    /// its Awakening meter queues it for the tick's flush.
     /// </summary>
     public ScenarioConnection Connect(CharacterEntity character, Action<ScenarioConnection>? onUpdateMap = null)
     {
         var connection = new ScenarioConnection(character, Scheduler, onUpdateMap);
         _parties?.CharacterOnline(connection);
+        _awakeningQueue?.Attach(character, connection);
 
         // CharacterSelectHandler's quest recount: the log settled against the catalog, nothing owed but the log itself.
         _quests?.RecountAtSelect(character);
