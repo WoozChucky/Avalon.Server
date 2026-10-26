@@ -528,6 +528,10 @@ message IgnoredCharacterDto {
    uint32 CharacterId = 1;
    optional string Name = 2;
 }
+message ImprintCostDto {
+   uint32 Tier = 1;
+   uint64 Gold = 2;
+}
 message InstanceChoiceDto {
    .bcl.Guid InstanceId = 1; // default value could not be applied: 00000000-0000-0000-0000-000000000000
    InstanceKind Kind = 2;
@@ -609,6 +613,11 @@ message ItemModifierValueDto {
    ItemStat Stat = 1;
    int32 Value = 2;
    optional int32 Value2 = 3;
+}
+message ItemPricesDto {
+   uint64 IdentifyCost = 1;
+   repeated ImprintCostDto ImprintCosts = 2;
+   uint32 UnidentifiedSellPercent = 3;
 }
 enum ItemRarity {
    ItemRarity_Common = 0;
@@ -1264,6 +1273,7 @@ message SCharacterListPacket {
 message SCharacterSelectedPacket {
    CharacterInfo Character = 1;
    MapInfo Map = 2;
+   ItemPricesDto ItemPrices = 3;
 }
 message SCharacterStatsPacket {
    uint32 Stamina = 1;
