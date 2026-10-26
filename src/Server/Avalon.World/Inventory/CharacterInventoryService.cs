@@ -307,6 +307,35 @@ public sealed class CharacterInventoryService(
         return new AwakenedItem(equipmentSlot, woken.Row.ModifierId, woken.Outcome);
     }
 
+    public bool TryExtract(byte bagSlot, int modifierId)
+    {
+        if (!Bag.TryGet(bagSlot, out InventoryItem item) || !ItemModification.Allowed(item))
+            return false;
+
+        ItemsPatch items = currentItems();
+        if (items.Glyph is not { } glyphTemplate
+            || ExtractRules.ExtractableRow(owner.ItemModifiers.Of(item.InstanceId), modifierId, items.Modifiers) is not { } row
+            || items.Modifiers.Find(modifierId) is not { } modifier)
+        {
+            return false;
+        }
+
+        // The glyph and its row are made in full before the item goes: whatever throws here leaves the item as it was.
+        ItemInstanceId glyphId = itemIds.Next();
+        List<ItemInstanceModifier> glyphRows = [row.CopyAs(itemIds.NextModifierId(), glyphId, 0, imprinted: false)];
+        var glyph = new InventoryItem(bagSlot, glyphId, glyphTemplate.Id, 1,
+            ItemInstanceDefaults.InitialDurability(glyphTemplate), ItemInstanceFlags.Attuned, ItemRarity.Magic,
+            modifier.RequiredItemLevel, RareName: null, Identified: true);
+
+        // The item's delete takes its slot and its store entry; the glyph then fills the same slot, so no free slot is
+        // needed, and the slot's mark nets to Changed.
+        Delete(InventoryType.Bag, item);
+        owner.ItemModifiers.PutMade(glyphId, default, glyphRows);
+        owner.SaveState.ItemModifiersChanged(glyphId);
+        Create(InventoryType.Bag, glyph);
+        return true;
+    }
+
     /// <summary>
     /// Before a change to <paramref name="container" /> when it is the Equipment (#1180): the worn seals' pending points
     /// are settled into them, so an item taken off keeps what it earned and one put on gets none earned before it. The

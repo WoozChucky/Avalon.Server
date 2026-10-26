@@ -49,6 +49,7 @@ public enum NetworkPacketType : short
     CMSG_ITEM_DESTROY = 0x2081,
     CMSG_ITEM_USE = 0x2082,
     CMSG_ITEM_IDENTIFY = 0x2083,
+    CMSG_ITEM_EXTRACT = 0x2084,
 
     // Vendors (#432)
     CMSG_VENDOR_BUY = 0x2090,
@@ -183,6 +184,9 @@ public enum NetworkPacketType : short
     // Awakening (#1180): a worn sealed affix's bar, and its wake
     SMSG_AWAKENING_PROGRESS = 0x3093,
     SMSG_ITEM_AWAKENED = 0x3094,
+
+    // Extraction (#1180): an affix kept as a glyph at the Resonance Workbench
+    SMSG_ITEM_EXTRACT_RESULT = 0x3095,
 
     // Vendors
     SMSG_VENDOR_LIST = 0x30A0,

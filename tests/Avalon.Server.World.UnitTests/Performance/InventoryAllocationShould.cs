@@ -11,6 +11,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -167,7 +168,8 @@ public class InventoryAllocationShould
     /// An identify request at the Resonance Workbench (#1179) allocates nothing beyond its one reply, whether it is
     /// refused (here AlreadyIdentified, the last rule before gold) or done, at no cost as v1 ships it and at a cost: no
     /// wallet is taken when there is no gold to ask for, the character's own is when there is, and the Workbench is
-    /// looked up by the guid the packet carries.
+    /// looked up by the guid the packet carries. An extract request at the same Workbench (#1180 part C) naming the chest's
+    /// implicit walks every extract rule and is refused at the last (NotExtractable), allocating nothing either.
     /// </summary>
     [Theory]
     [InlineData(0UL)]
@@ -184,7 +186,8 @@ public class InventoryAllocationShould
         world.Configuration.Items.IdentifyCost = cost;
         // Enough for every request the windows send.
         _character.Data!.Gold = 1_000_000;
-        var handler = new ItemIdentifyHandler(NullLogger<ItemIdentifyHandler>.Instance, world, TestEconomy.Over(world));
+        CharacterEconomy economy = TestEconomy.Over(world);
+        var handler = new ItemIdentifyHandler(NullLogger<ItemIdentifyHandler>.Instance, world, economy);
         var identify = new CItemIdentifyPacket { RequestId = 9, WorkbenchGuid = workbench.Guid.RawValue, BagSlot = 2 };
 
         // Put back unidentified before each request, as the item it was.
@@ -201,10 +204,25 @@ public class InventoryAllocationShould
         Assert.Equal(1_000_000 - cost * 4 * Rounds, _character.Data.Gold);
         long refused = Allocated(() => handler.Execute(_connection, identify));
 
+        int implicitId = _character.ItemModifiers.Of(unidentified.InstanceId)
+            .First(m => data.Items.Modifiers.Find(m.ModifierId)?.Group.Kind == ItemModifierKind.Implicit).ModifierId;
+        var extractor = new ItemExtractHandler(NullLogger<ItemExtractHandler>.Instance, world, economy);
+        var extract = new CItemExtractPacket
+        {
+            RequestId = 10,
+            WorkbenchGuid = workbench.Guid.RawValue,
+            BagSlot = 2,
+            ModifierId = (uint)implicitId,
+        };
+        Assert.Equal(ItemExtractResult.NotExtractable,
+            ExtractRules.Decide(_character, instance, extract.WorkbenchGuid, extract.BagSlot, extract.ModifierId, data.Items));
+        long extractRefused = Allocated(() => extractor.Execute(_connection, extract));
+
         Assert.Multiple(
             () => Assert.Equal(0, identified),
-            () => Assert.Equal(0, refused));
-        Assert.Equal(2 * 4 * Rounds, _connection.Sent);
+            () => Assert.Equal(0, refused),
+            () => Assert.Equal(0, extractRefused));
+        Assert.Equal(3 * 4 * Rounds, _connection.Sent);
     }
 
     private static CItemMovePacket Move(byte from, byte to) => new()

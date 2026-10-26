@@ -47,6 +47,7 @@ public class HandlerGuardsShould
     [InlineData(NetworkPacketType.CMSG_DIALOGUE_CHOOSE)]
     [InlineData(NetworkPacketType.CMSG_INTERACT)]
     [InlineData(NetworkPacketType.CMSG_ITEM_IDENTIFY)]
+    [InlineData(NetworkPacketType.CMSG_ITEM_EXTRACT)]
     [InlineData(NetworkPacketType.CMSG_LOOT_PICKUP)]
     [InlineData(NetworkPacketType.CMSG_PARTY_LEAVE)]
     [InlineData(NetworkPacketType.CMSG_QUEST_ACCEPT)]
@@ -82,6 +83,10 @@ public class HandlerGuardsShould
             case NetworkPacketType.CMSG_ITEM_IDENTIFY:
                 new ItemIdentifyHandler(NullLogger<ItemIdentifyHandler>.Instance, world, economy)
                     .Execute(connection, new CItemIdentifyPacket { RequestId = 1, WorkbenchGuid = 7, BagSlot = 0 });
+                break;
+            case NetworkPacketType.CMSG_ITEM_EXTRACT:
+                new ItemExtractHandler(NullLogger<ItemExtractHandler>.Instance, world, economy)
+                    .Execute(connection, new CItemExtractPacket { RequestId = 1, WorkbenchGuid = 7, BagSlot = 0, ModifierId = 1 });
                 break;
             case NetworkPacketType.CMSG_LOOT_PICKUP:
                 new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world, economy, TimeProvider.System)

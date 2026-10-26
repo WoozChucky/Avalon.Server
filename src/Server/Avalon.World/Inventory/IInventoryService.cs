@@ -112,6 +112,19 @@ public interface IInventoryService
     /// does, as after every gear change.
     /// </summary>
     AwakenedItem? TryAwaken(byte equipmentSlot);
+
+    /// <summary>
+    /// Extracts one affix of the item in <paramref name="bagSlot" /> as a glyph (#1180 part C): the item is destroyed,
+    /// marked Removed with its rolled rows leaving the store, and in its slot is a new copy of the patch's Glyph template:
+    /// count 1, Magic, identified, Attuned (so bound), its item level the affix's required item level, holding one row, a
+    /// copy of the affix under a new row id at ordinal 0, unsealed and not imprinted. The glyph and its row are marked New
+    /// for the next save, and the slot is recorded for the client. False, changing nothing, unless the slot holds an item
+    /// Items.ItemModification.Allowed accepts carrying an awake prefix or suffix row of <paramref name="modifierId" />
+    /// in the current catalog, and the patch holds a Glyph template. The glyph is built in full before the item is
+    /// destroyed. It checks nothing else: ExtractRules decides the request (the Workbench, a trade's lock, the base and
+    /// its rarity) first.
+    /// </summary>
+    bool TryExtract(byte bagSlot, int modifierId);
 }
 
 /// <summary>A wake <see cref="IInventoryService.TryAwaken" /> made (#1180): the slot, the row's catalog modifier now, and how it woke.</summary>
