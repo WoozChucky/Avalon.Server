@@ -881,9 +881,12 @@ public class CharacterSelectHandler(
         }
     }
 
+    // Every rarity a copy can have, Common's factor included, so the client multiplies without a rule of its own.
+    private static readonly ItemRarity[] s_sellRarities = [ItemRarity.Common, ItemRarity.Magic, ItemRarity.Rare, ItemRarity.Unique];
+
     /// <summary>
     /// The world's item prices as the client is told them: the imprint costs by tier ascending, as Game:Items:ImprintCost
-    /// holds them after binding.
+    /// holds them after binding, and each rarity's sell factor.
     /// </summary>
     private static ItemPricesDto PricesOf(ItemConfiguration items)
     {
@@ -894,6 +897,8 @@ public class CharacterSelectHandler(
         };
         foreach ((byte tier, ulong gold) in items.ImprintCost.OrderBy(cost => cost.Key))
             prices.ImprintCosts.Add(new ImprintCostDto { Tier = tier, Gold = gold });
+        foreach (ItemRarity rarity in s_sellRarities)
+            prices.SellFactors.Add(new SellFactorDto { Rarity = rarity, Factor = items.SellFactor.For(rarity) });
         return prices;
     }
 }

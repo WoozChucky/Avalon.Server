@@ -43,6 +43,7 @@ variant empty
     field 1 IdentifyCost : ulong = 0
     field 2 ImprintCosts : List<ImprintCostDto> = null
     field 3 UnidentifiedSellPercent : uint = 0
+    field 4 SellFactors : List<SellFactorDto> = null
   bytes 6
     0a 00 12 00 1a 00
 
@@ -74,7 +75,14 @@ variant populated
         field 1 Tier : uint = 4000000000
         field 2 Gold : ulong = 19
     field 3 UnidentifiedSellPercent : uint = 1000000
-  bytes 139
+    field 4 SellFactors : List<SellFactorDto> = 2 elements
+      element 0
+        field 1 Rarity : ItemRarity = Unique (3)
+        field 2 Factor : uint = 4000000000
+      element 1
+        field 1 Rarity : ItemRarity = Rare (2)
+        field 2 Factor : uint = 300
+  bytes 156
     0a 36 08 2a 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6
     72 6c 64 18 13 20 03 2d db 0f 49 40 35 cd cc cc
     3d 3d 00 00 c0 3f 45 db 0f 49 40 50 c0 84 3d 58
@@ -82,8 +90,9 @@ variant populated
     04 03 02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f
     10 1a 05 61 6c 70 68 61 22 15 65 6d 6f 6a 69 20
     f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72 61 6c 1a
-    1a 08 c0 84 3d 12 06 08 c0 84 3d 10 2a 12 08 08
-    80 d0 ac f3 0e 10 13 18 c0 84 3d
+    2b 08 c0 84 3d 12 06 08 c0 84 3d 10 2a 12 08 08
+    80 d0 ac f3 0e 10 13 18 c0 84 3d 22 08 08 03 10
+    80 d0 ac f3 0e 22 05 08 02 10 ac 02
 
 variant maxima
   field 1 Character : CharacterInfo
@@ -116,7 +125,17 @@ variant maxima
         field 1 Tier : uint = 4294967295
         field 2 Gold : ulong = 18446744073709551615
     field 3 UnidentifiedSellPercent : uint = 4294967295
-  bytes 574
+    field 4 SellFactors : List<SellFactorDto> = 3 elements
+      element 0
+        field 1 Rarity : ItemRarity = Unique (3)
+        field 2 Factor : uint = 4294967295
+      element 1
+        field 1 Rarity : ItemRarity = Unique (3)
+        field 2 Factor : uint = 4294967295
+      element 2
+        field 1 Rarity : ItemRarity = Unique (3)
+        field 2 Factor : uint = 4294967295
+  bytes 604
     0a c4 01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -148,11 +167,13 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 1a 4a 08 ff ff ff ff ff ff ff ff ff 01 12
+    a9 78 1a 68 08 ff ff ff ff ff ff ff ff ff 01 12
     11 08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff
     ff 01 12 11 08 ff ff ff ff 0f 10 ff ff ff ff ff
     ff ff ff ff 01 12 11 08 ff ff ff ff 0f 10 ff ff
-    ff ff ff ff ff ff ff 01 18 ff ff ff ff 0f
+    ff ff ff ff ff ff ff 01 18 ff ff ff ff 0f 22 08
+    08 03 10 ff ff ff ff 0f 22 08 08 03 10 ff ff ff
+    ff 0f 22 08 08 03 10 ff ff ff ff 0f
 
 variant minima
   field 1 Character : CharacterInfo
@@ -179,11 +200,16 @@ variant minima
         field 1 Tier : uint = 0
         field 2 Gold : ulong = 0
     field 3 UnidentifiedSellPercent : uint = 0
-  bytes 64
+    field 4 SellFactors : List<SellFactorDto> = 1 element
+      element 0
+        field 1 Rarity : ItemRarity = Common (0)
+        field 2 Factor : uint = 0
+  bytes 66
     0a 27 12 01 00 18 80 80 80 80 f8 ff ff ff ff 01
     2d ff ff 7f ff 35 ff ff 7f ff 3d ff ff 7f ff 45
     ff ff 7f ff 65 ff ff 7f ff 12 11 08 80 80 80 80
-    f8 ff ff ff ff 01 1a 01 01 22 01 01 1a 02 12 00
+    f8 ff ff ff ff 01 1a 01 01 22 01 01 1a 04 12 00
+    22 00
 
 variant varint-edges
   field 1 Character : CharacterInfo
@@ -213,7 +239,14 @@ variant varint-edges
         field 1 Tier : uint = 2097152
         field 2 Gold : ulong = 128
     field 3 UnidentifiedSellPercent : uint = 127
-  bytes 492
+    field 4 SellFactors : List<SellFactorDto> = 2 elements
+      element 0
+        field 1 Rarity : ItemRarity = <not a declared member> (4)
+        field 2 Factor : uint = 127
+      element 1
+        field 1 Rarity : ItemRarity = <not a declared member> (4)
+        field 2 Factor : uint = 16384
+  bytes 506
     0a ae 01 08 ff ff 7f 12 7f 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -243,8 +276,9 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 1a 19 08 ff ff ff 7f 12 06 08 ff 7f 10 ff 7f
-    12 08 08 80 80 80 01 10 80 01 18 7f
+    79 1a 27 08 ff ff ff 7f 12 06 08 ff 7f 10 ff 7f
+    12 08 08 80 80 80 01 10 80 01 18 7f 22 04 08 04
+    10 7f 22 06 08 04 10 80 80 01
 
 variant float-specials
   field 1 Character : CharacterInfo
@@ -274,13 +308,21 @@ variant float-specials
         field 1 Tier : uint = 4000000000
         field 2 Gold : ulong = 19
     field 3 UnidentifiedSellPercent : uint = 1000000
-  bytes 134
+    field 4 SellFactors : List<SellFactorDto> = 2 elements
+      element 0
+        field 1 Rarity : ItemRarity = Unique (3)
+        field 2 Factor : uint = 4000000000
+      element 1
+        field 1 Rarity : ItemRarity = Rare (2)
+        field 2 Factor : uint = 300
+  bytes 151
     0a 31 08 2a 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6
     72 6c 64 18 13 20 03 35 01 00 00 00 3d ff ff 7f
     00 45 00 00 80 ff 50 c0 84 3d 58 c0 84 3d 65 00
     00 80 7f 12 35 08 e8 07 12 12 09 04 03 02 01 06
     05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 1a 05 61 6c
     70 68 61 22 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0
-    9f 9a 80 20 61 73 74 72 61 6c 1a 1a 08 c0 84 3d
+    9f 9a 80 20 61 73 74 72 61 6c 1a 2b 08 c0 84 3d
     12 06 08 c0 84 3d 10 2a 12 08 08 80 d0 ac f3 0e
-    10 13 18 c0 84 3d
+    10 13 18 c0 84 3d 22 08 08 03 10 80 d0 ac f3 0e
+    22 05 08 02 10 ac 02

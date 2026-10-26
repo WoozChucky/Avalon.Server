@@ -618,6 +618,7 @@ message ItemPricesDto {
    uint64 IdentifyCost = 1;
    repeated ImprintCostDto ImprintCosts = 2;
    uint32 UnidentifiedSellPercent = 3;
+   repeated SellFactorDto SellFactors = 4;
 }
 enum ItemRarity {
    ItemRarity_Common = 0;
@@ -1646,6 +1647,10 @@ message SceneryPlacementDto {
    sint32 GridX = 2;
    sint32 GridZ = 3;
    uint32 Rotation = 4;
+}
+message SellFactorDto {
+   ItemRarity Rarity = 1;
+   uint32 Factor = 2;
 }
 enum ServerInfoResult {
    ServerInfoResult_Success = 0;

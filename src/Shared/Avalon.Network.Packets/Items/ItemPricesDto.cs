@@ -1,3 +1,4 @@
+using Avalon.Common;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Items;
@@ -17,6 +18,18 @@ public class ItemPricesDto
 
     /// <summary>Game:Items:UnidentifiedSellPercent: what an unidentified item sells for, in percent of its price.</summary>
     [ProtoMember(3)] public uint UnidentifiedSellPercent { get; set; }
+
+    /// <summary>Game:Items:SellFactor: what a sale pays per rarity, as a multiple of the template's sell price.</summary>
+    [ProtoMember(4)] public List<SellFactorDto> SellFactors { get; set; } = [];
+}
+
+/// <summary>One rarity's sell factor.</summary>
+[ProtoContract]
+public class SellFactorDto
+{
+    [ProtoMember(1)] public ItemRarity Rarity { get; set; }
+
+    [ProtoMember(2)] public uint Factor { get; set; }
 }
 
 /// <summary>One imprint tier's price.</summary>

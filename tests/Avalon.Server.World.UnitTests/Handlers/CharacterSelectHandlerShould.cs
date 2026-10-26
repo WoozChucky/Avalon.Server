@@ -599,7 +599,7 @@ public class CharacterSelectHandlerShould
 
     /// <summary>
     /// The client shows a Workbench price before it asks and an unidentified item's real sell price, so the select
-    /// carries the world's configured prices, every priced imprint tier in order of tier (#1221).
+    /// carries the world's configured prices: every priced imprint tier in order of tier (#1221) and each rarity's sell factor.
     /// </summary>
     [Fact]
     public async Task Send_the_worlds_item_prices_at_select()
@@ -611,6 +611,7 @@ public class CharacterSelectHandlerShould
                 IdentifyCost = 40,
                 UnidentifiedSellPercent = 30,
                 ImprintCost = new Dictionary<byte, ulong> { [7] = 200, [9] = 25, [6] = 500, [8] = 75 },
+                SellFactor = new SellFactors { Magic = 3, Rare = 5, Unique = 9 },
             },
         };
         Fixture f = await BuildAsync(game: game);
@@ -622,6 +623,8 @@ public class CharacterSelectHandlerShould
         ItemPricesDto prices = Serializer.Deserialize<SCharacterSelectedPacket>(stream).ItemPrices;
         Assert.Equal((40ul, 30u), (prices.IdentifyCost, prices.UnidentifiedSellPercent));
         Assert.Equal([(6u, 500ul), (7u, 200ul), (8u, 75ul), (9u, 25ul)], prices.ImprintCosts.Select(c => (c.Tier, c.Gold)));
+        Assert.Equal([(ItemRarity.Common, 1u), (ItemRarity.Magic, 3u), (ItemRarity.Rare, 5u), (ItemRarity.Unique, 9u)],
+            prices.SellFactors.Select(f => (f.Rarity, f.Factor)));
     }
 
     /// <summary>

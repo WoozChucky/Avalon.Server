@@ -223,7 +223,7 @@ Sent immediately after the character entity is built and spawned. Contains:
 | `RequiredExperience`| `entity.RequiredExperience`            |
 | `MapId`            | `character.Map`                         |
 | `InstanceId`       | See [Instance ID section](#instance-id) |
-| `ItemPrices`       | `world.Configuration.Items`: `IdentifyCost`, every priced `ImprintCost` tier in order of tier, `UnidentifiedSellPercent` (#1221), so the client shows a Resonance Workbench price before it asks and an unidentified item's real sell price. Built on the first select and kept (`Game:Items` is read at startup and never replaced), so later selects allocate nothing for it |
+| `ItemPrices`       | `world.Configuration.Items`: `IdentifyCost`, every priced `ImprintCost` tier in order of tier, `UnidentifiedSellPercent` (#1221), and `SellFactor` for each rarity, Common included, so the client shows a Resonance Workbench price before it asks and an unidentified item's real sell price. Built on the first select and kept (`Game:Items` is read at startup and never replaced), so later selects allocate nothing for it |
 
 Immediately after `SCharacterSelectedPacket`, in the same continuation, the server sends `SChunkLayoutPacket` carrying the chunk layout (chunks, entry spawn, cell size, portal placements, the solid doodads' obstacle boxes and the scenery ring's placements and piece names, fields 9 and 10, which the client draws and never bakes). A client must be ready for it as soon as it sends `CMSG_CHARACTER_SELECTED`, since it can arrive while the client is still loading the scene; the client composes the map and bakes its navmesh from it. See **[Map Generation](map-generation.md)** for the full layout pipeline.
 
