@@ -107,6 +107,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ItemUseCasts _itemUses;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
+
+    /// <summary>What a creature is worth to a worn sealed affix's bar (#1180): its hits through the combat service, its kills here.</summary>
+    private readonly AwakeningRules _awakening;
     private readonly AuraSystem _auras;
 
     // The aura pass, an ability's aura application, ending a unit's auras on its death and breaking them on damage
@@ -335,10 +338,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _encounterRegistry = new EncounterRegistry(combatConfig, _time);
         // #506: every roll goes through the container's combat random, and each hit reads the current
         // combat formula once. Both fall back, so an instance built without them (tests) still fights.
+        _awakening = new AwakeningRules(world.Configuration.Items.Awakening);
         _combatService = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
             furyFromDamageTaken: world.Configuration.FuryFromDamageTaken,
             random: serviceProvider.GetService<ICombatRandom>(),
-            formula: () => world.Data?.Combat?.Formula ?? s_seededFormula);
+            formula: () => world.Data?.Combat?.Formula ?? s_seededFormula, awakening: _awakening);
         _threatBroadcast = new ThreatBroadcastService(combatConfig, _time);
 
         // Auras: one system per instance over its own units, ticked right after the ability cast system on this
@@ -3105,6 +3109,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             // #433: kill credit for everyone who shares the kill, before the drops, which read the same quests.
             CreditQuests(creature, eligible);
+            CreditAwakening(creature, eligible);
 
             // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
             // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
@@ -3144,6 +3149,33 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         catch (Exception e)
         {
             _logger.LogError(e, "Quest credit for the kill of {CreatureGuid} in instance {InstanceId} failed; the kill still counts",
+                creature.Guid, InstanceId);
+        }
+    }
+
+    /// <summary>
+    /// Awakening credit for a kill (#1180): every character that shares it and wears a seal gains the creature's weight,
+    /// unless it is more than the level gap above it. The tick's flush settles it; a killing hit's own damage is added
+    /// after this, settled with it. Contained, as the quest credit is: a throw costs this kill's points only.
+    /// </summary>
+    private void CreditAwakening(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    {
+        try
+        {
+            // By index: a foreach over the interface boxes the list's enumerator.
+            for (int i = 0; i < eligible.Count; i++)
+            {
+                if (eligible[i] is not CharacterEntity { Awakening.SealedWorn: > 0 } wearer)
+                    continue;
+
+                int weight = _awakening.WeightOf(creature, wearer.Level);
+                if (weight > 0)
+                    wearer.Awakening.AddKill(weight);
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Awakening credit for the kill of {CreatureGuid} in instance {InstanceId} failed; the kill still counts",
                 creature.Guid, InstanceId);
         }
     }

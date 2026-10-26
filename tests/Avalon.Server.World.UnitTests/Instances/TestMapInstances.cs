@@ -48,10 +48,11 @@ internal static class TestMapInstances
     /// <param name="doodadVisibility">Who may see and use each doodad; the instance's own when omitted.</param>
     /// <param name="doodadUses">The doodad use service the instance's doodad casts and respawns answer to; none when omitted.</param>
     /// <param name="loggerFactory">What the instance and its systems log to; nowhere when omitted.</param>
+    /// <param name="parties">The party service kills are shared through; none when omitted, so every kill is solo.</param>
     public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
         IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, AuraScripts? auraScripts = null,
         WorldTicks? worldTicks = null, DoodadVisibility? doodadVisibility = null, DoodadUseService? doodadUses = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null, PartyService? parties = null)
     {
         IScriptManager scripts = Substitute.For<IScriptManager>();
         foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) })
@@ -64,7 +65,7 @@ internal static class TestMapInstances
         world ??= MapInstanceClients.NewWorld();
         MapInstance instance = Build(world, scripts, navigator, mapType: mapType, time: time, random: random,
             auraScripts: auraScripts, worldTicks: worldTicks, doodadVisibility: doodadVisibility, doodadUses: doodadUses,
-            loggerFactory: loggerFactory);
+            loggerFactory: loggerFactory, parties: parties);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         // The handler and the instance share the container's clock, as in production.
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(),

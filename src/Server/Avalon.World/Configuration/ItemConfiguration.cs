@@ -5,7 +5,7 @@ namespace Avalon.World.Configuration;
 
 /// <summary>
 /// Game:Items (#1179): the odds of a made item's rarity, what a sale pays for each rarity and while unidentified, what
-/// identifying an item costs, and the share of rares that drop sealed (#1180), tunable without a migration like the
+/// identifying an item costs, the share of rares that drop sealed and what fills their bars (#1180), tunable without a migration like the
 /// other loot knobs. Read at startup; a value out of range stops the start (<see cref="ItemConfigurationValidation" />).
 /// </summary>
 public sealed class ItemConfiguration
@@ -34,6 +34,9 @@ public sealed class ItemConfiguration
     /// draws once per rare, after its name.
     /// </summary>
     public double SealedRarePct { get; set; } = 5;
+
+    /// <summary>Game:Items:Awakening (#1180): what fills a worn sealed affix's bar, and the chance a wake rises a tier.</summary>
+    public AwakeningConfiguration Awakening { get; set; } = new();
 
     /// <summary>
     /// Null when every setting is in range, else a message naming the first one that is not. <paramref name="maxGold" /> is
@@ -76,7 +79,10 @@ public sealed class ItemConfiguration
         if (!double.IsFinite(SealedRarePct) || SealedRarePct is < 0 or > 100)
             return $"Game:Items:SealedRarePct must be 0-100 (was {SealedRarePct})";
 
-        return null;
+        if (Awakening is null)
+            return "Game:Items:Awakening must be set";
+
+        return Awakening.Problem();
     }
 }
 

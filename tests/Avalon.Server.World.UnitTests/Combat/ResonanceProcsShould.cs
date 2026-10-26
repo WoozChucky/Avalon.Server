@@ -492,7 +492,8 @@ public class ResonanceProcsShould
 
     /// <summary>
     /// A hit allocates nothing for Resonance when nothing fires: 1,000 hits of an Ember 4 and Thorn 4 wearer whose
-    /// Burning III is on cooldown read 0 B, as do 1,000 of a wearer with no theme. A hit that places a new Burning III
+    /// Burning III is on cooldown read 0 B, as do 1,000 of a wearer with no theme, and 1,000 of an unthemed wearer of a
+    /// sealed rare (#1180), whose every hit feeds its Awakening meter (item level 1000, so it never wakes). A hit that places a new Burning III
     /// allocates nothing either, once warm: its copy is the last one, removed and pooled by the instance's next aura pass,
     /// placed again on the same creature, which holds none and is already in the wearer's fight. The fewest bytes of three
     /// rounds, so a background collection in one cannot fail it.
@@ -503,12 +504,15 @@ public class ResonanceProcsShould
         using MapInstance instance = TestMapInstances.Build(new QuietWorld(Data), random: _random, time: _clock);
         CharacterEntity themed = Quiet(instance, Dressed(TestCharacters.New(1180_601, time: _clock), "Ember", "Thorn"));
         CharacterEntity plain = Quiet(instance, Dressed(TestCharacters.New(1180_602, time: _clock)));
+        CharacterEntity sealedWearer = Quiet(instance, SealedRare(TestCharacters.New(1180_603, time: _clock)));
+        Assert.Equal(1, TestCharacters.AwakeningOf(sealedWearer).SealedWorn);
         Creature dummy = Boar(instance, 1180_961, health: uint.MaxValue);
 
-        // Warm: Burning III placed (its cooldown now runs), and a plain wearer's first hit.
+        // Warm: Burning III placed (its cooldown now runs), and a plain and a sealed wearer's first hits.
         Hit(instance, themed, dummy, chance: [0.1]);
         Hit(instance, plain, dummy, chance: []);
-        foreach (CharacterEntity wearer in (CharacterEntity[])[themed, plain])
+        Hit(instance, sealedWearer, dummy, chance: []);
+        foreach (CharacterEntity wearer in (CharacterEntity[])[themed, plain, sealedWearer])
         {
             _random.Doubles([.. Enumerable.Repeat(Miss, 3 * 1000)]);
             long start = ThreadAllocations.BeforeQuietWindow();
@@ -596,6 +600,28 @@ public class ResonanceProcsShould
         ]);
         character.Container(InventoryType.Equipment).Load(pieces);
         Assert.True(CharacterStatsRefresh.Apply(character, data, CurrentValues.Refill));
+        return character;
+    }
+
+    /// <summary>
+    /// <paramref name="character" /> wearing an identified rare amulet (template 69) of item level 1000 whose one affix,
+    /// "S5 Fire T9", is sealed at 0 (#1180): no theme counts, and its bar never fills. Its stats refreshed, which counts
+    /// the seal.
+    /// </summary>
+    private static CharacterEntity SealedRare(CharacterEntity character)
+    {
+        int affix = CatalogKeys.ModifierId("S5 Fire T9");
+        ItemModifierStat line = ItemModifierSeed.Stats().Where(l => l.ModifierId == affix).OrderBy(l => l.Index).First();
+        InventoryItem plainAmulet = TestCharacters.Item(EquipmentSlots.Neck, Data.FindItemTemplate(new ItemTemplateId(69))!);
+        InventoryItem amulet = plainAmulet with { Rarity = ItemRarity.Rare, ItemLevel = 1000 };
+        ItemInstanceModifier sealedRow = TestModifiers.Modifier(amulet.InstanceId, affix, 0, (0, line.Stat, line.Min, line.Min2));
+        sealedRow.SealProgress = 0;
+        character.ItemModifiers.Load(
+        [
+            new ItemInstance { Identified = true, Id = amulet.InstanceId, TemplateId = amulet.TemplateId, Modifiers = [sealedRow] },
+        ]);
+        character.Container(InventoryType.Equipment).Load([amulet]);
+        Assert.True(CharacterStatsRefresh.Apply(character, Data, CurrentValues.Refill));
         return character;
     }
 

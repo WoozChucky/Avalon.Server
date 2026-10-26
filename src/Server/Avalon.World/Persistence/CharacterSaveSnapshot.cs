@@ -6,6 +6,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Persistence;
@@ -26,6 +27,9 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
     public static CharacterSaveSnapshot Take(CharacterEntity character, GameplayWriteAuthority? connectionAuthority = null)
     {
+        // #1180: the worn seals' pending points are written into their rows first, so every save carries the bar.
+        Awakening.Settle(character);
+
         Character row = character.Data
             ?? throw new InvalidOperationException("A character without a row has nothing to save.");
         GameplayWriteAuthority? authority = character.GameplayAuthority;

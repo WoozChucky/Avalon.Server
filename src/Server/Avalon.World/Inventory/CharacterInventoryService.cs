@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
 using Avalon.World.Reload;
@@ -141,6 +142,7 @@ public sealed class CharacterInventoryService(
                 if (item.Count < count)
                     return InventoryRemoveResult.NotEnough;
 
+                SettleIfWorn(container);
                 Take(container, item, count);
                 return InventoryRemoveResult.Ok;
             }
@@ -155,6 +157,8 @@ public sealed class CharacterInventoryService(
         if (!decision.Accepted)
             return decision.Result;
 
+        SettleIfWorn(from.Container);
+        SettleIfWorn(to.Container);
         Apply(decision.Plan);
         return ItemRequestResult.Ok;
     }
@@ -167,6 +171,7 @@ public sealed class CharacterInventoryService(
             return result;
 
         owner.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item);
+        SettleIfWorn(slot.Container);
         Take(slot.Container, item, destroying);
         return ItemRequestResult.Ok;
     }
@@ -181,6 +186,7 @@ public sealed class CharacterInventoryService(
                 $"Cannot take {count} out of {slot}: VendorRules checks the slot and the count first.");
         }
 
+        SettleIfWorn(slot.Container);
         if (count == item.Count)
         {
             (ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers) = Delete(slot.Container, item);
@@ -270,6 +276,16 @@ public sealed class CharacterInventoryService(
 
         Replace(InventoryType.Bag, item with { Identified = true });
         return true;
+    }
+
+    /// <summary>
+    /// Before a change to <paramref name="container" /> when it is the Equipment (#1180): the worn seals' pending points
+    /// are settled into them, so an item taken off keeps what it earned and one put on gets none earned before it.
+    /// </summary>
+    private void SettleIfWorn(InventoryType container)
+    {
+        if (container == InventoryType.Equipment)
+            Awakening.Settle(owner);
     }
 
     /// <summary>The lowest empty Bag slot a completing trade has not reserved (#1175), or null when there is none.</summary>
