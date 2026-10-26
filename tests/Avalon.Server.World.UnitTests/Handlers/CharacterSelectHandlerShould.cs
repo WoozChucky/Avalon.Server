@@ -78,14 +78,15 @@ public class CharacterSelectHandlerShould
         QuestService? questService = null,
         ICharacterIgnoreRepository? ignores = null,
         ICharacterAuraRepository? auras = null,
-        IReadOnlyCollection<AuraTemplate>? auraTemplates = null)
+        IReadOnlyCollection<AuraTemplate>? auraTemplates = null,
+        CharacterClass @class = CharacterClass.Warrior)
     {
         var row = new Character
         {
             Id = s_theCharacter,
             AccountId = s_theAccount,
             Name = "Tester",
-            Class = CharacterClass.Warrior,
+            Class = @class,
             Level = 1,
             Map = TownMapId,
             X = 1,
@@ -521,16 +522,19 @@ public class CharacterSelectHandlerShould
     /// <summary>
     /// #434: select derives stats from the character's level and what it wears, replacing the old
     /// half-levelled patch of Stamina and the regen stat. Nothing stores the current pools, so the
-    /// character enters full at the new maximum, on mana whatever its class (#1181).
+    /// character enters full at the new maximum, on mana whatever its class (#1181): the Warrior once on Fury and the
+    /// Hunter once on Energy.
     /// </summary>
-    [Fact]
-    public async Task Derive_the_stats_from_the_level_and_what_is_worn_and_enter_full()
+    [Theory]
+    [InlineData(CharacterClass.Warrior)]
+    [InlineData(CharacterClass.Hunter)]
+    public async Task Derive_the_stats_from_the_level_and_what_is_worn_and_enter_full(CharacterClass @class)
     {
         (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
             (InventoryType.Equipment, 3, EquipTemplates.Chestguard.Id.Value, 1u, 69u, ItemInstanceFlags.None));
-        ClassLevelStat warrior = new()
+        ClassLevelStat stats = new()
         {
-            Class = CharacterClass.Warrior,
+            Class = @class,
             Level = 1,
             BaseHp = 130,
             Stamina = 22,
@@ -538,8 +542,8 @@ public class CharacterSelectHandlerShould
             Agility = 20,
             Intellect = 20,
         };
-        Fixture f = await BuildAsync(rows, instances, classStats: [warrior],
-            itemTemplates: [EquipTemplates.Chestguard], storedHealth: 1);
+        Fixture f = await BuildAsync(rows, instances, classStats: [stats],
+            itemTemplates: [EquipTemplates.Chestguard], storedHealth: 1, @class: @class);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 

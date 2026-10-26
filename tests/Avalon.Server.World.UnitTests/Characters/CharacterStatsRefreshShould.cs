@@ -497,7 +497,7 @@ public class CharacterStatsRefreshShould
     /// <summary>
     /// #1181: mana is treated as health is: select and a level-up fill it, a gear change keeps its share (60 of 200 is
     /// 30 %), and the regeneration rates follow the new maximum, the formula's 100 + 23 x 4 = 192 for a level 1 Wizard.
-    /// That every class is on mana is pinned at select (<c>CharacterSelectHandlerShould</c>).
+    /// That the former Fury and Energy classes enter on mana is pinned at select (<c>CharacterSelectHandlerShould</c>).
     /// </summary>
     [Theory]
     [InlineData(CurrentValues.EnterWorld, 192u)]

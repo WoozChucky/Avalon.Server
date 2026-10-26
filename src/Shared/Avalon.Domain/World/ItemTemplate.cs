@@ -166,7 +166,10 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     /// <summary>Milliseconds before this item can be used again once a use succeeded; null for none.</summary>
     public uint? UseCooldownMs { get; set; }
 
-    /// <summary>Items naming the same group share one cooldown (the health potions' "potion", the Mana Potion's "mana-potion"); null for none.</summary>
+    /// <summary>
+    /// Items naming the same group share one cooldown (the health potions' "potion", the Mana Potion's "mana-potion");
+    /// null for none.
+    /// </summary>
     public string? UseCooldownGroup { get; set; }
 
     /// <summary>The script's own number: for RestoreHealth and RestorePower, the percentage of the maximum restored.</summary>
