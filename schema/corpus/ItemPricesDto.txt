@@ -19,12 +19,14 @@ variant absent
   field 1 IdentifyCost : ulong = 0
   field 2 ImprintCosts : List<ImprintCostDto> = null
   field 3 UnidentifiedSellPercent : uint = 0
+  field 4 SellFactors : List<SellFactorDto> = null
   bytes 0
 
 variant empty
   field 1 IdentifyCost : ulong = 0
   field 2 ImprintCosts : List<ImprintCostDto> = 0 elements
   field 3 UnidentifiedSellPercent : uint = 0
+  field 4 SellFactors : List<SellFactorDto> = 0 elements
   bytes 0
 
 variant populated
@@ -37,9 +39,17 @@ variant populated
       field 1 Tier : uint = 4000000000
       field 2 Gold : ulong = 19
   field 3 UnidentifiedSellPercent : uint = 1000000
-  bytes 26
+  field 4 SellFactors : List<SellFactorDto> = 2 elements
+    element 0
+      field 1 Rarity : ItemRarity = Unique (3)
+      field 2 Factor : uint = 4000000000
+    element 1
+      field 1 Rarity : ItemRarity = Rare (2)
+      field 2 Factor : uint = 300
+  bytes 43
     08 c0 84 3d 12 06 08 c0 84 3d 10 2a 12 08 08 80
-    d0 ac f3 0e 10 13 18 c0 84 3d
+    d0 ac f3 0e 10 13 18 c0 84 3d 22 08 08 03 10 80
+    d0 ac f3 0e 22 05 08 02 10 ac 02
 
 variant maxima
   field 1 IdentifyCost : ulong = 18446744073709551615
@@ -54,12 +64,24 @@ variant maxima
       field 1 Tier : uint = 4294967295
       field 2 Gold : ulong = 18446744073709551615
   field 3 UnidentifiedSellPercent : uint = 4294967295
-  bytes 74
+  field 4 SellFactors : List<SellFactorDto> = 3 elements
+    element 0
+      field 1 Rarity : ItemRarity = Unique (3)
+      field 2 Factor : uint = 4294967295
+    element 1
+      field 1 Rarity : ItemRarity = Unique (3)
+      field 2 Factor : uint = 4294967295
+    element 2
+      field 1 Rarity : ItemRarity = Unique (3)
+      field 2 Factor : uint = 4294967295
+  bytes 104
     08 ff ff ff ff ff ff ff ff ff 01 12 11 08 ff ff
     ff ff 0f 10 ff ff ff ff ff ff ff ff ff 01 12 11
     08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff
     01 12 11 08 ff ff ff ff 0f 10 ff ff ff ff ff ff
-    ff ff ff 01 18 ff ff ff ff 0f
+    ff ff ff 01 18 ff ff ff ff 0f 22 08 08 03 10 ff
+    ff ff ff 0f 22 08 08 03 10 ff ff ff ff 0f 22 08
+    08 03 10 ff ff ff ff 0f
 
 variant minima
   field 1 IdentifyCost : ulong = 0
@@ -68,8 +90,12 @@ variant minima
       field 1 Tier : uint = 0
       field 2 Gold : ulong = 0
   field 3 UnidentifiedSellPercent : uint = 0
-  bytes 2
-    12 00
+  field 4 SellFactors : List<SellFactorDto> = 1 element
+    element 0
+      field 1 Rarity : ItemRarity = Common (0)
+      field 2 Factor : uint = 0
+  bytes 4
+    12 00 22 00
 
 variant varint-edges
   field 1 IdentifyCost : ulong = 268435455
@@ -81,6 +107,14 @@ variant varint-edges
       field 1 Tier : uint = 2097152
       field 2 Gold : ulong = 128
   field 3 UnidentifiedSellPercent : uint = 127
-  bytes 25
+  field 4 SellFactors : List<SellFactorDto> = 2 elements
+    element 0
+      field 1 Rarity : ItemRarity = <not a declared member> (4)
+      field 2 Factor : uint = 127
+    element 1
+      field 1 Rarity : ItemRarity = <not a declared member> (4)
+      field 2 Factor : uint = 16384
+  bytes 39
     08 ff ff ff 7f 12 06 08 ff 7f 10 ff 7f 12 08 08
-    80 80 80 01 10 80 01 18 7f
+    80 80 80 01 10 80 01 18 7f 22 04 08 04 10 7f 22
+    06 08 04 10 80 80 01
