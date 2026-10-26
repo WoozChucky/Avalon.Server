@@ -98,7 +98,7 @@ public sealed class ItemModifierDtoPool
 
             ItemModifierDto entry = target[at++];
             entry.ModifierId = (uint)shown.ModifierId;
-            ItemModifierDtoMapper.FillSeal(entry, shown, itemLevel);
+            ItemModifierDtoMapper.FillSeal(entry, shown, identified, itemLevel);
             RefillValues(entry.Values, shown.Values);
         }
 

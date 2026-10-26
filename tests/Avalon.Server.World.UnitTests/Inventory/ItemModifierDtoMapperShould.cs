@@ -55,6 +55,7 @@ public class ItemModifierDtoMapperShould
     [InlineData("kept drop")]
     [InlineData("identified")]
     [InlineData("identified, trade")]
+    [InlineData("identified, buyback")]
     public void Hide_an_unidentified_items_affixes_and_name_on_every_path(string path)
     {
         // The chest's prefix is sealed (#1180): identified, it shows the seal's progress and threshold; unidentified, it
@@ -62,7 +63,8 @@ public class ItemModifierDtoMapperShould
         bool identified = path.StartsWith("identified", StringComparison.Ordinal);
         CarriedItem chest = Chest(identified);
 
-        Seen seen = Show(path switch { "identified" => "update", "identified, trade" => "trade", _ => path }, chest);
+        Seen seen = Show(path switch { "identified" => "update", _ when identified => path["identified, ".Length..], _ => path },
+            chest);
 
         Assert.Equal(identified
             ? new Seen(s_chest.Id.Value, ItemRarity.Rare, 9, true, "Moss Shell", Lines(chest.Modifiers, 9), "Armour 8")

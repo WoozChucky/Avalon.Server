@@ -228,9 +228,10 @@ public class CharacterService : ICharacterService
                 Kind = (Avalon.Api.Contract.ItemModifierKind?)m.Row?.Group.Kind,
                 // Only on the lines the read shows, so an unidentified copy names no theme of an affix it hides (#1180).
                 ThemeId = m.Row?.Group.ThemeId,
-                // The same: an unidentified copy's sealed affix is hidden with its progress and threshold (#1180).
-                SealProgress = m.Rolled.SealProgress,
-                SealThreshold = m.Rolled.Sealed ? ItemAwakening.Threshold(instance.ItemLevel) : null,
+                // The same: an unidentified copy's sealed affix is hidden with its progress and threshold (#1180), and
+                // whatever wrote a seal, no line of an unidentified copy carries one. As of the last save.
+                SealProgress = identified ? m.Rolled.SealProgress : null,
+                SealThreshold = identified && m.Rolled.Sealed ? ItemAwakening.Threshold(instance.ItemLevel) : null,
                 Values = m.Rolled.Values
                     .OrderBy(v => v.Index)
                     .Select(v => new CharacterInventoryModifierValueDto
