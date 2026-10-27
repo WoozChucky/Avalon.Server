@@ -1,5 +1,4 @@
 using Avalon.Combat;
-using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
@@ -49,7 +48,6 @@ internal static class AbilityTestData
         Anchor = AbilityAnchor.Caster,
         Radius = radius,
         Effects = SpellEffect.Damage,
-        AllowedClasses = [CharacterClass.Warrior],
         DamageType = DamageType.Physical,
         Tags = AbilityTags.Attack | AbilityTags.Area,
     };
@@ -65,7 +63,6 @@ internal static class AbilityTestData
         Reach = reach,
         Radius = radius,
         Effects = SpellEffect.Damage,
-        AllowedClasses = [CharacterClass.Wizard],
         DamageType = DamageType.Physical,
         Tags = AbilityTags.Attack | AbilityTags.Area,
     };
@@ -83,7 +80,6 @@ internal static class AbilityTestData
         Affects = AbilityAffects.Ally,
         Effects = SpellEffect.Heal,
         HealThreatPerHp = 0.5f,
-        AllowedClasses = [CharacterClass.Cleric],
         Tags = AbilityTags.Heal | AbilityTags.Area,
         SpellBaseMin = 40,
         SpellBaseMax = 40,
@@ -100,7 +96,6 @@ internal static class AbilityTestData
             Reach = reach,
             ArcDegrees = arc,
             Effects = SpellEffect.Damage,
-            AllowedClasses = [CharacterClass.Warrior],
             DamageType = DamageType.Physical,
             Tags = AbilityTags.Attack | AbilityTags.Area,
         };
@@ -116,7 +111,6 @@ internal static class AbilityTestData
         ProjectileSpeed = speed,
         Pierce = pierce,
         Effects = SpellEffect.Damage,
-        AllowedClasses = [CharacterClass.Hunter],
         DamageType = DamageType.Physical,
         Tags = AbilityTags.Attack | AbilityTags.Projectile,
     };

@@ -22,6 +22,12 @@ public interface ICharacterService
     Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<CharacterStatsDto?> GetStatsAsync(CharacterId id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The talent nodes the character holds as its world last saved them (#1181), with the points it has earned and spent;
+    /// null for a character that does not exist.
+    /// </summary>
+    Task<CharacterTalentsDto?> GetTalentsAsync(CharacterId id, CancellationToken cancellationToken = default);
+
     /// <summary>The character's quest log as its world last saved it (#714); empty lists for a character with none.</summary>
     Task<CharacterQuestLogDto> GetQuestLogAsync(CharacterId id, CancellationToken cancellationToken = default);
 
@@ -35,7 +41,7 @@ public class CharacterService : ICharacterService
     private readonly ICharacterRepository _characterRepository;
     private readonly ICharacterInventoryRepository _inventoryRepository;
     private readonly IItemInstanceRepository _itemInstanceRepository;
-    private readonly ICharacterAbilityRepository _characterAbilityRepository;
+    private readonly ICharacterTalentRepository _talentRepository;
     private readonly IAbilityTemplateRepository _abilityTemplateRepository;
     private readonly IItemTemplateRepository _itemTemplateRepository;
     private readonly IItemModifierRepository _itemModifierRepository;
@@ -43,24 +49,28 @@ public class CharacterService : ICharacterService
     private readonly ICharacterQuestRepository _questRepository;
     private readonly ICharacterAuraRepository _auraRepository;
     private readonly ICombatDataRepository _combatDataRepository;
+    private readonly ITalentTreeRepository _talentTreeRepository;
+    private readonly IQuestRepository _questTemplateRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
         ICharacterInventoryRepository inventoryRepository,
         IItemInstanceRepository itemInstanceRepository,
-        ICharacterAbilityRepository characterAbilityRepository,
+        ICharacterTalentRepository talentRepository,
         IAbilityTemplateRepository abilityTemplateRepository,
         IItemTemplateRepository itemTemplateRepository,
         IItemModifierRepository itemModifierRepository,
         ICharacterStatsRepository statsRepository,
         ICharacterQuestRepository questRepository,
         ICharacterAuraRepository auraRepository,
-        ICombatDataRepository combatDataRepository)
+        ICombatDataRepository combatDataRepository,
+        ITalentTreeRepository talentTreeRepository,
+        IQuestRepository questTemplateRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
         _itemInstanceRepository = itemInstanceRepository;
-        _characterAbilityRepository = characterAbilityRepository;
+        _talentRepository = talentRepository;
         _abilityTemplateRepository = abilityTemplateRepository;
         _itemTemplateRepository = itemTemplateRepository;
         _itemModifierRepository = itemModifierRepository;
@@ -68,6 +78,8 @@ public class CharacterService : ICharacterService
         _questRepository = questRepository;
         _auraRepository = auraRepository;
         _combatDataRepository = combatDataRepository;
+        _talentTreeRepository = talentTreeRepository;
+        _questTemplateRepository = questTemplateRepository;
     }
 
     public Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default) =>
@@ -332,35 +344,127 @@ public class CharacterService : ICharacterService
         return guid.Type == ObjectType.Character && guid.Id != 0 ? guid.Id : null;
     }
 
+    /// <summary>
+    /// The character's talents as last saved, less the nodes the tree no longer holds, with the points it has earned.
+    /// The world applies its login check at the next select (TalentSelectCheck: a node cut off from the start, more
+    /// held than earned); this read does not re-run it.
+    /// </summary>
+    public async Task<CharacterTalentsDto?> GetTalentsAsync(CharacterId id, CancellationToken cancellationToken = default)
+    {
+        Character? character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
+        if (character is null) return null;
+
+        IReadOnlyList<CharacterTalent> saved = await _talentRepository.GetByCharacterIdAsync(id, cancellationToken);
+        TalentTreeRows tree = await HeldRowsAsync(character, saved, cancellationToken);
+        HashSet<int> known = [.. tree.Nodes.Select(n => n.Id)];
+        List<int> held = [.. saved.Select(t => t.NodeId).Where(known.Contains)];
+        return new CharacterTalentsDto
+        {
+            CharacterId = character.Id.Value,
+            NodeIds = held,
+            PointsEarned = await PointsEarnedAsync(character, cancellationToken),
+            PointsSpent = held.Count,
+        };
+    }
+
+    /// <summary>The tree rows the character's saved nodes read (ITalentTreeRepository.GetHeldAsync).</summary>
+    private Task<TalentTreeRows> HeldRowsAsync(Character character, IReadOnlyList<CharacterTalent> saved,
+        CancellationToken cancellationToken) =>
+        _talentTreeRepository.GetHeldAsync(character.Class, [.. saved.Select(t => t.NodeId)], cancellationToken);
+
+    /// <summary>
+    /// The world's rule (TalentPoints.Earned) over the saved rows: the character's level plus what each quest it has
+    /// turned in pays, summed by the world database. A quest the world database no longer holds pays nothing, nor does
+    /// a repeatable one, which the world's quest catalog refuses when it would pay.
+    /// </summary>
+    private async Task<int> PointsEarnedAsync(Character character, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<uint> completed =
+            await _questRepository.GetCompletedQuestIdsAsync(character.Id, cancellationToken);
+        return character.Level + await _questTemplateRepository.SumTalentPointsAsync(completed, cancellationToken);
+    }
+
     public async Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
         Character? character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
         if (character is null) return null;
 
-        IReadOnlyCollection<CharacterAbility> abilityRows = await _characterAbilityRepository.GetCharacterAbilitiesAsync(id, cancellationToken);
-        IReadOnlyList<AbilityTemplate> templates = await _abilityTemplateRepository.GetByIdsAsync(
-            abilityRows.Select(s => s.AbilityId), cancellationToken);
+        IReadOnlyList<CharacterTalent> held = await _talentRepository.GetByCharacterIdAsync(id, cancellationToken);
+        TalentTreeRows tree = await HeldRowsAsync(character, held, cancellationToken);
+        List<AbilityId> abilityIds = AbilitiesOf(character.Class, held, tree);
+        IReadOnlyList<AbilityTemplate> templates = await _abilityTemplateRepository.GetByIdsAsync(abilityIds, cancellationToken);
         var templateById = templates.ToDictionary(t => t.Id);
 
-        AttackerCombat attacker = await AttackerAsync(character, cancellationToken);
+        AttackerCombat attacker = await AttackerAsync(character, TotalsOf(held, tree), cancellationToken);
 
         return new CharacterAbilitiesDto
         {
             CharacterId = character.Id.Value,
-            Abilities = abilityRows
-                .Select(row => MapAbility(row, templateById, attacker))
+            Abilities = abilityIds
+                .Select(abilityId => MapAbility(abilityId, templateById, attacker))
                 .ToList(),
         };
     }
 
     /// <summary>
-    /// What the character attacks with, as the world server's stats refresh builds it (#1178), through the same
-    /// Avalon.Combat entry points: the offence block from the saved attributes (with gear) and the worn items with their
-    /// saved modifiers (#1179), the main hand's weapon (the bare hand's with none), over the world's combat formula.
-    /// Without auras: a character out of the world holds none that count, and the ones it saved are stale. A character with
-    /// no saved stats has no attributes.
+    /// The abilities the character holds, as the world derives them at select (TalentAbilities), from its rows as last
+    /// saved over <paramref name="tree" />, the rows those read (<see cref="HeldRowsAsync" />): its class start's
+    /// starter first, then the ability each held ability node links, by ascending node id. A row naming a node the tree
+    /// lacks is ignored, as the world ignores it until its next select drops it. The world's login check (a node cut
+    /// off from the start, more held than earned) and its catalogs' refusals are not re-run: bad World DB data can list
+    /// an ability the world refuses.
     /// </summary>
-    private async Task<AttackerCombat> AttackerAsync(Character character, CancellationToken cancellationToken)
+    private static List<AbilityId> AbilitiesOf(CharacterClass characterClass, IReadOnlyList<CharacterTalent> held,
+        TalentTreeRows tree)
+    {
+        var links = tree.Abilities.ToDictionary(a => a.NodeId, a => a.AbilityId);
+        var kinds = tree.Nodes.ToDictionary(n => n.Id, n => n.Kind);
+
+        List<AbilityId> result = [];
+        if (tree.Starts.FirstOrDefault(s => s.Class == characterClass) is { } start
+            && links.TryGetValue(start.NodeId, out AbilityId? starter))
+        {
+            result.Add(starter);
+        }
+
+        foreach (CharacterTalent row in held.OrderBy(t => t.NodeId))
+        {
+            if (kinds.GetValueOrDefault(row.NodeId) == Avalon.Domain.World.TalentNodeKind.Ability
+                && links.TryGetValue(row.NodeId, out AbilityId? ability))
+            {
+                result.Add(ability);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The held nodes' stat lines, summed as the world sums them (TalentAllocation.RebuildTotals); a held node the tree
+    /// lacks adds nothing.
+    /// </summary>
+    private static TalentTotals TotalsOf(IReadOnlyList<CharacterTalent> held, TalentTreeRows tree)
+    {
+        ILookup<int, TalentNodeStat> lines = tree.Stats.ToLookup(s => s.NodeId);
+        var totals = new TalentTotals();
+        foreach (CharacterTalent row in held)
+        {
+            foreach (TalentNodeStat line in lines[row.NodeId])
+                totals.Add(line.Stat, line.Kind, line.Value, line.ValueMax);
+        }
+
+        return totals;
+    }
+
+    /// <summary>
+    /// What the character attacks with, as the world server's stats refresh builds it (#1178), through the same
+    /// Avalon.Combat entry points: the offence block from the saved attributes (with gear and the tree), the worn items
+    /// with their saved modifiers (#1179) and the held talent nodes' lines (#1181), the main hand's weapon (the bare
+    /// hand's with none), over the world's combat formula. Without auras: a character out of the world holds none that
+    /// count, and the ones it saved are stale. A character with no saved stats has no attributes.
+    /// </summary>
+    private async Task<AttackerCombat> AttackerAsync(Character character, TalentTotals talents,
+        CancellationToken cancellationToken)
     {
         CharacterStats? stats = await _statsRepository.GetByCharacterIdAsync(character.Id, cancellationToken);
         IReadOnlyList<WornItem> worn = await WornItemsAsync(character.Id, cancellationToken);
@@ -369,7 +473,7 @@ public class CharacterService : ICharacterService
             ?? throw new InvalidOperationException("The world has no combat formula row.");
 
         OffenceStats offence = CharacterOffence.Of(stats?.Strength ?? 0, stats?.Agility ?? 0, stats?.Intellect ?? 0, worn,
-            formula, out DamageRanges addedToAttacks, out DamageRanges addedToSpells);
+            formula, out DamageRanges addedToAttacks, out DamageRanges addedToSpells, talents: talents);
         var weapon = WeaponDamage.Of(CharacterStatsCalculator.MainHandOf(worn), formula);
         return new AttackerCombat(character.Level, stats?.CritPct ?? 0f, weapon, offence, addedToAttacks, addedToSpells);
     }
@@ -432,14 +536,14 @@ public class CharacterService : ICharacterService
     }
 
     private static CharacterAbilityDto MapAbility(
-        CharacterAbility row,
+        AbilityId abilityId,
         Dictionary<AbilityId, AbilityTemplate> templateById,
         AttackerCombat attacker)
     {
-        templateById.TryGetValue(row.AbilityId, out AbilityTemplate? template);
+        templateById.TryGetValue(abilityId, out AbilityTemplate? template);
         return new CharacterAbilityDto
         {
-            AbilityId = row.AbilityId.Value,
+            AbilityId = abilityId.Value,
             Amount = template is null ? null : AmountFor(template, attacker),
             Template = template is null ? null : new CharacterAbilityTemplateDto
             {
@@ -450,9 +554,6 @@ public class CharacterService : ICharacterService
                 Cost = template.Cost,
                 Range = (Avalon.Api.Contract.SpellRange)template.Range,
                 Effects = (Avalon.Api.Contract.SpellEffect)template.Effects,
-                AllowedClasses = template.AllowedClasses is null
-                    ? []
-                    : template.AllowedClasses.ToList(),
             },
         };
     }

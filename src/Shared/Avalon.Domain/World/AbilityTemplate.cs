@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
@@ -26,8 +25,6 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     public SpellRange Range { get; set; } // in meters
 
     public SpellEffect Effects { get; set; }
-
-    public List<CharacterClass> AllowedClasses { get; set; } = []; // Default to no classes
 
     [Required] public float ThreatMultiplier { get; set; } = 1.0f;
 
@@ -77,8 +74,8 @@ public class AbilityTemplate : IDbEntity<AbilityId>
 
     /// <summary>
     /// The type of damage the ability deals, and the type its damage-over-time aura takes (#1178), or null: a creature
-    /// ability with none deals its creature's base type. An Ally ability names none; a class ability that deals damage,
-    /// directly or through a damaging aura, must name one (<c>AbilityRules</c>, <c>AuraRules.DamageTypeProblem</c>).
+    /// ability with none deals its creature's base type. An Ally ability names none; a class ability (one the talent tree
+    /// grants, #1181) that deals damage, directly or through a damaging aura, must name one (<c>AbilityRules</c>, <c>AuraRules.DamageTypeProblem</c>).
     /// </summary>
     public DamageType? DamageType { get; set; }
 

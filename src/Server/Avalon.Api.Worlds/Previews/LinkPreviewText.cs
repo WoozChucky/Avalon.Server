@@ -38,9 +38,7 @@ public static partial class LinkPreviewText
 
     public static string Describe(PublicAbilityDto ability)
     {
-        List<string> parts = [];
-        if (Restricted(ability.AllowedClasses) is { } classes) parts.Add(classes);
-        parts.Add(Cost(ability));
+        List<string> parts = [Cost(ability)];
         parts.Add(ability.CastTime == 0 ? "Instant" : $"{Seconds(ability.CastTime)} cast");
         if (ability.Cooldown > 0) parts.Add($"{Seconds(ability.Cooldown)} cooldown");
         if (Amount(ability) is { } amount) parts.Add(amount);
@@ -50,16 +48,17 @@ public static partial class LinkPreviewText
 
     /// <summary>
     /// What one hit deals or heals (#1178), or null for an ability with no direct amount (it only applies an aura) or no
-    /// kind to say it by: an Attack as its weapon damage (<c>315 % of weapon damage, converts 50 % to cold</c>, <c>adds
-    /// 2-4 blight damage</c>), or a creature's (no classes) as its natural damage, with its type when that is not
-    /// physical (<c>240 % of its natural damage, blight damage</c>); a Spell or a Heal as its level-1 base and its growth
-    /// (<c>14-20 lightning damage, +0.7 % per level</c>, <c>Heals 30-44</c>).
+    /// kind to say it by: an Attack the talent tree grants (#1181) as its weapon damage (<c>315 % of weapon damage,
+    /// converts 50 % to cold</c>, <c>adds 2-4 blight damage</c>), or a creature's, which the tree does not grant, as its
+    /// natural damage, with its type when that is not physical (<c>240 % of its natural damage, blight damage</c>); a
+    /// Spell or a Heal as its level-1 base and its growth (<c>14-20 lightning damage, +0.7 % per level</c>,
+    /// <c>Heals 30-44</c>).
     /// </summary>
     private static string? Amount(PublicAbilityDto ability)
     {
         if (ability.AmountKind == AbilityAmountKind.Damage && ability.Tags.HasFlag(AbilityTags.Attack))
         {
-            string of = ability.AllowedClasses.Count == 0 ? "of its natural damage" : "of weapon damage";
+            string of = ability.Granted ? "of weapon damage" : "of its natural damage";
             List<string> attack = [$"{Number(ability.DamageEffectiveness)} % {of}"];
             if (ability.DamageType is { } type && type != DamageType.Physical)
                 attack.Add($"{Lower(type)} damage");

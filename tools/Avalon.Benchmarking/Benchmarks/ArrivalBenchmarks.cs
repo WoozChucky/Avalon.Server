@@ -157,7 +157,7 @@ public class ArrivalBenchmarks
             new HeldCharacters(_row),
             new NoSlots(),
             new NoItems(),
-            new NoAbilities(),
+            new NoTalents(),
             world,
             resolver,
             Options.Create(new RegenConfiguration()),
@@ -717,19 +717,13 @@ public class ArrivalBenchmarks
             CancellationToken cancellationToken = default) => s_none;
     }
 
-    private sealed class NoAbilities : ICharacterAbilityRepository
+    private sealed class NoTalents : ICharacterTalentRepository
     {
-        private static readonly Task<IReadOnlyCollection<CharacterAbility>> s_none =
-            Task.FromResult<IReadOnlyCollection<CharacterAbility>>([]);
+        private static readonly Task<IReadOnlyList<CharacterTalent>> s_none =
+            Task.FromResult<IReadOnlyList<CharacterTalent>>([]);
 
-        public Task<IReadOnlyCollection<CharacterAbility>> GetCharacterAbilitiesAsync(CharacterId characterId,
-            CancellationToken cancellationToken = default) => s_none;
-
-        public Task<CharacterAbility> CreateAsync(CharacterAbility ability, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IList<CharacterAbility>> CreateAsync(IList<CharacterAbility> abilities,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<CharacterTalent>> GetByCharacterIdAsync(CharacterId id,
+            CancellationToken ct = default) => s_none;
     }
 
     /// <summary>The one account, for the select's locale read.</summary>

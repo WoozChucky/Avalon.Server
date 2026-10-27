@@ -20,6 +20,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Configuration;
 using Avalon.World.Doodads;
+using Avalon.World.Entities;
 using Avalon.World.Doodads.Scripts;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
@@ -703,7 +704,7 @@ public class SeedIntegrityShould
         Assert.Equal((name, shape, reach, radius, arc, speed, pierce, castTime, cooldown, MathF.Round(baseDamage * 100f)),
             (a.Name, a.Shape, a.Reach, a.Radius, a.ArcDegrees, a.ProjectileSpeed, a.Pierce, a.CastTime, a.Cooldown,
                 a.DamageEffectiveness));
-        Assert.Empty(a.AllowedClasses);
+        Assert.DoesNotContain(a.Id, TalentSeed.Rows().Granted);   // a creature's: the tree does not grant it (#1181)
         Assert.Equal(0u, a.Cost);
         Assert.Equal(AbilityAffects.Hostile, a.Affects);
         Assert.Equal(AbilityAnchor.Caster, a.Anchor);
@@ -794,67 +795,47 @@ public class SeedIntegrityShould
 
         var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
             static _ => null, NullLoggerFactory.Instance);
-        var catalog = new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras);
+        // The abilities the seeded tree grants are the class abilities (#1181), held to the class rules.
+        var catalog = new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras,
+            TalentSeed.Rows().Granted);
 
         Assert.Empty(auras.Refused);
         Assert.Empty(catalog.Refused);
         Assert.Equal(23 + 19, catalog.Count);
     }
 
-    [Fact]
-    public void Give_each_class_its_own_kit_abilities_to_start_with()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        var infos = context.CharacterCreateInfos.AsNoTracking().ToList();
-        Assert.Equal(s_kit.Keys.OrderBy(c => c), infos.Select(i => i.Class).OrderBy(c => c));
-
-        foreach (CharacterCreateInfo info in infos)
-        {
-            Assert.Equal(s_kit[info.Class], info.StartingSpells.Select(s => s.Value));
-
-            foreach (uint id in s_kit[info.Class])
-            {
-                AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == id);
-                Assert.Equal([info.Class], ability.AllowedClasses);
-            }
-        }
-    }
-
     /// <summary>
-    /// A kit skill its class's power pool cannot pay under the one power rule could never be cast.
-    /// Every character enters with a full pool, so a pool holding exactly the cost must be enough, and
-    /// the class's level-1 maximum (seeded ClassLevelStats through CharacterStatsCalculator, with
-    /// nothing worn, as at creation) must hold at least the cost.
+    /// #1181: any class can walk to any ability the talent tree grants, and every character enters with a full pool, so
+    /// each granted ability's cost is payable from a pool holding exactly it, and at most the lowest level-1 maximum of
+    /// the four classes (seeded ClassLevelStats through CharacterStatsCalculator with nothing worn, as at creation: 180).
+    /// Cleave, the Warrior's basic before the tree, is an ability node: not Basic, and 6 mana.
     /// </summary>
     [Fact]
-    public void Price_every_kit_ability_in_a_power_its_class_can_pay()
+    public void Price_every_granted_ability_in_mana_any_class_can_pay_at_level_one()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        var abilities = context.AbilityTemplates.AsNoTracking().ToList();
-        var levelStats = context.ClassLevelStats.AsNoTracking().ToList();
+        var abilities = context.AbilityTemplates.AsNoTracking().AsEnumerable().ToDictionary(a => a.Id);
+        uint lowest = context.ClassLevelStats.AsNoTracking().AsEnumerable().Where(s => s.Level == 1)
+            .Min(s => CharacterStatsCalculator.Calculate(s, [], TestCombat.Formula).MaxPower);
+        Assert.Equal(180u, lowest);
 
-        foreach ((CharacterClass cls, uint[] ids) in s_kit)
+        foreach (AbilityId id in TalentSeed.Rows().Granted)
         {
-            ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
-            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], TestCombat.Formula).MaxPower;
+            AbilityTemplate ability = abilities[id];
+            IUnit caster = Substitute.For<IUnit>();
+            caster.PowerType.Returns(PowerType.Mana);
+            caster.CurrentPower.Returns(ability.Cost);
 
-            foreach (uint id in ids)
-            {
-                AbilityTemplate ability = abilities.Single(a => a.Id.Value == id);
-                IUnit caster = Substitute.For<IUnit>();
-                caster.PowerType.Returns(PowerType.Mana);
-                caster.CurrentPower.Returns(ability.Cost);
-
-                Assert.True(AbilityCost.Check(caster, AbilityMetadataMapper.From(ability)) == CostCheck.Payable,
-                    $"{cls} cannot pay for ability {id} '{ability.Name}' ({ability.Cost} power)");
-                Assert.True(ability.Cost <= maxPower,
-                    $"ability {id} '{ability.Name}' costs {ability.Cost}, above a level-1 {cls}'s {maxPower} power");
-            }
+            Assert.True(AbilityCost.Check(caster, AbilityMetadataMapper.From(ability)) == CostCheck.Payable,
+                $"ability {id.Value} '{ability.Name}' cannot be paid from {ability.Cost} mana");
+            Assert.True(ability.Cost <= lowest,
+                $"ability {id.Value} '{ability.Name}' costs {ability.Cost}, above the lowest level-1 maximum, {lowest}");
         }
+
+        AbilityTemplate cleave = abilities[new AbilityId(200)];
+        Assert.Equal((AbilityFlags.None, 6u), (cleave.Flags & AbilityFlags.Basic, cleave.Cost));
     }
 
     [Fact]
@@ -872,8 +853,9 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #770: each class's basic attack, the one ability a silence spares, is flagged Basic; nothing else is. Heavy Strike,
-    /// the Warrior's starter on the talent tree (#1181), is Basic beside Cleave until characters learn from the tree.
+    /// #770: each class's basic attack, the one ability a silence spares, is flagged Basic; nothing else is. They are
+    /// exactly the four starters the class starts on the talent tree link (#1181): Spark Bolt, Quick Shot, Smite and Heavy
+    /// Strike.
     /// </summary>
     [Fact]
     public void Flag_each_classs_basic_attack_and_no_other_ability_as_basic()
@@ -881,7 +863,7 @@ public class SeedIntegrityShould
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Assert.Equal([200u, 210u, 220u, 230u, 319u], context.AbilityTemplates.AsNoTracking().AsEnumerable()
+        Assert.Equal([210u, 220u, 230u, 319u], context.AbilityTemplates.AsNoTracking().AsEnumerable()
             .Where(a => (a.Flags & AbilityFlags.Basic) != 0).Select(a => a.Id.Value).Order());
     }
 
@@ -953,7 +935,8 @@ public class SeedIntegrityShould
         var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
             static _ => null, NullLoggerFactory.Instance);
         var tree = new TalentCatalog(TalentSeed.Rows(),
-            new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras),
+            new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras,
+                TalentSeed.Rows().Granted),
             NullLoggerFactory.Instance);
         Assert.True(tree.IsLoaded, tree.Refusal);
         Assert.Equal(305, tree.Count);
@@ -1390,10 +1373,12 @@ public class SeedIntegrityShould
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
         List<WornItem> worn = starter ? RetiredGearProfiles.For("starter", c) : [];
-        // The Warrior has two basics until characters learn from the talent tree (#1181): Cleave and Heavy Strike, both
-        // weapon-paced.
+        // The class's basic is the starter its start on the talent tree links (#1181): Heavy Strike, Quick Shot.
+        TalentTreeRows tree = TalentSeed.Rows();
+        int startNode = tree.Starts.Single(s => s.Class == c).NodeId;
+        AbilityId starterId = tree.Abilities.Single(l => l.NodeId == startNode).AbilityId;
         var basics = context.AbilityTemplates.AsNoTracking().AsEnumerable()
-            .Where(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c)).ToList();
+            .Where(a => (a.Flags & AbilityFlags.Basic) != 0 && a.Id == starterId).ToList();
         Assert.NotEmpty(basics);
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, formula);
@@ -1470,7 +1455,9 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == id);
-        CharacterClass c = Assert.Single(ability.AllowedClasses);
+        // A class ability (the tree grants it, #1181), at the stats of the class whose kit held it.
+        Assert.Contains(ability.Id, TalentSeed.Rows().Granted);
+        CharacterClass c = s_kit.Single(k => k.Value.Contains(id)).Key;
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
         List<WornItem> worn = RetiredGearProfiles.For(gear, c);
@@ -2080,15 +2067,15 @@ public class SeedIntegrityShould
         Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), v => ids.Contains(v.ItemTemplateId.Value));
         Assert.DoesNotContain(context.QuestItemRewards.AsNoTracking().ToList(), r => ids.Contains(r.ItemTemplateId.Value));
         Assert.DoesNotContain(context.QuestItemChoices.AsNoTracking().ToList(), c => ids.Contains(c.ItemTemplateId.Value));
-        Assert.DoesNotContain(context.CharacterCreateInfos.AsNoTracking().ToList().SelectMany(c => c.StartingItems),
-            i => ids.Contains(i.Value));
+        Assert.DoesNotContain(context.CharacterCreateItems.AsNoTracking().ToList(), i => ids.Contains(i.TemplateId.Value));
     }
 
     /// <summary>
-    /// #1179: the jewellery table as drafted; every loot table, vendor row, quest reward, quest choice and starting item
-    /// names a template that exists; every worn template is a base kind, worn in its kind's slot, that never stacks, and
-    /// nothing else has a base kind. The weapon and armour tables, the vendors' lines and the quests' rewards are pinned
-    /// by their own tests above and in VendorSeedShould.
+    /// #1179: the jewellery table as drafted; every loot table, vendor row, quest reward, quest choice and starting
+    /// item names a template that exists; every worn template is a base kind, worn in its kind's slot, that never
+    /// stacks, and nothing else has a base kind. Every starting item (#1181) goes in a Bag slot the bag has, since
+    /// creation writes it to the slot its row names. The weapon and armour tables, the vendors' lines and the quests'
+    /// rewards are pinned by their own tests above and in VendorSeedShould.
     /// </summary>
     [Fact]
     public void Seed_vendors_loot_and_quest_rewards_on_the_bases()
@@ -2113,12 +2100,16 @@ public class SeedIntegrityShould
             jewellery.Entries.OrderBy(e => e.Sequence).Select(e => (e.Sequence, e.ItemTemplateId!.Value, e.Chance, e.GroupId)));
         Assert.Single(entries, e => e.LootTableId.Value == 12 && e.ReferenceTableId == s_forestJewellery && e.Chance == 100f);
 
+        var starting = context.CharacterCreateItems.AsNoTracking().ToList();
         IEnumerable<ulong> named = entries.Where(e => e.ItemTemplateId is not null).Select(e => e.ItemTemplateId!.Value)
             .Concat(context.VendorStocks.AsNoTracking().ToList().Select(v => v.ItemTemplateId.Value))
             .Concat(context.QuestItemRewards.AsNoTracking().ToList().Select(r => r.ItemTemplateId.Value))
             .Concat(context.QuestItemChoices.AsNoTracking().ToList().Select(c => c.ItemTemplateId.Value))
-            .Concat(context.CharacterCreateInfos.AsNoTracking().ToList().SelectMany(c => c.StartingItems).Select(i => i.Value));
+            .Concat(starting.Select(i => i.TemplateId.Value));
         Assert.All(named, id => Assert.Contains(id, items.Keys));
+        byte bag = new CharacterInventoryContainer(NullLoggerFactory.Instance, InventoryType.Bag).Capacity;
+        Assert.All(starting, i => Assert.True(i.Slot < bag,
+            $"{i.Class}'s starting item {i.TemplateId.Value} is in Bag slot {i.Slot} of {bag}"));
         Assert.All(items.Values.Where(i => i.Slot is not null), i => Assert.Equal(1u, i.MaxStackSize));
         Assert.All(items.Values, i => Assert.True((i.Slot is null) == (i.BaseKind is null),
             $"{i.Name}: a worn template is a base kind, and nothing else is"));
@@ -2881,7 +2872,7 @@ public class SeedIntegrityShould
             .Concat(context.VendorStocks.AsNoTracking().ToList().Select(v => v.ItemTemplateId.Value))
             .Concat(context.QuestItemRewards.AsNoTracking().ToList().Select(r => r.ItemTemplateId.Value))
             .Concat(context.QuestItemChoices.AsNoTracking().ToList().Select(c => c.ItemTemplateId.Value))
-            .Concat(context.CharacterCreateInfos.AsNoTracking().ToList().SelectMany(c => c.StartingItems).Select(i => i.Value));
+            .Concat(context.CharacterCreateItems.AsNoTracking().ToList().Select(i => i.TemplateId.Value));
         Assert.DoesNotContain(named, id => id is >= 104 and <= 151);
     }
 

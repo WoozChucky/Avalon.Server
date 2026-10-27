@@ -149,6 +149,7 @@ public sealed class RouteOwnershipShould
         ["GET /world/{worldId:int}/character/{id}/stats"] = Worlds,
         ["GET /world/{worldId:int}/character/{id}/quests"] = Worlds,
         ["GET /world/{worldId:int}/character/{id}/auras"] = Worlds,
+        ["GET /world/{worldId:int}/character/{id}/talents"] = Worlds,
         ["GET /world/{worldId:int}/map-template"] = Worlds,
         ["GET /world/{worldId:int}/map-template/{id:int}"] = Worlds,
         ["GET /world/{worldId:int}/map-template/{id:int}/preview-layout"] = Worlds,

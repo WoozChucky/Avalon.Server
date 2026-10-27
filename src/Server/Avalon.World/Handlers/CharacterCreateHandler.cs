@@ -1,7 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.GameAuth;
-using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -64,12 +63,12 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         };
         var items = new List<ItemInstance>(); var slots = new List<CharacterInventory>();
         ItemsPatch itemData = world.Data.Items;
-        foreach (ItemTemplateId templateId in createInfo.StartingItems)
+        foreach (CharacterCreateItem start in createInfo.StartingItems)
         {
-            ItemTemplate? template = itemData.Find(templateId);
+            ItemTemplate? template = itemData.Find(start.TemplateId);
             if (template is null)
             {
-                logger.LogWarning("Starting item {TemplateId} not found", templateId); continue;
+                logger.LogWarning("Starting item {TemplateId} not found", start.TemplateId); continue;
             }
             // #1179: a starting item is made as any copy is, rolling its base stats and the modifiers its template links;
             // they are inserted with it. A copy that rolled either is one of a kind, so it is never a stack.
@@ -92,10 +91,11 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
                 item.Modifiers = rolled.Modifiers;
             foreach ((ItemBaseStat stat, int value) in rolled.BaseStats)
                 item.BaseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = rolled.InstanceId, Stat = stat, Value = value });
-            items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (byte)(slots.Count) });
+            items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = start.Slot });
         }
-        var batch = new CharacterCreationBatch(row, stats.ToRow(new(0)),
-            createInfo.StartingSpells.Select(id => new CharacterAbility { AbilityId = id }).ToArray(), items, slots);
+        // No abilities are written (#1181): a character's are its class start's starter and the ability nodes it holds,
+        // derived at every select, and a new character holds none.
+        var batch = new CharacterCreationBatch(row, stats.ToRow(new(0)), items, slots);
         Task<CharacterCreationReply> work = WorldDatabaseWork.ThreadPool.Run(async () =>
         {
             try { return await characterRepository.CreateForGameplayAsync(authority, batch, world.Configuration.MaxCharactersPerAccount, CancellationToken.None); }

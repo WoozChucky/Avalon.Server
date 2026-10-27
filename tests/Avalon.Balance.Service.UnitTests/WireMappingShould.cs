@@ -27,12 +27,16 @@ public class WireMappingShould
             ConfigFileStore.Load(Path.Combine(dir, "rotations.json"), ConfigFiles.ParseRotations));
     }
 
-    private static RunResult SmallRun() =>
-        Simulation.Run(SeedSource.Load(), Config(),
+    /// <summary>A small run over the seed, on the fixture rotation (BalanceTestHost.FixtureHost).</summary>
+    private static RunResult SmallRun()
+    {
+        BalanceHost host = BalanceTestHost.FixtureHost();
+        return Simulation.Run(host.Seed, host.Defaults,
             new RunRequest(null, null,
                 new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, new HashSet<string> { "normal-3" }),
                 RunsPerRow: 10, Seed: 1),
             null, CancellationToken.None);
+    }
 
     [Fact]
     public void Map_a_real_run_with_ids_enum_strings_and_summary_intact()

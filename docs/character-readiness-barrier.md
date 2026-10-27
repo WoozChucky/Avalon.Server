@@ -37,7 +37,8 @@ being spawned. A second `CMSG_CHARACTER_SELECTED` orphaned the entity the first 
 ## What the barrier is
 
 Select still does all of its work: it loads the row, builds the `CharacterEntity`, resolves the
-instance, and sends `SCharacterSelectedPacket`, `SChunkLayoutPacket` and `SCharacterAbilitiesPacket`.
+instance, and sends `SCharacterSelectedPacket`, `SChunkLayoutPacket`, the inventory snapshot,
+`SCharacterAbilitiesPacket`, `STalentStatePacket` and the ignore list.
 It then hands the entity to the connection as a **pending spawn** (`IWorldConnection.SetPendingSpawn`)
 instead of spawning it. Nothing on the tick can see the character while one is pending.
 
@@ -47,10 +48,11 @@ Two things release it, both through `CharacterReadinessBarrier.Release`:
 - **The world tick**, once the wait expires — `CharacterReadinessBarrier.ReleaseExpired`, called
   from `WorldServer.Update` after the session pass and before the world update.
 
-A report can arrive **before** the pending spawn exists. Select sends its last packet
-(`SCharacterAbilitiesPacket`) and only then loads the quest log and the ignore list, two more database
-round trips, before arming the spawn; a client that composes its map quickly, or a cold database on
-the first select after a restart, puts the report inside that gap. `CharacterLoadedHandler` then marks
+A report can arrive **before** the pending spawn exists. Select reads the talent rows and the quest
+rows in one step (#1181), then sends the inventory snapshot, `SCharacterAbilitiesPacket` and
+`STalentStatePacket`, and only then loads the ignore list and the saved auras, two more database round
+trips, before arming the spawn; a client that composes its map quickly, or a cold database on the
+first select after a restart, puts the report inside that gap. `CharacterLoadedHandler` then marks
 the connection (`IWorldConnection.LoadReportedEarly`) instead of dropping the report, and the next
 `ReleaseExpired` sweep releases that spawn at once, through the same entry gate, logged as an ordinary
 entry. Before this, such a report was dropped and the player waited out the whole barrier.

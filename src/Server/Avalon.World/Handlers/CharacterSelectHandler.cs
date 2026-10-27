@@ -18,7 +18,7 @@ using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
-using Avalon.World.Abilities;
+using Avalon.Network.Packets.Talents;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
@@ -36,6 +36,7 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Avalon.World.Respawn;
+using Avalon.World.Talents;
 using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -49,7 +50,7 @@ public class CharacterSelectHandler(
     ICharacterRepository characterRepository,
     ICharacterInventoryRepository characterInventoryRepository,
     IItemInstanceRepository itemInstanceRepository,
-    ICharacterAbilityRepository characterAbilityRepository,
+    ICharacterTalentRepository talentRepository,
     IWorld world,
     IRespawnTargetResolver respawnTargetResolver,
     IOptions<RegenConfiguration> regenConfig,
@@ -667,32 +668,19 @@ public class CharacterSelectHandler(
         entity[InventoryType.Bank].Load(assembled[InventoryType.Bank]);
         entity.ItemModifiers.Load(instances);
 
-        // #434: stats follow the class, the level and what is worn. No current health or power is
-        // stored, so the character enters full at the new maximum, as it always has.
-        if (!CharacterStatsRefresh.Apply(entity, world.Data, CurrentValues.EnterWorld))
-        {
-            logger.LogWarning(
-                "No class stats for {Class} level {Level}; character {CharacterId} keeps its stored maximums",
-                character.Class, character.Level, character.Id);
-
-            // #1178: no refresh fixed a pace, so the basic attack waits the bare hand's time rather than none.
-            entity.UseBareHandPace(world.Data.Combat.Formula);
-        }
-
-        // The bank is loaded but not sent: opening it is a separate interaction, and a client
-        // told about items it has no way to show would have to decide what to do with them.
-        ItemSlotDto[] carried =
-        [
-            .. ToDtos(entity, InventoryType.Equipment, world.Data.Items),
-            .. ToDtos(entity, InventoryType.Bag, world.Data.Items),
-        ];
-
-        connection.Send(SInventorySnapshotPacket.Create(carried, character.Gold, PacketEncoder.Shared));
-        foreach (ItemSlotDto slot in carried)
-            _modifierDtos.Return(slot);
-
-        Step(connection, select, _databaseWork.Run(() => characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None)),
-            spells => OnSpellsReceived(connection, select, entity, instance, spells));
+        // #1181: the talent rows and the quest rows in one step, since the points earned count the paying quests. No
+        // quest repository (tests that build the handler without one) is an empty log, as a character that never took a
+        // quest has.
+        CharacterId id = character.Id;
+        Step(connection, select, _databaseWork.Run(async () =>
+            {
+                IReadOnlyList<CharacterTalent> talents = await talentRepository.GetByCharacterIdAsync(id, CancellationToken.None);
+                CharacterQuestRows quests = questRepository is null
+                    ? CharacterQuestRows.None
+                    : await questRepository.GetByCharacterIdAsync(id, CancellationToken.None);
+                return (Talents: talents, Quests: quests);
+            }),
+            progress => OnProgressReceived(connection, select, entity, instance, progress.Talents, progress.Quests));
         _parentActivity = activity;
     }
 
@@ -700,88 +688,68 @@ public class CharacterSelectHandler(
         => entity[container].Items.Select(item =>
             ItemSlotDtoMapper.ToDto(container, item, entity.ItemModifiers, items, _modifierDtos));
 
-    private void OnSpellsReceived(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance,
-        IReadOnlyCollection<CharacterAbility> spells)
+    /// <summary>
+    /// The character's progress (#433, #1181): its quest log, then its talents, checked against the live tree and summed,
+    /// so the stats refresh folds them with its gear; then the inventory, the abilities the tree grants, with their
+    /// amounts from those stats, and the talent window's state.
+    /// </summary>
+    private void OnProgressReceived(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance,
+        IReadOnlyList<CharacterTalent> talents, CharacterQuestRows quests)
     {
-        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
+        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnProgressReceived),
             ActivityKind.Internal,
             _parentActivity?.Context ?? default);
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
-        activity?.SetTag("Spells.Count", spells.Count);
+        activity?.SetTag("Talents.Count", talents.Count);
 
-        List<GameAbility> gameAbilities = [];
+        Character character = entity.Data!;
+        StaticData data = world.Data;
+        entity.Quests.Load(quests);
 
-        foreach (CharacterAbility characterAbility in spells)
+        // Saved talents that no longer fit the tree are dropped, free, and the save marked; a tree the catalog refused
+        // drops nothing. The points earned are the level's and the paying quests', so the log is loaded first; more
+        // held than earned, whatever lowered the points, clears the whole tree.
+        TalentCatalog tree = data.Talents;
+        int earned = TalentPoints.Earned(character.Level, entity.Quests, data.Quests);
+        entity.Talents.Load(talents);
+        TalentSelectCheck.Apply(entity.Talents, tree, character.Class, earned, character.Id, logger);
+        entity.Talents.RebuildTotals(tree);
+
+        // #434: stats follow the class, the level, what is worn and the tree. No current health or power is stored, so
+        // the character enters full at the new maximum, as it always has.
+        if (!CharacterStatsRefresh.Apply(entity, data, CurrentValues.EnterWorld))
         {
-            if (!world.Data.Abilities.TryGet(characterAbility.AbilityId, out AbilityTemplate? template))
-            {
-                logger.LogWarning("Ability {AbilityId} is missing or was refused by the catalog; the character does not get it",
-                    characterAbility.AbilityId);
-                activity?.AddEvent(new ActivityEvent("SpellTemplateNotFound"));
-                continue;
-            }
+            logger.LogWarning(
+                "No class stats for {Class} level {Level}; character {CharacterId} keeps its stored maximums",
+                character.Class, character.Level, character.Id);
 
-            GameAbility gameAbility = new()
-            {
-                AbilityId = characterAbility.AbilityId,
-                Metadata = AbilityMetadataMapper.From(template),
-                CastTimeTimer = (float)template.CastTime / 1000,
-                CooldownTimer = characterAbility.Cooldown
-            };
-
-            gameAbilities.Add(gameAbility);
+            // #1178: no refresh fixed a pace, so the basic attack waits the bare hand's time rather than none.
+            entity.UseBareHandPace(data.Combat.Formula);
         }
 
-        entity.Spells.Load(gameAbilities);
+        // The bank is loaded but not sent: opening it is a separate interaction, and a client
+        // told about items it has no way to show would have to decide what to do with them.
+        ItemSlotDto[] carried =
+        [
+            .. ToDtos(entity, InventoryType.Equipment, data.Items),
+            .. ToDtos(entity, InventoryType.Bag, data.Items),
+        ];
 
-        // #669, #1178: each ability's per-hit amount and pace from the stats the select chain has already refreshed,
-        // recorded on the entity so AbilityAmountsFlusher sends an update only once one of them changes.
-        AttackerCombat combat = entity.Combat;
-        CasterPace pace = entity.Pace;
-        AbilityAmount[] amounts = gameAbilities.Select(a => AbilityAmounts.For(combat, a.Metadata, pace)).ToArray();
-        entity.AbilityAmountsSentFor = (combat, pace);
-        entity.AbilityAmountsInputs = (entity.StatsVersion, entity.Level);
-        entity.AbilityAmountsSent = amounts;
+        connection.Send(SInventorySnapshotPacket.Create(carried, character.Gold, PacketEncoder.Shared));
+        foreach (ItemSlotDto slot in carried)
+            _modifierDtos.Return(slot);
 
-        AbilityInfo[] abilityInfos = gameAbilities.Select((s, i) => new AbilityInfo
-        {
-            AbilityId = s.AbilityId,
-            Name = s.Metadata.Name,
-            Cost = s.Metadata.Cost,
-            Range = (ushort)s.Metadata.Range,
-            AimMode = s.Metadata.AimMode,
-            Shape = s.Metadata.Shape,
-            Anchor = s.Metadata.Anchor,
-            Reach = s.Metadata.Reach,
-            Radius = s.Metadata.Radius,
-            ArcDegrees = s.Metadata.ArcDegrees,
-            ProjectileSpeed = s.Metadata.ProjectileSpeed,
-            Pierce = s.Metadata.Pierce,
-            Affects = s.Metadata.Affects,
-            AmountKind = amounts[i].Kind,
-            AmountMin = amounts[i].Min,
-            AmountMax = amounts[i].Max,
-            Tags = s.Metadata.Tags,
-            AmountTypes = amounts[i].Types,
-            CooldownMs = amounts[i].CooldownMs,
-            CastTimeMs = amounts[i].CastTimeMs,
-        }).ToArray();
+        // #1181: the class start's starter, then each held ability node's, every one ready; their amounts and pace from
+        // the stats just refreshed (#669, #1178).
+        TalentAbilities.Rebuild(entity, tree, data.Abilities, logger);
+        CharacterAbilitiesSender.Send(connection, entity);
 
-        connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, PacketEncoder.Shared));
+        connection.Send(STalentStatePacket.Create(entity.Talents.Held, checked((uint)earned),
+            (uint)entity.Talents.Spent, PacketEncoder.Shared));
+        entity.Talents.StateSent(character.Level);
 
-        // #433: the quest log, then the pending spawn. No repository (tests that build the handler without one) is
-        // an empty log, as a character that never took a quest has.
-        if (questRepository is null)
-        {
-            LoadIgnores(connection, select, entity, instance);
-            return;
-        }
-
-        Step(connection, select, _databaseWork.Run(() => questRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None)), rows =>
-        {
-            entity.Quests.Load(rows);
-            LoadIgnores(connection, select, entity, instance);
-        });
+        LoadIgnores(connection, select, entity, instance);
+        _parentActivity = activity;
     }
 
     /// <summary>

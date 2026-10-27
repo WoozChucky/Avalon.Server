@@ -32,12 +32,12 @@ public class AbilityEffectRulesShould
     };
 
     [Fact]
-    public void Accept_an_aura_only_ability() => Assert.Null(AbilityRules.Problem(Ignite(new AuraId(2))));
+    public void Accept_an_aura_only_ability() => Assert.Null(AbilityRules.Problem(Ignite(new AuraId(2)), granted: false));
 
     [Fact]
     public void Refuse_an_ability_that_does_nothing() =>
         Assert.Equal("the ability does nothing: Effects has no Damage for a Hostile ability, and it applies no aura",
-            AbilityRules.Problem(Ignite(null)));
+            AbilityRules.Problem(Ignite(null), granted: false));
 
     [Theory]
     [InlineData(SpellEffect.Debuff, AbilityAffects.Hostile, AbilityAmountKind.None)]

@@ -51,6 +51,7 @@ public sealed record ItemModifierWrite(
 /// <paramref name="Auras" />, when present, replaces every aura row of the character.
 /// <paramref name="Modifiers" />, when present, rewrites the rolled rows (modifiers and base stats) of some of the upserted
 /// items (#1179).
+/// <paramref name="Talents" />, when present, is the talent rows to rewrite (#1181).
 /// </summary>
 public sealed record CharacterSaveBatch(
     Domain.Characters.Character Row,
@@ -62,7 +63,8 @@ public sealed record CharacterSaveBatch(
     CharacterQuestWrite? Quests = null,
     CharacterIgnoreWrite? Ignores = null,
     CharacterAuraWrite? Auras = null,
-    ItemModifierWrite? Modifiers = null)
+    ItemModifierWrite? Modifiers = null,
+    CharacterTalentWrite? Talents = null)
 {
     public GameplayWriteAuthority? Authority { get; init; }
 }
@@ -188,6 +190,15 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
 
             if (batch.Auras is not null)
                 await context.CharacterAuras.Where(a => a.CharacterId == owner).ExecuteDeleteAsync(token);
+
+            if (batch.Talents is { Rewrite.Count: > 0 } talents)
+            {
+                // One statement per batch, not one per node.
+                var rewrite = talents.Rewrite.ToList();
+                await context.CharacterTalents
+                    .Where(t => t.CharacterId == owner && rewrite.Contains(t.NodeId))
+                    .ExecuteDeleteAsync(token);
+            }
         }
 
         // After the slots, which reference items by foreign key.
@@ -346,6 +357,13 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             {
                 foreach (CharacterAura aura in auras.Rows)
                     context.TrackForInsert(aura);
+            }
+
+            // Deleted above, so each is inserted.
+            if (batch.Talents is { } talentWrite)
+            {
+                foreach (CharacterTalent talent in talentWrite.Insert)
+                    context.TrackForInsert(talent);
             }
         }
 

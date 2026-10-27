@@ -16,15 +16,18 @@ public static class CharacterOffence
     /// added damage, local increased damage or defence, local attack speed) is that item's, never the block's. Then
     /// <paramref name="auras" /> fold on top (a Flat adds, a More multiplies). The gear's lines are summed first and the
     /// attributes' terms added to those sums, as the stats calculation, which folds the lines in its own single walk of the
-    /// gear (<see cref="Add" />, <see cref="Finish" />), does. Runs on a stats refresh, never per hit, and allocates
-    /// nothing: <paramref name="worn" /> is read by index.
+    /// gear (<see cref="Add" />, <see cref="Finish" />), does. <paramref name="talents" />, when given (#1181), is where the
+    /// sums start: the tree's offence lines, Mores and added damage, which the gear's join; the attributes passed then
+    /// include the tree's. Runs on a stats refresh, never per hit, and allocates nothing: <paramref name="worn" /> is read
+    /// by index.
     /// </summary>
     public static OffenceStats Of(uint strength, uint agility, uint intellect, IReadOnlyList<WornItem> worn,
-        CombatFormula f, out DamageRanges addedToAttacks, out DamageRanges addedToSpells, AuraStatTotals? auras = null)
+        CombatFormula f, out DamageRanges addedToAttacks, out DamageRanges addedToSpells, AuraStatTotals? auras = null,
+        TalentTotals? talents = null)
     {
-        OffenceStats o = default;
-        addedToAttacks = default;
-        addedToSpells = default;
+        OffenceStats o = talents?.Offence ?? default;
+        addedToAttacks = talents?.AddedToAttacks ?? default;
+        addedToSpells = talents?.AddedToSpells ?? default;
         for (int i = 0; i < worn.Count; i++)
         {
             WornItem item = worn[i];

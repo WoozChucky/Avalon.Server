@@ -488,6 +488,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_TALENT_ALLOCATE",
+      "opcode": 8416,
+      "hex": "0x20E0",
+      "message": "CTalentAllocatePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_CAST_ABILITY",
       "opcode": 8449,
       "hex": "0x2101",
@@ -1077,6 +1086,24 @@
       "opcode": 12516,
       "hex": "0x30E4",
       "message": "STradeResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_TALENT_RESULT",
+      "opcode": 12528,
+      "hex": "0x30F0",
+      "message": "STalentResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_TALENT_STATE",
+      "opcode": 12529,
+      "hex": "0x30F1",
+      "message": "STalentStatePacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

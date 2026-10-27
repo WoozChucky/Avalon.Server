@@ -43,7 +43,7 @@ public class PublicController(
         AbilityTemplate? template = await abilities.FindByIdAsync(new AbilityId(id), track: false, ct);
         if (template is null) return NotFound();
         SetCacheControl();
-        return Ok(template.ToPublicDto());
+        return Ok(template.ToPublicDto(await talents.IsGrantedAsync(template.Id, ct)));
     }
 
     /// <summary>The world's talent tree as its database holds it, whether or not the world's catalog accepted it.</summary>

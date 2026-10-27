@@ -107,9 +107,10 @@ public static class CharacterStatsRefresh
             bool recount = !counted.Match(resonance, worn);
 
             // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)
-            // agrees with every other.
+            // agrees with every other. So are the talent tree's lines (#1181), summed once per allocation change into the
+            // character's own totals, never here.
             DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, formula,
-                character.Auras.StatTotals, recount ? character.Resonance : null);
+                character.Auras.StatTotals, recount ? character.Resonance : null, character.Talents.Totals);
             if (recount)
             {
                 counted.Remember(resonance, worn);

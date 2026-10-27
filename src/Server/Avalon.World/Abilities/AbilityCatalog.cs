@@ -18,21 +18,23 @@ public sealed record AbilityRefusal(AbilityId Id, string Name, string Reason)
 /// reload area and immutable afterwards. A bad row is left out with an error naming it and every
 /// other row still loads; a character holding a refused ability simply does not get it at select.
 /// With an aura catalog, an ability naming an aura it does not hold, or one that does not fit what the
-/// ability affects, is refused too; without one, aura links are not checked.
+/// ability affects, is refused too; without one, aura links are not checked. An ability in <c>granted</c>, the ones the
+/// talent tree links (#1181), is a class ability and held to the class rules; without the set, none is.
 /// </summary>
 public sealed class AbilityCatalog
 {
     private readonly Dictionary<uint, AbilityTemplate> _templates = [];
 
     public AbilityCatalog(IReadOnlyCollection<AbilityTemplate> templates, ILoggerFactory loggerFactory,
-        AuraCatalog? auras = null)
+        AuraCatalog? auras = null, IReadOnlySet<AbilityId>? granted = null)
     {
         ILogger<AbilityCatalog> logger = loggerFactory.CreateLogger<AbilityCatalog>();
         List<AbilityRefusal> refused = [];
 
         foreach (AbilityTemplate template in templates.OrderBy(t => t.Id.Value))
         {
-            if ((Problem(template) ?? AuraProblem(template, auras)) is { } reason)
+            bool isGranted = granted?.Contains(template.Id) == true;
+            if ((AbilityRules.Problem(template, isGranted) ?? AuraProblem(template, auras, isGranted)) is { } reason)
             {
                 refused.Add(new AbilityRefusal(template.Id, template.Name, reason));
                 continue;
@@ -64,21 +66,18 @@ public sealed class AbilityCatalog
 
     public string Describe() => $"{Count} abilities, {Refused.Count} refused";
 
-    /// <summary>Why a row cannot load, or null when it can.</summary>
-    public static string? Problem(AbilityTemplate t) => AbilityRules.Problem(t);
-
     /// <summary>
     /// Why the ability's aura link cannot load, or null: the aura must exist, fit what the ability affects, and, when it
     /// deals damage over time, have a damage type to deal, and the ability must be a source the aura can scale with
     /// (#1178). Nothing to say without a catalog to check against.
     /// </summary>
-    private static string? AuraProblem(AbilityTemplate t, AuraCatalog? auras)
+    private static string? AuraProblem(AbilityTemplate t, AuraCatalog? auras, bool granted)
     {
         if (auras is null) return null;
 
         return AuraRules.LinkProblem(t.Affects, t.AuraId, id => auras.TryGet(id, out AuraTemplate? aura) ? aura : null)
                ?? (t.AuraId is { } auraId && auras.TryGet(auraId, out AuraTemplate? linked)
-                   ? AuraRules.DamageTypeProblem(t, linked) ?? AuraRules.SourceProblem(t, linked)
+                   ? AuraRules.DamageTypeProblem(t, linked, granted) ?? AuraRules.SourceProblem(t, linked, granted)
                    : null);
     }
 }

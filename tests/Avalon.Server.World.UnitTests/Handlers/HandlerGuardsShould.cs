@@ -168,7 +168,7 @@ public class HandlerGuardsShould
             case NetworkPacketType.CMSG_CHARACTER_SELECTED:
                 new CharacterSelectHandler(NullLogger<CharacterSelectHandler>.Instance, NullLoggerFactory.Instance,
                         characters, Substitute.For<ICharacterInventoryRepository>(),
-                        Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+                        Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterTalentRepository>(),
                         world, Substitute.For<IRespawnTargetResolver>(),
                         Options.Create(new RegenConfiguration()), Substitute.For<IAccountRepository>(),
                         Substitute.For<ICharacterSaver>(), Substitute.For<IWorldServer>())

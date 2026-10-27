@@ -20,7 +20,7 @@ public class RunQueueShould
 
     public RunQueueShould()
     {
-        using WebApplication app = BalanceTestHost.Build();
+        using WebApplication app = BalanceTestHost.Build(services: BalanceTestHost.UseFixtureRotations);
         _host = app.Services.GetRequiredService<BalanceHost>();
         _queue = new RunQueue(Options.Create(_options), _time);
     }

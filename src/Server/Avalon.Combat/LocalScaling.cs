@@ -33,6 +33,24 @@ internal static class LocalScaling
         return Saturate(quotient);
     }
 
+    /// <summary>
+    /// <paramref name="value" /> times <paramref name="factor" />, a product of Mores (#1181: a talent's more or less
+    /// maximum life or mana), rounded half away from zero and held to the long's range; a factor below 0, or not a number,
+    /// counts as 0. The factor is a double, so the product is first snapped to a millionth: 5 x 0.7 is 3.4999999999999996
+    /// in a double and must round as the 3.5 it means.
+    /// </summary>
+    public static long More(long value, double factor)
+    {
+        if (factor == 1d)
+            return value;
+
+        if (!(factor > 0d))
+            return 0;
+
+        double product = Math.Round(Math.Round(value * factor, 6), MidpointRounding.AwayFromZero);
+        return product >= long.MaxValue ? long.MaxValue : product <= long.MinValue ? long.MinValue : (long)product;
+    }
+
     /// <summary><paramref name="a" /> plus <paramref name="b" />, held to the long's range rather than wrapping.</summary>
     public static long Add(long a, long b)
     {

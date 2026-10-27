@@ -25,6 +25,7 @@ public class ExportEndpointsShould
             extra: extra ?? (token ? s_withToken : null),
             services: s =>
             {
+                BalanceTestHost.UseFixtureRotations(s);
                 s.AddSingleton<IGitHub>(github);
                 s.AddSingleton(new BuildInfo(commit));
                 s.AddSingleton<TimeProvider>(new FakeTimeProvider(new DateTimeOffset(2026, 9, 30, 14, 5, 0, TimeSpan.Zero)));

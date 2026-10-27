@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
@@ -229,6 +230,33 @@ internal sealed class QuestTestWorld
         Talk(client, giver);
         Assert.Equal(Avalon.Network.Packets.Quest.QuestResult.Ok, Quests.Accept(client.Connection, client.Character, questId, giver.Guid.RawValue));
         Remove(giver);
+    }
+
+    /// <summary>
+    /// Starts a seeded quest and finishes every objective through the service (a Collect objective's items put in the
+    /// Bag and recounted), then opens a conversation with its ender, which is returned.
+    /// </summary>
+    public Creature ReadyAtSeed(QuestClient c, uint questId)
+    {
+        Assert.True(Data.Quests.TryGet(questId, out QuestView? quest));
+        c.Character.Quests.Start(questId, DateTime.UnixEpoch);
+        foreach (QuestObjectiveView objective in quest!.Stages.SelectMany(stage => stage.Objectives))
+        {
+            if (objective.Type == QuestObjectiveType.Collect)
+            {
+                Economy.InventoryOf(c.Character).TryAdd(objective.ItemTemplateId!, objective.Count);
+                QuestFlusher.Flush(c.Connection, Quests);
+            }
+            else
+            {
+                Assert.True(Quests.AddProgress(c.Character, questId, objective.Id, objective.Count));
+            }
+        }
+
+        Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(questId)!.State);
+        Creature ender = Place(quest.EnderCreatureId.Value);
+        Talk(c, ender);
+        return ender;
     }
 
     /// <summary>Marks a quest completed in the character's log, as a turn-in would have.</summary>

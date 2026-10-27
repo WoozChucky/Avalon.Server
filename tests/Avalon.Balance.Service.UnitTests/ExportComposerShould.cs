@@ -172,9 +172,9 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
 
-        // Ability 200's Cost is 0 in the seed.
+        // Ability 200's Cost is 6 in the seed (Cleave, an ability node since #1181).
         ExportInvalidException e = await Assert.ThrowsAsync<ExportInvalidException>(() =>
-            Compose(Request(overrides: """{"Ability.200.Cost":0}"""), github));
+            Compose(Request(overrides: """{"Ability.200.Cost":6}"""), github));
 
         Assert.Contains(e.Issues, i => i.Message.Contains("nothing to export", StringComparison.Ordinal));
     }

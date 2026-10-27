@@ -63,7 +63,6 @@ public partial class CharacterDbContext : DbContext
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
-    public DbSet<CharacterAbility> CharacterAbilities { get; set; } = null!;
     public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
     public DbSet<ItemInstanceModifier> ItemInstanceModifiers { get; set; } = null!;
     public DbSet<ItemInstanceModifierValue> ItemInstanceModifierValues { get; set; } = null!;
@@ -72,6 +71,7 @@ public partial class CharacterDbContext : DbContext
     public DbSet<CharacterQuestObjective> CharacterQuestObjectives { get; set; } = null!;
     public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
     public DbSet<CharacterIgnore> CharacterIgnores { get; set; } = null!;
+    public DbSet<CharacterTalent> CharacterTalents { get; set; } = null!;
     public DbSet<CharacterAura> CharacterAuras { get; set; } = null!;
     public DbSet<CharacterConsolidationReceipt> CharacterConsolidationReceipts { get; set; } = null!;
     public DbSet<TradeRecord> TradeRecords { get; set; } = null!;
@@ -105,7 +105,6 @@ public partial class CharacterDbContext : DbContext
         fence.HasKey(f => f.AccountId);
         fence.Property(f => f.AccountId).HasConversion(v => v.Value, v => new AccountId(v)).ValueGeneratedNever();
         Configure(modelBuilder.Entity<CharacterInventory>());
-        Configure(modelBuilder.Entity<CharacterAbility>());
         Configure(modelBuilder.Entity<ItemInstance>());
         Configure(modelBuilder.Entity<ItemInstanceModifier>());
         Configure(modelBuilder.Entity<ItemInstanceModifierValue>());
@@ -114,6 +113,7 @@ public partial class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterQuestObjective>());
         Configure(modelBuilder.Entity<CharacterCompletedQuest>());
         Configure(modelBuilder.Entity<CharacterIgnore>());
+        Configure(modelBuilder.Entity<CharacterTalent>());
         Configure(modelBuilder.Entity<CharacterAura>());
         EntityTypeBuilder<CharacterConsolidationReceipt> receipt = modelBuilder.Entity<CharacterConsolidationReceipt>();
         receipt.HasKey(r => r.Id);
@@ -330,30 +330,6 @@ public partial class CharacterDbContext : DbContext
         builder.HasIndex(b => b.CharacterId);
     }
 
-    private static void Configure(EntityTypeBuilder<CharacterAbility> builder)
-    {
-        builder.HasKey(b => new { b.CharacterId, b.AbilityId });
-
-        builder.Property(b => b.CharacterId)
-            .HasConversion(
-                v => v.Value,
-                v => new CharacterId(v)
-            ).IsRequired();
-
-        builder.Property(b => b.AbilityId)
-            .HasConversion(
-                v => v.Value,
-                v => new AbilityId(v)
-            );
-
-        builder.HasOne(e => e.Character)
-            .WithMany()
-            .HasForeignKey(e => e.CharacterId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasIndex(b => b.CharacterId);
-    }
-
     private static void Configure(EntityTypeBuilder<ItemInstance> builder)
     {
         builder.HasKey(b => b.Id);
@@ -514,6 +490,21 @@ public partial class CharacterDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(b => b.IgnoredCharacterId);
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterTalent> builder)
+    {
+        // A node is held once: the pair is the key. The node is a World DB row, so there is no foreign key to it (as an
+        // item's template has none); a row naming a node the tree no longer holds is dropped at select.
+        builder.HasKey(b => new { b.CharacterId, b.NodeId });
+        builder.Property(b => b.CharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.Property(b => b.NodeId).ValueGeneratedNever();
+
+        // Characters are hard-deleted: their talents go with them.
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(b => b.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void Configure(EntityTypeBuilder<CharacterAura> builder)

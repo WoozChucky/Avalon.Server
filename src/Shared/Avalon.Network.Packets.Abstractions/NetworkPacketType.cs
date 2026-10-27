@@ -96,6 +96,9 @@ public enum NetworkPacketType : short
     CMSG_TRADE_CONFIRM = 0x20D5,
     CMSG_TRADE_CANCEL = 0x20D6,
 
+    // Talents
+    CMSG_TALENT_ALLOCATE = 0x20E0,
+
     /**************************************************************************
      * Server Packets
      *************************************************************************/
@@ -216,4 +219,8 @@ public enum NetworkPacketType : short
     SMSG_TRADE_STATE = 0x30E2,
     SMSG_TRADE_CLOSED = 0x30E3,
     SMSG_TRADE_RESULT = 0x30E4,
+
+    // Talents
+    SMSG_TALENT_RESULT = 0x30F0,
+    SMSG_TALENT_STATE = 0x30F1,
 }

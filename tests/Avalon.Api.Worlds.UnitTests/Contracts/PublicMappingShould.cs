@@ -134,20 +134,19 @@ public class PublicMappingShould
             Range = Avalon.World.Public.Enums.SpellRange.Melee,
             ScriptName = script,
             Affects = affects,
-            AllowedClasses = [CharacterClass.Warrior],
             MaxTargets = 1,
             Effects = affects == AbilityAffects.Ally
                 ? Avalon.World.Public.Enums.SpellEffect.Heal
                 : Avalon.World.Public.Enums.SpellEffect.Damage,
         };
 
-        PublicAbilityDto dto = cleave.ToPublicDto();
+        PublicAbilityDto dto = cleave.ToPublicDto(granted: true);
 
         Assert.Equal((210u, "Cleave", 20u, 800u), (dto.Id, dto.Name, dto.Cost, dto.Cooldown));
         Assert.Equal(kind, dto.AmountKind);
         Assert.Equal(Avalon.Api.Contract.SpellRange.Melee, dto.Range);
         Assert.Equal(1500u, dto.CastTime);
-        Assert.Equal([CharacterClass.Warrior], dto.AllowedClasses);
+        Assert.True(dto.Granted);
         Assert.Equal(1, dto.MaxTargets);
     }
 

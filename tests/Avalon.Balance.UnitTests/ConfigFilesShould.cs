@@ -107,8 +107,8 @@ public class ConfigFilesShould
 
     [Theory]
     [InlineData("""{ "Warrior": [ { "ability": 210 } ] }""", "Warrior rotation entry 1: ability 210 is not in the class's kit")]
-    [InlineData("""{ "Warrior": [ { "ability": 200, "when": [ { "mood": ">1" } ] } ] }""", "unknown condition 'mood'")]
-    [InlineData("""{ "Warrior": [ { "ability": 200, "when": [ { "power": "about 3" } ] } ] }""", "'about 3' is not")]
+    [InlineData("""{ "Warrior": [ { "ability": 319, "when": [ { "mood": ">1" } ] } ] }""", "unknown condition 'mood'")]
+    [InlineData("""{ "Warrior": [ { "ability": 319, "when": [ { "power": "about 3" } ] } ] }""", "'about 3' is not")]
     public void Refuse_a_bad_rotation(string json, string message)
     {
         RotationFile rotations = ConfigFiles.ParseRotations(json);

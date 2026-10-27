@@ -14,11 +14,14 @@ public sealed class SeedTables
     public required List<CreatureRarityModifier> CreatureRarityModifiers { get; init; }
     public required List<CreatureTemplate> CreatureTemplates { get; init; }
     public required List<ItemTemplate> ItemTemplates { get; init; }
-    public required List<CharacterCreateInfo> CharacterCreateInfos { get; init; }
     public required List<CharacterLevelExperience> CharacterLevelExperiences { get; init; }
     public required List<VendorStock> VendorStocks { get; init; }
     public required List<AuraTemplate> AuraTemplates { get; init; }
     public required List<AuraStatModifier> AuraStatModifiers { get; init; }
+    /// <summary>The talent tree's ability links (#1181): the abilities it grants, which the class rules hold.</summary>
+    public required List<TalentNodeAbility> TalentNodeAbilities { get; init; }
+    /// <summary>The talent tree's class starts (#1181): where each class starts, whose link is its starter.</summary>
+    public required List<TalentClassStart> TalentClassStarts { get; init; }
 
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> s_columns = new();
 
@@ -36,11 +39,12 @@ public sealed class SeedTables
         CreatureRarityModifiers = CloneRows(CreatureRarityModifiers),
         CreatureTemplates = CloneRows(CreatureTemplates),
         ItemTemplates = CloneRows(ItemTemplates),
-        CharacterCreateInfos = CloneRows(CharacterCreateInfos),
         CharacterLevelExperiences = CloneRows(CharacterLevelExperiences),
         VendorStocks = CloneRows(VendorStocks),
         AuraTemplates = CloneRows(AuraTemplates),
         AuraStatModifiers = CloneRows(AuraStatModifiers),
+        TalentNodeAbilities = CloneRows(TalentNodeAbilities),
+        TalentClassStarts = CloneRows(TalentClassStarts),
     };
 
     private static List<T> CloneRows<T>(List<T> rows) where T : class, new()

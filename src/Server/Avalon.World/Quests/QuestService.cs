@@ -332,6 +332,15 @@ public sealed class QuestService(
 
         character.Quests.Complete(questId, time.GetUtcNow().UtcDateTime);
         character.Quests.Say($"Quest completed: {Title(character, quest)}.");
+        // #1181: a paying quest's talent points join the points earned; the window's state follows in the tick's flush.
+        if (quest.RewardTalentPoints > 0)
+        {
+            character.Quests.Say(quest.RewardTalentPoints == 1
+                ? "You gained 1 talent point."
+                : $"You gained {quest.RewardTalentPoints} talent points.");
+            character.Talents.MarkStateOwed();
+        }
+
         AfterConversationChange(connection, character, npc, questId);
         return QuestResult.Ok;
     }

@@ -364,6 +364,107 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(expected, actual);
     }
 
+    /// <summary>
+    /// #1181 (T-R10): the tree's lines fold exactly as gear's. A seeded level-1 Warrior (Stamina 22, Strength 23,
+    /// Intellect 20: life 240, mana 180) wears a plate chest that rolled 40 armour; Strength gives 2 more (23 x 0.1).
+    /// The tree's attributes join gear's before the conversions (Strength 28 is 98 increased physical attack, 17.5
+    /// above 80.5); its flat armour joins the chest's and Strength's, and a global increase, the tree's or a ring's,
+    /// scales that whole sum: 42 x 1.06 is 44.52, 45; 57 x 1.06 is 60.42, 60. The tree's flat armour joins after the
+    /// chest's own local increase: a chest with 50 % local armour is 40 x 1.5 + 15 + 2, 77, never (40 + 15) x 1.5 + 2.
+    /// Increased maximum life is gear plus tree (240 x 1.08 is 259.2, 259), and a More multiplies the result last, once
+    /// the increase is rounded (240 x 0.75 is 180; 240 x 1.09 is 261.6, 262, and 262 x 0.75 is 196.5, 197, where 261.6
+    /// x 0.75 would be 196). A More's product is snapped to a millionth before it rounds: 325 x 0.7 is
+    /// 227.49999999999997 in a double and rounds as 227.5, 228. Nothing folded is the calculation without the argument.
+    /// </summary>
+    [Theory]
+    [InlineData("+5 Strength", 28d, 98d)]
+    [InlineData("+15 armour", 57d)]
+    [InlineData("+15 armour on a chest with 50% local armour", 77d)]
+    [InlineData("+6% increased armour", 45d)]
+    [InlineData("+15 armour and +6%", 60d)]
+    [InlineData("gear +6% increased armour", 45d)]
+    [InlineData("+3% increased maximum life with gear +5%", 259d)]
+    [InlineData("+15% increased maximum mana", 207d)]
+    [InlineData("25% less maximum life", 180d)]
+    [InlineData("+9% increased maximum life and 25% less", 197d)]
+    [InlineData("+85 health and 30% less maximum life", 228d)]
+    [InlineData("30% more damage", 1.3d)]
+    [InlineData("+25% increased mana regeneration", 25d)]
+    [InlineData("attacks add 2 to 4 cold", 2d, 4d)]
+    [InlineData("+1% block, +2% movement, +4% lightning resistance", 1d, 2d, 4d)]
+    [InlineData("none")]
+    public void Fold_the_tree_with_gear(string row, params double[] expected)
+    {
+        var chest = new ItemTemplate { Name = "Plate Chest", Slot = ItemSlotType.Chest };
+        var ring = new ItemTemplate { Name = "Ring", Slot = ItemSlotType.Finger };
+        List<WornItem> worn = [Rolled(chest, new ItemBaseStats { Armour = 40 })];
+        var tree = new TalentTotals();
+        switch (row)
+        {
+            case "+5 Strength": tree.Add(StatType.Strength, TalentStatKind.Added, 5, null); break;
+            case "+15 armour": tree.Add(StatType.Armor, TalentStatKind.Added, 15, null); break;
+            case "+15 armour on a chest with 50% local armour":
+                worn[0] = Rolled(chest, new ItemBaseStats { Armour = 40 }, (StatType.LocalIncreasedArmor, 50, null));
+                tree.Add(StatType.Armor, TalentStatKind.Added, 15, null);
+                break;
+            case "+6% increased armour": tree.Add(StatType.IncreasedArmor, TalentStatKind.Added, 6, null); break;
+            case "+15 armour and +6%":
+                tree.Add(StatType.Armor, TalentStatKind.Added, 15, null);
+                tree.Add(StatType.IncreasedArmor, TalentStatKind.Added, 6, null);
+                break;
+            case "gear +6% increased armour": worn.Add(Rolled(ring, (StatType.IncreasedArmor, 6, null))); break;
+            case "+3% increased maximum life with gear +5%":
+                tree.Add(StatType.IncreasedMaximumLife, TalentStatKind.Added, 3, null);
+                worn.Add(Rolled(ring, (StatType.IncreasedMaximumLife, 5, null)));
+                break;
+            case "+15% increased maximum mana": tree.Add(StatType.IncreasedMaximumMana, TalentStatKind.Added, 15, null); break;
+            case "25% less maximum life": tree.Add(StatType.IncreasedMaximumLife, TalentStatKind.More, -25, null); break;
+            case "+9% increased maximum life and 25% less":
+                tree.Add(StatType.IncreasedMaximumLife, TalentStatKind.Added, 9, null);
+                tree.Add(StatType.IncreasedMaximumLife, TalentStatKind.More, -25, null);
+                break;
+            case "+85 health and 30% less maximum life":
+                tree.Add(StatType.Health, TalentStatKind.Added, 85, null);
+                tree.Add(StatType.IncreasedMaximumLife, TalentStatKind.More, -30, null);
+                break;
+            case "30% more damage": tree.Add(StatType.IncreasedDamage, TalentStatKind.More, 30, null); break;
+            case "+25% increased mana regeneration":
+                tree.Add(StatType.IncreasedManaRegeneration, TalentStatKind.Added, 25, null);
+                break;
+            case "attacks add 2 to 4 cold": tree.Add(StatType.AddedColdDamageToAttacks, TalentStatKind.Added, 2, 4); break;
+            case "+1% block, +2% movement, +4% lightning resistance":
+                tree.Add(StatType.BlockPct, TalentStatKind.Added, 1, null);
+                tree.Add(StatType.MovementSpeed, TalentStatKind.Added, 2, null);
+                tree.Add(StatType.LightningResistance, TalentStatKind.Added, 4, null);
+                break;
+            default: break;
+        }
+
+        ClassLevelStat warrior = SeededRow(CharacterClass.Warrior, 1);
+        DerivedCharacterStats s = CharacterStatsCalculator.Calculate(warrior, worn, TestCombat.Formula, talents: tree);
+        if (row == "none")
+        {
+            // Whole records, so a failure shows what differs.
+            Assert.Equal(CharacterStatsCalculator.Calculate(warrior, worn, TestCombat.Formula), s);
+            return;
+        }
+
+        double[] actual = row switch
+        {
+            "+5 Strength" => [s.Strength, s.Offence.Increased(OffenceStat.PhysicalAttack)],
+            "+3% increased maximum life with gear +5%" or "25% less maximum life"
+                or "+9% increased maximum life and 25% less" or "+85 health and 30% less maximum life" => [s.MaxHealth],
+            "+15% increased maximum mana" => [s.MaxPower],
+            "30% more damage" => [s.Offence.More(OffenceStat.Damage)],
+            "+25% increased mana regeneration" => [s.IncreasedManaRegenPct],
+            "attacks add 2 to 4 cold" => [s.AddedToAttacks.Min(DamageType.Cold), s.AddedToAttacks.Max(DamageType.Cold)],
+            "+1% block, +2% movement, +4% lightning resistance" =>
+                [s.BlockPct, s.MovementSpeedPct, s.Resistances.Lightning],
+            _ => [s.Armor],
+        };
+        Assert.Equal(expected, actual.Select(a => Math.Round(a, 6)));
+    }
+
     /// <summary>A copy of <paramref name="template" /> with no base stats whose modifiers hold <paramref name="values" />.</summary>
     private static WornItem Rolled(ItemTemplate template, params (StatType Stat, int Value, int? Value2)[] values) =>
         Rolled(template, default, values);

@@ -19,7 +19,7 @@
       "castTimeMs": 0,
       "cooldownMs": 0,
       "auraId": null,
-      "basic": true
+      "basic": false
     },
     {
       "id": 201,

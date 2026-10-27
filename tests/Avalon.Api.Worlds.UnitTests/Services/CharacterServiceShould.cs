@@ -28,14 +28,19 @@ public sealed class CharacterServiceShould : IDisposable
     // The Ironwood Sword (32) as a copy rolled it, within its seeded 2-4, 6-8 and 665-735 ms.
     private static readonly ItemBaseStats s_rolledSword = new() { DamageMin = 3, DamageMax = 7, AttackTime = 700 };
 
+    // The seeded nodes from the Warrior's start to Cleave (#1181): +5 Strength, 5 % increased physical damage, 2 % attack
+    // speed, 3 % increased maximum life, then Cleave itself.
+    private static readonly int[] s_toCleave = [2, 3, 4, 5, 6];
+
     // The seeded world, whose modifier catalog (#1179) the service reads as the API does: only the rows the items carry.
     private readonly SqliteWorlds _world = new(1);
 
     public void Dispose() => _world.Dispose();
 
-    private IItemModifierRepository Modifiers() => new ItemModifierRepository(
-        new DelegateDbContextFactory<WorldDbContext>(() => _world.CreateWorld(new Avalon.Domain.Auth.WorldId(1))),
-        NullLoggerFactory.Instance);
+    private DelegateDbContextFactory<WorldDbContext> SeededWorld() =>
+        new(() => _world.CreateWorld(new Avalon.Domain.Auth.WorldId(1)));
+
+    private IItemModifierRepository Modifiers() => new ItemModifierRepository(SeededWorld(), NullLoggerFactory.Instance);
     /// <summary>A seeded affix's id, named by its family's code, element (null on an unsplit family) and tier: no test holds an id (#1179).</summary>
     private static int Seeded(string code, Avalon.Network.Packets.Combat.DamageType? element, byte tier)
     {
@@ -186,9 +191,10 @@ public sealed class CharacterServiceShould : IDisposable
             });
 
         var service = new CharacterService(characters, slots, items,
-            Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
+            Substitute.For<ICharacterTalentRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
             Modifiers(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
+            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>(),
+            Substitute.For<ITalentTreeRepository>(), Substitute.For<IQuestRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -298,9 +304,10 @@ public sealed class CharacterServiceShould : IDisposable
             .Returns(new List<ItemTemplate> { new() { Id = new ItemTemplateId(1), Name = "Health Potion", Slot = slot } });
 
         var service = new CharacterService(characters, slots, items,
-            Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
+            Substitute.For<ICharacterTalentRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
             Modifiers(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
+            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>(),
+            Substitute.For<ITalentTreeRepository>(), Substitute.For<IQuestRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -308,16 +315,36 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal((Avalon.Api.Contract.ItemSlotType?)slot, item.Template!.SlotType);
     }
 
-    private static CharacterService AbilityService(CharacterId id, AbilityTemplate ability, CharacterStats? stats,
-        IReadOnlyList<ItemInstance> worn, IReadOnlyList<ItemTemplate> templateRows, CombatFormula formula)
+    /// <summary>The seeded talent tree, read from the seeded world database.</summary>
+    private TalentTreeRepository SeededTree() => new(SeededWorld());
+
+    /// <summary>The saved talent rows of a character holding <paramref name="nodeIds" />, by ascending node id.</summary>
+    private static ICharacterTalentRepository Holding(CharacterId id, params int[] nodeIds)
+    {
+        ICharacterTalentRepository talents = Substitute.For<ICharacterTalentRepository>();
+        talents.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns([.. nodeIds.Order().Select(node => new CharacterTalent { CharacterId = id, NodeId = node })]);
+        return talents;
+    }
+
+    /// <summary>
+    /// A Warrior at <paramref name="level" /> holding <paramref name="nodeIds" /> in the seeded tree, whose ability
+    /// templates read back as <paramref name="ability" /> alone.
+    /// </summary>
+    private CharacterService AbilityService(CharacterId id, AbilityTemplate ability, CharacterStats? stats,
+        IReadOnlyList<ItemInstance> worn, IReadOnlyList<ItemTemplate> templateRows, CombatFormula formula,
+        ushort level, int[] nodeIds)
     {
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
-            .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster", Level = 1 });
+            .Returns(new Avalon.Domain.Characters.Character
+            {
+                Id = id,
+                Name = "Caster",
+                Class = CharacterClass.Warrior,
+                Level = level,
+            });
 
-        ICharacterAbilityRepository rows = Substitute.For<ICharacterAbilityRepository>();
-        rows.GetCharacterAbilitiesAsync(id, Arg.Any<CancellationToken>())
-            .Returns(new List<CharacterAbility> { new() { CharacterId = id, AbilityId = ability.Id } });
         IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.GetByIdsAsync(Arg.Any<IEnumerable<AbilityId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate> { ability });
@@ -354,9 +381,10 @@ public sealed class CharacterServiceShould : IDisposable
         ICombatDataRepository combat = Substitute.For<ICombatDataRepository>();
         combat.GetFormulasAsync(Arg.Any<CancellationToken>()).Returns(new List<CombatFormula> { formula });
 
-        return new CharacterService(characters, slots, instances, rows, abilities, templates,
+        return new CharacterService(characters, slots, instances, Holding(id, nodeIds), abilities, templates,
             Substitute.For<IItemModifierRepository>(), statsRepository,
-            Substitute.For<ICharacterQuestRepository>(), Substitute.For<ICharacterAuraRepository>(), combat);
+            Substitute.For<ICharacterQuestRepository>(), Substitute.For<ICharacterAuraRepository>(), combat,
+            SeededTree(), Substitute.For<IQuestRepository>());
     }
 
     /// <summary>
@@ -414,26 +442,30 @@ public sealed class CharacterServiceShould : IDisposable
     /// <summary>
     /// #1178, #1179 (Review Focus 5, B2 Review Focus 3): the worlds service advertises exactly what the world server sends
     /// for the same saved character: AbilityAmounts over the stats calculator's attacker for the same row and worn items,
-    /// as the world builds it at select, the sword's damage read from its saved base-stat rows. A saved level-1 Warrior
-    /// (Strength 23: #1179's bases carry no attributes) in the starter armour and an Ironwood Sword that rolled 3-7 at
-    /// 700 ms: Cleave rolls 3..7 at 315 % effectiveness and 80.5 % increased physical attack damage, 17..39. With the same
-    /// ring on both fingers (10 % increased physical damage each), both count, as in the world: 100.5 %, 18..44. With the
-    /// sword's own added fire 2..5 and a Copper Band's added physical damage to attacks 1..3, each read from its saved
-    /// instance's modifiers: 29..72. With the sword's added fire sealed (#1180), it adds nothing, on either side: the
-    /// starter gear's 17..39.
+    /// as the world builds it at select, the sword's damage read from its saved base-stat rows. Every row holds the
+    /// seeded nodes to Cleave (#1181), which the world folds from the tree and the API from the saved talent rows: +5
+    /// Strength and 5 % increased physical damage count here (attack speed moves no amount). A saved level-1 Warrior
+    /// (Strength 23 + 5: #1179's bases carry no attributes) in the starter armour and an Ironwood Sword that rolled 3-7 at
+    /// 700 ms: Cleave rolls 3..7 at 315 % effectiveness and 98 + 5 % increased physical attack damage, 19..44. With the
+    /// same ring on both fingers (10 % increased physical damage each), both count, as in the world: 123 %, 21..49. With
+    /// the sword's own added fire 2..5 and a Copper Band's added physical damage to attacks 1..3, each read from its saved
+    /// instance's modifiers: 31..79. With the sword's added fire sealed (#1180), it adds nothing, on either side: the
+    /// starter gear's 19..44. At level 7 (Strength 35 + 5) in the starter gear: 145 %, 23..54.
     /// </summary>
     [Theory]
-    [InlineData("starter gear", 17u, 39u)]
-    [InlineData("two rings", 18u, 44u)]
-    [InlineData("a modified sword and a global ring", 29u, 72u)]
-    [InlineData("a sword whose added fire is sealed", 17u, 39u)]
-    public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character(string gear, uint min, uint max)
+    [InlineData("starter gear", 1, 19u, 44u)]
+    [InlineData("two rings", 1, 21u, 49u)]
+    [InlineData("a modified sword and a global ring", 1, 31u, 79u)]
+    [InlineData("a sword whose added fire is sealed", 1, 19u, 44u)]
+    [InlineData("starter gear", 7, 23u, 54u)]
+    public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character(string gear, ushort level,
+        uint min, uint max)
     {
         var id = new CharacterId(42);
         using var sqlite = new SqliteWorlds(1);
         using WorldDbContext world = sqlite.CreateWorld(new WorldId(1));
         ClassLevelStat row = world.ClassLevelStats.AsEnumerable()
-            .Single(r => r.Class == CharacterClass.Warrior && r.Level == 1);
+            .Single(r => r.Class == CharacterClass.Warrior && r.Level == level);
         CombatFormula formula = world.CombatFormulas.Single();
         var templates = world.ItemTemplates.AsEnumerable().ToDictionary(t => t.Id.Value);
         List<ItemInstance> worn = [.. new ulong[] { 36, 37, 38, 39, 40 }.Select(t => Saved(templates[t]))];
@@ -467,23 +499,33 @@ public sealed class CharacterServiceShould : IDisposable
 
         List<ItemTemplate> wornTemplates = [.. worn.Select(item => templates[item.TemplateId.Value])];
         AbilityTemplate cleave = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == 200);
+        // The world's side: the same five nodes' lines summed, folded by the stats refresh.
+        var talents = new TalentTotals();
+        foreach (TalentNodeStat line in TalentSeed.Stats().Where(s => s_toCleave.Contains(s.NodeId)))
+            talents.Add(line.Stat, line.Kind, line.Value, line.ValueMax);
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row,
             [.. worn.Select((item, i) => new WornItem(wornTemplates[i], ItemBaseStats.Of(item.BaseStats), item.Modifiers,
                 wornTemplates[i].DamageType))],
-            formula);
-        AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(1), AbilityMetadataMapper.From(cleave), default);
+            formula, talents: talents);
+        AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(level), AbilityMetadataMapper.From(cleave), default);
 
-        CharacterAbilitiesDto? result = await AbilityService(id, cleave, stats.ToRow(id), worn, wornTemplates, formula)
-            .GetAbilitiesAsync(id);
+        // The API's side reads the saved rows.
+        CharacterAbilitiesDto? result = await AbilityService(id, cleave, stats.ToRow(id), worn, wornTemplates, formula,
+            level, s_toCleave).GetAbilitiesAsync(id);
 
-        CharacterAbilityAmountDto amount = Assert.Single(result!.Abilities).Amount!;
-        Assert.Equal(23u, stats.Strength);
+        // Heavy Strike, the Warrior's starter, then Cleave.
+        Assert.Equal([319u, 200u], result!.Abilities.Select(a => a.AbilityId));
+        CharacterAbilityAmountDto amount = result.Abilities[1].Amount!;
+        Assert.Equal(row.Strength + 5u, stats.Strength);
         Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, min, max), (amount.Kind, amount.Min, amount.Max));
         Assert.Equal(((Avalon.Api.Contract.AbilityAmountKind)sent.Kind, sent.Min, sent.Max),
             (amount.Kind, amount.Min, amount.Max));
     }
 
-    /// <summary>No saved stats and no weapon: the bare hand's 3..6 at Cleave's 315 %, with no offence, 9..18.</summary>
+    /// <summary>
+    /// No saved stats and no weapon: the bare hand's 3..6 at Cleave's 315 %, with no attributes and only the tree's 5 %
+    /// increased physical damage from the nodes to Cleave, 9..19.
+    /// </summary>
     [Fact]
     public async Task Compute_amounts_without_stats_or_a_weapon()
     {
@@ -501,13 +543,17 @@ public sealed class CharacterServiceShould : IDisposable
         };
 
         CharacterAbilitiesDto? result = await AbilityService(id, cleave, stats: null, worn: [], templateRows: [],
-            CombatSeed.Formula()).GetAbilitiesAsync(id);
+            CombatSeed.Formula(), level: 1, s_toCleave).GetAbilitiesAsync(id);
 
-        CharacterAbilityAmountDto amount = Assert.Single(result!.Abilities).Amount!;
-        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 9u, 18u), (amount.Kind, amount.Min, amount.Max));
+        CharacterAbilityAmountDto amount = result!.Abilities.Single(a => a.AbilityId == 200).Amount!;
+        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 9u, 19u), (amount.Kind, amount.Min, amount.Max));
     }
 
-    /// <summary>A character's abilities carry each one's cost, in mana (#1181).</summary>
+    /// <summary>
+    /// A character's abilities come from the tree (#1181), each with its cost in mana from the world database: a Warrior
+    /// holding the hub's first nodes to Hurled Axe (57-61) has Heavy Strike, its starter (cost 0), then Hurled Axe (cost
+    /// 10). A saved row naming a node the tree lacks (999) adds nothing, as the world ignores it until its next select.
+    /// </summary>
     [Fact]
     public async Task Return_each_abilitys_cost()
     {
@@ -515,36 +561,54 @@ public sealed class CharacterServiceShould : IDisposable
 
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
-            .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster" });
-
-        ICharacterAbilityRepository rows = Substitute.For<ICharacterAbilityRepository>();
-        rows.GetCharacterAbilitiesAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterAbility>
-        {
-            new() { CharacterId = id, AbilityId = new AbilityId(210) },
-            new() { CharacterId = id, AbilityId = new AbilityId(211) },
-        });
-
-        IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
-        abilities.GetByIdsAsync(Arg.Any<IEnumerable<AbilityId>>(), Arg.Any<CancellationToken>())
-            .Returns(new List<AbilityTemplate>
-            {
-                new() { Id = new AbilityId(210), Name = "Firebolt", Cost = 0 },
-                new() { Id = new AbilityId(211), Name = "Flame Burst", Cost = 20 },
-            });
+            .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster", Class = CharacterClass.Warrior });
 
         ICombatDataRepository combat = Substitute.For<ICombatDataRepository>();
         combat.GetFormulasAsync(Arg.Any<CancellationToken>()).Returns(new List<CombatFormula> { CombatSeed.Formula() });
 
         var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
-            Substitute.For<IItemInstanceRepository>(), rows, abilities, Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>(), combat);
+            Substitute.For<IItemInstanceRepository>(), Holding(id, 57, 58, 59, 60, 61, 999),
+            new AbilityTemplateRepository(SeededWorld()), Substitute.For<IItemTemplateRepository>(),
+            Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(),
+            Substitute.For<ICharacterQuestRepository>(), Substitute.For<ICharacterAuraRepository>(), combat, SeededTree(),
+            Substitute.For<IQuestRepository>());
 
         CharacterAbilitiesDto? result = await service.GetAbilitiesAsync(id);
 
-        Assert.Collection(result!.Abilities,
-            free => Assert.Equal(0u, free.Template!.Cost),
-            costed => Assert.Equal(20u, costed.Template!.Cost));
+        Assert.Equal([("Heavy Strike", 0u), ("Hurled Axe", 10u)],
+            result!.Abilities.Select(a => (a.Template!.Name, a.Template.Cost)));
+    }
+
+    /// <summary>
+    /// A character's saved talent nodes with the points it has, worked out as the world works them out (#1181): a
+    /// level-7 character holding nodes 2, 3 and 4 that turned in quests 3 (one talent point) and 10 (none) has earned 8
+    /// and spent 3. A saved row naming a node the tree no longer holds (999) is listed nowhere and costs nothing, as
+    /// the world drops it at the next select. A character that does not exist has none.
+    /// </summary>
+    [Fact]
+    public async Task Return_the_characters_talents_with_the_points_it_earned()
+    {
+        var id = new CharacterId(42);
+
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
+        characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
+            .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Holder", Class = CharacterClass.Warrior, Level = 7 });
+        ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetCompletedQuestIdsAsync(id, Arg.Any<CancellationToken>()).Returns([3u, 10u]);
+
+        var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Holding(id, 2, 3, 4, 999),
+            Substitute.For<IAbilityTemplateRepository>(),
+            Substitute.For<IItemTemplateRepository>(), Substitute.For<IItemModifierRepository>(),
+            Substitute.For<ICharacterStatsRepository>(), quests, Substitute.For<ICharacterAuraRepository>(),
+            Substitute.For<ICombatDataRepository>(), SeededTree(), new QuestRepository(SeededWorld()));
+
+        CharacterTalentsDto? talents = await service.GetTalentsAsync(id);
+
+        Assert.NotNull(talents);
+        Assert.Equal((42u, 8, 3), (talents!.CharacterId, talents.PointsEarned, talents.PointsSpent));
+        Assert.Equal([2, 3, 4], talents.NodeIds);
+        Assert.Null(await service.GetTalentsAsync(new CharacterId(43)));
     }
 
     /// <summary>
@@ -661,11 +725,12 @@ public sealed class CharacterServiceShould : IDisposable
     private CharacterService StatsService(ICharacterStatsRepository stats, ICharacterInventoryRepository slots,
         IItemInstanceRepository items, IItemTemplateRepository templates) =>
         new(Substitute.For<ICharacterRepository>(), slots,
-            items, Substitute.For<ICharacterAbilityRepository>(),
+            items, Substitute.For<ICharacterTalentRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), templates,
             Modifiers(), stats,
             Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
+            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>(),
+            Substitute.For<ITalentTreeRepository>(), Substitute.For<IQuestRepository>());
 
     /// <summary>#714: the saved quest rows, each held quest with its own counts, by quest and objective id.</summary>
     [Fact]
@@ -728,10 +793,11 @@ public sealed class CharacterServiceShould : IDisposable
                 Stacks = 1, RemainingMs = 30000, DurationMs = 30000, TicksLeft = 0, AppliedAt = applied },
         ]);
         var service = new CharacterService(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
-            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterTalentRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
             Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras,
-            Substitute.For<ICombatDataRepository>());
+            Substitute.For<ICombatDataRepository>(),
+            Substitute.For<ITalentTreeRepository>(), Substitute.For<IQuestRepository>());
 
         CharacterAurasDto dto = await service.GetAurasAsync(new CharacterId(42));
 
@@ -751,10 +817,11 @@ public sealed class CharacterServiceShould : IDisposable
         ICharacterAuraRepository auras = Substitute.For<ICharacterAuraRepository>();
         auras.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns([]);
         var service = new CharacterService(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
-            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterTalentRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
             Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras,
-            Substitute.For<ICombatDataRepository>());
+            Substitute.For<ICombatDataRepository>(),
+            Substitute.For<ITalentTreeRepository>(), Substitute.For<IQuestRepository>());
 
         CharacterAurasDto dto = await service.GetAurasAsync(new CharacterId(7));
 
@@ -764,8 +831,9 @@ public sealed class CharacterServiceShould : IDisposable
 
     private static CharacterService QuestService(ICharacterQuestRepository quests) =>
         new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
-            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterTalentRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
             Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), quests, Substitute.For<ICharacterAuraRepository>(),
-            Substitute.For<ICombatDataRepository>());
+            Substitute.For<ICombatDataRepository>(),
+            Substitute.For<ITalentTreeRepository>(), Substitute.For<IQuestRepository>());
 }

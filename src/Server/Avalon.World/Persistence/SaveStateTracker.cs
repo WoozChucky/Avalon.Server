@@ -33,7 +33,8 @@ public sealed record SaveMarks(
     long? PvpVersion = null,
     IReadOnlyDictionary<uint, SaveMark>? Quests = null,
     IReadOnlyDictionary<uint, SaveMark>? Ignores = null,
-    long? AurasVersion = null);
+    long? AurasVersion = null,
+    IReadOnlyDictionary<int, SaveMark>? Talents = null);
 
 /// <summary>
 /// The per-character save state of every item instance and inventory slot, and gold's dirty flag.
@@ -45,6 +46,7 @@ public sealed class SaveStateTracker
     private readonly Dictionary<(InventoryType Container, byte Slot), SaveMark> _slots = [];
     private readonly Dictionary<uint, SaveMark> _quests = [];
     private readonly Dictionary<uint, SaveMark> _ignores = [];
+    private readonly Dictionary<int, SaveMark> _talents = [];
     private long _version;
     private long _goldVersion;
     private long _statsVersion;
@@ -63,7 +65,7 @@ public sealed class SaveStateTracker
     public bool AurasDirty { get; private set; }
 
     public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || GoldDirty || StatsDirty || PvpDirty || _quests.Count > 0
-        || _ignores.Count > 0 || AurasDirty;
+        || _ignores.Count > 0 || AurasDirty || _talents.Count > 0;
 
     public SaveState ItemState(ItemInstanceId id) =>
         _items.TryGetValue(id, out SaveMark mark) ? mark.State : SaveState.Unchanged;
@@ -155,6 +157,12 @@ public sealed class SaveStateTracker
     public void IgnoreChanged(uint ignoredCharacterId) =>
         _ignores[ignoredCharacterId] = new SaveMark(SaveState.Changed, ++_version, Modifiers: false);
 
+    /// <summary>
+    /// The talent node was allocated or dropped (#1181): the next save rewrites its row from memory.
+    /// </summary>
+    public void TalentChanged(int nodeId) =>
+        _talents[nodeId] = new SaveMark(SaveState.Changed, ++_version, Modifiers: false);
+
     private static SaveState ChangedFrom(SaveState state) => state == SaveState.New ? SaveState.New : SaveState.Changed;
 
     private bool ModifiersMarked(ItemInstanceId id) => _items.TryGetValue(id, out SaveMark mark) && mark.Modifiers;
@@ -168,7 +176,8 @@ public sealed class SaveStateTracker
         PvpDirty ? _pvpVersion : null,
         new Dictionary<uint, SaveMark>(_quests),
         new Dictionary<uint, SaveMark>(_ignores),
-        AurasDirty ? _aurasVersion : null);
+        AurasDirty ? _aurasVersion : null,
+        new Dictionary<int, SaveMark>(_talents));
 
     /// <summary>
     /// Called on the tick thread once the save that took <paramref name="marks" /> has committed.
@@ -217,5 +226,14 @@ public sealed class SaveStateTracker
 
         if (marks.AurasVersion is { } aurasVersion && AurasDirty && _aurasVersion == aurasVersion)
             AurasDirty = false;
+
+        if (marks.Talents is { } talents)
+        {
+            foreach ((int id, SaveMark mark) in talents)
+            {
+                if (_talents.TryGetValue(id, out SaveMark current) && current.Version == mark.Version)
+                    _talents.Remove(id);
+            }
+        }
     }
 }

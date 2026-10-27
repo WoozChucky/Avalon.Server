@@ -2,6 +2,7 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World;
@@ -9,16 +10,23 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Characters;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
+using Avalon.World.Respawn;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using ProtoBuf;
 
@@ -34,11 +42,15 @@ public class CharacterCreationShould : IDisposable
     private readonly SqliteDatabase<CharacterDbContext> _characters = SqliteDatabase.Characters();
     private readonly SqliteDatabase<WorldDbContext> _world = SqliteDatabase.World();
 
+    /// <summary>
+    /// The character, its stats and its starting items, each in its Bag slot, in one transaction. No ability is written
+    /// (#1181): its first select holds only its class start's starter, since it holds no talent node.
+    /// </summary>
     [Fact]
-    public async Task Persist_the_character_its_stats_abilities_and_items()
+    public async Task Persist_the_character_its_stats_and_items_and_enter_with_its_starter_alone()
     {
         StaticData data = await LoadStaticDataAsync();
-        CharacterCreateInfo createInfo = data.CharacterCreateInfos.First();
+        CharacterCreateInfo createInfo = data.CharacterCreateInfos.Single(c => c.Class == CharacterClass.Warrior);
 
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = NewHandler(data);
@@ -56,22 +68,68 @@ public class CharacterCreationShould : IDisposable
             await characterDb.Characters.SingleAsync(c => c.Name == "Testarossa");
 
         Assert.Equal(1, await characterDb.CharacterStats.CountAsync(s => s.CharacterId == character.Id));
-        Assert.Equal(createInfo.StartingSpells.Count,
-            await characterDb.CharacterAbilities.CountAsync(a => a.CharacterId == character.Id));
-        Assert.Equal(createInfo.StartingItems.Count,
-            await characterDb.CharacterInventory.CountAsync(i => i.CharacterId == character.Id));
+        Assert.Equal(createInfo.StartingItems.Select(i => i.Slot),
+            (await characterDb.CharacterInventory.AsNoTracking().Where(i => i.CharacterId == character.Id).ToListAsync())
+            .Where(i => i.Container == InventoryType.Bag).Select(i => i.Slot).Order());
 
         // The item instances now live beside the slots that point at them, and each carries an id
         // the server allocated.
         List<ItemInstance> items = await characterDb.ItemInstances.AsNoTracking()
             .Where(i => i.CharacterId == character.Id).ToListAsync();
-        Assert.Equal(createInfo.StartingItems.Count, items.Count);
+        Assert.Equal(createInfo.StartingItems.Select(i => i.TemplateId.Value).Order(),
+            items.Select(i => i.TemplateId.Value).Order());
         Assert.All(items, item => Assert.NotEqual(Guid.Empty, item.Id.Value));
 
         // StaticData's cached templates were not written back into the World database.
         await using WorldDbContext worldDb = _world.CreateDbContext();
-        Assert.Equal(createInfo.StartingItems.Distinct().Count(),
-            await worldDb.ItemTemplates.CountAsync(t => createInfo.StartingItems.Contains(t.Id)));
+        Assert.Equal(createInfo.StartingItems.Count, await worldDb.ItemTemplates.CountAsync(
+            t => createInfo.StartingItems.Select(i => i.TemplateId).Contains(t.Id)));
+
+        // Its first select, through the real handler over the rows just written: no talent rows, so its abilities are
+        // the Warrior's starter, Heavy Strike, alone.
+        IWorldConnection selecting = await SelectAsync(data, character);
+        CharacterEntity entity = Assert.IsType<CharacterEntity>(selecting.PendingSpawn?.Character);
+        Assert.Equal([319u], entity.Spells.All.Select(a => a.AbilityId.Value));
+        Assert.Empty(entity.Talents.Held);
+    }
+
+    /// <summary>
+    /// Selects <paramref name="character" /> on a new connection of its account through the real select handler, over
+    /// the Character database's real repositories, its map a town, the continuation chain pumped as the tick pumps it;
+    /// the connection holds the character as its pending spawn once select is done.
+    /// </summary>
+    private async Task<IWorldConnection> SelectAsync(StaticData data, Avalon.Domain.Characters.Character character)
+    {
+        IWorldConnection connection = PendingSpawnConnection.Create();
+        connection.AccountId.Returns(character.AccountId);
+        connection.GameplayAuthority.Returns(_authority);
+
+        IMapInstance instance = Substitute.For<IMapInstance>();
+        instance.InstanceId.Returns(Guid.NewGuid());
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
+        registry.GetOrCreateTownInstanceAsync(new MapTemplateId(character.Map), Arg.Any<ushort>())
+            .Returns(Task.FromResult(instance));
+        IWorld world = NewWorld(data);
+        world.InstanceRegistry.Returns(registry);
+        world.MapTemplates.Returns(new List<MapTemplate>
+        {
+            new()
+            {
+                Id = new MapTemplateId(character.Map), MapType = MapType.Town, Name = "Town", Description = "Town",
+                MaxPlayers = 30,
+            },
+        });
+
+        var handler = new CharacterSelectHandler(NullLogger<CharacterSelectHandler>.Instance,
+            NullLoggerFactory.Instance,
+            new CharacterRepository(_characters), new CharacterInventoryRepository(_characters),
+            new ItemInstanceRepository(_characters), new CharacterTalentRepository(_characters), world,
+            Substitute.For<IRespawnTargetResolver>(), Options.Create(new RegenConfiguration()),
+            Substitute.For<IAccountRepository>(), Substitute.For<ICharacterSaver>(), Substitute.For<IWorldServer>(),
+            questRepository: new CharacterQuestRepository(_characters), databaseWork: InlineDatabaseWork.Instance);
+        handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = character.Id });
+        await PumpAsync(connection);
+        return connection;
     }
 
     /// <summary>
@@ -143,7 +201,6 @@ public class CharacterCreationShould : IDisposable
             Assert.NotEqual(Guid.Empty, instance.Id.Value);
             Assert.NotEqual(default, instance.TemplateId);
         });
-        Assert.All(captured.Abilities, ability => Assert.Null(ability.Character));
         Assert.All(captured.Slots, slot => Assert.Null(slot.Character));
     }
 
@@ -313,7 +370,6 @@ public class CharacterCreationShould : IDisposable
         Avalon.Domain.Characters.Character only = await characterDb.Characters.AsNoTracking().SingleAsync();
         Assert.Equal(new AccountId(2), only.AccountId);
         Assert.False(await characterDb.CharacterStats.AnyAsync());
-        Assert.Empty(await characterDb.CharacterAbilities.ToListAsync());
         Assert.Empty(await characterDb.ItemInstances.ToListAsync());
     }
 

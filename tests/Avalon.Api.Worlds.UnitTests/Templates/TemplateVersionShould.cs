@@ -228,7 +228,6 @@ public class TemplateVersionShould
         Id = new AbilityId(7),
         Name = "Cleave",
         ScriptName = "script",
-        AllowedClasses = [CharacterClass.Warrior],
         AuraId = new AuraId(1),
     };
 

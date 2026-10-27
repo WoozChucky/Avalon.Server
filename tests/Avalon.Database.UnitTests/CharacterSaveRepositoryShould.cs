@@ -115,11 +115,12 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     }
 
     /// <summary>
-    /// One statement deletes the rows of every quest a save rewrites (#883), so the quests it does not name, and
-    /// another character's rows for the quests it does, stay as they are.
+    /// One statement deletes the rows of every quest a save rewrites (#883), and one those of every talent node it
+    /// rewrites (#1181), so the keys it does not name, and another character's rows for the keys it does, stay as they
+    /// are.
     /// </summary>
     [Fact]
-    public async Task Rewrite_only_the_quests_named_and_only_for_that_character()
+    public async Task Rewrite_only_the_keyed_rows_named_and_only_for_that_character()
     {
         CharacterRow saved = await SeedCharacterAsync(1);
         CharacterRow other = await SeedCharacterAsync(2);
@@ -127,17 +128,24 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             new() { CharacterId = row.Id, QuestId = id, State = CharacterQuestState.Active, Stage = stage, AcceptedAt = DateTime.UtcNow };
         static CharacterQuestObjective Objective(CharacterRow row, uint quest, uint id, uint progress) =>
             new() { CharacterId = row.Id, QuestId = quest, ObjectiveId = id, Progress = progress };
-        static CharacterSaveBatch Write(CharacterRow row, uint[] rewrite, CharacterQuest[] active, CharacterQuestObjective[] objectives) =>
-            new(row, [], [], [], [], Quests: new CharacterQuestWrite(rewrite, active, objectives, [])) { Authority = s_authority };
+        static CharacterTalent Talent(CharacterRow row, int node) => new() { CharacterId = row.Id, NodeId = node };
+        static CharacterSaveBatch Write(CharacterRow row, uint[] rewrite, CharacterQuest[] active, CharacterQuestObjective[] objectives,
+            int[] talentRewrite, CharacterTalent[] talents) =>
+            new(row, [], [], [], [], Quests: new CharacterQuestWrite(rewrite, active, objectives, []),
+                Talents: new CharacterTalentWrite(talentRewrite, talents))
+            { Authority = s_authority };
         await _saves.WriteAsync(
         [
             Write(saved, [], [Quest(saved, 5, 0), Quest(saved, 6, 0), Quest(saved, 7, 0)],
-                [Objective(saved, 5, 51, 2), Objective(saved, 6, 61, 4), Objective(saved, 7, 71, 9)]),
-            Write(other, [], [Quest(other, 5, 0), Quest(other, 6, 0)], [Objective(other, 5, 51, 3)]),
+                [Objective(saved, 5, 51, 2), Objective(saved, 6, 61, 4), Objective(saved, 7, 71, 9)],
+                [2, 3, 4], [Talent(saved, 2), Talent(saved, 3), Talent(saved, 4)]),
+            Write(other, [], [Quest(other, 5, 0), Quest(other, 6, 0)], [Objective(other, 5, 51, 3)],
+                [3], [Talent(other, 3)]),
         ]);
 
-        // Quest 5 moves on a stage, and quest 6 is abandoned.
-        await _saves.WriteAsync([Write(saved, [5, 6], [Quest(saved, 5, 1)], [Objective(saved, 5, 52, 1)])]);
+        // Quest 5 moves on a stage, and quest 6 is abandoned; node 3 is dropped and node 5 allocated.
+        await _saves.WriteAsync([Write(saved, [5, 6], [Quest(saved, 5, 1)], [Objective(saved, 5, 52, 1)],
+            [3, 5], [Talent(saved, 5)])]);
 
         await using CharacterDbContext read = _database.CreateDbContext();
         (uint Owner, uint Quest, int Stage)[] quests = [(1, 5, 1), (1, 7, 0), (2, 5, 0), (2, 6, 0)];
@@ -146,6 +154,9 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             .Select(q => (q.CharacterId.Value, q.QuestId, q.Stage)).Order());
         Assert.Equal(objectives, (await read.CharacterQuestObjectives.AsNoTracking().ToListAsync())
             .Select(o => (o.CharacterId.Value, o.QuestId, o.ObjectiveId, o.Progress)).Order());
+        (uint Owner, int Node)[] talents = [(1, 2), (1, 4), (1, 5), (2, 3)];
+        Assert.Equal(talents, (await read.CharacterTalents.AsNoTracking().ToListAsync())
+            .Select(t => (t.CharacterId.Value, t.NodeId)).Order());
     }
 
     [Fact]

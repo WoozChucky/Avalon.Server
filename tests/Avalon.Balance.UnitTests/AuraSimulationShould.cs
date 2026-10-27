@@ -52,7 +52,6 @@ public class AuraSimulationShould
         Cooldown = 6000,
         Effects = SpellEffect.Damage,
         DamageEffectiveness = 202f,
-        AllowedClasses = [CharacterClass.Warrior],
         AuraId = new AuraId(9901),
         DamageType = DamageType.Physical,
         ThreatMultiplier = 1f,

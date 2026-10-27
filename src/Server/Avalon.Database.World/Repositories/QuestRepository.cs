@@ -14,6 +14,12 @@ public interface IQuestRepository
 
     /// <summary>One quest, whole as <see cref="GetAllAsync"/> reads it, untracked; null when there is none (#714).</summary>
     Task<QuestTemplate?> FindByIdAsync(QuestTemplateId id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The talent points the named quests pay (#1181), summed in the database: a quest the world database lacks pays
+    /// nothing, nor does a repeatable one, which the world's quest catalog refuses when it would pay.
+    /// </summary>
+    Task<int> SumTalentPointsAsync(IReadOnlyCollection<uint> questIds, CancellationToken cancellationToken = default);
 }
 
 public class QuestRepository(IDbContextFactory<WorldDbContext> contextFactory) : IQuestRepository
@@ -40,6 +46,21 @@ public class QuestRepository(IDbContextFactory<WorldDbContext> contextFactory) :
     {
         await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await Whole(context).FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
+    }
+
+    public async Task<int> SumTalentPointsAsync(IReadOnlyCollection<uint> questIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (questIds.Count == 0) return 0;
+
+        // var, not an explicit type: see AbilityTemplateRepository.GetByIdsAsync.
+#pragma warning disable IDE0008
+        var ids = questIds.Distinct().Select(id => new QuestTemplateId(id)).ToArray();
+#pragma warning restore IDE0008
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.QuestTemplates.AsNoTracking()
+            .Where(q => ids.Contains(q.Id) && !q.IsRepeatable && q.RewardTalentPoints > 0)
+            .SumAsync(q => q.RewardTalentPoints, cancellationToken);
     }
 
     private static IQueryable<QuestTemplate> Whole(WorldDbContext context) =>

@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Avalon.Common;
 
 namespace Avalon.Api.Contract;
 
@@ -17,7 +16,11 @@ public sealed class PublicAbilityDto
     public uint CastTime { get; set; }
     /// <summary>In milliseconds.</summary>
     public uint Cooldown { get; set; }
-    public List<CharacterClass> AllowedClasses { get; set; } = [];
+    /// <summary>
+    /// Whether the talent tree grants it (#1181): a class ability, whose Attack deals its wielder's weapon damage. One the
+    /// tree does not grant is a creature's, dealing its natural damage.
+    /// </summary>
+    public bool Granted { get; set; }
     /// <summary>The most units it hits, the nearest it may (#1181); 0 is no limit.</summary>
     public int MaxTargets { get; set; }
     /// <summary>The type of damage the ability deals, or null when it names none (#1178).</summary>

@@ -117,7 +117,6 @@ public static class TemplateValidation
         Flags(e, "tags", r.Tags);
         if (r.ConvertToType is { } convertTo) Defined(e, "convertToType", convertTo);
         if (r.AddedType is { } addedType) Defined(e, "addedType", addedType);
-        Classes(e, r.AllowedClasses);
         return e;
     }
 
@@ -200,11 +199,12 @@ public static class TemplateValidation
     /// <summary>
     /// What the world's ability loader and the AbilityTemplates check constraints say of the row as it would be
     /// stored. Keyed by the editable field the problem is about; a problem in a column an edit cannot reach is keyed
-    /// <c>template</c>.
+    /// <c>template</c>. <paramref name="granted"/> says whether the talent tree grants the ability (#1181), which holds it
+    /// to the class rules.
     /// </summary>
-    public static void AbilityWorldRules(TemplateErrors errors, AbilityTemplate row)
+    public static void AbilityWorldRules(TemplateErrors errors, AbilityTemplate row, bool granted)
     {
-        if (AbilityRules.Problem(row) is not { } problem) return;
+        if (AbilityRules.Problem(row, granted) is not { } problem) return;
         errors.Add(AbilityField(problem), $"The world would refuse this ability: {problem}.");
     }
 

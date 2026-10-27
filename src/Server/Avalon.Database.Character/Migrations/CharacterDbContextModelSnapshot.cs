@@ -173,24 +173,6 @@ namespace Avalon.Database.Character.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
-                {
-                    b.Property<long>("CharacterId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("AbilityId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Cooldown")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("CharacterId", "AbilityId");
-
-                    b.HasIndex("CharacterId");
-
-                    b.ToTable("CharacterAbilities");
-                });
-
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterAura", b =>
                 {
                     b.Property<long>("CharacterId")
@@ -435,6 +417,19 @@ namespace Avalon.Database.Character.Migrations
                     b.HasIndex("CharacterId");
 
                     b.ToTable("CharacterStats");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterTalent", b =>
+                {
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("CharacterId", "NodeId");
+
+                    b.ToTable("CharacterTalents");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecord", b =>
@@ -745,17 +740,6 @@ namespace Avalon.Database.Character.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
-                {
-                    b.HasOne("Avalon.Domain.Characters.Character", "Character")
-                        .WithMany()
-                        .HasForeignKey("CharacterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Character");
-                });
-
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterAura", b =>
                 {
                     b.HasOne("Avalon.Domain.Characters.Character", null)
@@ -833,6 +817,15 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
 
                     b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterTalent", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItem", b =>

@@ -147,15 +147,15 @@ public class FighterShould
         Assert.Equal(1, values.OwnDeaths);
         Assert.Equal([("forest:returned", 1)], values.FighterFailures.Select(kind => (kind.Key, kind.Value)));
 
-        // Bot 0 is a warrior: Cleave (200) reaches 2.5 m, and a creature holds its station 1.5 m from what it fights, so
-        // the warrior stops 2 m from its target, where its swing lands, rather than chasing it to 1.5 m.
+        // Bot 0 is a warrior: Heavy Strike (319), its starter, reaches 2.5 m, and a creature holds its station 1.5 m from
+        // what it fights, so the warrior stops 2 m from its target, where its swing lands, rather than chasing it to 1.5 m.
         var warrior = new Sim(this, new Fighter(0, _metrics, TimeSpan.FromSeconds(20), firstTripJitter: TimeSpan.Zero));
         warrior.RunUntil(s => s.Action == FighterAction.EnterForest);
         warrior.Transition(Fighter.ForestMapId, _now);
         warrior.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 30f)], 0, PacketEncoder.Shared));
         step = warrior.RunUntil(s => s.Action != FighterAction.None);
         Assert.Equal(FighterAction.Cast, step.Action);
-        Assert.Equal(200u, warrior.Fighter.AbilityId);
+        Assert.Equal(319u, warrior.Fighter.AbilityId);
         Assert.InRange(warrior.Distance(15f, 30f), 1.9f, 2f);
 
         // The table stays the fallback for a death: one it shows is seen within a look, six steps.

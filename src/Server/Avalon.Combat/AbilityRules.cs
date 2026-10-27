@@ -22,8 +22,12 @@ public static class AbilityRules
     /// <summary>The class name of the script that resolves a projectile.</summary>
     public const string ProjectileScript = "ProjectileAbilityScript";
 
-    /// <summary>Why a row cannot load, or null when it can.</summary>
-    public static string? Problem(AbilityTemplate t)
+    /// <summary>
+    /// Why a row cannot load, or null when it can. <paramref name="granted" /> says whether the talent tree grants the
+    /// ability (#1181: a class start or a node links it), which makes it a class ability: one that deals damage names
+    /// its type, and an Attack deals its weapon's physical damage. An ability nothing grants is a creature's.
+    /// </summary>
+    public static string? Problem(AbilityTemplate t, bool granted)
     {
         foreach ((string name, float value) in new[]
                  {
@@ -55,17 +59,17 @@ public static class AbilityRules
         if (t.Affects == AbilityAffects.Ally && (t.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None)
             return "only a Hostile ability may be Unavoidable: an Ally ability is never dodged";
 
-        // #1178: an Ally ability heals or helps and deals nothing. A class ability that deals damage names its type; a
-        // creature-only one may leave it null and deal its creature's base type.
+        // #1178: an Ally ability heals or helps and deals nothing. A class ability (one the tree grants) that deals damage
+        // names its type; a creature-only one may leave it null and deal its creature's base type.
         if (t.DamageType is { } type && !Enum.IsDefined(type)) return $"unknown damage type {(int)type}";
         if (t.Affects == AbilityAffects.Ally && t.DamageType is not null) return "an Ally ability has no damage type";
-        if (t.Affects == AbilityAffects.Hostile && t.AllowedClasses is { Count: > 0 }
+        if (t.Affects == AbilityAffects.Hostile && granted
             && (t.Effects & SpellEffect.Damage) != SpellEffect.None && t.DamageType is null)
         {
             return "a class ability that deals damage names its damage type";
         }
 
-        if (OffenceProblem(t) is { } offence) return offence;
+        if (OffenceProblem(t, granted) is { } offence) return offence;
 
         // With neither a direct amount nor an aura the ability would spend its cost and change nothing.
         if (!HasDirectEffect(t.Effects, t.Affects) && t.AuraId is null)
@@ -90,7 +94,7 @@ public static class AbilityRules
     /// shaped as; a class attack deals its weapon's physical damage, an element arriving only by its conversion or added
     /// damage; and the amounts a hit rolls are in order.
     /// </summary>
-    private static string? OffenceProblem(AbilityTemplate t)
+    private static string? OffenceProblem(AbilityTemplate t, bool granted)
     {
         AbilityTags tags = t.Tags;
         if ((tags & ~KnownTags) != AbilityTags.None) return $"Tags {(int)tags} names an unknown tag";
@@ -113,7 +117,7 @@ public static class AbilityRules
         bool attack = Has(tags, AbilityTags.Attack);
         if (attack && (t.Flags & AbilityFlags.Basic) != AbilityFlags.None && t.Cooldown > 0)
             return "a basic attack is paced by its weapon: its Cooldown is 0";
-        if (attack && t.AllowedClasses is { Count: > 0 } && t.DamageType is { } type && type != DamageType.Physical)
+        if (attack && granted && t.DamageType is { } type && type != DamageType.Physical)
             return "a class attack deals its weapon's physical damage: an element comes from its conversion or added damage";
 
         if (!(t.ConvertPct >= 0f && t.ConvertPct <= 100f))

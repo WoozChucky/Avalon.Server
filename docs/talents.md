@@ -3,7 +3,9 @@
 The shared talent tree (#1181): one wheel of nodes every class shares. Each class starts on its own node of the wheel,
 which grants its single-target starter ability, and every other class ability is a node any class can walk to. This
 page covers the tree as data (Part B1): its tables, the seeded first region, the world's catalog, the client export and
-the public read. Characters do not hold nodes yet; Part B2 adds them (see [What later parts add](#what-later-parts-add)).
+the public read; and characters on the tree (Part B2): saved talents, points, the select check, abilities from the
+tree, allocation, the talent state, the stats fold and the REST reads. The client's view is the
+[talent protocol](talent-protocol.md).
 
 ## The tables
 
@@ -32,8 +34,8 @@ balance tables: they change only through `HasData` plus a generated migration (C
 - **The bundle.** `TalentTreeRows` (Domain) holds the six tables' rows. The seed (`TalentSeed.Rows()`), the repository
   (`ITalentTreeRepository.GetTreeAsync`, each table by its key), the catalog, the export and the API all share it.
 - Ids are plain surrogates. No code finds a node by its id's value: a node is reached by a class start, a link or a
-  kind. Characters will store the ids they hold (Part B2), so an id never changes, and a node added later takes the
-  next id above the highest ever used.
+  kind. Characters store the ids they hold (`CharacterTalents`), so an id never changes, and a node added later takes
+  the next id above the highest ever used.
 
 ## The seed
 
@@ -159,13 +161,185 @@ afterwards.
   or a contract enum (`TalentNodeKind`, `TalentStatKind`, `StatType`, `CharacterClass`)
   ([multi-world API](api-worlds.md#public-routes)).
 
+## Saved talents
+
+- **The rows.** `CharacterTalents` (Character database, `CharacterTalent { CharacterId, NodeId }`, `NodeId` an
+  `integer`): key `(CharacterId, NodeId)`, `Cascade` from `Characters`, no foreign key to the World database (as
+  `ItemInstance.TemplateId`). The Character migration `AddCharacterTalents` created it empty; `DropCharacterAbilities`
+  dropped the per-character ability rows once nothing read them. The empty table is the release reset: every character
+  starts the tree with its starter alone and every point to spend, which is also the free respec.
+- **In memory.** `TalentAllocation` (`src/Server/Avalon.World/Talents/TalentAllocation.cs`) is World-side, on the
+  concrete `CharacterEntity` as `Talents`, never on `ICharacter`, so no mod can read or change it. It holds the held
+  node ids as a list kept ascending, with membership by binary search (no set; nothing allocated by a lookup or a
+  walk), and the held lines summed into one `TalentTotals` buffer, rebuilt in place by `RebuildTotals` after a change,
+  never per tick or per refresh. Memory is authoritative for a character in the world: its talents change only through
+  `TalentAllocation` (`Load` at select, `Allocate`, `Drop`), whose mutators assert the tick thread while
+  `TickThreadGuard` is enabled.
+- **The save.** `Allocate` and `Drop` mark each node changed for the save (`SaveStateTracker.TalentChanged`, keyed by
+  node id like an ignore); `Load` marks nothing. The snapshot rewrites every marked node from memory
+  (`CharacterTalentWrite(Rewrite, Insert)`): the repository deletes the rewritten nodes' rows and inserts again the ones
+  still held, in the save's one transaction ([inventory and saves](inventory-and-saves.md)), so a retry writes the same
+  rows.
+
+## Points
+
+`TalentPoints.Earned(level, quests, catalog)` is the character's level plus the `RewardTalentPoints` of every quest in
+its completions that the quest catalog holds; a repeatable quest pays none (the catalog refuses one that would). It
+walks the completions' struct enumerator and allocates nothing. The points spent are the nodes held
+(`TalentAllocation.Spent`); what may still be spent is earned minus spent. Nothing stores a balance: the world and the
+API work the same figures out from the rows. Spent exceeds earned when earned falls while the nodes are kept: a reload
+or a deploy refuses or removes a paying quest the character turned in, or lowers what it pays, or staff lower the level
+(a REST character patch, read at the next select). Nothing drops for it in the world; the next select with the tree
+loaded clears the whole tree (below), and while the tree is refused it lasts.
+
+## Select
+
+`CharacterSelectHandler` ([login flow](character-login-flow.md)), after the item instances are loaded: one step reads
+the talent rows and the quest rows together, off the tick (`CharacterQuestRows.None` when the handler has no quest
+repository). Back on the tick:
+
+1. the quest log loads, first, since the points earned count the paying quests;
+2. the talents load, and `TalentSelectCheck.Apply` drops, free, each drop marked for the save, what no longer fits the
+   live tree, in order: a node the tree no longer holds, or a `Start`; then a held node no path of held nodes links to
+   the class's start (`TalentCatalog.WalkHeld` over bit sets rented from the shared pool); then, if the nodes still
+   held cost more than the points earned, every node, **whatever lowered the points** (owner decision): a paying quest
+   the quest catalog refused, or a reload removed, clears the whole tree of a character at full spend as a lowered
+   level does, and the drop is saved. Each step that drops anything logs one Warning naming the character id, with the
+   count and the ids. **A tree the catalog refused drops nothing**: the rows stay as they are, inert, so a bad deploy
+   of the tree wipes nobody's allocation. That promise covers a refused tree only, not refused quests. The held lines
+   are then summed (`RebuildTotals`);
+3. the stats refresh, with the tree folded (below), `EnterWorld`, and the bare-hand fallback when there is no class
+   row;
+4. the inventory snapshot;
+5. `TalentAbilities.Rebuild` and `SMSG_CHARACTER_ABILITIES` (`CharacterAbilitiesSender`);
+6. `SMSG_TALENT_STATE`, sent directly (the flusher reaches only spawned characters), and the level it was sent at
+   recorded;
+7. the ignore list, then the saved auras, as before.
+
+## Abilities from the tree
+
+`TalentAbilities.Rebuild` (World/Talents) builds the abilities a character holds: its class start's starter first,
+then the ability each held ability node links, by ascending node id. Nothing else grants one: creation writes no
+ability, and `CharacterCreateInfos.StartingSpells`, `AbilityTemplates.AllowedClasses` and the `CharacterAbilities`
+table are gone ([spell system](spell-system.md), §8). An ability already held keeps its `IAbility`, and with it its
+cooldown and cast timers; a new one is a `GameAbility` that arrives ready. An ability the catalog does not hold (it
+refused it, or a reload removed it) is left out with a Warning. When the ids held are the same, in the same order,
+nothing is built and nothing is allocated, and `Rebuild` returns false. The list goes through the World-side
+`CharacterAbilityContainer.Load`; the modding API's `ICharacterAbilities` has no `Load`, so no mod can grant an
+ability.
+
+**Creation** writes no ability: a new character holds no node, so it enters with its starter alone. Its starting items
+are `CharacterCreateItems` rows (class, Bag slot, template), which replaced the packed
+`CharacterCreateInfos.StartingItems` in `AbilitiesFromTheTree`, the World migration that also dropped
+`CharacterCreateInfos.StartingSpells` and `AbilityTemplates.AllowedClasses` and made Cleave an ability node (not
+`Basic`, 6 mana). Dropping `AllowedClasses` changed every ability template's version once, so an editor holding an
+older one gets a 409 on its next `PUT` ([live template editing](live-template-editing.md)).
+
+A class ability is one the tree grants: `AbilityRules.Problem(t, granted)` and the aura rules hold an ability a class
+start or a node links to the class rules, the world's `AbilityCatalog` being given the tree's link ids
+([spell system](spell-system.md), §2).
+
+## Allocation
+
+`CMSG_TALENT_ALLOCATE` (`0x20E0`, `CTalentAllocatePacket { RequestId, NodeIds }`, a `MapSessionFilter` entry) is
+handled by `TalentAllocateHandler` in the map pass, all or nothing (the [talent protocol](talent-protocol.md) has the
+client's view):
+
+- **The rules.** `TalentRules.Allocate(talents, tree, class, dead, earned, nodeIds, out refusedNode)` only decides: it
+  changes nothing, marks no save and allocates nothing. In order: `Dead`; `TooMany` (more ids than earned minus spent,
+  or than the tree holds, so every non-empty request while the tree is refused); then for each id in the order sent,
+  `UnknownNode` (0, past `int.MaxValue`, or not in the tree), `AlreadyAllocated` (held, named earlier, or a `Start`),
+  `NotConnected` (no neighbour that is the class's start, a held node or a node named earlier) and `ForkLocked` (its
+  fork partner held or named earlier). A refusal names its node. "Named earlier" is one bit per tree index in an array
+  rented from the shared pool, set as each id passes, so a request costs its length times a node's degree
+  ([benchmarks](benchmarks.md), `Decide_refused_long`) and allocates nothing once the pool is warm. An empty list is
+  `Ok` and changes nothing.
+- **On `Ok`.** `TalentAllocation.Allocate` checks every id before it changes anything, holds each node and marks it for
+  the save; then `TalentChange.Apply` (World/Talents): the totals rebuilt, `TalentAbilities.Rebuild`, the stats
+  refreshed with `KeepShare` (a Warning when there is no class row), the ability list sent only when the abilities
+  held changed (after the refresh, so its amounts are the new stats'), and the talent state marked owed. Both follow
+  in a `finally`: when the refresh throws after the abilities were rebuilt, the new list still reaches the client (its
+  amounts from the stats as they stand), so it never lacks an ability the server lets it cast, and the window still
+  learns what is held.
+- **The reply.** Every request is answered with exactly one `SMSG_TALENT_RESULT` (`0x30F0`, `STalentResultPacket`
+  over the encoder's scratch packet); a connection with no character gets nothing. An exception is logged at Error and
+  answered `InternalError`. `TalentResult` (`Ok` 0, `Dead` 1, `TooMany` 2, `UnknownNode` 3, `AlreadyAllocated` 4,
+  `NotConnected` 5, `ForkLocked` 6, `InternalError` 7) is append-only.
+
+## The talent state
+
+`SMSG_TALENT_STATE` (`0x30F1`, `STalentStatePacket { NodeIds, PointsEarned, PointsSpent }`) is what the window shows,
+whole every time. `Create` refills one id list per thread, so a send allocates nothing once the list has grown.
+
+`TalentFlusher.Flush(connection, quests)` (World/Characters) runs once per tick for each connection, in the post-update
+`ability_amounts` stage, after `CharacterSheetFlusher` and before `AbilityAmountsFlusher`
+([instrumentation](instrumentation.md)). It reads one flag and one level: it sends when the state is owed (an accepted
+allocation, or a turn-in of a quest that pays talent points, which also says "You gained 1 talent point.",
+[quests](quests.md)) or when the character's level differs from the one the last state was sent at, which catches
+every level-up (anything that grants experience: a kill, a quest, an item) without touching the experience award. It
+then clears the flag and records the level. The quest catalog the points are priced by is read once per tick.
+
+## The stats fold
+
+`CharacterStatsCalculator.Calculate(..., talents)` and `CharacterOffence.Of(..., talents)` fold the held lines exactly
+as they fold a worn item's global lines; a null `TalentTotals` folds nothing. `TalentTotals.Add` sums the flat stats
+and sends every other allowed stat to the offence sums (`CharacterOffence.Add`); a `More` line multiplies an offence
+key, or the maximum life or mana, by `1 + value / 100`. In `Calculate`:
+
+1. the offence line sums and both added-damage ranges start at the tree's before the gear walk adds to them;
+2. the tree's attributes join the gear's before the conversions;
+3. flat life and flat mana add the tree's `Health` and `Power`;
+4. increased maximum life and mana are the gear's plus the tree's;
+5. the maximum health and mana are then multiplied by the tree's `More` factor (`LocalScaling.More`, half away from
+   zero, the product first rounded to six decimals so 5 x 0.7 is 4, saturating);
+6. armour is the gear's plus the tree's flat armour plus Strength's, that whole rating scaled by the gear's and the
+   tree's `IncreasedArmor`; evasion and ward the same;
+7. block, crit, movement, the resistances and increased mana regeneration add the tree's.
+
+Auras fold after all of it. Gear's global `IncreasedArmor`, `IncreasedEvasion` and `IncreasedWard` lines count the
+same way (none is seeded). The world folds at select and after every talent change; the saved `CharacterStats` row is
+what the world wrote after folding, so the REST character sheet reads it as it is
+([inventory and saves](inventory-and-saves.md)).
+
+## REST reads of a character
+
+Both reads take the rows **as last saved**: the world applies its login check (`TalentSelectCheck`) at the character's
+next select, and the REST reads do not re-run it, nor the world catalogs' refusals. Until that select, a node cut off
+from the start, or more nodes than the points earned, still show, and bad World DB data (an ability or a tree the
+world's catalog refuses) can list an ability the world would not grant. Both read only the tree rows the saved nodes
+need (`ITalentTreeRepository.GetHeldAsync`: those nodes, their stat lines, and the links of those nodes and of the
+class's start), never the whole tree.
+
+- **`GET /world/{worldId}/character/{id}/talents`** (`CharacterController.GetTalents`, `GetCharacterTalents`; the
+  owner, or GameMaster and above, as `/abilities`) returns `CharacterTalentsDto { CharacterId, NodeIds, PointsEarned,
+  PointsSpent }`: the saved rows less the nodes the tree no longer holds (the same filter as `/abilities`), spent as
+  their count, and the points earned worked out as the world does: the level plus the `RewardTalentPoints` of the
+  quests the character turned in, summed by the World database (`IQuestRepository.SumTalentPointsAsync` over
+  `ICharacterQuestRepository.GetCompletedQuestIdsAsync`; a repeatable quest, or one the World database no longer
+  holds, pays nothing).
+- **`GET /world/{worldId}/character/{id}/abilities`** is derived from the tree: the class start's starter, then each
+  held ability node's ability by ascending node id, from `CharacterTalents` and the World database's tree rows. Rows
+  naming a node the tree lacks are ignored, as the world ignores them until its next select. Each ability's advertised
+  amount is built from an attacker whose offence includes the held nodes' lines (`TalentTotals` passed to
+  `CharacterOffence.Of`).
+- The character sheet (`/stats`) reads the saved `CharacterStats` row, which already folds the tree.
+
+## What Part C consumes
+
+Part C (the Lectern, refunds and their price) ships in the same release and designs its own tasks. Part B gives it:
+
+- **`TalentCatalog`'s index API:** `Count`, `TryIndexOf`, `NodeIdAt`, `KindAt`, `NeighboursAt`, `StartIndexOf`,
+  `ForkPartnerAt`, `BitWords` and `WalkHeld(startIndex, held, reached, queue)`, for a would-disconnect walk over
+  caller-owned bit sets.
+- **On `TalentAllocation`:** `Held`, `Holds`, `Spent`, `Version`, `MarkStateOwed` and the save mark; Part C adds a
+  `Refund` mirroring `Allocate`.
+- **After a refund:** `TalentChange.Apply` and `TalentPoints.Earned`.
+- **Wire and flush:** `TalentResult`, `STalentStatePacket` and `TalentFlusher`, to append to.
+- **Free numbers:** the opcode `0x20E1` (`CMSG_TALENT_REFUND`), `TalentResult` from 8, and field 4 of the state
+  packet.
+
 ## What later parts add
 
-- **Part B2, characters on the tree.** A character's allocation (`CharacterTalents`), points earned per level and from
-  the paying quests, the select check against the live tree, abilities derived from the class start and the held
-  ability nodes (replacing `StartingSpells`, `CharacterAbilities` and `AbilityTemplates.AllowedClasses`), the tree's
-  stat lines folded into the character's stats, `CMSG_TALENT_ALLOCATE` with `SMSG_TALENT_RESULT` and
-  `SMSG_TALENT_STATE`, and the REST character reads.
 - **Part C, the Lectern and refunds.** Refunding allocated nodes for gold at the Lectern.
 - **Part D, capstones and keystones.** The capstone and keystone rows (ids from 306), their fork groups, the
   `Keystone` column and `TalentAbilityModifiers`.

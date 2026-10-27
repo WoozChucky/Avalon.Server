@@ -21,6 +21,7 @@ using Avalon.World.Public.Units;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Avalon.World.Social;
+using Avalon.World.Talents;
 using Avalon.World.Threading;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
@@ -62,6 +63,7 @@ public partial class CharacterEntity : ICharacter
         Quests = new QuestLog(SaveState);
         Auras = new UnitAuras(SaveState.AurasChanged);
         Ignores = new IgnoreList(SaveState);
+        Talents = new TalentAllocation(SaveState);
         _logger = null!;
         _equipment = null!;
         _bag = null!;
@@ -71,13 +73,14 @@ public partial class CharacterEntity : ICharacter
     }
 
     /// <param name="time">The container's clock, the one the instance and combat time by (#614).</param>
-    /// <param name="tickThread">The tick-thread assertion its ignore list makes (#639); none when omitted.</param>
+    /// <param name="tickThread">The tick-thread assertion its ignore list and its talents make (#639); none when omitted.</param>
     public CharacterEntity(ILoggerFactory loggerFactory, Character character,
         RegenConfiguration regenConfig, TimeProvider? time = null, TickThreadGuard? tickThread = null)
     {
         Quests = new QuestLog(SaveState);
         Auras = new UnitAuras(SaveState.AurasChanged);
         Ignores = new IgnoreList(SaveState, tickThread);
+        Talents = new TalentAllocation(SaveState, tickThread);
         _time = time ?? TimeProvider.System;
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
         Data = character;
@@ -389,7 +392,10 @@ public partial class CharacterEntity : ICharacter
     /// <summary>Slots and gold the client must be told about at the end of this tick.</summary>
     public InventoryClientChanges ClientChanges { get; } = new();
 
-    public ICharacterAbilities Spells { get; }
+    /// <summary>The abilities the character holds: its class start's starter and its held ability nodes (#1181).</summary>
+    public CharacterAbilityContainer Spells { get; }
+
+    ICharacterAbilities ICharacter.Spells => Spells;
 
     /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
     public SaveStateTracker SaveState { get; } = new();
@@ -405,6 +411,12 @@ public partial class CharacterEntity : ICharacter
     /// Loaded at select; every change marks <see cref="SaveState" />.
     /// </summary>
     public IgnoreList Ignores { get; }
+
+    /// <summary>
+    /// The talent nodes this character holds (#1181). World-side, never on ICharacter, so no mod can read or change it.
+    /// Loaded at select; every change marks <see cref="SaveState" />.
+    /// </summary>
+    public TalentAllocation Talents { get; }
 
     /// <summary>
     /// The auras on this character (auras). World-side, never on ICharacter: no mod can add, end or read them. Every

@@ -46,7 +46,10 @@ desktop; narrow it with `--class`, `--scenario` and `--runs` while iterating. Th
   yellow within `yellowTolerancePct` of the edge crossed, red beyond or when there is no value. Every scenario it
   names must exist in `scenarios.json`.
 - `rotations.json`: per class, a priority list; the first entry that is off cooldown, affordable and whose conditions
-  hold is cast. Conditions: `targetsAlive`, `healthPct`, `power`, `powerPct`, each like `">=2"`.
+  hold is cast. Conditions: `targetsAlive`, `healthPct`, `power`, `powerPct`, each like `">=2"`. While the simulator
+  is paused (#1183), a character holds its class's starter alone (#1181: the ability its talent-tree start links,
+  `BalanceData.KitOf`), and an entry naming any other ability is refused when the rotation is compiled ("is not in the
+  class's kit"), so the checked-in rotations name each class's starter alone, with no condition, until the re-sync.
 
 Every config file refuses a field it does not know, so a typo stops the run instead of being ignored.
 `scenarios.json`, `targets.json` and `rotations.json` are kept in the canonical form `ConfigFiles.Save` writes, so
@@ -91,7 +94,8 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
   auras per unit is never reached, no aura script runs, and the server's catch-up after a stall does not arise (the
   simulator never falls behind).
 - Not modelled: crowd control (#770: stuns, roots, silences, resistance, diminishing and early breaks; the four
-  crowd-control abilities are in no rotation), movement, dodging wind-ups, potions and other consumables, groups, PvP,
+  crowd-control abilities are in no rotation), the talent tree (no allocation and no tree lines; the class's starter
+  alone, #1181), movement, dodging wind-ups, potions and other consumables, groups, PvP,
   threat, out-of-combat health and mana regeneration, and the map's experience band.
 - A fight ends when the player dies, every creature dies, or at 300 s (a loss).
 

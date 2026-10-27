@@ -510,9 +510,22 @@ public sealed class ScenarioWorld : IDisposable
     }
 
     /// <summary>
+    /// Each class's kit from before the talent tree (#1181): the starter skills, the aura abilities and the crowd control,
+    /// which a character now walks the tree to. Scenario input only, so the measured fights stay the ones the baseline
+    /// recorded.
+    /// </summary>
+    private static readonly Dictionary<CharacterClass, uint[]> s_kits = new()
+    {
+        [CharacterClass.Warrior] = [200, 201, 202, 203, 204],
+        [CharacterClass.Wizard] = [210, 211, 212, 213, 214],
+        [CharacterClass.Hunter] = [220, 221, 222, 223, 224],
+        [CharacterClass.Cleric] = [230, 231, 232, 233, 234, 235],
+    };
+
+    /// <summary>
     /// A level 1 character of <paramref name="characterClass" /> on the world's clock, as character creation makes it
-    /// and character select loads it: the class's level 1 stats (health and mana at their maximums) and its starting
-    /// abilities from the seed's <see cref="CharacterCreateInfo" />, off cooldown. Its id is
+    /// and character select loads it: the class's level 1 stats (health and mana at their maximums), and the class's kit
+    /// from before the talent tree (<see cref="s_kits" />), off cooldown. Its id is
     /// the world's next (1, 2, ...); it carries nothing, as a new character's starting items wait in its bag, which no
     /// scenario reads. Only a world with reference data makes one.
     /// </summary>
@@ -558,11 +571,15 @@ public sealed class ScenarioWorld : IDisposable
         if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
             throw new InvalidOperationException($"The seed has no stats for {characterClass}");
 
-        var abilities = new List<IAbility>(createInfo.StartingSpells.Count);
-        foreach (AbilityId abilityId in createInfo.StartingSpells)
+        // The abilities the scenarios fight with: each class's kit from before the talent tree (#1181), which their
+        // fighters cast (LoopFighter), so a scenario measures the same fight whatever a new character holds today.
+        uint[] kit = s_kits[characterClass];
+        var abilities = new List<IAbility>(kit.Length);
+        foreach (uint kitAbility in kit)
         {
+            var abilityId = new AbilityId(kitAbility);
             if (!data.Abilities.TryGet(abilityId, out AbilityTemplate? template))
-                throw new InvalidOperationException($"{characterClass}'s starting ability {abilityId.Value} is not in the catalog");
+                throw new InvalidOperationException($"{characterClass}'s scenario ability {kitAbility} is not in the catalog");
 
             abilities.Add(new GameAbility
             {

@@ -17,11 +17,12 @@ public static class SeedSource
             CreatureRarityModifiers = reader.Rows<CreatureRarityModifier>(),
             CreatureTemplates = reader.Rows<CreatureTemplate>(),
             ItemTemplates = reader.Rows<ItemTemplate>(),
-            CharacterCreateInfos = reader.Rows<CharacterCreateInfo>(),
             CharacterLevelExperiences = reader.Rows<CharacterLevelExperience>(),
             VendorStocks = reader.Rows<VendorStock>(),
             AuraTemplates = reader.Rows<AuraTemplate>(),
             AuraStatModifiers = reader.Rows<AuraStatModifier>(),
+            TalentNodeAbilities = reader.Rows<TalentNodeAbility>(),
+            TalentClassStarts = reader.Rows<TalentClassStart>(),
         };
     }
 }

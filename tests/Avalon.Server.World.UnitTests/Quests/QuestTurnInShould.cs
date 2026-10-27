@@ -318,7 +318,7 @@ public class QuestTurnInShould
         var w = QuestTestWorld.OverSeed();
         QuestClient c = w.Join(level: 8);
 
-        Creature borin = ReadyAtSeed(w, c, AlphasHowl);
+        Creature borin = w.ReadyAtSeed(c, AlphasHowl);
         DialogueNodeView root = w.Data.Dialogue.GetRoot(borin.Metadata.Id)!;
         Assert.True(w.Quests.TryChoose(c.Connection, c.Character, borin, root, -(int)AlphasHowl));
         QuestRewardsDto offered = Assert.Single(c.Read<SQuestOfferPacket>(NetworkPacketType.SMSG_QUEST_OFFER)).Quest!.Rewards!;
@@ -327,40 +327,39 @@ public class QuestTurnInShould
         AssertMagic(c, w, Paid(c, 32), itemLevel: 2);
         AssertMagic(c, w, Paid(c, 69), itemLevel: 2);
 
-        Creature uriel = ReadyAtSeed(w, c, MotherOfThorns);
+        Creature uriel = w.ReadyAtSeed(c, MotherOfThorns);
         Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, MotherOfThorns, uriel.Guid.RawValue));
         AssertMagic(c, w, Paid(c, 104), itemLevel: 7);
 
-        Creature hilde = ReadyAtSeed(w, c, EarnItFancy);
+        Creature hilde = w.ReadyAtSeed(c, EarnItFancy);
         Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, EarnItFancy, hilde.Guid.RawValue, choiceItemTemplateId: 37));
         AssertMagic(c, w, Paid(c, 37), itemLevel: 4);
     }
 
     /// <summary>
-    /// Starts a seeded quest and finishes every objective through the service (a Collect objective's items put in the
-    /// Bag and recounted), then opens a conversation with its ender, which is returned.
+    /// #1181, over the World database's seed: a quest that pays a talent point says so right after it is completed, and
+    /// the repeatable Boar Cull, which pays none, says nothing of talents.
     /// </summary>
-    private static Creature ReadyAtSeed(QuestTestWorld w, QuestClient c, uint questId)
+    [Theory]
+    [InlineData(3u, 32UL, "The Alpha's Howl", true)]
+    [InlineData(10u, 0UL, "Boar Cull", false)]
+    public void Say_the_talent_point_a_paying_quest_gives(uint questId, ulong choice, string title, bool pays)
     {
-        Assert.True(w.Data.Quests.TryGet(questId, out QuestView? quest));
-        c.Character.Quests.Start(questId, DateTime.UnixEpoch);
-        foreach (QuestObjectiveView objective in quest!.Stages.SelectMany(stage => stage.Objectives))
-        {
-            if (objective.Type == QuestObjectiveType.Collect)
-            {
-                w.Economy.InventoryOf(c.Character).TryAdd(objective.ItemTemplateId!, objective.Count);
-                QuestFlusher.Flush(c.Connection, w.Quests);
-            }
-            else
-            {
-                Assert.True(w.Quests.AddProgress(c.Character, questId, objective.Id, objective.Count));
-            }
-        }
+        var w = QuestTestWorld.OverSeed();
+        QuestClient c = w.Join(id: 118_103, level: 10);
+        Creature ender = w.ReadyAtSeed(c, questId);
+        c.Clear();
 
-        Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(questId)!.State);
-        Creature ender = w.Place(quest.EnderCreatureId.Value);
-        w.Talk(c, ender);
-        return ender;
+        Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, questId, ender.Guid.RawValue, choice));
+        QuestFlusher.Flush(c.Connection, w.Quests);
+
+        List<string> lines = c.Lines();
+        int completed = lines.IndexOf($"Quest completed: {title}.");
+        Assert.True(completed >= 0, string.Join(" | ", lines));
+        List<string> talentLines = [.. lines.Where(l => l.Contains("talent point", StringComparison.Ordinal))];
+        Assert.Equal(pays ? ["You gained 1 talent point."] : [], talentLines);
+        if (pays)
+            Assert.Equal("You gained 1 talent point.", lines[completed + 1]);
     }
 
     private static InventoryItem Paid(QuestClient c, ulong template) =>

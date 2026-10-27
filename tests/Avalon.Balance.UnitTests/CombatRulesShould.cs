@@ -26,7 +26,7 @@ public class CombatRulesShould
         Assert.Equal(PowerType.Mana, warrior.PowerType);
         Assert.Equal(180u, warrior.CurrentPower);
         Assert.Equal(180u, warrior.Power);
-        Assert.Equal([200u, 201u, 202u, 203u, 204u], warrior.Abilities.Select(a => a.Id));
+        Assert.Equal([319u], warrior.Abilities.Select(a => a.Id));   // its starter alone (#1181)
     }
 
     [Fact]

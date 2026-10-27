@@ -53,7 +53,6 @@ public class CreatureCastShould
     {
         AbilityTemplate row = AbilityTestData.Cone(s_biteId.Value, reach: 1.8f, arc: 90f);
         row.Cooldown = 2250;
-        row.AllowedClasses = [];
         return row;
     }
 
@@ -63,7 +62,6 @@ public class CreatureCastShould
         AbilityTemplate row = AbilityTestData.Cone(s_clawId.Value, reach: 2.5f, arc: 90f);
         row.DamageEffectiveness = 180f;
         row.Cooldown = 8000;
-        row.AllowedClasses = [];
         return row;
     }
 
@@ -74,7 +72,6 @@ public class CreatureCastShould
         row.CastTime = 1000;
         row.Cooldown = 15000;
         row.Cost = 30;
-        row.AllowedClasses = [];
         return row;
     }
 
@@ -224,7 +221,6 @@ public class CreatureCastShould
         var combat = new CreatureCombatScript(NullLoggerFactory.Instance, wolf, Substitute.For<ISimulationContext>());
         wolf.Script = combat;
         AbilityTemplate row = AbilityTestData.Projectile(163_305, reach: 10f, speed: 5f);
-        row.AllowedClasses = [];
         IAbility spit = AbilityTestData.Game(row);
         _arena.Player(163_196, 0f, 6f);
 

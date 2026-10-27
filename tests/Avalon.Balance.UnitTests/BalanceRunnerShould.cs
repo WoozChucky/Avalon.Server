@@ -88,7 +88,7 @@ public class BalanceRunnerShould
             Assert.InRange(FightFactory.CreatureLevel(wolf, 1, scenarios.Find("forest-real"), random), 2, 4));
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Record_win_rate_percentiles_and_a_stat_snapshot()
     {
         BalanceRunner runner = Runner();

@@ -65,17 +65,21 @@ Game Client              World Server                  Databases / API
     │                        │  skipping orphan rows and rows past MaxSlots
     │                        │  Load() all three containers (Equipment/Bag/Bank)
     │                        │                               │
+    │                        │ CharacterTalentRepository and CharacterQuestRepository
+    │                        │──────────────────────────────>│  (one step, #1181)
+    │                        │<──────────────────────────────│ talent rows, quest rows
+    │                        │ [OnProgressReceived]          │
+    │                        │  Quests.Load, Talents.Load    │
+    │                        │  TalentSelectCheck (drops what│
+    │                        │   no longer fits the tree)    │
+    │                        │  stats refresh (tree folded)  │
     │  SInventorySnapshotPacket (Equipment + Bag only; the   │
     │<───────────────────────│  bank is loaded but not sent) │
+    │  SCharacterAbilitiesPacket  the class start's starter, │
+    │<───────────────────────│  then each held ability node's│
+    │  STalentStatePacket    │  held nodes, points earned    │
+    │<───────────────────────│  and spent                    │
     │                        │                               │
-    │                        │ CharacterAbilityRepository.GetCharacterAbilitiesAsync
-    │                        │──────────────────────────────>│
-    │                        │<──────────────────────────────│ List<CharacterAbility>
-    │                        │ [OnSpellsReceived]            │
-    │  SCharacterAbilitiesPacket  Resolve AbilityMetadata     │
-    │<───────────────────────│                               │
-    │                        │                               │
-    │                        │ quest rows (#433), then       │
     │                        │ CharacterIgnoreRepository.GetByCharacterIdAsync (#723)
     │                        │──────────────────────────────>│
     │                        │<──────────────────────────────│ ignored characters
@@ -258,8 +262,8 @@ while the bank is open at a banker ([inventory and saves](inventory-and-saves.md
 
 ### `SInventorySnapshotPacket`
 
-Sent from `OnItemInstancesReceived`, right after the containers are loaded and before the ability
-continuation is queued. Carries equipment and bag only:
+Sent from `OnProgressReceived` (#1181), once the quest log and the talents are loaded and the stats refreshed with
+the tree folded, and before `SCharacterAbilitiesPacket` and `STalentStatePacket`. Carries equipment and bag only:
 
 ```csharp
 // src/Shared/Avalon.Network.Packets/Character/SInventorySnapshotPacket.cs
@@ -398,8 +402,8 @@ unless the connection is closed instead.
      characters, `MaxCharactersReached` (5);
   7. a character already has the name, in any case (the unique index on the name key refuses the
      insert, whoever created it first): `NameAlreadyExists` (1);
-  8. `Success` (0) once the character, its stats, abilities, starting items and their Bag slots are
-     written, all in that transaction.
+  8. `Success` (0) once the character, its stats, starting items and their Bag slots are written, all
+     in that transaction (no abilities: a character's come from the talent tree at every select, #1181).
 
   Any other failure is `InternalDatabaseError` (7). A write the account's gameplay guard refuses (the
   session was replaced, or its lease ran out) is answered `InternalDatabaseError` too, and the

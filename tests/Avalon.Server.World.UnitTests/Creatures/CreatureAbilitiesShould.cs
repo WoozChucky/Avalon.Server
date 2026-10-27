@@ -23,7 +23,6 @@ public class CreatureAbilitiesShould
     {
         AbilityTemplate row = AbilityTestData.Cone(id.Value, reach: 1.8f, arc: 90f);
         row.Cooldown = cooldownMs;
-        row.AllowedClasses = [];
         return row;
     }
 

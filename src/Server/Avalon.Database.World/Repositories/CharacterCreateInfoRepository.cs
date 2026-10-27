@@ -18,6 +18,7 @@ public class CharacterCreateInfoRepository(IDbContextFactory<WorldDbContext> con
 
         return await context.CharacterCreateInfos
             .AsNoTracking()
+            .Include(entity => entity.StartingItems.OrderBy(item => item.Slot))
             .ToListAsync(cancellationToken);
     }
 
@@ -27,6 +28,7 @@ public class CharacterCreateInfoRepository(IDbContextFactory<WorldDbContext> con
 
         return await context.CharacterCreateInfos
             .AsNoTracking()
+            .Include(entity => entity.StartingItems.OrderBy(item => item.Slot))
             .FirstOrDefaultAsync(entity => entity.Class == @class, cancellationToken);
     }
 }

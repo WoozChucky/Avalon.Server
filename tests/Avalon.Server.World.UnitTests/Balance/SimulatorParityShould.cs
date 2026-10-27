@@ -335,7 +335,6 @@ public class SimulatorParityShould
         Tags = AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area,
         DamageType = DamageType.Physical,
         DamageEffectiveness = 202f,
-        AllowedClasses = [CharacterClass.Warrior],
         AuraId = new Avalon.Common.ValueObjects.AuraId(9901),
         ThreatMultiplier = 1f,
     };
