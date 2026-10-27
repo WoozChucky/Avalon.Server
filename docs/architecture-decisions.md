@@ -115,8 +115,9 @@ services.AddSingleton<ICommand, InviteCommand>();
 
 ## ADR-004 — `CharacterSpell` Specializations
 
-**Status:** Design decision pending. Spells are abilities since #163 (`CharacterAbility`, `AbilityTemplate`,
-`AbilityScript`); the names below are the original proposal's, and none of its types exists yet.
+**Status:** Design decision pending. Spells are abilities since #163 (`AbilityTemplate`, `AbilityScript`), and a
+character holds the ones its talent tree grants since #1181 ([talents](talents.md)); the names below are the original
+proposal's, and none of its types exists yet.
 
 ### Context
 

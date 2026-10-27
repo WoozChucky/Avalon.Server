@@ -71,8 +71,17 @@ projectile travel time, continuous combat, wind-ups always land, no crowd contro
 diminishes or breaks early there. The seed's crowd-control columns are still read and validated with the world's rules
 (an aura's `Control` and break chances through `AuraRules.Problem`, the creature and rarity duration percentages and
 the rarity's crit and block chances (#1145) through `CreatureTemplateRules.Validate` and `ValidateRarities`), so
-an override the world would refuse is refused here too, and the overrides reach them like any column. The four crowd-control abilities (204, 214, 224, 235) are in each class's
-kit but in no rotation in `balance/rotations.json`.
+an override the world would refuse is refused here too, and the overrides reach them like any column. The four crowd-control abilities (204, 214, 224, 235) are
+in no rotation in `balance/rotations.json`.
+
+**A simulated character holds its class's starter alone while the simulator is paused (#1181, #1183).** Since the
+talent tree, a new character holds only the ability its class start links, and every other ability is a node it walks
+to; the simulator models no allocation, so `BalanceData.KitOf` returns the starter alone, through the start's link in
+the seed's `TalentClassStarts` and `TalentNodeAbilities` (Heavy Strike, Spark Bolt, Quick Shot, Smite), and a rotation
+entry naming any other ability is refused when the rotation is compiled (`RotationFile.Compile`: "is not in the
+class's kit"), so the checked-in `balance/rotations.json`, written for the old kits, stops a run until the re-sync. Whether an ability is a class ability (`granted`, for the ability and
+aura rules) is read from the same links. The balance tests this broke are skipped with `BalancePause.Reason` until the
+re-sync, never deleted.
 
 ## Balance Service
 

@@ -225,7 +225,10 @@ for block, whose ceiling counts the shield's. The tables below give every value.
 A **local** modifier applies to the item it sits on: added damage, increased physical damage and attack speed on a
 weapon change that weapon's hits only, and an armour piece's flat or increased defence changes that piece's defence only.
 Every other modifier is **global** and applies to the character, among them the added damage "to attacks" (gloves)
-and "to spells" (rings).
+and "to spells" (rings). The global increases of each defence, `IncreasedArmor`, `IncreasedEvasion` and
+`IncreasedWard` (`StatType` 56-58, #1181), scale the character's whole rating (every item's defence, the attributes'
+and the talent tree's flat amounts); no affix carries them yet, but a gear line of one counts exactly as a talent
+node's does ([talents](talents.md#the-stats-fold)).
 
 ## Tiers
 

@@ -41,7 +41,7 @@ The world update is followed by work no other histogram covers, about two thirds
 | `quests` | `QuestFlusher` over every connection: quest counts, log, updates, lines and markers |
 | `inventory` | `InventoryUpdateFlusher` over every connection |
 | `sheet` | `CharacterSheetFlusher` over every connection |
-| `ability_amounts` | `AbilityAmountsFlusher` over every connection |
+| `ability_amounts` | `TalentFlusher` (#1181: the talent window's state, when owed or the level moved) and then `AbilityAmountsFlusher`, for each connection |
 | `party_status` | `PartyService.FlushMemberStatus` |
 | `presence` | The admin view's presence capture |
 | `pings` | The time-sync pings due this tick |

@@ -293,6 +293,8 @@ English):
 - "X: ready to turn in."
 - "X: no longer ready to turn in."
 - "Quest completed: X."
+- "You gained 1 talent point." or "You gained N talent points." (right after "Quest completed: X." on a quest whose
+  `TalentPoints` is above 0, #1181; `SMSG_TALENT_STATE` follows in the same tick's flush, [talent protocol](talent-protocol.md))
 - "Quest abandoned: X." (a quest the server no longer knows is named "#id")
 
 ## 10. Seeded quests

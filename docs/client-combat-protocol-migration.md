@@ -284,11 +284,11 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 - [ ] Clear target (`CTargetUnitPacket {null}`) → no further `SThreatListPacket` for the prior target.
 - [ ] Die → `SUnitDeathPacket` arrives; Release button visible; on Release the character spawns at the home town.
 - [ ] Map-transition / portal out mid-combat → no rejection; transition succeeds. Threat is zeroed server-side.
-- [ ] Login → `SCharacterAbilitiesPacket` populates the ability list with the class's three starter-kit skills, each with its shape fields.
+- [ ] Login → `SCharacterAbilitiesPacket` populates the ability list with the class's starter and the ability of each ability node the character holds on the talent tree (#1181), each with its shape fields; an allocation that changes them sends the list again ([talent protocol](talent-protocol.md)).
 
-## 10. Starter Kit Per Class
+## 10. Abilities From the Tree
 
-Each class starts with three skills (#164), ordinary `AbilityTemplate` rows seeded by the World migration `SeedStarterSkillKit`. Since #1181 a character holds its class start's starter and the ability nodes it holds on the talent tree ([talents](talents.md)); nothing is granted at creation. The client retrieves the player's full ability list via `SCharacterAbilitiesPacket` on character login, and learns each skill's shape from `AbilityInfo` fields 8-16 (`AimMode`, `Shape`, `Anchor`, `Reach`, `Radius`, `ArcDegrees`, `ProjectileSpeed`, `Pierce`, `Affects`), which is everything it needs to draw a telegraph. Field 17 (`CostPowerType`, #652) was deleted (#1181): every `Cost` is mana.
+The skills below are ordinary `AbilityTemplate` rows, first seeded as each class's three-skill kit by the World migration `SeedStarterSkillKit` (#164). Since #1181 a character holds its class start's starter (319 Heavy Strike, 210 Spark Bolt, 220 Quick Shot, 230 Smite) and the ability of each ability node it holds on the talent tree, which any class can walk to ([talents](talents.md), [talent protocol](talent-protocol.md)); nothing is granted at creation, and the class column is the class whose region of the tree holds the ability. The client retrieves the player's full ability list via `SCharacterAbilitiesPacket` on character login, and learns each skill's shape from `AbilityInfo` fields 8-16 (`AimMode`, `Shape`, `Anchor`, `Reach`, `Radius`, `ArcDegrees`, `ProjectileSpeed`, `Pierce`, `Affects`), which is everything it needs to draw a telegraph. Field 17 (`CostPowerType`, #652) was deleted (#1181): every `Cost` is mana.
 
 The retired abilities 1, 2 and 100-103 are gone, and their ids are never reused, so a client that cached them cannot confuse them with a kit skill.
 
@@ -296,19 +296,21 @@ The type column is the ability catalog's `damageType` (`schema/abilities/ability
 
 | id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | type |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 800 ms | 0 | Physical |
+| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 0 (weapon) | 6 | Physical |
 | 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5000 ms | 20 | Physical |
 | 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3000 ms | 10 | Physical |
 | 210 | Wizard | Spark Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 800 ms | 0 | Lightning |
 | 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 600 ms | 5000 ms | 25 | Fire |
 | 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4000 ms | 15 | Cold |
-| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | 800 ms | 0 | Physical |
+| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | 0 (weapon) | 0 | Physical |
 | 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 12 | yes | Hostile | 0 | 4000 ms | 15 | Physical |
 | 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4000 ms | 20 | Physical |
 | 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 800 ms | 0 | Lightning |
 | 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 | Lightning |
 | 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 | – |
+| 319 | Warrior | Heavy Strike | Cone | Movement | – | 2.5 | – | 60 | – | – | Hostile | 0 | 0 (weapon) | 0 | Physical |
+| 320 | Wizard | Frostbolt | Projectile | Cursor | – | 22 | – | – | 13 | no | Hostile | 500 ms | 2000 ms | 12 | Cold |
 
-The table gives each row's stored cooldown in milliseconds; on the wire `AbilityInfo` carries the pace a cast takes now (`CooldownMs`, `CastTimeMs`, above). The cost is mana, for every class (#1181). Threat is not transmitted in `AbilityInfo`; it surfaces through `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
+The table gives each row's stored cooldown in milliseconds, 0 for an Attack its weapon paces; on the wire `AbilityInfo` carries the pace a cast takes now (`CooldownMs`, `CastTimeMs`, above). The cost is mana, for every class (#1181). Threat is not transmitted in `AbilityInfo`; it surfaces through `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
 
 Numbers are placeholders pending a balance pass.
