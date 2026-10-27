@@ -71,7 +71,7 @@ public class AbilityEffectShould
         var arena = new TestArena { NextOutcome = HitOutcome.Dodged };   // nothing lands, so nothing is recorded
         CharacterEntity caster = arena.Player(1, 0f, 0f);
         Creature homeward = Boar(5, 1f);
-        homeward.Script = Instances.MapInstanceAbilityCastShould.HomewardScript.Walking(homeward, caster);
+        homeward.Script = HomewardScript.Walking(homeward, caster);
         IUnit[] candidates = [arena.Player(2, 0f, 0.8f), homeward, Boar(3, 1.2f), Boar(4, 2f)];
         AbilityTemplate row = AbilityTestData.Cone(219);
         row.Effects = SpellEffect.Debuff;   // no direct amount: the arena records no damage

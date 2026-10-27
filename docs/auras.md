@@ -91,9 +91,10 @@ lowers the speed through the stat fold as before. A unit holding several is in e
   `AuraApplyResult.Resisted`: nothing is placed or recorded and the aura enters no combat (an ability's hit without
   damage has already entered combat when it landed, #1164); for an ability's aura its
   caster and whoever would have seen the hit get a hit of 0 marked `HitResult.Immune`
-  (`ICombatOutcomes.ControlResisted`, sent as an evaded hit is), after the ability's own damage. A creature walking home is
-  told so only by an `Unavoidable` ability (#1164): any other sees its hit passed over first, with or without damage,
-  and a hit that did not land applies no aura, so nothing is resisted and nothing is sent. Arrival
+  (`ICombatOutcomes.ControlResisted`, sent as an evaded hit is), after the ability's own damage. No ability reaches a
+  creature walking home, `Unavoidable` or not: its shape passes over it (#1181), so nothing is resisted and nothing is
+  sent. Only crowd control applied to it directly, by a Resonance proc, is resisted and answered "Immune".
+  Arrival
   protection, an invulnerable creature and a corpse still refuse it (`Refused`, no Immune). A doodad's or an item's
   application that is resisted counts as not applied. A refresh of a held crowd-control aura never shortens it: the copy
   keeps the later of its expiry and the new one, its `DurationMs` then being the time it had left.

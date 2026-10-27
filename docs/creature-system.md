@@ -301,8 +301,9 @@ contracts.
   turns to and attacks a target in reach; silenced, it casts only its basic, ready and in reach, and
   `ChooseAbility` is not asked. A slow needs nothing here: the locomotion moves it at its slowed
   speed. The leash and the walk home are unchanged, and a creature walking home resists crowd control
-  (an ability's hit is passed over whole, damage or not, so its aura never reaches it; only an
-  `Unavoidable` ability's crowd control does, and its caster is told "Immune", #1164). Known limits: a rooted creature keeps the melee slot it already held for the
+  (no ability reaches it, `Unavoidable` or not: its shape passes over it, damage, aura and all, #1181;
+  only crowd control applied to it directly, by a Resonance proc, is resisted, and its
+  caster is told "Immune"). Known limits: a rooted creature keeps the melee slot it already held for the
   root's few seconds, a crowd's separation can still push a controlled creature, and
   `CreaturePatrolScript` (which takes no step while stunned or rooted, stopping a leg in progress and
   asking for it again once free) lets a pause at a point run on through it. The creature scheduler

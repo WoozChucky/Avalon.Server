@@ -356,9 +356,10 @@ place of the nearest unit it can damage; a unit held for the dodge wait
 that many; a piercing projectile ends on its `MaxTargets`-th hit, told as a hit (`ProjectileImpactReason.Hit`), and
 one without `Pierce` already ends on its first. A projectile flies through every unit that does not qualify, one hits
 ignore included, and a held hit whose target has since come to be ignored is dropped (§4). The same rule means an
-`Unavoidable` ability offers its aura only to a unit it may affect: an ignored unit is offered none, where the aura
-system would have refused it anyway, so a creature walking home is no longer told "Immune" by a shape's crowd control
-(a direct application, such as an item's or a Resonance proc's, still is).
+`Unavoidable` ability offers its aura only to a unit it may affect: an ignored unit is offered none. Before #1181 the
+aura system refused such an aura, except crowd control on a creature walking home, which it resisted and answered
+"Immune"; a shape's crowd control now skips that creature and tells nothing (crowd control applied to it directly, by
+a Resonance proc, is still resisted and answered "Immune").
 
 **Cone** (`ConeAbilityScript`). The apex is the caster. It points along the caster's facing (a
 movement skill) or toward the aim point (a cursor skill; a point on the caster falls back to facing).
