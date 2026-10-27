@@ -298,25 +298,26 @@ English):
 
 The storyline "Trouble in the Forest", in the town (map 1) and the forest:
 
-| Quest | Giver → ender | Needs | Asks | Pays |
-|---|---|---|---|---|
-| 1 Thinning the Herd | Uriel → Uriel | level 1 | kill 6 Thornback Boars | 150 experience, 100 gold |
-| 2 Tusks for Borin | Uriel → Borin Stoutbeard | quest 1 | collect 4 Boar Tusks (item 57; 60 % from Thornback Boars) | 250 experience, 150 gold, 2 Greater Health Potions (item 56) |
-| 3 The Alpha's Howl | Borin → Borin | level 2, quest 2 | stage 0: kill 3 Grey Fen Wolves and 2 Husks of the Wold; stage 1: speak with Marta Ledgerwell; stage 2: kill the Bramblemaw Alpha | 600 experience, 400 gold, the Bone Charm (item 69, the amulet base), and a choice of one weapon base: Ash Staff (33), Hunter's Shortbow (34), Ironwood Sword (32) or Oak Mace (35) |
+| Quest | Giver → ender | Needs | Asks | Pays | Talent points |
+|---|---|---|---|---|---|
+| 1 Thinning the Herd | Uriel → Uriel | level 1 | kill 6 Thornback Boars | 150 experience, 100 gold | 0 |
+| 2 Tusks for Borin | Uriel → Borin Stoutbeard | quest 1 | collect 4 Boar Tusks (item 57; 60 % from Thornback Boars) | 250 experience, 150 gold, 2 Greater Health Potions (item 56) | 0 |
+| 3 The Alpha's Howl | Borin → Borin | level 2, quest 2 | stage 0: kill 3 Grey Fen Wolves and 2 Husks of the Wold; stage 1: speak with Marta Ledgerwell; stage 2: kill the Bramblemaw Alpha | 600 experience, 400 gold, the Bone Charm (item 69, the amulet base), and a choice of one weapon base: Ash Staff (33), Hunter's Shortbow (34), Ironwood Sword (32) or Oak Mace (35) | 1 |
 
 A second chain runs beside it, from quest 4 (no prerequisite):
 
-| Quest | Giver → ender | Needs | Asks | Pays |
-|---|---|---|---|---|
-| 4 Wings for the Still | Tobin Marrowfield → Tobin | level 2 | collect 6 Blightfly Wings (item 59; 50 % from Blightfly Swarmlings) | 300 experience, 200 gold, 3 Mana Potions (item 2) |
-| 5 Pelts Before Frost | Hilde Brassbuckle → Hilde | level 3, quest 4 | collect 8 Fen Wolf Pelts (item 60; 50 % from Grey Fen Wolves) | 400 experience, 250 gold |
-| 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 gold, 2 Greater Health Potions (item 56) |
-| 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 gold, the Copper Band (item 68, the ring base) |
-| 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 gold, the Copper Band (item 68, the ring base) |
-| 11 Earn It Fancy | Hilde Brassbuckle → Hilde | level 4, quest 5 | kill 6 Grey Fen Wolves and the Bramblemaw Alpha | 550 experience, 325 gold, and a choice of one chest base (no fixed item): Ironbound Chestguard (37, plate), Hide Jerkin (47, leather) or Linen Robe (42, cloth) |
+| Quest | Giver → ender | Needs | Asks | Pays | Talent points |
+|---|---|---|---|---|---|
+| 4 Wings for the Still | Tobin Marrowfield → Tobin | level 2 | collect 6 Blightfly Wings (item 59; 50 % from Blightfly Swarmlings) | 300 experience, 200 gold, 3 Mana Potions (item 2) | 0 |
+| 5 Pelts Before Frost | Hilde Brassbuckle → Hilde | level 3, quest 4 | collect 8 Fen Wolf Pelts (item 60; 50 % from Grey Fen Wolves) | 400 experience, 250 gold | 0 |
+| 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 gold, 2 Greater Health Potions (item 56) | 0 |
+| 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 gold, the Copper Band (item 68, the ring base) | 1 |
+| 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 gold, the Copper Band (item 68, the ring base) | 1 |
+| 9 The Lost Caravan | Marta Ledgerwell → Marta | level 4, quest 6 | open the caravan's strongbox in the forest (doodad 5), pin the caravan's fate to the notice board in Glimmerdell (doodad 6), speak with Marta | 600 experience, 350 gold, 2 Greater Health Potions (item 56) | 0 |
+| 11 Earn It Fancy | Hilde Brassbuckle → Hilde | level 4, quest 5 | kill 6 Grey Fen Wolves and the Bramblemaw Alpha | 550 experience, 325 gold, and a choice of one chest base (no fixed item): Ironbound Chestguard (37, plate), Hide Jerkin (47, leather) or Linen Robe (42, cloth) | 0 |
 
 One daily (#710), offered again after each daily reset (repeat kind `Daily`, the blue markers):
 
-| Quest | Giver → ender | Needs | Asks | Pays |
-|---|---|---|---|---|
-| 10 Boar Cull | Hilde Brassbuckle → Hilde | level 8 | kill 15 Thornback Boars | 800 experience, 500 gold |
+| Quest | Giver → ender | Needs | Asks | Pays | Talent points |
+|---|---|---|---|---|---|
+| 10 Boar Cull | Hilde Brassbuckle → Hilde | level 8 | kill 15 Thornback Boars | 800 experience, 500 gold | 0 |

@@ -383,6 +383,21 @@ singletons as in every host. Only their context factories differ in the API, whi
   their seed values and checks (a seeded row a live edit gave a cost while it was free goes on Mana, so the restored
   check holds), puts the Mana Potion back in the `potion` group, and drops the three formula columns. No world or API
   does that by itself.
+  **Migration order, #1181 (part B1).** The talent tree as data is additive. A world's World database migrates through
+  `AddTalentTree`: the six tree tables, `TalentForkGroups` (empty), `TalentNodes`, `TalentEdges`, `TalentNodeStats`,
+  `TalentNodeAbilities` and `TalentClassStarts`, with their checks, keys and indexes, seeded with the first region
+  (305 nodes, 345 edges, 286 stat lines, 23 ability links, four class starts); `QuestTemplates.RewardTalentPoints` and
+  `AbilityTemplates.MaxTargets` (`integer`, default 0, with `CK_QuestTemplates_RewardTalentPoints` and
+  `CK_AbilityTemplates_MaxTargets`, each at least 0), the first set to 1 on quests 3, 7 and 8; and two ability rows,
+  319 Heavy Strike and 320 Frostbolt. There is no Character migration: no character holds a node yet, nor either new
+  ability. Each world applies it at its start, before it serves (`WorldStartup`). The order is: the worlds go first,
+  each migrating at its next start (start any stopped world once, so it migrates too), and then the API release with
+  the change is cut. An older API reading a migrated world ignores the new tables and columns. An API with the change
+  reading a world that has not migrated fails with Postgres 42703 on the missing columns, every ability template read
+  and every quest template read, and with 42P01 on the public talent tree; which is why the worlds go first. To roll a
+  world back to a build without the change, run `dotnet ef database update CostsInMana` against its World database:
+  it drops the six tables, the two columns and their checks, and deletes abilities 319 and 320. No world or API does
+  that by itself.
 
 ## How a request reaches its world
 
@@ -496,13 +511,14 @@ outside `/world/{worldId}/`.
 
 ## Public routes
 
-`[PublicWorldScoped]` is the anonymous-friendly variant, for the public site's item and ability tooltips and the public realm board:
+`[PublicWorldScoped]` is the anonymous-friendly variant, for the public site's item and ability tooltips, the public realm board and the talent tree (#1181):
 
 | Route | Answer |
 |---|---|
 | `GET /public/world` | `{ defaultWorldId, worlds: [{ id, name, type, status, population, queueLength, maintenanceDeadlineUtc, lore }] }`: the configured, available worlds the caller may read, in id order, each with its live state. `Cache-Control: private, no-cache`, since the list depends on the caller |
 | `GET /public/world/{worldId}/item/{id}` | `PublicItemDto` (`PublicItems.ToPublicAsync`); its `baseStats` are the base-stat ranges every copy rolls within (#1179, part B2: `stat`, `min`, `max`, by stat; a weapon's attack time in milliseconds before attack speed), the item's own or, for a unique, its base's; `damageType` is a weapon's damage type (null otherwise), and `baseItemId` the base a unique names (null for any other item); its `modifierSpans` are the lines every copy rolls within (#1179): a base's implicit, or a unique's base's implicit and then its own modifier, each `kind`, `stat`, `min`, `max` and, on an "adds X to Y" line, `min2` and `max2`, from the world's modifier catalog (`IItemModifierRepository`). The template's `damage` and `attackTimeMs` are gone |
 | `GET /public/world/{worldId}/ability/{id}` | `PublicAbilityDto` |
+| `GET /public/world/{worldId}/talents` | `TalentTreeDto` (#1181, `GetPublicTalentTree`): the world's talent tree as its World database holds it (`ITalentTreeRepository.GetTreeAsync`, `TalentMapping.ToDto`), whether or not the world's catalog accepted it: `nodes` by id, each its `id`, `kind` (the string enum `TalentNodeKind`), `name` (null on a small node or a junction), `angle` (degrees, in (-180, 180]), `radius` (layout units), `forkGroupId`, `abilityId` (the ability a start or an ability node grants, else null) and `stats` by stat then kind (`stat`, `kind` `Added` or `More`, `value`, `valueMax`, set only on an "adds X to Y" line); `edges` once each, the smaller id first (`nodeA`, `nodeB`); `classStarts` by class (`class`, `nodeId`). The same cache headers as the tooltips |
 
 - **The caller** (`PublicCaller.AccessLevelAsync`) is authenticated through the default policy: a signed-in caller
   reads with its own access flags plus Player, and an anonymous caller, or one whose token is not valid, counts as a

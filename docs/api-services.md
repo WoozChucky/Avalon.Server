@@ -192,8 +192,8 @@ owns each path:
 - Its readers are the chart (the service names it accepts in `services`, and the routes mode below), the host tests
   (`RouteOwnershipShould`, `EveryRouteReachableShould`) and the smoke check's coverage test (`SmokeCoverageShould`).
 
-Every endpoint has exactly one owner. The table that decides it is `RouteOwnershipShould`'s: 62 endpoints for
-identity (4 of them the internal game workload routes), 49 for worlds, 8 for commerce and 6 for distribution, plus the
+Every endpoint has exactly one owner. The table that decides it is `RouteOwnershipShould`'s: 68 endpoints for
+identity (4 of them the internal game workload routes), 50 for worlds, 8 for commerce and 7 for distribution, plus the
 Steam OpenID callback (`/account/links/steam/callback`, answered by identity's middleware rather than an endpoint).
 Every process also maps `/health` and `/alive`, and the API docs where they are served, which through the ingress
 reach identity.

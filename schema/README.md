@@ -18,6 +18,7 @@ contracts so a non-.NET client can be built against it.
 | `doodads/doodad-catalog-v1.json` | Generated **from the database**. Every doodad template a client draws: its model kit and key, used model, clips, interaction, interaction time and range, whether it is solid and how it looks once spent. Nothing of what a use does (gates, loot, gold, restore, radius, aura outcomes) is in it. `DoodadCatalogExportShould` fails when it differs from the seed rendered. |
 | `maps/map-catalog-v1.json` | Generated **from the database** and the map files' spawn tables. Every creature display id each map can show: its placed creatures and everything its spawn table can roll, for a client to preload. `MapCatalogExportShould` fails when it differs from the seed rendered. |
 | `quests/quest-catalog-v1.json` | Generated **from the database**. Every quest's title (enUS), stages, objectives (type, target, count) and rewards, for tooling such as a quest browser (#714); the game client needs none of it, since the quest packets are self-describing. See below. |
+| `talents/talent-catalog-v1.json` | Generated from the seed (`TalentSeed`), no database. The shared talent tree (#1181): every node (kind, name, place on the wheel, fork, linked ability, stat lines), every edge once, the fork groups and each class's start node; each `abilityId` points into the ability catalog, each `stat` into the item schema's `StatType`. `TalentCatalogExportShould` fails when it differs from the seed rendered. See `docs/talents.md`. |
 | `vectors/navmesh-v1.txt` | Generated. Known-answer answers from the DotRecast bake and `MapNavigator`'s two movement queries, keyed on a chunk layout so one row covers composition, bake and query. |
 | `protobuf-net/bcl.proto` | Vendored, not generated. See below. |
 | `protobuf-net/NOTICE` | Where that copy came from, under what license, and which library version it matches. |
@@ -29,7 +30,7 @@ dotnet run --project tools/Avalon.Exporter -- all
 ```
 
 Or name what you want: `proto`, `opcodes`, `corpus`, `crypto`, `item-schema`, `rotation`,
-`object-guid`, `navmesh`, `item-catalog`, `ability-catalog`, `aura-catalog`, `doodad-catalog`, `map-catalog`, `quest-catalog`. A bare run lists them and writes nothing.
+`object-guid`, `navmesh`, `item-catalog`, `item-modifier-catalog`, `ability-catalog`, `aura-catalog`, `doodad-catalog`, `map-catalog`, `quest-catalog`, `talent-catalog`. A bare run lists them and writes nothing.
 
 `WireSchemaShould`, `WireCorpusShould` and `SessionCryptoVectorsShould` in
 `tests/Avalon.Shared.UnitTests` regenerate and compare, so forgetting to is a failing test rather
