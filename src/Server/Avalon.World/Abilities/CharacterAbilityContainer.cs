@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Abilities;
 
-public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacterAbilities
+public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacterAbilities
 {
     private readonly ILogger<CharacterAbilityContainer> _logger = loggerFactory.CreateLogger<CharacterAbilityContainer>();
     private IReadOnlyCollection<IAbility> _abilities = Array.Empty<IAbility>();
@@ -66,7 +66,7 @@ public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacte
     {
         _abilities = abilities;
         _list = abilities as IReadOnlyList<IAbility>;
-        _logger.LogDebug("Loading {Count} abilities into character", _abilities.Count);
+        LogLoading(_logger, _abilities.Count);
     }
 
     public void Update(TimeSpan deltaTime)
@@ -92,4 +92,8 @@ public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacte
             ability.CooldownTimer -= (float)deltaTime.TotalSeconds;
         }
     }
+
+    // Generated: no params array and no boxed count on each load, whatever the level (#1181: a talent change loads).
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Loading {Count} abilities into character")]
+    private static partial void LogLoading(ILogger logger, int count);
 }

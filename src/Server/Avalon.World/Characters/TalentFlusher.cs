@@ -9,11 +9,11 @@ namespace Avalon.World.Characters;
 
 /// <summary>
 /// Sends a character's own client its talent window's state (#1181, SMSG_TALENT_STATE) when it changed: an accepted
-/// allocation or a paying turn-in marked it owed, or the level moved since it was last sent. Comparing the level catches
-/// every level-up, whatever granted it (a kill, a quest, an item, a command), without touching the experience award.
-/// Called by WorldServer once per tick per connection, after the character sheet and before the ability amounts, so a
-/// tick that changed the state several times sends it once, whole. Select sends the first state itself, since a
-/// character reaches its connection only once it is in the world.
+/// allocation or a paying turn-in marked it owed, or the level moved since it was last sent. Comparing the level
+/// catches every level-up, whatever granted it (anything that grants experience: a kill, a quest, an item), without
+/// touching the experience award. Called by WorldServer once per tick per connection, after the character sheet and
+/// before the ability amounts, so a tick that changed the state several times sends it once, whole. Select sends the
+/// first state itself, since a character reaches its connection only once it is in the world.
 /// </summary>
 public static class TalentFlusher
 {

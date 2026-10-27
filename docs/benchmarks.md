@@ -2409,26 +2409,38 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemStat
 |---|---:|---:|
 | `Decide_refused` (baseline) | 84.47 ns (± 2.67 ns) | 0 B |
 | `Decide_accepted` | 91.70 ns (± 1.19 ns) | 0 B |
-| `Decide_refused_long` | 16,452.54 ns (± 171.31 ns) | 0 B |
+| `Decide_refused_long` | 16,452.54 ns (± 171.31 ns), then 2,075 ns (± 29.5 ns) | 0 B |
 | `Apply_small_nodes` | 502.85 ns (± 10.56 ns) | 0 B |
-| `Apply_ability_change` | 2,592.85 ns (± 20.33 ns) | 1,024 B |
+| `Apply_ability_change` | 2,592.85 ns (± 20.33 ns), then 2,333 ns (± 28.5 ns) | 1,024 B, then 832 B |
+
+The second figures are the final fix wave's one re-run of those two rows, after "named earlier" became a pooled bit
+set and the ability list's send and load stopped boxing (below):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAllocateBenchmarks.Decide_refused_long*" "*TalentAllocateBenchmarks.Apply_ability_change*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
 
 **The fold allocates nothing, with the tree or without it.** The branch's calculator rows read 4 to 9 % lower than
 the base's, `Calculate` among them, which part B2 changes only by the tree's null checks, so the difference is the two
-runs' spread, not a gain; `CalculateModified` is within noise of the base. Folding 18 nodes adds about 25 ns to the
-same kit (`CalculateWithTalents` against `CalculateModified`, same run).
+runs' spread, not a gain. `CalculateModified` reads 3.7 % lower than the base (691.1 against 717.6 ns), many standard
+deviations apart, but inside the same spread between the two runs, so it is no regression and no gain either. Folding
+18 nodes adds about 25 ns to the same kit (`CalculateWithTalents` against `CalculateModified`, same run).
 
-**No decision allocates.** A five-node request costs under 100 ns, accepted or refused. The long refusal costs
-16.5 µs, about 195 times the baseline, for 135 ids. A request is capped by the points the character has left (and by
-the tree's size), so today's characters, with at most 18 points, cannot send one longer than 18 ids; the row is the
-bound to revisit when the level cap rises toward the design's 135 points.
+**No decision allocates.** A five-node request costs under 100 ns, accepted or refused. The long refusal, 135 ids,
+first cost 16.5 µs, about 195 times the baseline: "named earlier" was a scan of the ids before each one, so it grew as
+the square of the request's length times a node's degree. With one bit per tree index in an array rented from the
+shared pool, set as each id passes, it costs 2.1 µs, growing with the length times the degree, and still allocates
+nothing. A request is capped by the points the character has left (and by the tree's size), so today's characters,
+with at most 18 points, cannot send one longer than 18 ids.
 
 **An allocation without an ability change allocates nothing.** `Apply_small_nodes` sums 18 nodes and refreshes the
-stats in about half a microsecond. `Apply_ability_change` is two changes, a drop and an allocation, so its 1,024 B
-covers both: per change, the held ability list `TalentAbilities.Rebuild` builds (and the boxed count of
-`CharacterAbilityContainer.Load`'s Debug line), and the `AbilityInfo[]`, one `AbilityInfo` per held ability and the
-`AbilityAmount[]` that `CharacterAbilitiesSender` builds; plus, on the allocation only, Cleave's new `GameAbility`.
-That is paid only when what a character holds changes, never per tick. Each row was run once and not re-run.
+stats in about half a microsecond. `Apply_ability_change` is two changes, a drop and an allocation, so its bytes cover
+both: per change, the held ability list `TalentAbilities.Rebuild` builds, and the `AbilityInfo[]`, one `AbilityInfo`
+per held ability and the `AbilityAmount[]` that `CharacterAbilitiesSender` builds; plus, on the allocation only,
+Cleave's new `GameAbility`. The first run's 1,024 B also held, per change, `CharacterAbilityContainer.Load`'s Debug
+line (its argument array and boxed count, now a generated `[LoggerMessage]`) and the sender's boxed enumerator over
+the held list (now walked by index): 192 B in all, so 832 B. That is paid only when what a character holds changes,
+never per tick. Each row was run once, and the two changed rows once more after the fix.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

@@ -54,7 +54,7 @@ public class TalentRulesShould
         Assert.True((result, node) == (decided, refused), $"{row}: {decided} naming {refused}");
         Assert.Equal(held.Select(n => (int)n), talents.Held);
         Assert.Equal(version, talents.Version);
-        Assert.Null(save.TakeMarks().Talents);
+        Assert.Empty(save.TakeMarks().Talents!);
     }
 
     private static TalentCatalog Tree()

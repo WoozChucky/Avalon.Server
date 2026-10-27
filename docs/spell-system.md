@@ -448,19 +448,19 @@ Towns never allow player hostility, whatever the flags.
 Since #1181 no class is granted a kit and nothing grants an ability at creation: a character holds its class start's
 starter and the ability of every ability node it holds on the talent tree, which any class can walk to
 (`TalentAbilities`, at select and after every allocation; [talents](talents.md)). The four starters are Heavy Strike
-(319, Warrior), Spark Bolt (210, Wizard), Quick Shot (220, Hunter) and Smite (230, Cleric), each linked from its
-class's start node. Every other class ability is one of the tree's 19 ability nodes ([talents](talents.md#the-seed)
-lists each node and its ability): the other ten rows below, Frostbolt among them (between the Hunter's and the
-Wizard's regions), and the nine aura and crowd-control abilities 203, 204, 213, 214, 223, 224, 233, 234 and 235
-([auras](auras.md)). The World migration
-`AbilitiesFromTheTree` dropped `CharacterCreateInfos.StartingSpells` and `AbilityTemplates.AllowedClasses`, and the
-Character migration `DropCharacterAbilities` the per-character ability rows. The class column below is the class whose
-region of the tree holds the ability. The rows were seeded by the World migration `SeedStarterSkillKit`, the old kit. The retired skills 1, 2 and 100-103 are gone and their ids are never
-reused. Every kit skill has `ThreatMultiplier` 1, and `HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune. Under the offence model
-(#1178) the bases re-express the old numbers: an Attack's effectiveness carries its old level-1 average over a
-starter weapon's roll, and a Spell's or a Heal's base and growth carry its old level-1 and level-10 averages, each
-within a few percent. An Attack whose cooldown is 0, every basic one among them, waits its weapon's attack time
-(`weapon`).
+(319, Warrior), Spark Bolt (210, Wizard), Quick Shot (220, Hunter) and Smite (230, Cleric), each linked from its class's
+start node. Every other class ability is one of the tree's 19 ability nodes ([talents](talents.md#the-seed) lists each
+node and its ability): the other ten rows below, Frostbolt among them (between the Hunter's and the Wizard's regions),
+and the nine aura and crowd-control abilities 203, 204, 213, 214, 223, 224, 233, 234 and 235 ([auras](auras.md)). The
+World migration `AbilitiesFromTheTree` dropped `CharacterCreateInfos.StartingSpells` and
+`AbilityTemplates.AllowedClasses`, and the Character migration `DropCharacterAbilities` the per-character ability rows.
+The class column below is the class whose region of the tree holds the ability. The rows were seeded by the World
+migration `SeedStarterSkillKit`, the old kit. The retired skills 1, 2 and 100-103 are gone and their ids are never
+reused. Every kit skill has `ThreatMultiplier` 1, and `HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are
+placeholders to tune. Under the offence model (#1178) the bases re-express the old numbers: an Attack's effectiveness
+carries its old level-1 average over a starter weapon's roll, and a Spell's or a Heal's base and growth carry its old
+level-1 and level-10 averages, each within a few percent. An Attack whose cooldown is 0, every basic one among them,
+waits its weapon's attack time (`weapon`).
 
 | id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | tags | base | type |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|

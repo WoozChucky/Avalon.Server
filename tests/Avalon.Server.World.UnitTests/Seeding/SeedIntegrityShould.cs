@@ -20,6 +20,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Configuration;
 using Avalon.World.Doodads;
+using Avalon.World.Entities;
 using Avalon.World.Doodads.Scripts;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
@@ -2070,10 +2071,11 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1179: the jewellery table as drafted; every loot table, vendor row, quest reward, quest choice and starting item
-    /// names a template that exists; every worn template is a base kind, worn in its kind's slot, that never stacks, and
-    /// nothing else has a base kind. The weapon and armour tables, the vendors' lines and the quests' rewards are pinned
-    /// by their own tests above and in VendorSeedShould.
+    /// #1179: the jewellery table as drafted; every loot table, vendor row, quest reward, quest choice and starting
+    /// item names a template that exists; every worn template is a base kind, worn in its kind's slot, that never
+    /// stacks, and nothing else has a base kind. Every starting item (#1181) goes in a Bag slot the bag has, since
+    /// creation writes it to the slot its row names. The weapon and armour tables, the vendors' lines and the quests'
+    /// rewards are pinned by their own tests above and in VendorSeedShould.
     /// </summary>
     [Fact]
     public void Seed_vendors_loot_and_quest_rewards_on_the_bases()
@@ -2098,12 +2100,16 @@ public class SeedIntegrityShould
             jewellery.Entries.OrderBy(e => e.Sequence).Select(e => (e.Sequence, e.ItemTemplateId!.Value, e.Chance, e.GroupId)));
         Assert.Single(entries, e => e.LootTableId.Value == 12 && e.ReferenceTableId == s_forestJewellery && e.Chance == 100f);
 
+        var starting = context.CharacterCreateItems.AsNoTracking().ToList();
         IEnumerable<ulong> named = entries.Where(e => e.ItemTemplateId is not null).Select(e => e.ItemTemplateId!.Value)
             .Concat(context.VendorStocks.AsNoTracking().ToList().Select(v => v.ItemTemplateId.Value))
             .Concat(context.QuestItemRewards.AsNoTracking().ToList().Select(r => r.ItemTemplateId.Value))
             .Concat(context.QuestItemChoices.AsNoTracking().ToList().Select(c => c.ItemTemplateId.Value))
-            .Concat(context.CharacterCreateItems.AsNoTracking().ToList().Select(i => i.TemplateId.Value));
+            .Concat(starting.Select(i => i.TemplateId.Value));
         Assert.All(named, id => Assert.Contains(id, items.Keys));
+        byte bag = new CharacterInventoryContainer(NullLoggerFactory.Instance, InventoryType.Bag).Capacity;
+        Assert.All(starting, i => Assert.True(i.Slot < bag,
+            $"{i.Class}'s starting item {i.TemplateId.Value} is in Bag slot {i.Slot} of {bag}"));
         Assert.All(items.Values.Where(i => i.Slot is not null), i => Assert.Equal(1u, i.MaxStackSize));
         Assert.All(items.Values, i => Assert.True((i.Slot is null) == (i.BaseKind is null),
             $"{i.Name}: a worn template is a base kind, and nothing else is"));

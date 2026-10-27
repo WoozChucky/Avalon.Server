@@ -65,10 +65,11 @@ A `byte` enum, append-only. The server checks the rules in this order and answer
 
 1. `Dead` (1): the character is dead.
 2. `TooMany` (2): the request names more nodes than the character has points left to spend (earned minus spent; so any
-   node at all when none are left), or more than the tree holds. **While the world's tree is unavailable** (its
-   catalog refused the tree at startup or at a reload: a bad deploy), the tree holds no node, so every non-empty
-   request is answered `TooMany` whatever the character's points. A client that shows `TooMany` as "not enough points"
-   while the state shows points left to spend should say instead that talents are unavailable.
+   node at all when none are left, or when spent is above earned, section 5), or more than the tree holds. **While the
+   world's tree is unavailable** (its catalog refused the tree at startup or at a reload: a bad deploy), the tree holds
+   no node, so every non-empty request is answered `TooMany` whatever the character's points. A client that shows
+   `TooMany` as "not enough points" while the state shows points left to spend (earned above spent) should say instead
+   that talents are unavailable; with none left, or spent above earned, it is "not enough points".
 3. Then each id, in the order sent; the first id that breaks a rule is named in `NodeId`:
    - `UnknownNode` (3): 0, above 2,147,483,647, or not a node of the tree;
    - `AlreadyAllocated` (4): already held, named earlier in the same request, or a class start (never allocated);
@@ -92,19 +93,32 @@ so 0 when the refused id was 0), and 0 for `Ok`, `Dead`, `TooMany` and `Internal
 `SMSG_TALENT_STATE` is what the talent window shows, **whole every time**: `NodeIds`, every node the character holds,
 ascending (never its class start); `PointsEarned`, one per level plus the talent points of every quest it has turned in
 (section 6); `PointsSpent`, one per node held. What it may still spend is earned minus spent. The client replaces what
-it holds with each state. Spent is above earned only while the world's tree is unavailable (section 4, `TooMany`): a
-character's saved nodes are then kept as they are, and nothing can be allocated.
+it holds with each state.
+
+**Spent above earned.** Spent is above earned when the points earned fell while the nodes were kept: a reload or a
+deploy refused or removed a quest the character turned in that paid talent points, or lowered what it pays, or staff
+lowered the character's level (a REST character patch, which the world reads at the next select). Nothing is dropped
+while the character is in the world, and a reload re-sends no state. At its next select, with the tree loaded, **the
+whole tree is cleared**, whatever lowered the points: every node is dropped, free, and the character spends its points
+again (below, at select). A refused tree drops nothing at select, so spent stays above earned as long as the tree is
+refused. Nothing can be allocated while spent is at or above earned (`TooMany`).
+
+**While the tree is unavailable**, the state still lists the nodes held, but they grant nothing: no stat, and no
+ability beyond the class start's starter, until a tree that holds them is loaded again.
 
 It arrives:
 
 - **At select**, after `SInventorySnapshotPacket` and `SCharacterAbilitiesPacket`, before the ignore list
   ([login flow](character-login-flow.md)). Select first drops, free, the saved nodes that no longer fit the live tree
   (a node a later tree removed, then a node no longer linked to the class start through held nodes, then every node
-  when they cost more than the points earned), so the first state is already the corrected one. A character that
-  lost nodes this way gets its points back and no other message.
+  when they cost more than the points earned, whatever lowered the points: a refused or removed paying quest clears
+  the whole tree as a lowered level does), so the first state is already the corrected one. A character that lost
+  nodes this way gets its points back and no other message. Only a refused tree keeps every saved node (it drops
+  nothing); refused quests do not.
 - **After an accepted allocation**: the request's `SMSG_TALENT_RESULT` (`Ok`) first, then the state at the end of the
   same tick.
-- **After a level-up**, whatever gave it (a kill, a quest, an item, a command), at the end of that tick: one more point.
+- **After a level-up**, whatever gave it (anything that grants experience: a kill, a quest, an item), at the end of
+  that tick: one more point.
 - **After a turn-in of a quest that pays talent points**: the system line "You gained 1 talent point." (or "You gained
   N talent points.") right after "Quest completed: X.", and the state at the end of the same tick
   ([quest protocol](quest-protocol.md), section 9). A repeatable quest pays none.
@@ -132,5 +146,8 @@ Mother of Thorns (the quest protocol's seeded tables). The quest catalog export 
 
 The REST API reads the same figures from the saved rows ([multi-world API](api-worlds.md)):
 `GET /world/{worldId}/character/{id}/talents` returns `CharacterTalentsDto` (`characterId`, `nodeIds` ascending,
-`pointsEarned`, `pointsSpent`), as the character's world last saved them; and `GET /world/{worldId}/character/{id}/abilities`
-derives the character's abilities from the tree: the class start's starter, then each held ability node's.
+`pointsEarned`, `pointsSpent`), as the character's world last saved them, less any node the tree no longer holds; and
+`GET /world/{worldId}/character/{id}/abilities` derives the character's abilities from the tree: the class start's
+starter, then each held ability node's. Both read the rows as last saved: the world applies its login check at the
+character's next select (a node cut off from the start, or more held than earned, is dropped then), and the REST reads
+do not re-run it, nor the world catalogs' refusals.

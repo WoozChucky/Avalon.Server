@@ -23,36 +23,21 @@ public static class CharacterAbilitiesSender
 
         var infos = new AbilityInfo[held.Count];
         var amounts = new AbilityAmount[held.Count];
-        int i = 0;
-        foreach (IAbility ability in held)
+        if (held is IReadOnlyList<IAbility> list)
         {
-            AbilityMetadata metadata = ability.Metadata;
-            AbilityAmount amount = AbilityAmounts.For(combat, metadata, pace);
-            amounts[i] = amount;
-            infos[i] = new AbilityInfo
+            // By index: the talent tree loads a List (TalentAbilities), and a foreach over the interface boxes an
+            // enumerator.
+            for (int i = 0; i < list.Count; i++)
+                Describe(list[i], in combat, in pace, out infos[i], out amounts[i]);
+        }
+        else
+        {
+            int i = 0;
+            foreach (IAbility ability in held)
             {
-                AbilityId = ability.AbilityId,
-                Name = metadata.Name,
-                Cost = metadata.Cost,
-                Range = (ushort)metadata.Range,
-                AimMode = metadata.AimMode,
-                Shape = metadata.Shape,
-                Anchor = metadata.Anchor,
-                Reach = metadata.Reach,
-                Radius = metadata.Radius,
-                ArcDegrees = metadata.ArcDegrees,
-                ProjectileSpeed = metadata.ProjectileSpeed,
-                Pierce = metadata.Pierce,
-                Affects = metadata.Affects,
-                AmountKind = amount.Kind,
-                AmountMin = amount.Min,
-                AmountMax = amount.Max,
-                Tags = metadata.Tags,
-                AmountTypes = amount.Types,
-                CooldownMs = amount.CooldownMs,
-                CastTimeMs = amount.CastTimeMs,
-            };
-            i++;
+                Describe(ability, in combat, in pace, out infos[i], out amounts[i]);
+                i++;
+            }
         }
 
         character.AbilityAmountsSentFor = (combat, pace);
@@ -60,5 +45,35 @@ public static class CharacterAbilitiesSender
         character.AbilityAmountsSent = amounts;
 
         connection.Send(SCharacterAbilitiesPacket.Create(infos, PacketEncoder.Shared));
+    }
+
+    private static void Describe(IAbility ability, in AttackerCombat combat, in CasterPace pace, out AbilityInfo info,
+        out AbilityAmount amount)
+    {
+        AbilityMetadata metadata = ability.Metadata;
+        amount = AbilityAmounts.For(combat, metadata, pace);
+        info = new AbilityInfo
+        {
+            AbilityId = ability.AbilityId,
+            Name = metadata.Name,
+            Cost = metadata.Cost,
+            Range = (ushort)metadata.Range,
+            AimMode = metadata.AimMode,
+            Shape = metadata.Shape,
+            Anchor = metadata.Anchor,
+            Reach = metadata.Reach,
+            Radius = metadata.Radius,
+            ArcDegrees = metadata.ArcDegrees,
+            ProjectileSpeed = metadata.ProjectileSpeed,
+            Pierce = metadata.Pierce,
+            Affects = metadata.Affects,
+            AmountKind = amount.Kind,
+            AmountMin = amount.Min,
+            AmountMax = amount.Max,
+            Tags = metadata.Tags,
+            AmountTypes = amount.Types,
+            CooldownMs = amount.CooldownMs,
+            CastTimeMs = amount.CastTimeMs,
+        };
     }
 }

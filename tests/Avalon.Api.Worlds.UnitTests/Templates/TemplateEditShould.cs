@@ -355,6 +355,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "ability", "tags", "Attack, Spell, Projectile", "tags" },         // on Spark Bolt: two kinds at once
         { "ability", "tags", "Area", "tags" },                              // on Ignite: its burning aura needs a Spell source
         { "aura", "periodicEffectiveness", -1, "periodicEffectiveness" },   // on Bleed
+        { "aura", "periodicKind", "Damage", "periodicKind" },               // on Silenced: Hush, granted (#1181), names no type
         { "item", "maxStackSize", 5, "maxStackSize" },                      // on a plate chest: equipment never stacks (#1179)
         { "item", "baseKind", "Sword", "baseKind" },                        // on a potion, which has no slot (#1179)
         { "item", "baseKind", "PlateChest", "baseKind" },                   // on the starter sword: a chest kind in the main hand (#1179)
@@ -405,6 +406,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("ability", "convertPct") => 223UL,
             ("ability", "tags") => value is "Area" ? 213UL : 210UL,
             ("aura", "periodicEffectiveness") => 1UL,
+            ("aura", "periodicKind") => 15UL,
             ("item", "damageType") => 32UL,
             ("item", "maxStackSize") when value is 5 => 37UL,
             ("item", "statValue1") => 37UL,

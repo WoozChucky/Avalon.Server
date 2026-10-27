@@ -707,12 +707,12 @@ public class CharacterSelectHandler(
         entity.Quests.Load(quests);
 
         // Saved talents that no longer fit the tree are dropped, free, and the save marked; a tree the catalog refused
-        // drops nothing. The points earned are the level's and the paying quests', so the log is loaded first.
+        // drops nothing. The points earned are the level's and the paying quests', so the log is loaded first; more
+        // held than earned, whatever lowered the points, clears the whole tree.
         TalentCatalog tree = data.Talents;
         int earned = TalentPoints.Earned(character.Level, entity.Quests, data.Quests);
         entity.Talents.Load(talents);
-        using (logger.BeginScope("Character {CharacterId}", character.Id))
-            TalentSelectCheck.Apply(entity.Talents, tree, character.Class, earned, logger);
+        TalentSelectCheck.Apply(entity.Talents, tree, character.Class, earned, character.Id, logger);
         entity.Talents.RebuildTotals(tree);
 
         // #434: stats follow the class, the level, what is worn and the tree. No current health or power is stored, so

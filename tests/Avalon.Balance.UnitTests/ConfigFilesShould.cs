@@ -14,7 +14,7 @@ public class ConfigFilesShould
     private static ScenarioFile CheckedInScenarios() =>
         ConfigFileStore.Load(Path.Combine(s_balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Load_the_checked_in_files_against_the_seed()
     {
         BalanceData data = TestData.Seeded;

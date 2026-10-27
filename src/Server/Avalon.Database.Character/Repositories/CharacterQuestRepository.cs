@@ -16,6 +16,11 @@ public sealed record CharacterQuestRows(
 public interface ICharacterQuestRepository
 {
     Task<CharacterQuestRows> GetByCharacterIdAsync(CharacterId characterId, CancellationToken cancellationToken = default);
+
+    /// <summary>The ids of the quests the character has turned in, untracked, in no order (#1181: its talent
+    /// points).</summary>
+    Task<IReadOnlyList<uint>> GetCompletedQuestIdsAsync(CharacterId characterId,
+        CancellationToken cancellationToken = default);
 }
 
 public class CharacterQuestRepository(IDbContextFactory<CharacterDbContext> contextFactory) : ICharacterQuestRepository
@@ -30,5 +35,13 @@ public class CharacterQuestRepository(IDbContextFactory<CharacterDbContext> cont
         List<CharacterCompletedQuest> completed = await context.CharacterCompletedQuests.AsNoTracking()
             .Where(c => c.CharacterId == characterId).ToListAsync(cancellationToken);
         return new CharacterQuestRows(active, objectives, completed);
+    }
+
+    public async Task<IReadOnlyList<uint>> GetCompletedQuestIdsAsync(CharacterId characterId,
+        CancellationToken cancellationToken = default)
+    {
+        await using CharacterDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.CharacterCompletedQuests.AsNoTracking()
+            .Where(c => c.CharacterId == characterId).Select(c => c.QuestId).ToListAsync(cancellationToken);
     }
 }

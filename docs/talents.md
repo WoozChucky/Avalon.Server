@@ -187,7 +187,10 @@ afterwards.
 its completions that the quest catalog holds; a repeatable quest pays none (the catalog refuses one that would). It
 walks the completions' struct enumerator and allocates nothing. The points spent are the nodes held
 (`TalentAllocation.Spent`); what may still be spent is earned minus spent. Nothing stores a balance: the world and the
-API work the same figures out from the rows. Spent exceeds earned only while the tree is refused (below).
+API work the same figures out from the rows. Spent exceeds earned when earned falls while the nodes are kept: a reload
+or a deploy refuses or removes a paying quest the character turned in, or lowers what it pays, or staff lower the level
+(a REST character patch, read at the next select). Nothing drops for it in the world; the next select with the tree
+loaded clears the whole tree (below), and while the tree is refused it lasts.
 
 ## Select
 
@@ -198,10 +201,13 @@ repository). Back on the tick:
 1. the quest log loads, first, since the points earned count the paying quests;
 2. the talents load, and `TalentSelectCheck.Apply` drops, free, each drop marked for the save, what no longer fits the
    live tree, in order: a node the tree no longer holds, or a `Start`; then a held node no path of held nodes links to
-   the class's start (`TalentCatalog.WalkHeld` over bit sets rented from the shared pool); then, if the nodes still held cost more than the points earned, every
-   node. Each step that drops anything logs one Warning with the count and the ids, under a scope naming the
-   character. **A tree the catalog refused drops nothing**: the rows stay as they are, inert, so a bad deploy wipes
-   nobody's allocation. The held lines are then summed (`RebuildTotals`);
+   the class's start (`TalentCatalog.WalkHeld` over bit sets rented from the shared pool); then, if the nodes still
+   held cost more than the points earned, every node, **whatever lowered the points** (owner decision): a paying quest
+   the quest catalog refused, or a reload removed, clears the whole tree of a character at full spend as a lowered
+   level does, and the drop is saved. Each step that drops anything logs one Warning naming the character id, with the
+   count and the ids. **A tree the catalog refused drops nothing**: the rows stay as they are, inert, so a bad deploy
+   of the tree wipes nobody's allocation. That promise covers a refused tree only, not refused quests. The held lines
+   are then summed (`RebuildTotals`);
 3. the stats refresh, with the tree folded (below), `EnterWorld`, and the bare-hand fallback when there is no class
    row;
 4. the inventory snapshot;
@@ -244,14 +250,17 @@ client's view):
   or than the tree holds, so every non-empty request while the tree is refused); then for each id in the order sent,
   `UnknownNode` (0, past `int.MaxValue`, or not in the tree), `AlreadyAllocated` (held, named earlier, or a `Start`),
   `NotConnected` (no neighbour that is the class's start, a held node or a node named earlier) and `ForkLocked` (its
-  fork partner held or named earlier). A refusal names its node. "Named earlier" is a scan of the ids before it, at
-  most the points available, so no set is built; the worst case grows as the square of the request's length times a
-  node's degree ([benchmarks](benchmarks.md), `Decide_refused_long`). An empty list is `Ok` and changes nothing.
+  fork partner held or named earlier). A refusal names its node. "Named earlier" is one bit per tree index in an array
+  rented from the shared pool, set as each id passes, so a request costs its length times a node's degree
+  ([benchmarks](benchmarks.md), `Decide_refused_long`) and allocates nothing once the pool is warm. An empty list is
+  `Ok` and changes nothing.
 - **On `Ok`.** `TalentAllocation.Allocate` checks every id before it changes anything, holds each node and marks it for
   the save; then `TalentChange.Apply` (World/Talents): the totals rebuilt, `TalentAbilities.Rebuild`, the stats
   refreshed with `KeepShare` (a Warning when there is no class row), the ability list sent only when the abilities
-  held changed (after the refresh, so its amounts are the new stats'), and the talent state marked owed, in a
-  `finally`, so the window still learns what is held when a step throws.
+  held changed (after the refresh, so its amounts are the new stats'), and the talent state marked owed. Both follow
+  in a `finally`: when the refresh throws after the abilities were rebuilt, the new list still reaches the client (its
+  amounts from the stats as they stand), so it never lacks an ability the server lets it cast, and the window still
+  learns what is held.
 - **The reply.** Every request is answered with exactly one `SMSG_TALENT_RESULT` (`0x30F0`, `STalentResultPacket`
   over the encoder's scratch packet); a connection with no character gets nothing. An exception is logged at Error and
   answered `InternalError`. `TalentResult` (`Ok` 0, `Dead` 1, `TooMany` 2, `UnknownNode` 3, `AlreadyAllocated` 4,
@@ -267,8 +276,8 @@ whole every time. `Create` refills one id list per thread, so a send allocates n
 ([instrumentation](instrumentation.md)). It reads one flag and one level: it sends when the state is owed (an accepted
 allocation, or a turn-in of a quest that pays talent points, which also says "You gained 1 talent point.",
 [quests](quests.md)) or when the character's level differs from the one the last state was sent at, which catches
-every level-up (a kill, a quest, an item, a command) without touching the experience award. It then clears the flag
-and records the level. The quest catalog the points are priced by is read once per tick.
+every level-up (anything that grants experience: a kill, a quest, an item) without touching the experience award. It
+then clears the flag and records the level. The quest catalog the points are priced by is read once per tick.
 
 ## The stats fold
 
@@ -294,11 +303,20 @@ what the world wrote after folding, so the REST character sheet reads it as it i
 
 ## REST reads of a character
 
+Both reads take the rows **as last saved**: the world applies its login check (`TalentSelectCheck`) at the character's
+next select, and the REST reads do not re-run it, nor the world catalogs' refusals. Until that select, a node cut off
+from the start, or more nodes than the points earned, still show, and bad World DB data (an ability or a tree the
+world's catalog refuses) can list an ability the world would not grant. Both read only the tree rows the saved nodes
+need (`ITalentTreeRepository.GetHeldAsync`: those nodes, their stat lines, and the links of those nodes and of the
+class's start), never the whole tree.
+
 - **`GET /world/{worldId}/character/{id}/talents`** (`CharacterController.GetTalents`, `GetCharacterTalents`; the
   owner, or GameMaster and above, as `/abilities`) returns `CharacterTalentsDto { CharacterId, NodeIds, PointsEarned,
-  PointsSpent }`: the saved rows as the character's world last saved them, the points earned worked out as the world
-  does (the level plus each turned-in, non-repeatable quest's `RewardTalentPoints`, a quest the World database no
-  longer holds paying nothing) and spent as the row count.
+  PointsSpent }`: the saved rows less the nodes the tree no longer holds (the same filter as `/abilities`), spent as
+  their count, and the points earned worked out as the world does: the level plus the `RewardTalentPoints` of the
+  quests the character turned in, summed by the World database (`IQuestRepository.SumTalentPointsAsync` over
+  `ICharacterQuestRepository.GetCompletedQuestIdsAsync`; a repeatable quest, or one the World database no longer
+  holds, pays nothing).
 - **`GET /world/{worldId}/character/{id}/abilities`** is derived from the tree: the class start's starter, then each
   held ability node's ability by ascending node id, from `CharacterTalents` and the World database's tree rows. Rows
   naming a node the tree lacks are ignored, as the world ignores them until its next select. Each ability's advertised

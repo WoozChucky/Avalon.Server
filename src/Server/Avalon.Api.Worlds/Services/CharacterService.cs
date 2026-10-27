@@ -344,39 +344,44 @@ public class CharacterService : ICharacterService
         return guid.Type == ObjectType.Character && guid.Id != 0 ? guid.Id : null;
     }
 
+    /// <summary>
+    /// The character's talents as last saved, less the nodes the tree no longer holds, with the points it has earned.
+    /// The world applies its login check at the next select (TalentSelectCheck: a node cut off from the start, more
+    /// held than earned); this read does not re-run it.
+    /// </summary>
     public async Task<CharacterTalentsDto?> GetTalentsAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
         Character? character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
         if (character is null) return null;
 
-        IReadOnlyList<CharacterTalent> held = await _talentRepository.GetByCharacterIdAsync(id, cancellationToken);
+        IReadOnlyList<CharacterTalent> saved = await _talentRepository.GetByCharacterIdAsync(id, cancellationToken);
+        TalentTreeRows tree = await HeldRowsAsync(character, saved, cancellationToken);
+        HashSet<int> known = [.. tree.Nodes.Select(n => n.Id)];
+        List<int> held = [.. saved.Select(t => t.NodeId).Where(known.Contains)];
         return new CharacterTalentsDto
         {
             CharacterId = character.Id.Value,
-            NodeIds = [.. held.Select(t => t.NodeId)],
+            NodeIds = held,
             PointsEarned = await PointsEarnedAsync(character, cancellationToken),
             PointsSpent = held.Count,
         };
     }
 
+    /// <summary>The tree rows the character's saved nodes read (ITalentTreeRepository.GetHeldAsync).</summary>
+    private Task<TalentTreeRows> HeldRowsAsync(Character character, IReadOnlyList<CharacterTalent> saved,
+        CancellationToken cancellationToken) =>
+        _talentTreeRepository.GetHeldAsync(character.Class, [.. saved.Select(t => t.NodeId)], cancellationToken);
+
     /// <summary>
     /// The world's rule (TalentPoints.Earned) over the saved rows: the character's level plus what each quest it has
-    /// turned in pays. A quest the world database no longer holds pays nothing, nor does a repeatable one, which the
-    /// world's quest catalog refuses when it would pay.
+    /// turned in pays, summed by the world database. A quest the world database no longer holds pays nothing, nor does
+    /// a repeatable one, which the world's quest catalog refuses when it would pay.
     /// </summary>
     private async Task<int> PointsEarnedAsync(Character character, CancellationToken cancellationToken)
     {
-        int earned = character.Level;
-        CharacterQuestRows quests = await _questRepository.GetByCharacterIdAsync(character.Id, cancellationToken);
-        if (quests.Completed.Count == 0) return earned;
-
-        var pays = (await _questTemplateRepository.GetAllAsync(cancellationToken))
-            .Where(q => !q.IsRepeatable && q.RewardTalentPoints > 0)
-            .ToDictionary(q => q.Id.Value, q => q.RewardTalentPoints);
-        foreach (CharacterCompletedQuest completed in quests.Completed)
-            earned += pays.GetValueOrDefault(completed.QuestId);
-
-        return earned;
+        IReadOnlyList<uint> completed =
+            await _questRepository.GetCompletedQuestIdsAsync(character.Id, cancellationToken);
+        return character.Level + await _questTemplateRepository.SumTalentPointsAsync(completed, cancellationToken);
     }
 
     public async Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default)
@@ -385,7 +390,7 @@ public class CharacterService : ICharacterService
         if (character is null) return null;
 
         IReadOnlyList<CharacterTalent> held = await _talentRepository.GetByCharacterIdAsync(id, cancellationToken);
-        TalentTreeRows tree = await _talentTreeRepository.GetTreeAsync(cancellationToken);
+        TalentTreeRows tree = await HeldRowsAsync(character, held, cancellationToken);
         List<AbilityId> abilityIds = AbilitiesOf(character.Class, held, tree);
         IReadOnlyList<AbilityTemplate> templates = await _abilityTemplateRepository.GetByIdsAsync(abilityIds, cancellationToken);
         var templateById = templates.ToDictionary(t => t.Id);
@@ -402,9 +407,12 @@ public class CharacterService : ICharacterService
     }
 
     /// <summary>
-    /// The abilities the character holds, as the world derives them at select (TalentAbilities): its class start's
+    /// The abilities the character holds, as the world derives them at select (TalentAbilities), from its rows as last
+    /// saved over <paramref name="tree" />, the rows those read (<see cref="HeldRowsAsync" />): its class start's
     /// starter first, then the ability each held ability node links, by ascending node id. A row naming a node the tree
-    /// lacks is ignored, as the world ignores it until its next select drops it.
+    /// lacks is ignored, as the world ignores it until its next select drops it. The world's login check (a node cut
+    /// off from the start, more held than earned) and its catalogs' refusals are not re-run: bad World DB data can list
+    /// an ability the world refuses.
     /// </summary>
     private static List<AbilityId> AbilitiesOf(CharacterClass characterClass, IReadOnlyList<CharacterTalent> held,
         TalentTreeRows tree)

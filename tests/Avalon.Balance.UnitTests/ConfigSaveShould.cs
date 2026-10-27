@@ -52,7 +52,10 @@ public class ConfigSaveShould
     [Fact]
     public void Write_comparison_operators_literally()
     {
-        (_, _, string rotations) = ConfigFiles.Save(TestData.Config());
+        // Its own rotation: the checked-in one holds no condition while it names only the starters (#1181, #1183).
+        RotationFile conditional = ConfigFiles.ParseRotations(
+            """{ "Warrior": [ { "ability": 319, "when": [ { "targetsAlive": ">=2" } ] } ] }""");
+        (_, _, string rotations) = ConfigFiles.Save(TestData.Config() with { Rotations = conditional });
 
         Assert.Contains("\">=2\"", rotations);
         Assert.DoesNotContain("\\" + "u003E", rotations, StringComparison.OrdinalIgnoreCase);

@@ -271,13 +271,14 @@ public class CharacterControllerShould
         Assert.Equal((1u, 4000u), (Assert.Single(auras.Auras).AuraId, auras.Auras[0].RemainingMs));
     }
 
-    /// <summary>A character's talents are read by its owner, or by a game master, as its other reads are (#1181).</summary>
-    [Theory]
-    [InlineData(7L, AvalonRoles.Player)]
-    [InlineData(99L, AvalonRoles.GameMaster)]
-    public async Task GetTalents_Returns200_To_the_owner_and_a_game_master(long accountId, string role)
+    /// <summary>
+    /// A character's talents are returned once its read requirement passes, as its other reads are (#1181); who passes
+    /// it (the owner, or a game master) is CharacterReadHandlerShould's.
+    /// </summary>
+    [Fact]
+    public async Task GetTalents_Returns200_WhenAuthzSucceeds()
     {
-        ClaimsPrincipal user = User(accountId, role);
+        ClaimsPrincipal user = User(7, AvalonRoles.Player);
         Character ch = MakeChar(7);
         _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
         _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())

@@ -19,7 +19,7 @@ public class BalanceRunnerShould
         return new BalanceRunner(TestData.Seeded, scenarios, rotations);
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Give_the_same_rows_whatever_the_scheduling()
     {
         BalanceRunner runner = Runner();

@@ -17,8 +17,9 @@ public static class CharacterStatsCalculator
     /// Intellect (truncated once), plus gear's flat power, scaled by gear's increased maximum mana. Gear's increased mana
     /// regeneration is summed as it is, for the regeneration rates.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
-    /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances
-    /// are gear's and the tree's (#1181) alone.
+    /// times <paramref name="formula" />'s conversions, each product truncated once, the whole sum scaled by the global
+    /// increased armour, evasion or ward of gear and the tree (#1181); block and resistances are gear's and the tree's
+    /// alone.
     /// Every worn item gives its template's lines, its copy's base stats and its modifiers' lines (#1179); a defence line is
     /// its own item's: each item's armour is <c>round((its base Armour + its Armor lines) x max(0, 1 + its
     /// LocalIncreasedArmor / 100))</c>, half away from zero, and the same for evasion and ward, so increased armour on one

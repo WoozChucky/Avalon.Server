@@ -315,13 +315,8 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal((Avalon.Api.Contract.ItemSlotType?)slot, item.Template!.SlotType);
     }
 
-    /// <summary>The seeded talent tree, as the world database holds it.</summary>
-    private static ITalentTreeRepository SeededTree()
-    {
-        ITalentTreeRepository tree = Substitute.For<ITalentTreeRepository>();
-        tree.GetTreeAsync(Arg.Any<CancellationToken>()).Returns(TalentSeed.Rows());
-        return tree;
-    }
+    /// <summary>The seeded talent tree, read from the seeded world database.</summary>
+    private TalentTreeRepository SeededTree() => new(SeededWorld());
 
     /// <summary>The saved talent rows of a character holding <paramref name="nodeIds" />, by ascending node id.</summary>
     private static ICharacterTalentRepository Holding(CharacterId id, params int[] nodeIds)
@@ -336,7 +331,7 @@ public sealed class CharacterServiceShould : IDisposable
     /// A Warrior at <paramref name="level" /> holding <paramref name="nodeIds" /> in the seeded tree, whose ability
     /// templates read back as <paramref name="ability" /> alone.
     /// </summary>
-    private static CharacterService AbilityService(CharacterId id, AbilityTemplate ability, CharacterStats? stats,
+    private CharacterService AbilityService(CharacterId id, AbilityTemplate ability, CharacterStats? stats,
         IReadOnlyList<ItemInstance> worn, IReadOnlyList<ItemTemplate> templateRows, CombatFormula formula,
         ushort level, int[] nodeIds)
     {
@@ -587,26 +582,23 @@ public sealed class CharacterServiceShould : IDisposable
     /// <summary>
     /// A character's saved talent nodes with the points it has, worked out as the world works them out (#1181): a
     /// level-7 character holding nodes 2, 3 and 4 that turned in quests 3 (one talent point) and 10 (none) has earned 8
-    /// and spent 3. A character that does not exist has none.
+    /// and spent 3. A saved row naming a node the tree no longer holds (999) is listed nowhere and costs nothing, as
+    /// the world drops it at the next select. A character that does not exist has none.
     /// </summary>
     [Fact]
     public async Task Return_the_characters_talents_with_the_points_it_earned()
     {
         var id = new CharacterId(42);
-        DateTime turnedIn = new(2026, 10, 27, 12, 0, 0, DateTimeKind.Utc);
 
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Holder", Class = CharacterClass.Warrior, Level = 7 });
         ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
-        quests.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows([], [],
-        [
-            new CharacterCompletedQuest { CharacterId = id, QuestId = 3, CompletedAt = turnedIn, LastCompletedAt = turnedIn, CompletionCount = 1 },
-            new CharacterCompletedQuest { CharacterId = id, QuestId = 10, CompletedAt = turnedIn, LastCompletedAt = turnedIn, CompletionCount = 1 },
-        ]));
+        quests.GetCompletedQuestIdsAsync(id, Arg.Any<CancellationToken>()).Returns([3u, 10u]);
 
         var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
-            Substitute.For<IItemInstanceRepository>(), Holding(id, 2, 3, 4), Substitute.For<IAbilityTemplateRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Holding(id, 2, 3, 4, 999),
+            Substitute.For<IAbilityTemplateRepository>(),
             Substitute.For<IItemTemplateRepository>(), Substitute.For<IItemModifierRepository>(),
             Substitute.For<ICharacterStatsRepository>(), quests, Substitute.For<ICharacterAuraRepository>(),
             Substitute.For<ICombatDataRepository>(), SeededTree(), new QuestRepository(SeededWorld()));

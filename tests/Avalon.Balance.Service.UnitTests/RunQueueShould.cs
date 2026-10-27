@@ -20,7 +20,7 @@ public class RunQueueShould
 
     public RunQueueShould()
     {
-        using WebApplication app = BalanceTestHost.Build();
+        using WebApplication app = BalanceTestHost.Build(services: BalanceTestHost.UseFixtureRotations);
         _host = app.Services.GetRequiredService<BalanceHost>();
         _queue = new RunQueue(Options.Create(_options), _time);
     }
@@ -49,7 +49,7 @@ public class RunQueueShould
         }
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public async Task Take_a_run_from_queued_through_running_to_done_with_its_result()
     {
         using RunWorker worker = Worker();
@@ -261,7 +261,7 @@ public class RunQueueShould
         Assert.Null(record.Result);
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public async Task Fail_a_run_whose_simulation_throws_and_still_run_the_next()
     {
         int calls = 0;

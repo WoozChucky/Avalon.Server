@@ -6,7 +6,7 @@ namespace Avalon.Network.Packets.Talents;
 /// </summary>
 public enum TalentResult : byte
 {
-    /// <summary>Every node named is held. The state follows in an STalentStatePacket.</summary>
+    /// <summary>Every node named is held. An accepted non-empty request is followed by an STalentStatePacket.</summary>
     Ok = 0,
 
     Dead = 1,

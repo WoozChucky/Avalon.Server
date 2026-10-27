@@ -14,16 +14,18 @@ public static class TalentChange
     /// Sums the held nodes' lines again, rebuilds the held abilities from the tree (an ability already held keeps its
     /// timers, a new one arrives ready), refreshes the stats keeping each pool's share, sends the ability list only when
     /// the abilities held changed, and marks the talent window's state owed, for the tick's flush. The tree and the
-    /// abilities are <paramref name="data" />'s, one generation. The state is marked owed even when a step throws, so the
-    /// window still learns what is held.
+    /// abilities are <paramref name="data" />'s, one generation. The ability list and the owed state follow even when a
+    /// step throws: a rebuilt list reaches the client (its amounts from the stats as they stand) though the refresh
+    /// failed, so the client never lacks an ability the server lets it cast, and the window still learns what is held.
     /// </summary>
     public static void Apply(IWorldConnection connection, CharacterEntity character, StaticData data, ILogger logger)
     {
+        bool abilitiesChanged = false;
         try
         {
             TalentCatalog tree = data.Talents;
             character.Talents.RebuildTotals(tree);
-            bool abilitiesChanged = TalentAbilities.Rebuild(character, tree, data.Abilities, logger);
+            abilitiesChanged = TalentAbilities.Rebuild(character, tree, data.Abilities, logger);
 
             if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.KeepShare))
             {
@@ -31,14 +33,20 @@ public static class TalentChange
                     "No class stats for {Class} level {Level}; character {CharacterId}'s talent change left its stats as they were",
                     character.Class, character.Level, character.Guid.Id);
             }
-
-            // Sent after the refresh, so each ability's amount and pace are worked out from the stats the tree now gives.
-            if (abilitiesChanged)
-                CharacterAbilitiesSender.Send(connection, character);
         }
         finally
         {
-            character.Talents.MarkStateOwed();
+            try
+            {
+                // Sent after the refresh, so each ability's amount and pace are worked out from the stats the tree now
+                // gives.
+                if (abilitiesChanged)
+                    CharacterAbilitiesSender.Send(connection, character);
+            }
+            finally
+            {
+                character.Talents.MarkStateOwed();
+            }
         }
     }
 }

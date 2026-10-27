@@ -84,7 +84,8 @@ public class CharacterSelectHandlerShould
         CharacterClass @class = CharacterClass.Warrior,
         StaticData? data = null,
         IReadOnlyList<CharacterTalent>? talents = null,
-        ushort level = 1)
+        ushort level = 1,
+        TalentTreeRows? tree = null)
     {
         var row = new Character
         {
@@ -129,7 +130,8 @@ public class CharacterSelectHandlerShould
 
         // Built first: configuring a substitute inside a Returns() argument breaks NSubstitute's
         // last-call tracking.
-        StaticData staticData = data ?? await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates, auraTemplates);
+        StaticData staticData = data
+            ?? await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates, auraTemplates, tree);
 
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(game ?? new GameConfiguration());
@@ -260,7 +262,8 @@ public class CharacterSelectHandlerShould
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
         IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null,
-        IReadOnlyCollection<AuraTemplate>? auraTemplates = null)
+        IReadOnlyCollection<AuraTemplate>? auraTemplates = null,
+        TalentTreeRows? talentTree = null)
     {
         ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterLevelExperience>());
@@ -274,7 +277,7 @@ public class CharacterSelectHandlerShould
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(abilityTemplates?.ToList() ?? new List<AbilityTemplate>());
         ITalentTreeRepository tree = Substitute.For<ITalentTreeRepository>();
         tree.GetTreeAsync(Arg.Any<CancellationToken>())
-            .Returns(StarterTree(abilityTemplates?.FirstOrDefault()?.Id));
+            .Returns(talentTree ?? StarterTree(abilityTemplates?.FirstOrDefault()?.Id));
 
         ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
@@ -323,6 +326,30 @@ public class CharacterSelectHandlerShould
             [new TalentNode { Id = 1, Kind = TalentNodeKind.Start, Name = "Warrior start" }], [], [],
             [new TalentNodeAbility { NodeId = 1, AbilityId = ability }], [],
             [new TalentClassStart { Class = CharacterClass.Warrior, NodeId = 1 }]);
+
+    /// <summary>
+    /// #1181: a tree the catalog loads: each class's start (nodes 1-4) links one of abilities 1, 3, 4 and 5, the
+    /// Warrior's ability 1, and Ability node 5 links ability 2; every node is next to the Warrior's start, so the walk
+    /// reaches all.
+    /// </summary>
+    private static TalentTreeRows HealNodeTree()
+    {
+        CharacterClass[] classes =
+            [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric];
+        uint[] starters = [1, 3, 4, 5];
+        return new TalentTreeRows(
+            [
+                .. classes.Select((c, i) =>
+                    new TalentNode { Id = i + 1, Kind = TalentNodeKind.Start, Name = $"{c} start" }),
+                new TalentNode { Id = 5, Kind = TalentNodeKind.Ability, Name = "Heal" },
+            ],
+            [.. new[] { 2, 3, 4, 5 }.Select(n => new TalentEdge { NodeA = 1, NodeB = n })], [],
+            [
+                .. starters.Select((a, i) => new TalentNodeAbility { NodeId = i + 1, AbilityId = new AbilityId(a) }),
+                new TalentNodeAbility { NodeId = 5, AbilityId = new AbilityId(2) },
+            ], [],
+            [.. classes.Select((c, i) => new TalentClassStart { Class = c, NodeId = i + 1 })]);
+    }
 
     [Fact]
     public async Task Hold_the_built_character_back_instead_of_spawning_it()
@@ -443,7 +470,8 @@ public class CharacterSelectHandlerShould
 
     /// <summary>
     /// #669, #1178: each ability's per-hit amount, tags and pace travel with it at select, from the stats the select chain
-    /// refreshed, and the entity records them, so the first tick in the world sends no update on top.
+    /// refreshed, and the entity records them, so the first tick in the world sends no update on top. The Warrior holds
+    /// its start's cone and, through a held ability node (#1181), a heal.
     /// </summary>
     [Fact]
     public async Task Send_each_abilitys_amount_at_select_and_record_it_on_the_character()
@@ -451,7 +479,14 @@ public class CharacterSelectHandlerShould
         AbilityTemplate cone = AbilityTestData.Cone(1).Dealing(10);
         cone.Cooldown = 3000;
         cone.CastTime = 500;
-        Fixture f = await BuildAsync(abilityTemplates: [cone]);
+        Fixture f = await BuildAsync(
+            abilityTemplates:
+            [
+                cone, AbilityTestData.HealCircle(2), AbilityTestData.Cone(3).Dealing(1),
+                AbilityTestData.Cone(4).Dealing(1), AbilityTestData.Cone(5).Dealing(1),
+            ],
+            tree: HealNodeTree(),
+            talents: [new CharacterTalent { CharacterId = s_theCharacter, NodeId = 5 }]);
         ICharacter? built = null;
         f.Connection.When(c => c.SetPendingSpawn(Arg.Any<ICharacter>(), Arg.Any<IMapInstance>(), Arg.Any<long>()))
             .Do(ci => built = ci.Arg<ICharacter>());
@@ -462,11 +497,13 @@ public class CharacterSelectHandlerShould
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
         using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
-        AbilityInfo coneInfo = Assert.Single(abilities);
-        Assert.Equal(1u, coneInfo.AbilityId);
+        Assert.Equal([1u, 2u], abilities.Select(a => a.AbilityId));
+        AbilityInfo coneInfo = abilities[0];
         Assert.Equal((AbilityAmountKind.Damage, 10u, 10u), (coneInfo.AmountKind, coneInfo.AmountMin, coneInfo.AmountMax));
         Assert.Equal((AbilityTags.Spell | AbilityTags.Area, DamageTypeMask.Physical, 3000u, 500u),
             (coneInfo.Tags, coneInfo.AmountTypes, coneInfo.CooldownMs, coneInfo.CastTimeMs));
+        AbilityInfo heal = abilities[1];
+        Assert.Equal((AbilityAmountKind.Healing, 40u, 40u), (heal.AmountKind, heal.AmountMin, heal.AmountMax));
 
         // In the world, the flusher finds what select already said and sends nothing.
         var afterSpawn = new List<OutboundPacket>();

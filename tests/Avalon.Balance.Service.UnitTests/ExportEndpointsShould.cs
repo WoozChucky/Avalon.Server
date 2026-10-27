@@ -25,6 +25,7 @@ public class ExportEndpointsShould
             extra: extra ?? (token ? s_withToken : null),
             services: s =>
             {
+                BalanceTestHost.UseFixtureRotations(s);
                 s.AddSingleton<IGitHub>(github);
                 s.AddSingleton(new BuildInfo(commit));
                 s.AddSingleton<TimeProvider>(new FakeTimeProvider(new DateTimeOffset(2026, 9, 30, 14, 5, 0, TimeSpan.Zero)));
@@ -164,7 +165,7 @@ public class ExportEndpointsShould
         Assert.DoesNotContain(Token, text);
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public async Task Include_the_summary_of_a_finished_run_in_the_pull_request_body()
     {
         var github = new FakeGitHub();

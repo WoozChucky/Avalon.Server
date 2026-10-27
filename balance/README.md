@@ -49,7 +49,7 @@ desktop; narrow it with `--class`, `--scenario` and `--runs` while iterating. Th
   hold is cast. Conditions: `targetsAlive`, `healthPct`, `power`, `powerPct`, each like `">=2"`. While the simulator
   is paused (#1183), a character holds its class's starter alone (#1181: the ability its talent-tree start links,
   `BalanceData.KitOf`), and an entry naming any other ability is refused when the rotation is compiled ("is not in the
-  class's kit"), so the checked-in rotations, written for the old kits, stop a run until the re-sync.
+  class's kit"), so the checked-in rotations name each class's starter alone, with no condition, until the re-sync.
 
 Every config file refuses a field it does not know, so a typo stops the run instead of being ignored.
 `scenarios.json`, `targets.json` and `rotations.json` are kept in the canonical form `ConfigFiles.Save` writes, so

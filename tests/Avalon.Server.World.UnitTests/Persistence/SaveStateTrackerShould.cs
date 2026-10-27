@@ -102,7 +102,8 @@ public class SaveStateTrackerShould
         {
             "quest" => () => tracker.QuestChanged(5),
             "ignore" => () => tracker.IgnoreChanged(5),
-            _ => () => tracker.TalentChanged(5),
+            "talent" => () => tracker.TalentChanged(5),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No such keyed mark"),
         };
         mark();
         SaveMarks marks = tracker.TakeMarks();
@@ -110,7 +111,8 @@ public class SaveStateTrackerShould
         {
             "quest" => [.. marks.Quests!.Keys.Select(k => (int)k)],
             "ignore" => [.. marks.Ignores!.Keys.Select(k => (int)k)],
-            _ => [.. marks.Talents!.Keys],
+            "talent" => [.. marks.Talents!.Keys],
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No such keyed mark"),
         };
         Assert.Equal([5], taken);
         mark();

@@ -20,16 +20,17 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <see cref="TalentRules.Allocate" /> for a level-10 Warrior holding nothing, so 10 points are left:
 /// <see cref="Decide_refused" /> (the baseline) names five nodes down lane A and is refused NotConnected at the fifth
 /// (WH-A7, whose neighbours are neither held nor named); <see cref="Decide_accepted" /> names the lane's first five
-/// (WH-A1 to WH-A5) and is accepted; <see cref="Decide_refused_long" /> is the longest request the rules scan: 135
+/// (WH-A1 to WH-A5) and is accepted; <see cref="Decide_refused_long" /> is the longest request the rules check: 135
 /// points earned (the design's total at level 100), 134 nodes in walk order from the Warrior's start and then one that
-/// touches none of them, refused NotConnected at the last id after every neighbour of it was scanned against all 134
-/// named before it (the path that grows as n squared times the degree). The change rows run
+/// touches none of them, refused NotConnected at the last id, after each id's neighbours were tested against the held
+/// nodes and the bits of the ids named before it (the path that grows as n times the degree). The change rows run
 /// <see cref="TalentChange.Apply" /> for a level-15 Warrior holding 18 nodes (WH-A1 to WH-A10, WH-B1 to WH-B8, Cleave
 /// at WH-A5): <see cref="Apply_small_nodes" /> sums them again, finds the abilities unchanged and refreshes the stats;
 /// <see cref="Apply_ability_change" /> drops WH-A5 and allocates it again through <see cref="TalentAllocation" />, each
-/// followed by the change, so Cleave leaves, comes back as a new ability and the ability list is sent twice. 0 B expected
-/// on every row but <see cref="Apply_ability_change" />, whose bytes are the two rebuilt ability lists, Cleave's new
-/// ability and the two SMSG_CHARACTER_ABILITIES sends (their arrays and packets).
+/// followed by the change, so Cleave leaves, comes back as a new ability and the ability list is sent twice. 0 B
+/// expected on every row but <see cref="Apply_ability_change" />, whose bytes are the two rebuilt ability lists,
+/// Cleave's new ability and the two SMSG_CHARACTER_ABILITIES sends (their arrays and AbilityInfo objects; the packet is
+/// the encoder's scratch, so it allocates nothing).
 /// </summary>
 /// <remarks>
 /// Neither the rules nor the change read an instance or the handler's packet, so the rows call them directly, as the

@@ -2,6 +2,7 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World;
@@ -9,17 +10,23 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Characters;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Talents;
+using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
+using Avalon.World.Respawn;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using ProtoBuf;
 
@@ -78,11 +85,51 @@ public class CharacterCreationShould : IDisposable
         Assert.Equal(createInfo.StartingItems.Count, await worldDb.ItemTemplates.CountAsync(
             t => createInfo.StartingItems.Select(i => i.TemplateId).Contains(t.Id)));
 
-        // Its first select: no talent rows, so its abilities are the Warrior's starter, Heavy Strike, alone.
-        var entity = new CharacterEntity(NullLoggerFactory.Instance, character, new RegenConfiguration());
-        entity.Talents.Load(await new CharacterTalentRepository(_characters).GetByCharacterIdAsync(character.Id));
-        TalentAbilities.Rebuild(entity, data.Talents, data.Abilities, NullLogger.Instance);
+        // Its first select, through the real handler over the rows just written: no talent rows, so its abilities are
+        // the Warrior's starter, Heavy Strike, alone.
+        IWorldConnection selecting = await SelectAsync(data, character);
+        CharacterEntity entity = Assert.IsType<CharacterEntity>(selecting.PendingSpawn?.Character);
         Assert.Equal([319u], entity.Spells.All.Select(a => a.AbilityId.Value));
+        Assert.Empty(entity.Talents.Held);
+    }
+
+    /// <summary>
+    /// Selects <paramref name="character" /> on a new connection of its account through the real select handler, over
+    /// the Character database's real repositories, its map a town, the continuation chain pumped as the tick pumps it;
+    /// the connection holds the character as its pending spawn once select is done.
+    /// </summary>
+    private async Task<IWorldConnection> SelectAsync(StaticData data, Avalon.Domain.Characters.Character character)
+    {
+        IWorldConnection connection = PendingSpawnConnection.Create();
+        connection.AccountId.Returns(character.AccountId);
+        connection.GameplayAuthority.Returns(_authority);
+
+        IMapInstance instance = Substitute.For<IMapInstance>();
+        instance.InstanceId.Returns(Guid.NewGuid());
+        IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
+        registry.GetOrCreateTownInstanceAsync(new MapTemplateId(character.Map), Arg.Any<ushort>())
+            .Returns(Task.FromResult(instance));
+        IWorld world = NewWorld(data);
+        world.InstanceRegistry.Returns(registry);
+        world.MapTemplates.Returns(new List<MapTemplate>
+        {
+            new()
+            {
+                Id = new MapTemplateId(character.Map), MapType = MapType.Town, Name = "Town", Description = "Town",
+                MaxPlayers = 30,
+            },
+        });
+
+        var handler = new CharacterSelectHandler(NullLogger<CharacterSelectHandler>.Instance,
+            NullLoggerFactory.Instance,
+            new CharacterRepository(_characters), new CharacterInventoryRepository(_characters),
+            new ItemInstanceRepository(_characters), new CharacterTalentRepository(_characters), world,
+            Substitute.For<IRespawnTargetResolver>(), Options.Create(new RegenConfiguration()),
+            Substitute.For<IAccountRepository>(), Substitute.For<ICharacterSaver>(), Substitute.For<IWorldServer>(),
+            questRepository: new CharacterQuestRepository(_characters), databaseWork: InlineDatabaseWork.Instance);
+        handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = character.Id });
+        await PumpAsync(connection);
+        return connection;
     }
 
     /// <summary>

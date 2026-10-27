@@ -1,5 +1,6 @@
 using System.Buffers;
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Microsoft.Extensions.Logging;
 
@@ -11,17 +12,19 @@ namespace Avalon.World.Talents;
 /// no longer fits is dropped, for free, each drop marking the save (<see cref="TalentAllocation.Drop" />), so the next
 /// save writes the allocation the character now holds.
 /// </summary>
-public static class TalentSelectCheck
+public static partial class TalentSelectCheck
 {
     /// <summary>
     /// Drops, in order: the held nodes <paramref name="tree" /> does not hold, and any Start; then the held nodes a walk
     /// from <paramref name="class" />'s start over held nodes does not reach; then, if the nodes still held cost more
-    /// than <paramref name="earned" />, every node. Each step that drops anything logs one Warning with the count and
-    /// the ids (the caller's scope names the character). A tree that is not loaded (refused at startup, a bad deploy)
-    /// drops nothing: the rows stay as they are, inert, until a tree that holds them is loaded again.
+    /// than <paramref name="earned" />, every node, whatever lowered the points (a paying quest the quest catalog
+    /// refused or a reload removed, a lowered level): the whole tree is cleared, so the player spends the points again.
+    /// Each step that drops anything logs one Warning naming <paramref name="characterId" />, with the count and the
+    /// ids. A tree that is not loaded (refused at startup, a bad deploy) drops nothing: the rows stay as they are,
+    /// inert, until a tree that holds them is loaded again.
     /// </summary>
     public static void Apply(TalentAllocation talents, TalentCatalog tree, CharacterClass @class, int earned,
-        ILogger logger)
+        CharacterId characterId, ILogger logger)
     {
         if (!tree.IsLoaded || talents.Spent == 0)
             return;
@@ -36,17 +39,18 @@ public static class TalentSelectCheck
                 (dropped ??= []).Add(held[i]);
         }
 
-        Drop(talents, dropped, logger, "the tree no longer holds them as nodes a character may allocate");
+        Drop(talents, dropped, characterId, logger, "the tree no longer holds them as nodes a character may allocate");
 
         // 2. A node no path of held nodes links to the class's start.
         dropped = Unreached(talents, tree, @class);
-        Drop(talents, dropped, logger, "no path of held nodes links them to the class's start");
+        Drop(talents, dropped, characterId, logger, "no path of held nodes links them to the class's start");
 
-        // 3. More nodes held than the points earned: the whole allocation goes, so the player spends the points again.
+        // 3. More nodes held than the points earned, whatever lowered them: the whole allocation goes, so the player
+        // spends the points again.
         if (talents.Spent > earned)
         {
             dropped = [.. talents.Held];
-            Drop(talents, dropped, logger, $"they cost more than the {earned} points earned");
+            Drop(talents, dropped, characterId, logger, $"they cost more than the {earned} points earned");
         }
     }
 
@@ -95,7 +99,8 @@ public static class TalentSelectCheck
         }
     }
 
-    private static void Drop(TalentAllocation talents, List<int>? dropped, ILogger logger, string reason)
+    private static void Drop(TalentAllocation talents, List<int>? dropped, CharacterId characterId, ILogger logger,
+        string reason)
     {
         if (dropped is null)
             return;
@@ -103,7 +108,12 @@ public static class TalentSelectCheck
         foreach (int nodeId in dropped)
             talents.Drop(nodeId);
 
-        logger.LogWarning("Dropped {Count} saved talent nodes at select, free, because {Reason}: {NodeIds}",
-            dropped.Count, reason, dropped);
+        LogDropped(logger, characterId.Value, dropped.Count, reason, dropped);
     }
+
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "Dropped {Count} saved talent nodes of character {CharacterId} at select, free, because {Reason}: "
+            + "{NodeIds}")]
+    private static partial void LogDropped(ILogger logger, uint characterId, int count, string reason,
+        IReadOnlyList<int> nodeIds);
 }

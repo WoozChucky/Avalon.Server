@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World;
@@ -39,10 +40,11 @@ public class TalentSelectCheckShould
         var talents = new TalentAllocation(save);
         talents.Load([.. held.Select(n => new CharacterTalent { CharacterId = 118_102u, NodeId = n })]);
 
-        TalentSelectCheck.Apply(talents, tree, CharacterClass.Warrior, earned, NullLogger.Instance);
+        TalentSelectCheck.Apply(talents, tree, CharacterClass.Warrior, earned, new CharacterId(118_102u),
+            NullLogger.Instance);
 
         Assert.Equal(kept, talents.Held);
-        Assert.Equal(held.Except(kept).Order(), (save.TakeMarks().Talents?.Keys ?? []).Order());
+        Assert.Equal(held.Except(kept).Order(), save.TakeMarks().Talents!.Keys.Order());
     }
 
     private static TalentTreeRows TalentSeed() => Avalon.Database.World.Seeding.TalentSeed.Rows();

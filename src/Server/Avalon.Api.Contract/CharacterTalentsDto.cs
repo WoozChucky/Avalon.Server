@@ -1,8 +1,10 @@
 namespace Avalon.Api.Contract;
 
 /// <summary>
-/// The talent nodes a character holds as its world last saved them (#1181), with the points it has earned and spent.
-/// Nothing here is stored: the points are worked out from the saved rows, as the world works them out.
+/// The talent nodes a character holds as its world last saved them (#1181), less any node the tree no longer holds,
+/// with the points it has earned and spent. The world applies its login check at the character's next select, which
+/// this read does not re-run: until then the nodes can include one cut off from the class start, or more than the
+/// points earned. Nothing here is stored: the points are worked out from the saved rows, as the world works them out.
 /// </summary>
 public sealed class CharacterTalentsDto
 {
@@ -14,6 +16,6 @@ public sealed class CharacterTalentsDto
     /// <summary>One per level, plus what each quest it has turned in pays.</summary>
     public int PointsEarned { get; set; }
 
-    /// <summary>One per held node.</summary>
+    /// <summary>One per held node listed.</summary>
     public int PointsSpent { get; set; }
 }

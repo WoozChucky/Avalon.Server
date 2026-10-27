@@ -177,7 +177,7 @@ public sealed class SaveStateTracker
         new Dictionary<uint, SaveMark>(_quests),
         new Dictionary<uint, SaveMark>(_ignores),
         AurasDirty ? _aurasVersion : null,
-        _talents.Count > 0 ? new Dictionary<int, SaveMark>(_talents) : null);
+        new Dictionary<int, SaveMark>(_talents));
 
     /// <summary>
     /// Called on the tick thread once the save that took <paramref name="marks" /> has committed.

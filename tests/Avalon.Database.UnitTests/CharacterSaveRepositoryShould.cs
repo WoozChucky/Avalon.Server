@@ -115,13 +115,13 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     }
 
     /// <summary>
-    /// One statement deletes the rows of every quest a save rewrites (#883), so the quests it does not name, and
-    /// another character's rows for the quests it does, stay as they are.
+    /// One statement deletes the rows of every quest a save rewrites (#883), and one those of every talent node it
+    /// rewrites (#1181), so the keys it does not name, and another character's rows for the keys it does, stay as they
+    /// are.
     /// </summary>
     [Fact]
-    public async Task Rewrite_only_the_quests_named_and_only_for_that_character()
+    public async Task Rewrite_only_the_keyed_rows_named_and_only_for_that_character()
     {
-        // The talent nodes (#1181) are rewritten the same way: only those named, and only that character's.
         CharacterRow saved = await SeedCharacterAsync(1);
         CharacterRow other = await SeedCharacterAsync(2);
         static CharacterQuest Quest(CharacterRow row, uint id, int stage) =>
