@@ -142,7 +142,8 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
         return new CharacterSaveSnapshot(
             new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests,
-                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks), modifiers?.ToWrite())
+                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks), modifiers?.ToWrite(),
+                TalentsOf(character, row.Id, marks))
             { Authority = authority },
             marks);
     }
@@ -249,6 +250,30 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         }
 
         return new CharacterIgnoreWrite(rewrite, insert);
+    }
+
+    /// <summary>
+    /// #1181: every marked talent node is rewritten from memory: deleted, and inserted again while still held. Two lists
+    /// of at most the marked nodes, ascending.
+    /// </summary>
+    private static CharacterTalentWrite? TalentsOf(CharacterEntity character, CharacterId owner, SaveMarks marks)
+    {
+        if (marks.Talents is not { Count: > 0 } talentMarks)
+            return null;
+
+        List<int> rewrite = new(talentMarks.Count);
+        foreach (int nodeId in talentMarks.Keys)
+            rewrite.Add(nodeId);
+        rewrite.Sort();
+
+        List<CharacterTalent> insert = new(rewrite.Count);
+        foreach (int nodeId in rewrite)
+        {
+            if (character.Talents.Holds(nodeId))
+                insert.Add(new CharacterTalent { CharacterId = owner, NodeId = nodeId });
+        }
+
+        return new CharacterTalentWrite(rewrite, insert);
     }
 }
 

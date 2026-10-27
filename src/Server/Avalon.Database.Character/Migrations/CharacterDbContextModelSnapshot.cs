@@ -437,6 +437,19 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("CharacterStats");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterTalent", b =>
+                {
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("CharacterId", "NodeId");
+
+                    b.ToTable("CharacterTalents");
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -833,6 +846,15 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
 
                     b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterTalent", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItem", b =>

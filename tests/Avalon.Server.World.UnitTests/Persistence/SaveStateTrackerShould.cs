@@ -87,29 +87,33 @@ public class SaveStateTrackerShould
         Assert.False(tracker.HasChanges);
     }
 
-    [Fact]
-    public void Keep_a_quest_marked_again_after_its_save_was_taken()
+    /// <summary>
+    /// The keyed marks (quests #433, ignore entries #723, talent nodes #1181): marked, taken, and acknowledged only at the
+    /// version the save carried, so a mark made while the save was in flight is kept for the next one.
+    /// </summary>
+    [Theory]
+    [InlineData("quest")]
+    [InlineData("ignore")]
+    [InlineData("talent")]
+    public void Keep_a_keyed_entry_marked_again_after_its_save_was_taken(string kind)
     {
         var tracker = new SaveStateTracker();
-        tracker.QuestChanged(5);
+        Action mark = kind switch
+        {
+            "quest" => () => tracker.QuestChanged(5),
+            "ignore" => () => tracker.IgnoreChanged(5),
+            _ => () => tracker.TalentChanged(5),
+        };
+        mark();
         SaveMarks marks = tracker.TakeMarks();
-        tracker.QuestChanged(5);
-
-        tracker.Acknowledge(marks);
-
-        Assert.True(tracker.HasChanges);
-        tracker.Acknowledge(tracker.TakeMarks());
-        Assert.False(tracker.HasChanges);
-    }
-
-    [Fact]
-    public void Keep_an_ignore_entry_marked_again_after_its_save_was_taken()
-    {
-        var tracker = new SaveStateTracker();
-        tracker.IgnoreChanged(7);
-        SaveMarks marks = tracker.TakeMarks();
-        Assert.True(marks.Ignores!.ContainsKey(7));
-        tracker.IgnoreChanged(7);
+        IReadOnlyCollection<int> taken = kind switch
+        {
+            "quest" => [.. marks.Quests!.Keys.Select(k => (int)k)],
+            "ignore" => [.. marks.Ignores!.Keys.Select(k => (int)k)],
+            _ => [.. marks.Talents!.Keys],
+        };
+        Assert.Equal([5], taken);
+        mark();
 
         tracker.Acknowledge(marks);
 
