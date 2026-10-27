@@ -163,6 +163,7 @@ public sealed class RouteOwnershipShould
         ["GET /public/world"] = Worlds,
         ["GET /public/world/{worldId:int}/item/{id:long}"] = Worlds,
         ["GET /public/world/{worldId:int}/ability/{id:long}"] = Worlds,
+        ["GET /public/world/{worldId:int}/talents"] = Worlds,
         ["GET /public/preview/item/{id:long}"] = Worlds,
         ["GET /public/preview/ability/{id:long}"] = Worlds,
         ["GET /balance/catalog"] = Worlds,

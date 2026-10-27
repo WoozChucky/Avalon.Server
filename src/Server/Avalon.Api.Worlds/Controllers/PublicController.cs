@@ -10,13 +10,17 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Avalon.Api.Worlds.Controllers;
 
-/// <summary>Item and ability tooltips for anyone: the Dashboard shows them when a reader hovers a linked item or ability.</summary>
+/// <summary>
+/// Item and ability tooltips for anyone: the Dashboard shows them when a reader hovers a linked item or ability. Also the
+/// shared talent tree whole (#1181), for a tree viewer.
+/// </summary>
 [AllowAnonymous]
 [ApiController]
 [PublicWorldScoped]
 [Route("public/world/{worldId:int}")]
 public class PublicController(
-    IItemTemplateRepository items, IItemModifierRepository modifiers, IAbilityTemplateRepository abilities)
+    IItemTemplateRepository items, IItemModifierRepository modifiers, IAbilityTemplateRepository abilities,
+    ITalentTreeRepository talents)
     : ControllerBase
 {
     [HttpGet("item/{id:long}", Name = "GetPublicItem")]
@@ -40,6 +44,16 @@ public class PublicController(
         if (template is null) return NotFound();
         SetCacheControl();
         return Ok(template.ToPublicDto());
+    }
+
+    /// <summary>The world's talent tree as its database holds it, whether or not the world's catalog accepted it.</summary>
+    [HttpGet("talents", Name = "GetPublicTalentTree")]
+    [ProducesResponseType(typeof(TalentTreeDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<TalentTreeDto>> GetTalentTree(CancellationToken ct)
+    {
+        TalentTreeRows rows = await talents.GetTreeAsync(ct);
+        SetCacheControl();
+        return Ok(rows.ToDto());
     }
 
     private void SetCacheControl()

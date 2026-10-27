@@ -175,6 +175,8 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.AuraStacking), typeof(Avalon.Api.Contract.AuraStacking))]
     [InlineData(typeof(Avalon.Domain.World.AuraStat), typeof(Avalon.Api.Contract.AuraStat))]
     [InlineData(typeof(Avalon.Domain.World.AuraModifierKind), typeof(Avalon.Api.Contract.AuraModifierKind))]
+    [InlineData(typeof(Avalon.Domain.World.TalentNodeKind), typeof(Avalon.Api.Contract.TalentNodeKind))]
+    [InlineData(typeof(Avalon.Domain.World.TalentStatKind), typeof(Avalon.Api.Contract.TalentStatKind))]
     public void Keep_enum_members_in_step_with_the_contract(Type source, Type target)
     {
         Assert.Equal(Enum.GetValues(source).Length, Enum.GetValues(target).Length);
