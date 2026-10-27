@@ -136,6 +136,18 @@ public class QuestTemplateControllerShould
         Assert.Equal([(5ul, 1u), (8ul, 1u)], dto.ItemChoices.Select(r => (r.ItemTemplateId, r.Count)));
         Assert.Equal([(302u, 4ul, 60f), (302u, 7ul, 25f)],
             dto.ItemDrops.Select(d => (d.ObjectiveId, d.CreatureTemplateId, d.Chance)));
+
+        // A repeatable quest, which pays no talent points, carries its frequency.
+        QuestTemplate weekly = Quest();
+        weekly.IsRepeatable = true;
+        weekly.RepeatFrequency = Avalon.World.Public.Enums.QuestRepeatFrequency.Weekly;
+        weekly.RewardTalentPoints = 0;
+        _quests.FindByIdAsync(new QuestTemplateId(3), Arg.Any<CancellationToken>()).Returns(weekly);
+
+        QuestTemplateDto repeating = await GetOk(3);
+
+        Assert.Equal((true, (Avalon.Api.Contract.QuestRepeatFrequency?)Avalon.Api.Contract.QuestRepeatFrequency.Weekly, 0),
+            (repeating.IsRepeatable, repeating.RepeatFrequency, repeating.RewardTalentPoints));
     }
 
     [Fact]
