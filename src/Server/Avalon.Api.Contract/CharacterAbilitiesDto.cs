@@ -1,5 +1,3 @@
-using Avalon.Common;
-
 namespace Avalon.Api.Contract;
 
 public sealed class CharacterAbilitiesDto
@@ -33,7 +31,6 @@ public sealed class CharacterAbilityTemplateDto
 
     public SpellRange Range { get; set; }
     public SpellEffect Effects { get; set; }
-    public List<CharacterClass> AllowedClasses { get; set; } = [];
 }
 
 public sealed class CharacterAbilityAmountDto

@@ -7,7 +7,6 @@ using Avalon.Api.Worlds.Controllers;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Worlds.Previews;
 using Avalon.Api.Worlds.Services;
-using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
@@ -47,6 +46,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         [Staff] = Substitute.For<IItemTemplateRepository>(),
     };
     private readonly IAbilityTemplateRepository _abilities = Substitute.For<IAbilityTemplateRepository>();
+    private readonly ITalentTreeRepository _talents = Substitute.For<ITalentTreeRepository>();
     private ApiTestHost _host = null!;
 
     private static PreviewConfiguration Previews() => new()
@@ -130,11 +130,11 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
                 Cost = 30,
                 CastTime = 2500,
                 Cooldown = 8000,
-                AllowedClasses = [CharacterClass.Warrior],
                 ScriptName = "ConeAbilityScript",
                 Effects = SpellEffect.Damage,
                 DamageType = DamageType.Physical,
             });
+        _talents.IsGrantedAsync(new AbilityId(210), Arg.Any<CancellationToken>()).Returns(true);
         _abilities.FindByIdAsync(new AbilityId(211), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate { Id = new AbilityId(211), Name = "Strike <b>&\"" });
 
@@ -153,6 +153,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             services.AddScoped(PerWorldItems);
             services.AddSingleton(NoModifiers());
             services.AddSingleton(_abilities);
+            services.AddSingleton(_talents);
         });
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
@@ -251,7 +252,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal("https://avalon.example/ability/210", Meta(html, "og:url"));
         Assert.Equal("#BC8A4E", Meta(html, "theme-color"));
         Assert.Equal("summary", Meta(html, "twitter:card"));
-        Assert.Equal("Warrior · 30 Mana · 2.5 sec cast · 8 sec cooldown · Physical damage",
+        Assert.Equal("30 Mana · 2.5 sec cast · 8 sec cooldown · Physical damage",
             Decoded(html, "og:description"));
         Assert.True(response.Headers.CacheControl!.Public);
         Assert.Equal(TimeSpan.FromSeconds(300), response.Headers.CacheControl.MaxAge);
@@ -275,7 +276,8 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         using WorldDbContext world = sqlite.CreateWorld(new WorldId(Open));
         AbilityTemplate ability = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == id);
 
-        string description = LinkPreviewText.Describe(ability.ToPublicDto());
+        bool granted = world.TalentNodeAbilities.AsEnumerable().Any(l => l.AbilityId == ability.Id);
+        string description = LinkPreviewText.Describe(ability.ToPublicDto(granted));
 
         Assert.Contains(expected, description.Split(" · "));
     }

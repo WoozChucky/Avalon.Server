@@ -109,14 +109,15 @@ public class StaticData(
                 // Each ability's aura link is checked against the auras read here, never the ones applied. That catalog
                 // is thrown away, so it logs nothing: the Auras area reports its own refusals. The talent tree (#1181) is
                 // read first and checked against the abilities read here, and published with them: a /reload abilities
-                // re-reads the tree, so a link is never checked against another generation's abilities. No repository
-                // (tests that build StaticData without one) is the seeded tree.
+                // re-reads the tree, so a link is never checked against another generation's abilities. The abilities
+                // the tree links are the class abilities, held to the class rules. No repository (tests that build
+                // StaticData without one) is the seeded tree.
                 TalentTreeRows tree = talentTreeRepository is null
                     ? TalentSeed.Rows()
                     : await talentTreeRepository.GetTreeAsync(ct);
                 var abilities = new AbilityCatalog(
                     (await abilityTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(), loggerFactory,
-                    await ReadAurasAsync(NullLoggerFactory.Instance, ct));
+                    await ReadAurasAsync(NullLoggerFactory.Instance, ct), tree.Granted);
                 return new AbilitiesPatch(abilities, new TalentCatalog(tree, abilities, loggerFactory));
             }
 

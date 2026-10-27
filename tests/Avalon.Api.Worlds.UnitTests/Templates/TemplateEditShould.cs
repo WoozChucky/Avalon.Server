@@ -365,11 +365,20 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "damageType", null, "damageType" },                       // on the starter sword: a weapon names its damage type (#1179)
     };
 
+    /// <summary>Refusals on a seeded row <see cref="RefusalTargetAsync"/> would not pick for the field, which each names.</summary>
+    public static TheoryData<string, string, object?, string, ulong?> NamedRefusals => new()
+    {
+        // granted ability loses its damage type: Cleave, a class ability because the talent tree grants it (#1181)
+        { "ability", "damageType", null, "damageType", 200UL },
+    };
+
     [Theory]
     [MemberData(nameof(Refusals))]
-    public async Task Answer_400_with_the_field_key_and_write_nothing(string kind, string field, object? value, string key)
+    [MemberData(nameof(NamedRefusals))]
+    public async Task Answer_400_with_the_field_key_and_write_nothing(string kind, string field, object? value, string key,
+        ulong? target = null)
     {
-        ulong id = await RefusalTargetAsync(kind, field, value);
+        ulong id = target ?? await RefusalTargetAsync(kind, field, value);
         (JsonObject json, string version) = await ReadAsync(kind, id);
         json[field] = value is null ? null : JsonSerializer.SerializeToNode(value);
 

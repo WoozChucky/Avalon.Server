@@ -73,10 +73,12 @@ public sealed class BalanceData
 
         var abilities = new Dictionary<AbilityId, AbilityTemplate>();
         List<string> refused = [];
+        // The abilities the talent tree grants (#1181) are the class abilities, held to the class rules.
+        HashSet<AbilityId> granted = [.. tables.TalentNodeAbilities.Select(l => l.AbilityId)];
         foreach (AbilityTemplate template in tables.AbilityTemplates.OrderBy(t => t.Id.Value))
         {
             // As the world's AbilityCatalog: the row's own checks, then its aura link.
-            if ((AbilityRules.Problem(template)
+            if ((AbilityRules.Problem(template, granted.Contains(template.Id))
                  ?? AuraRules.LinkProblem(template.Affects, template.AuraId,
                      id => auras.TryGetValue(id, out AuraTemplate? aura) ? aura : null)) is { } reason)
             {

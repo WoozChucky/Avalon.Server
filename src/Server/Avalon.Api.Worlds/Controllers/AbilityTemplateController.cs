@@ -112,7 +112,6 @@ public class AbilityTemplateController : BaseController
         ScriptName = t.ScriptName,
         Range = (Avalon.Api.Contract.SpellRange)t.Range,
         Effects = (Avalon.Api.Contract.SpellEffect)t.Effects,
-        AllowedClasses = t.AllowedClasses is null ? [] : t.AllowedClasses.ToList(),
         MaxTargets = t.MaxTargets,
         AuraId = t.AuraId?.Value,
         DamageType = (Avalon.Api.Contract.DamageType?)t.DamageType,

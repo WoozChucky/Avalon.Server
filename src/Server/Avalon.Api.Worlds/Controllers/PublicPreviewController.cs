@@ -36,7 +36,8 @@ public class PublicPreviewController(
     IOptions<PreviewConfiguration> previews,
     IItemTemplateRepository items,
     IItemModifierRepository modifiers,
-    IAbilityTemplateRepository abilities) : ControllerBase
+    IAbilityTemplateRepository abilities,
+    ITalentTreeRepository talents) : ControllerBase
 {
     [HttpGet("item/{id:long}", Name = "GetItemPreview")]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK, "text/html")]
@@ -65,7 +66,7 @@ public class PublicPreviewController(
         AbilityTemplate? template = await abilities.FindByIdAsync(new AbilityId(id), track: false, ct);
         if (template is null) return NotFoundPage();
 
-        PublicAbilityDto ability = template.ToPublicDto();
+        PublicAbilityDto ability = template.ToPublicDto(await talents.IsGrantedAsync(template.Id, ct));
         return Page(open, LinkPreviewPage.Render(ability.Name, LinkPreviewText.Describe(ability),
             PagePath("ability", id, world, chosen), site.Base, previews.Value.AbilityTheme, previews.Value.Site));
     }

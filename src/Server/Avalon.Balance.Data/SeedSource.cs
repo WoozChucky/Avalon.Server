@@ -22,6 +22,7 @@ public static class SeedSource
             VendorStocks = reader.Rows<VendorStock>(),
             AuraTemplates = reader.Rows<AuraTemplate>(),
             AuraStatModifiers = reader.Rows<AuraStatModifier>(),
+            TalentNodeAbilities = reader.Rows<TalentNodeAbility>(),
         };
     }
 }

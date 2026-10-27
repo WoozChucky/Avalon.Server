@@ -52,7 +52,8 @@ public static class PublicMapping
         };
     }
 
-    public static PublicAbilityDto ToPublicDto(this AbilityTemplate t) => new()
+    /// <param name="granted">Whether the talent tree grants the ability (#1181).</param>
+    public static PublicAbilityDto ToPublicDto(this AbilityTemplate t, bool granted) => new()
     {
         Id = t.Id.Value,
         Name = t.Name ?? "",
@@ -60,7 +61,7 @@ public static class PublicMapping
         Range = (SpellRange)t.Range,
         CastTime = t.CastTime,
         Cooldown = t.Cooldown,
-        AllowedClasses = t.AllowedClasses?.ToList() ?? [],
+        Granted = granted,
         MaxTargets = t.MaxTargets,
         DamageType = (DamageType?)t.DamageType,
         Tags = (AbilityTags)t.Tags,

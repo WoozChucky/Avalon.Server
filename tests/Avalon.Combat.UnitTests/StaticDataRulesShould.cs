@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
@@ -61,7 +60,7 @@ public class StaticDataRulesShould
 
     [Fact]
     public void Accept_a_valid_cone_naming_the_cone_script() =>
-        Assert.Null(AbilityRules.Problem(Cone()));
+        Assert.Null(AbilityRules.Problem(Cone(), granted: false));
 
     [Fact]
     public void Name_the_shape_scripts_by_class_name()
@@ -164,70 +163,103 @@ public class StaticDataRulesShould
 
     /// <summary>
     /// Damage types (#1178): an Ally ability names none, a class ability that deals damage names its own (as Flame
-    /// Burst, 211, must), and so does a class ability that only applies a damaging aura (Ignite, 213, with Burn, 2).
+    /// Burst, 211, must), and so does a class ability that only applies a damaging aura (Ignite, 213, with Burn, 2). A
+    /// class ability is one the talent tree grants (#1181): the same row the tree does not grant is a creature's, which
+    /// may leave its type null, and loads.
     /// </summary>
-    public static TheoryData<string, Func<string?>> DamageTypeMisfits() => new()
+    public static TheoryData<string?, Func<string?>> DamageTypeMisfits() => new()
     {
         { "an Ally ability has no damage type", () => AbilityRules.Problem(new AbilityTemplate
         {
             Name = "Mending Circle", ScriptName = AbilityRules.CircleScript, Shape = AbilityShape.Circle, Radius = 4f,
             Affects = AbilityAffects.Ally, Effects = SpellEffect.Heal, DamageType = DamageType.Fire,
-        }) },
-        { "a class ability that deals damage names its damage type", () => AbilityRules.Problem(new AbilityTemplate
-        {
-            Name = "Flame Burst", ScriptName = AbilityRules.CircleScript, Shape = AbilityShape.Circle, Radius = 3f,
-            Effects = SpellEffect.Damage, AllowedClasses = [CharacterClass.Wizard], DamageType = null,
-        }) },
-        { "a class ability that applies a damaging aura names its damage type", () => AuraRules.DamageTypeProblem(
-            new AbilityTemplate
-            {
-                Name = "Ignite", ScriptName = AbilityRules.CircleScript, Shape = AbilityShape.Circle, Radius = 3f,
-                Effects = SpellEffect.Debuff, AllowedClasses = [CharacterClass.Wizard], AuraId = new AuraId(2),
-                DamageType = null,
-            },
-            new AuraTemplate
-            {
-                Id = new AuraId(2), Name = "Burn", Kind = AuraKind.Harmful, DurationMs = 9000, TickIntervalMs = 3000,
-                PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 24f, Stacking = AuraStacking.Refresh,
-            }) },
+        }, granted: true) },
+        { "a class ability that deals damage names its damage type", () => AbilityRules.Problem(UntypedFlameBurst(), granted: true) },
+        { null, () => AbilityRules.Problem(UntypedFlameBurst(), granted: false) },
+        { "a class ability that applies a damaging aura names its damage type",
+            () => AuraRules.DamageTypeProblem(UntypedIgnite(), Burn(), granted: true) },
+        { null, () => AuraRules.DamageTypeProblem(UntypedIgnite(), Burn(), granted: false) },
     };
 
     [Theory]
     [MemberData(nameof(DamageTypeMisfits))]
-    public void Refuse_an_ability_whose_damage_type_does_not_fit(string message, Func<string?> problem) =>
+    public void Refuse_an_ability_whose_damage_type_does_not_fit(string? message, Func<string?> problem) =>
         Assert.Equal(message, problem());
+
+    private static AbilityTemplate UntypedFlameBurst() => new()
+    {
+        Name = "Flame Burst",
+        ScriptName = AbilityRules.CircleScript,
+        Shape = AbilityShape.Circle,
+        Radius = 3f,
+        Effects = SpellEffect.Damage,
+        Tags = AbilityTags.Spell | AbilityTags.Area,
+        SpellBaseMin = 21,
+        SpellBaseMax = 32,
+        DamageType = null,
+    };
+
+    private static AbilityTemplate UntypedIgnite() => new()
+    {
+        Name = "Ignite",
+        ScriptName = AbilityRules.CircleScript,
+        Shape = AbilityShape.Circle,
+        Radius = 3f,
+        Effects = SpellEffect.Debuff,
+        AuraId = new AuraId(2),
+        DamageType = null,
+    };
+
+    /// <summary>The seeded aura 2, Burn: a harmful damage over time.</summary>
+    private static AuraTemplate Burn() => new()
+    {
+        Id = new AuraId(2),
+        Name = "Burn",
+        Kind = AuraKind.Harmful,
+        DurationMs = 9000,
+        TickIntervalMs = 3000,
+        PeriodicKind = AuraPeriodicKind.Damage,
+        PeriodicBase = 24f,
+        Stacking = AuraStacking.Refresh,
+    };
 
     /// <summary>
     /// The offence model (#1178): each row is a seeded ability (or the formula) with one column changed, refused by the
-    /// rule that change breaks. The seeded rows themselves load (<c>SeedIntegrityShould</c>).
+    /// rule that change breaks. The seeded rows themselves load (<c>SeedIntegrityShould</c>). A row whose rule holds only
+    /// a class ability, one the talent tree grants (#1181), is followed by the same row the tree does not grant, which
+    /// loads.
     /// </summary>
-    public static TheoryData<string, Func<string?>> OffenceMisfits() => new()
+    public static TheoryData<string?, Func<string?>> OffenceMisfits() => new()
     {
         { "an ability is at most one of Attack, Spell and Heal",
-            () => AbilityRules.Problem(Seeded(210, t => t.Tags = AbilityTags.Attack | AbilityTags.Spell | AbilityTags.Projectile)) },
+            () => AbilityRules.Problem(Seeded(210, t => t.Tags = AbilityTags.Attack | AbilityTags.Spell | AbilityTags.Projectile), granted: true) },
         { "Projectile is the tag of a projectile, and only of one",
-            () => AbilityRules.Problem(Seeded(222, t => t.Tags = AbilityTags.Attack | AbilityTags.Projectile)) },
-        { "an Ally ability that heals is a Heal", () => AbilityRules.Problem(Seeded(232, t => t.Tags = AbilityTags.Area)) },
+            () => AbilityRules.Problem(Seeded(222, t => t.Tags = AbilityTags.Attack | AbilityTags.Projectile), granted: true) },
+        { "an Ally ability that heals is a Heal", () => AbilityRules.Problem(Seeded(232, t => t.Tags = AbilityTags.Area), granted: true) },
         { "DamageOverTime is an aura's tag, never an ability's",
-            () => AbilityRules.Problem(Seeded(211, t => t.Tags = AbilityTags.Spell | AbilityTags.Area | AbilityTags.DamageOverTime)) },
+            () => AbilityRules.Problem(Seeded(211, t => t.Tags = AbilityTags.Spell | AbilityTags.Area | AbilityTags.DamageOverTime), granted: true) },
         { "a class attack deals its weapon's physical damage: an element comes from its conversion or added damage",
-            () => AbilityRules.Problem(Seeded(220, t => t.DamageType = DamageType.Cold)) },
+            () => AbilityRules.Problem(Seeded(220, t => t.DamageType = DamageType.Cold), granted: true) },
+        { null, () => AbilityRules.Problem(Seeded(220, t => t.DamageType = DamageType.Cold), granted: false) },
         { "a basic attack is paced by its weapon: its Cooldown is 0",
-            () => AbilityRules.Problem(Seeded(220, t => (t.Flags, t.Cooldown) = (AbilityFlags.Basic, 800u))) },
-        { "ConvertPct 150 is not a percentage from 0 to 100", () => AbilityRules.Problem(Seeded(223, t => t.ConvertPct = 150f)) },
+            () => AbilityRules.Problem(Seeded(220, t => (t.Flags, t.Cooldown) = (AbilityFlags.Basic, 800u)), granted: true) },
+        { "ConvertPct 150 is not a percentage from 0 to 100", () => AbilityRules.Problem(Seeded(223, t => t.ConvertPct = 150f), granted: true) },
         { "a conversion names an element to convert to",
-            () => AbilityRules.Problem(Seeded(223, t => (t.ConvertPct, t.ConvertToType) = (0f, DamageType.Physical))) },
+            () => AbilityRules.Problem(Seeded(223, t => (t.ConvertPct, t.ConvertToType) = (0f, DamageType.Physical)), granted: true) },
         { "a Spell or a Heal that deals or heals needs a SpellBaseMax above 0",
-            () => AbilityRules.Problem(Seeded(210, t => t.SpellBaseMin = t.SpellBaseMax = 0)) },
-        { "added damage names its type", () => AbilityRules.Problem(Seeded(224, t => t.AddedType = null)) },
+            () => AbilityRules.Problem(Seeded(210, t => t.SpellBaseMin = t.SpellBaseMax = 0), granted: true) },
+        { "added damage names its type", () => AbilityRules.Problem(Seeded(224, t => t.AddedType = null), granted: true) },
         { "an Ally ability that applies a healing aura is a Heal",
-            () => AuraRules.SourceProblem(Seeded(233, t => t.Tags = AbilityTags.Area), Renew()) },
+            () => AuraRules.SourceProblem(Seeded(233, t => t.Tags = AbilityTags.Area), Renew(), granted: true) },
+        { "a class ability that applies a damaging aura is an Attack or a Spell",
+            () => AuraRules.SourceProblem(Seeded(211, t => t.Tags = AbilityTags.Area), Burn(), granted: true) },
+        { null, () => AuraRules.SourceProblem(Seeded(211, t => t.Tags = AbilityTags.Area), Burn(), granted: false) },
         { "CombatFormula 1: UnarmedDamageMin 7 is above UnarmedDamageMax 6", () => Refusal(f => f.UnarmedDamageMin = 7) },
     };
 
     [Theory]
     [MemberData(nameof(OffenceMisfits))]
-    public void Refuse_an_offence_row_that_does_not_fit_naming_why(string message, Func<string?> problem) =>
+    public void Refuse_an_offence_row_that_does_not_fit_naming_why(string? message, Func<string?> problem) =>
         Assert.Equal(message, problem());
 
     /// <summary>
@@ -238,9 +270,9 @@ public class StaticDataRulesShould
     {
         AbilityTemplate t = id switch
         {
-            210 => Projectile(CharacterClass.Wizard, DamageType.Lightning, AbilityTags.Spell | AbilityTags.Projectile),
-            220 or 223 or 224 => Projectile(CharacterClass.Hunter, DamageType.Physical, AbilityTags.Attack | AbilityTags.Projectile),
-            211 => Circle(CharacterClass.Wizard, AbilityAffects.Hostile, SpellEffect.Damage, AbilityTags.Spell | AbilityTags.Area),
+            210 => Projectile(DamageType.Lightning, AbilityTags.Spell | AbilityTags.Projectile),
+            220 or 223 or 224 => Projectile(DamageType.Physical, AbilityTags.Attack | AbilityTags.Projectile),
+            211 => Circle(AbilityAffects.Hostile, SpellEffect.Damage, AbilityTags.Spell | AbilityTags.Area),
             222 => new AbilityTemplate
             {
                 ScriptName = AbilityRules.ConeScript,
@@ -249,12 +281,11 @@ public class StaticDataRulesShould
                 Reach = 8f,
                 ArcDegrees = 45f,
                 Effects = SpellEffect.Damage,
-                AllowedClasses = [CharacterClass.Hunter],
                 DamageType = DamageType.Physical,
                 Tags = AbilityTags.Attack | AbilityTags.Area,
             },
-            232 => Circle(CharacterClass.Cleric, AbilityAffects.Ally, SpellEffect.Heal, AbilityTags.Heal | AbilityTags.Area),
-            233 => Circle(CharacterClass.Cleric, AbilityAffects.Ally, SpellEffect.Buff, AbilityTags.Heal | AbilityTags.Area),
+            232 => Circle(AbilityAffects.Ally, SpellEffect.Heal, AbilityTags.Heal | AbilityTags.Area),
+            233 => Circle(AbilityAffects.Ally, SpellEffect.Buff, AbilityTags.Heal | AbilityTags.Area),
             _ => throw new ArgumentOutOfRangeException(nameof(id), id, "not a row these cases use"),
         };
 
@@ -275,11 +306,11 @@ public class StaticDataRulesShould
         if (id == 224) (t.AddedType, t.AddedMin, t.AddedMax) = (DamageType.Blight, 2u, 4u);
         if (id == 233) t.AuraId = new AuraId(4);
 
-        Assert.Null(AbilityRules.Problem(t));
+        Assert.Null(AbilityRules.Problem(t, granted: true));
         change(t);
         return t;
 
-        static AbilityTemplate Projectile(CharacterClass cls, DamageType type, AbilityTags tags) => new()
+        static AbilityTemplate Projectile(DamageType type, AbilityTags tags) => new()
         {
             ScriptName = AbilityRules.ProjectileScript,
             Shape = AbilityShape.Projectile,
@@ -287,12 +318,11 @@ public class StaticDataRulesShould
             Reach = 25f,
             ProjectileSpeed = 14f,
             Effects = SpellEffect.Damage,
-            AllowedClasses = [cls],
             DamageType = type,
             Tags = tags,
         };
 
-        static AbilityTemplate Circle(CharacterClass cls, AbilityAffects affects, SpellEffect effects, AbilityTags tags) => new()
+        static AbilityTemplate Circle(AbilityAffects affects, SpellEffect effects, AbilityTags tags) => new()
         {
             ScriptName = AbilityRules.CircleScript,
             Shape = AbilityShape.Circle,
@@ -302,7 +332,6 @@ public class StaticDataRulesShould
             Radius = 3f,
             Effects = effects,
             Affects = affects,
-            AllowedClasses = [cls],
             DamageType = affects == AbilityAffects.Hostile ? DamageType.Fire : null,
             Tags = tags,
         };

@@ -44,7 +44,6 @@ internal static class TemplateFields
         A("scriptName", e => e.ScriptName, (e, r) => e.ScriptName = r.ScriptName),
         A("range", e => e.Range, (e, r) => e.Range = Conv(r.Range, e.Range)),
         A("effects", e => e.Effects, (e, r) => e.Effects = Conv(r.Effects, e.Effects)),
-        A("allowedClasses", e => e.AllowedClasses, (e, r) => e.AllowedClasses = r.AllowedClasses.ToList()),
         A("maxTargets", e => e.MaxTargets, (e, r) => e.MaxTargets = r.MaxTargets),
         A("auraId", e => e.AuraId?.Value, (e, r) => e.AuraId = r.AuraId is { } aura ? new AuraId(aura) : null),
         A("damageType", e => e.DamageType, (e, r) => e.DamageType = ConvN(r.DamageType, e.DamageType)),

@@ -19,6 +19,8 @@ public sealed class SeedTables
     public required List<VendorStock> VendorStocks { get; init; }
     public required List<AuraTemplate> AuraTemplates { get; init; }
     public required List<AuraStatModifier> AuraStatModifiers { get; init; }
+    /// <summary>The talent tree's ability links (#1181): the abilities it grants, which the class rules hold.</summary>
+    public required List<TalentNodeAbility> TalentNodeAbilities { get; init; }
 
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> s_columns = new();
 
@@ -41,6 +43,7 @@ public sealed class SeedTables
         VendorStocks = CloneRows(VendorStocks),
         AuraTemplates = CloneRows(AuraTemplates),
         AuraStatModifiers = CloneRows(AuraStatModifiers),
+        TalentNodeAbilities = CloneRows(TalentNodeAbilities),
     };
 
     private static List<T> CloneRows<T>(List<T> rows) where T : class, new()

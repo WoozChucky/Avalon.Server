@@ -1,5 +1,3 @@
-using Avalon.Common;
-
 namespace Avalon.Api.Contract;
 
 /// <summary>The body of a template edit: the template read shape without its id, version and computed fields.</summary>
@@ -19,7 +17,6 @@ public sealed class UpdateAbilityTemplateRequest
     public string ScriptName { get; set; } = "";
     public SpellRange Range { get; set; }
     public SpellEffect Effects { get; set; }
-    public List<CharacterClass> AllowedClasses { get; set; } = [];
 
     /// <summary>
     /// The most units a circle or a cone affects, and the hit a piercing projectile ends on (#1181): the nearest it may

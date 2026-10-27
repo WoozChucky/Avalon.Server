@@ -22,7 +22,8 @@ public class AbilityCatalogShould
             new[] { AbilityRules.CircleScript, AbilityRules.ConeScript, AbilityRules.ProjectileScript });
     /// <summary>
     /// Each row names the reason it expects, so it proves its own rule: with that rule removed the row
-    /// is either accepted or refused for a different reason, and the test fails.
+    /// is either accepted or refused for a different reason, and the test fails. The talent tree grants the bad row
+    /// (#1181), so the class rules hold it.
     /// </summary>
     public static TheoryData<string, string, AbilityTemplate> Refused() => new()
     {
@@ -60,13 +61,15 @@ public class AbilityCatalogShould
         { "projectile on the circle script", "a projectile must use ProjectileAbilityScript", With(AbilityTestData.Projectile(1), t => t.ScriptName = "CircleAbilityScript") },
         { "unknown shape", "unknown shape 9", With(AbilityTestData.Circle(1), t => t.Shape = (AbilityShape)9) },
         { "negative max targets", "MaxTargets -1 is below 0", With(AbilityTestData.Cone(1), t => t.MaxTargets = -1) },
+        { "granted damage without a type", "a class ability that deals damage names its damage type", With(AbilityTestData.Circle(1), t => t.DamageType = null) },
     };
 
     [Theory]
     [MemberData(nameof(Refused))]
     public void Refuse_a_bad_row_and_name_it(string why, string reason, AbilityTemplate bad)
     {
-        var catalog = new AbilityCatalog([bad, AbilityTestData.Circle(2)], NullLoggerFactory.Instance);
+        var catalog = new AbilityCatalog([bad, AbilityTestData.Circle(2)], NullLoggerFactory.Instance,
+            granted: new HashSet<AbilityId> { new(1) });
 
         AbilityRefusal refusal = Assert.Single(catalog.Refused);
         Assert.Equal(1u, refusal.Id.Value);
@@ -77,6 +80,10 @@ public class AbilityCatalogShould
         Assert.True(catalog.TryGet(new AbilityId(2), out _), "the good row still loads");
     }
 
+    /// <summary>
+    /// One valid row of every shape loads, and so does a damaging row with no type that the talent tree does not grant
+    /// (#1181): a creature's, which deals its creature's type.
+    /// </summary>
     [Fact]
     public void Accept_one_valid_row_of_every_shape()
     {
@@ -85,13 +92,15 @@ public class AbilityCatalogShould
             AbilityTestData.Circle(1), AbilityTestData.AimedCircle(2), AbilityTestData.HealCircle(3),
             AbilityTestData.Cone(4), AbilityTestData.Cone(5, arc: 360f, aim: AbilityAimMode.Cursor),
             AbilityTestData.Projectile(6), AbilityTestData.Projectile(7, pierce: true),
+            With(AbilityTestData.Circle(8), t => t.DamageType = null),
         ];
 
-        var catalog = new AbilityCatalog(rows, NullLoggerFactory.Instance);
+        var catalog = new AbilityCatalog(rows, NullLoggerFactory.Instance,
+            granted: new HashSet<AbilityId> { new(1), new(2), new(3), new(4), new(5), new(6), new(7) });
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(7, catalog.Count);
-        Assert.Equal("7 abilities, 0 refused", catalog.Describe());
+        Assert.Equal(8, catalog.Count);
+        Assert.Equal("8 abilities, 0 refused", catalog.Describe());
     }
 
     private static AbilityTemplate With(AbilityTemplate template, Action<AbilityTemplate> change)

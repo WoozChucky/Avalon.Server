@@ -182,24 +182,26 @@ public static class AuraRules
 
     /// <summary>
     /// Why <paramref name="ability" /> cannot apply <paramref name="aura" /> for its damage type (#1178), or null: a class
-    /// ability whose aura deals damage over time names the type the ticks deal (Ignite says Fire), as one dealing damage
-    /// directly must. A creature-only ability may leave it null, and its aura then deals the creature's base type.
+    /// ability (one the talent tree grants, <paramref name="granted" />, #1181) whose aura deals damage over time names the
+    /// type the ticks deal (Ignite says Fire), as one dealing damage directly must. A creature-only ability may leave it
+    /// null, and its aura then deals the creature's base type.
     /// </summary>
-    public static string? DamageTypeProblem(AbilityTemplate ability, AuraTemplate aura) =>
-        ability.DamageType is null && ability.AllowedClasses is { Count: > 0 } && aura.PeriodicKind == AuraPeriodicKind.Damage
+    public static string? DamageTypeProblem(AbilityTemplate ability, AuraTemplate aura, bool granted) =>
+        ability.DamageType is null && granted && aura.PeriodicKind == AuraPeriodicKind.Damage
             ? "a class ability that applies a damaging aura names its damage type"
             : null;
 
     /// <summary>
     /// Why <paramref name="ability" /> cannot be the source of <paramref name="aura" /> under the offence model (#1178), or
-    /// null: a damage-over-time aura scales with its source's tags, so a class ability applying a damaging aura is an
-    /// Attack or a Spell and an Ally ability applying a healing aura is a Heal; and a Spell or a Heal whose aura ticks
-    /// has a spell base for the aura to draw on, as one dealing or healing directly must.
+    /// null: a damage-over-time aura scales with its source's tags, so a class ability (one the talent tree grants,
+    /// <paramref name="granted" />, #1181) applying a damaging aura is an Attack or a Spell and an Ally ability applying a
+    /// healing aura is a Heal; and a Spell or a Heal whose aura ticks has a spell base for the aura to draw on, as one
+    /// dealing or healing directly must.
     /// </summary>
-    public static string? SourceProblem(AbilityTemplate ability, AuraTemplate aura)
+    public static string? SourceProblem(AbilityTemplate ability, AuraTemplate aura, bool granted)
     {
         AbilityTags tags = ability.Tags;
-        if (aura.PeriodicKind == AuraPeriodicKind.Damage && ability.AllowedClasses is { Count: > 0 }
+        if (aura.PeriodicKind == AuraPeriodicKind.Damage && granted
             && !AbilityRules.Has(tags, AbilityTags.Attack | AbilityTags.Spell))
         {
             return "a class ability that applies a damaging aura is an Attack or a Spell";

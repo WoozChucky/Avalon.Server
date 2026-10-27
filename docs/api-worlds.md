@@ -569,9 +569,10 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   Ironbound Chestguard's implicit, `+4-5 Health` and `Adds 1 to 3 Physical Damage to Attacks` on a unique), armour,
   other stats, required level, required attributes (`Requires 12 Strength`, #1178; one part, `Requires 30
   Strength or 30 Intellect`, when any one is enough, #1179) and allowed classes (only when restricted to some; an
-  empty list means every class, #1171); for an ability its classes, cost, cast time, cooldown and what one hit deals
-  or heals (#1178): an Attack as its weapon damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds
-  2-4 blight damage`; a creature's, with no classes, as its natural damage, and any attack's type when it is not
+  empty list means every class, #1171); for an ability its cost, cast time, cooldown and what one hit deals or heals
+  (#1178): an Attack the talent tree grants (#1181, `PublicAbilityDto.Granted`) as its weapon damage (`315 % of weapon
+  damage`, then `converts 50 % to cold` or `adds 2-4 blight damage`; a creature's, which the tree does not grant, as
+  its natural damage, and any attack's type when it is not
   physical: `240 % of its natural damage, blight damage`), a Spell or a Heal as its level-1 base and growth (`14-20
   lightning damage, +0.7 % per level`, `Heals 30-44`);
   an ability with no direct amount (one that only applies an aura) shows its damage type instead (`Fire damage`).

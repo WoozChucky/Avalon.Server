@@ -108,4 +108,11 @@ public sealed record TalentTreeRows(
     IReadOnlyList<TalentNodeStat> Stats,
     IReadOnlyList<TalentNodeAbility> Abilities,
     IReadOnlyList<TalentForkGroup> ForkGroups,
-    IReadOnlyList<TalentClassStart> Starts);
+    IReadOnlyList<TalentClassStart> Starts)
+{
+    /// <summary>
+    /// The abilities the tree grants: each one a class start or a node links (#1181). Granted is what makes an ability a
+    /// class ability, held to the class rules; an ability nothing grants is a creature's. Built anew on each read.
+    /// </summary>
+    public IReadOnlySet<AbilityId> Granted => Abilities.Select(a => a.AbilityId).ToHashSet();
+}

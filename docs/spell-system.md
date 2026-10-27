@@ -35,7 +35,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Cost` | uint | mana | Spent from the caster's mana, the one pool every class has (#1181; see the power rule below). 0 is free. |
 | `ScriptName` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
-| `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
+| `AllowedClasses` | list of `CharacterClass` | | Read by nothing since #1181: what makes a class ability is that the talent tree grants it (a class start or a node links it, `TalentNodeAbilities`). The column goes with `StartingSpells`. |
 | `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. The two floats must be finite and 0 or more (#529). |
 | `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`, `Basic` (a class's basic attack, the one ability a silence does not stop), `Unavoidable` (a Hostile ability never rolled against for evasion, #1164). |
 | `AnimationId` | uint | | Reserved for the client's cast animation. |
@@ -73,7 +73,7 @@ loads. A character holding a refused skill simply does not get it at character s
 - `AimMode`, `Shape`, `Anchor` and `Affects` are known values;
 - `Affects = Ally` only on a circle;
 - an Ally ability may not be `Unavoidable` (#1164: it is never evaded anyway);
-- a damage type is a known value; an Ally ability names none; a Hostile class ability (`AllowedClasses` not empty) whose `Effects` has `Damage` names one, and so does a class ability whose aura deals damage over time (`AuraRules.DamageTypeProblem`: Ignite says Fire) (#1178);
+- a damage type is a known value; an Ally ability names none; a Hostile class ability (one the talent tree grants, #1181: `AbilityRules.Problem(t, granted)`, the world's `AbilityCatalog` given the tree's link ids, the API's edit reading `TalentNodeAbilities`, the simulator the seed's links) whose `Effects` has `Damage` names one, and so does a class ability whose aura deals damage over time (`AuraRules.DamageTypeProblem`: Ignite says Fire) (#1178);
 - the offence model (#1178): `DamageEffectiveness` and `SpellBasePerLevelPct` are finite and 0 or more; the tags are known, at most one of Attack, Spell and Heal, and never DamageOverTime; Attack and Spell only on a Hostile ability, Heal only on an Ally one; a Hostile ability that deals damage is an Attack or a Spell, an Ally ability that heals a Heal; Projectile is the tag of a projectile and only of one; only an Attack is Melee; a basic Attack has `Cooldown` 0 (its weapon paces it); a class Attack deals Physical, an element arriving only by its conversion or added damage; `ConvertPct` is 0 to 100; a row with a `ConvertPct` above 0 or any `ConvertToType` converts, and a converting row names an element and is an Attack; `AddedMin` and `SpellBaseMin` are at most their maximums, and added damage names its type; a Spell or a Heal that deals or heals has a `SpellBaseMax` above 0, and an Attack that deals damage a `DamageEffectiveness` above 0. `AuraRules.SourceProblem` adds the aura's side: a class ability applying a damaging aura is an Attack or a Spell, an Ally ability applying a healing aura a Heal, and a Spell or a Heal whose aura ticks has a spell base for it to draw on;
 - **circle**: `Radius > 0`; on the aim point it needs `AimMode = Cursor` and `Reach > 0`; on the
   caster it needs `Reach = 0`;

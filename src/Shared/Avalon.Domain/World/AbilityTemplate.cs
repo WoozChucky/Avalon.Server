@@ -27,7 +27,8 @@ public class AbilityTemplate : IDbEntity<AbilityId>
 
     public SpellEffect Effects { get; set; }
 
-    public List<CharacterClass> AllowedClasses { get; set; } = []; // Default to no classes
+    /// <summary>Read by nothing since #1181: a class ability is one the talent tree grants. Dropped with StartingSpells.</summary>
+    public List<CharacterClass> AllowedClasses { get; set; } = [];
 
     [Required] public float ThreatMultiplier { get; set; } = 1.0f;
 
@@ -77,8 +78,8 @@ public class AbilityTemplate : IDbEntity<AbilityId>
 
     /// <summary>
     /// The type of damage the ability deals, and the type its damage-over-time aura takes (#1178), or null: a creature
-    /// ability with none deals its creature's base type. An Ally ability names none; a class ability that deals damage,
-    /// directly or through a damaging aura, must name one (<c>AbilityRules</c>, <c>AuraRules.DamageTypeProblem</c>).
+    /// ability with none deals its creature's base type. An Ally ability names none; a class ability (one the talent tree
+    /// grants, #1181) that deals damage, directly or through a damaging aura, must name one (<c>AbilityRules</c>, <c>AuraRules.DamageTypeProblem</c>).
     /// </summary>
     public DamageType? DamageType { get; set; }
 

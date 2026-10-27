@@ -703,7 +703,7 @@ public class SeedIntegrityShould
         Assert.Equal((name, shape, reach, radius, arc, speed, pierce, castTime, cooldown, MathF.Round(baseDamage * 100f)),
             (a.Name, a.Shape, a.Reach, a.Radius, a.ArcDegrees, a.ProjectileSpeed, a.Pierce, a.CastTime, a.Cooldown,
                 a.DamageEffectiveness));
-        Assert.Empty(a.AllowedClasses);
+        Assert.DoesNotContain(a.Id, TalentSeed.Rows().Granted);   // a creature's: the tree does not grant it (#1181)
         Assert.Equal(0u, a.Cost);
         Assert.Equal(AbilityAffects.Hostile, a.Affects);
         Assert.Equal(AbilityAnchor.Caster, a.Anchor);
@@ -794,7 +794,9 @@ public class SeedIntegrityShould
 
         var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
             static _ => null, NullLoggerFactory.Instance);
-        var catalog = new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras);
+        // The abilities the seeded tree grants are the class abilities (#1181), held to the class rules.
+        var catalog = new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras,
+            TalentSeed.Rows().Granted);
 
         Assert.Empty(auras.Refused);
         Assert.Empty(catalog.Refused);
@@ -814,11 +816,8 @@ public class SeedIntegrityShould
         {
             Assert.Equal(s_kit[info.Class], info.StartingSpells.Select(s => s.Value));
 
-            foreach (uint id in s_kit[info.Class])
-            {
-                AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == id);
-                Assert.Equal([info.Class], ability.AllowedClasses);
-            }
+            // Each is a class ability: the tree grants it (#1181).
+            Assert.All(s_kit[info.Class], id => Assert.Contains(new AbilityId(id), TalentSeed.Rows().Granted));
         }
     }
 
@@ -953,7 +952,8 @@ public class SeedIntegrityShould
         var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
             static _ => null, NullLoggerFactory.Instance);
         var tree = new TalentCatalog(TalentSeed.Rows(),
-            new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras),
+            new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras,
+                TalentSeed.Rows().Granted),
             NullLoggerFactory.Instance);
         Assert.True(tree.IsLoaded, tree.Refusal);
         Assert.Equal(305, tree.Count);
@@ -1390,10 +1390,12 @@ public class SeedIntegrityShould
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
         List<WornItem> worn = starter ? RetiredGearProfiles.For("starter", c) : [];
-        // The Warrior has two basics until characters learn from the talent tree (#1181): Cleave and Heavy Strike, both
-        // weapon-paced.
+        // The class's basic is the starter its start on the talent tree links (#1181): Heavy Strike, Quick Shot.
+        TalentTreeRows tree = TalentSeed.Rows();
+        int startNode = tree.Starts.Single(s => s.Class == c).NodeId;
+        AbilityId starterId = tree.Abilities.Single(l => l.NodeId == startNode).AbilityId;
         var basics = context.AbilityTemplates.AsNoTracking().AsEnumerable()
-            .Where(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c)).ToList();
+            .Where(a => (a.Flags & AbilityFlags.Basic) != 0 && a.Id == starterId).ToList();
         Assert.NotEmpty(basics);
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, formula);
@@ -1470,7 +1472,9 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == id);
-        CharacterClass c = Assert.Single(ability.AllowedClasses);
+        // A class ability (the tree grants it, #1181), at the stats of the class whose kit held it.
+        Assert.Contains(ability.Id, TalentSeed.Rows().Granted);
+        CharacterClass c = s_kit.Single(k => k.Value.Contains(id)).Key;
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
         List<WornItem> worn = RetiredGearProfiles.For(gear, c);

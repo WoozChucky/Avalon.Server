@@ -97,7 +97,10 @@ public sealed class TemplateEditService(
             TemplateVersion.Of, TemplateValidation.Ability,
             async (db, row, errors, ct2) =>
             {
-                TemplateValidation.AbilityWorldRules(errors, row);
+                // A class ability is one the talent tree grants (#1181): a class start or a node links it. Read in the
+                // edit's own transaction, as the row is.
+                bool granted = await db.TalentNodeAbilities.AnyAsync(a => a.AbilityId == row.Id, ct2);
+                TemplateValidation.AbilityWorldRules(errors, row, granted);
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
                 TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Ability);
                 // The aura must exist (its foreign key) and be one the world loads, fit what the ability affects, and find
@@ -112,9 +115,9 @@ public sealed class TemplateEditService(
                     AuraTemplate? loaded = aura is not null && AuraRules.Problem(aura) is null ? aura : null;
                     if (AuraRules.LinkProblem(row.Affects, auraId, _ => loaded) is { } problem)
                         errors.Add("auraId", $"The world would refuse this ability: {problem}.");
-                    else if (loaded is not null && AuraRules.DamageTypeProblem(row, loaded) is { } typeProblem)
+                    else if (loaded is not null && AuraRules.DamageTypeProblem(row, loaded, granted) is { } typeProblem)
                         errors.Add("damageType", $"The world would refuse this ability: {typeProblem}.");
-                    else if (loaded is not null && AuraRules.SourceProblem(row, loaded) is { } sourceProblem)
+                    else if (loaded is not null && AuraRules.SourceProblem(row, loaded, granted) is { } sourceProblem)
                         errors.Add(TemplateValidation.AbilitySourceField(sourceProblem), $"The world would refuse this ability: {sourceProblem}.");
                 }
             }),
@@ -140,15 +143,22 @@ public sealed class TemplateEditService(
                 TemplateValidation.AuraWorldRules(errors, row);
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
                 TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Aura);
-                // The aura must still fit every ability that applies it, a damaging one a class ability naming its damage
-                // type, and a ticking one a source it can scale with (#1178), or the world would refuse those abilities.
+                // The aura must still fit every ability that applies it, a damaging one a class ability (one the talent tree
+                // grants, #1181) naming its damage type, and a ticking one a source it can scale with (#1178), or the world
+                // would refuse those abilities.
                 foreach (AbilityTemplate ability in await db.AbilityTemplates.AsNoTracking()
                              .Where(a => a.AuraId == row.Id).ToListAsync(ct2))
                 {
+                    bool isGranted = await db.TalentNodeAbilities.AnyAsync(l => l.AbilityId == ability.Id, ct2);
                     if (AuraRules.LinkProblem(ability.Affects, row.Id, _ => row) is { } problem)
+                    {
                         errors.Add("kind", $"The world would refuse ability {ability.Id.Value} '{ability.Name}': {problem}.");
-                    else if ((AuraRules.DamageTypeProblem(ability, row) ?? AuraRules.SourceProblem(ability, row)) is { } typeProblem)
+                    }
+                    else if ((AuraRules.DamageTypeProblem(ability, row, isGranted)
+                              ?? AuraRules.SourceProblem(ability, row, isGranted)) is { } typeProblem)
+                    {
                         errors.Add("periodicKind", $"The world would refuse ability {ability.Id.Value} '{ability.Name}': {typeProblem}.");
+                    }
                 }
             }),
             caller, id, ifMatch, request, ct);

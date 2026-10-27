@@ -450,9 +450,6 @@ public class CharacterService : ICharacterService
                 Cost = template.Cost,
                 Range = (Avalon.Api.Contract.SpellRange)template.Range,
                 Effects = (Avalon.Api.Contract.SpellEffect)template.Effects,
-                AllowedClasses = template.AllowedClasses is null
-                    ? []
-                    : template.AllowedClasses.ToList(),
             },
         };
     }
