@@ -1,6 +1,5 @@
 using Avalon.Combat;
 using Avalon.Network.Packets.Abilities;
-using Avalon.World.Auras;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Units;
@@ -14,10 +13,15 @@ namespace Avalon.World.Abilities.Targeting;
 /// </summary>
 public static class AbilityEffect
 {
+    /// <summary>
+    /// Whether the ability may affect <paramref name="unit" />: an Ally ability an ally; a Hostile one a hostile unit that
+    /// hits do not pass over (<see cref="CombatService.IgnoresHits" />: an invulnerable creature, a corpse, a creature
+    /// walking home or a protected arrival), so such a unit takes no target slot and a projectile flies through it (#1181).
+    /// </summary>
     public static bool Qualifies(IAbilityArena arena, IUnit caster, IAbility ability, IUnit unit) =>
         ability.Metadata.Affects == AbilityAffects.Ally
             ? Hostility.IsAlly(caster, unit, arena.MapType)
-            : !ArrivalProtection.IsProtected(unit) && Hostility.IsHostile(caster, unit, arena.MapType);
+            : !CombatService.IgnoresHits(unit) && Hostility.IsHostile(caster, unit, arena.MapType);
 
     /// <summary>
     /// What the ability does to one unit its shape affects, then its aura (auras). A Hostile ability rolls whether it lands

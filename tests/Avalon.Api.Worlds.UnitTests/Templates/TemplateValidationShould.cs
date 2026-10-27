@@ -38,6 +38,7 @@ public class TemplateValidationShould
         { "ability", "SpellBaseMin 20 is above SpellBaseMax 14", "spellBaseMax" },
         { "ability", "a Spell or a Heal that deals or heals needs a SpellBaseMax above 0", "spellBaseMax" },
         { "ability", "an Attack that deals damage needs a DamageEffectiveness above 0", "damageEffectiveness" },
+        { "ability", "MaxTargets -1 is below 0", "maxTargets" },
         { "source", "a class ability that applies a damaging aura is an Attack or a Spell", "tags" },
         { "source", "an Ally ability that applies a healing aura is a Heal", "tags" },
         { "source", "a Spell or a Heal that deals or heals needs a SpellBaseMax above 0", "spellBaseMax" },

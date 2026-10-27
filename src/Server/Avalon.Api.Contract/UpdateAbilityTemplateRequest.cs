@@ -21,6 +21,12 @@ public sealed class UpdateAbilityTemplateRequest
     public SpellEffect Effects { get; set; }
     public List<CharacterClass> AllowedClasses { get; set; } = [];
 
+    /// <summary>
+    /// The most units a circle or a cone affects, and the hit a piercing projectile ends on (#1181): the nearest it may
+    /// affect. 0 is no limit; never below 0.
+    /// </summary>
+    public int MaxTargets { get; set; }
+
     /// <summary>The aura each unit the ability affects receives, or null (auras).</summary>
     public uint? AuraId { get; set; }
 

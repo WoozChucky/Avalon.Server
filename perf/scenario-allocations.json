@@ -1,18 +1,18 @@
 {
-  "commit": "30de126a3",
-  "date": "2026-10-26",
+  "commit": "50a4d17fb",
+  "date": "2026-10-27",
   "scenarios": {
     "forest-awakening": {
-      "bytesPerWindow": 14193,
-      "bytesPerPlayerPerTick": 19.712500000000002
+      "bytesPerWindow": 14194,
+      "bytesPerPlayerPerTick": 19.71388888888889
     },
     "forest-combat": {
-      "bytesPerWindow": 14122,
-      "bytesPerPlayerPerTick": 19.61388888888889
+      "bytesPerWindow": 14126,
+      "bytesPerPlayerPerTick": 19.619444444444444
     },
     "forest-resonance": {
-      "bytesPerWindow": 15961,
-      "bytesPerPlayerPerTick": 22.168055555555554
+      "bytesPerWindow": 16604,
+      "bytesPerPlayerPerTick": 23.061111111111114
     },
     "many-instances": {
       "bytesPerWindow": 0,

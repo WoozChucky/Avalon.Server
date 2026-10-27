@@ -13,16 +13,16 @@ using Avalon.World.Public.Units;
 namespace Avalon.World.Scripts.Abilities;
 
 /// <summary>
-/// A projectile (#164): a world object spawned at the caster, flying flat toward the aim point at
-/// ProjectileSpeed (metres per second, the #424 velocity rule). Each tick it sweeps its step, capped at
-/// the Reach left and cut by the navmesh ray, against unit bodies, nearest first: without Pierce it
-/// ends on the first qualifying hit, stopping at the point of its step nearest that unit's centre;
-/// with Pierce it hits each unit once and flies on, ending on its MaxTargets-th hit when that is above 0 (#1181).
-/// It ends at Reach, at a wall, or on its last hit, and the instance despawns it once its final state has gone
-/// out. No target, no homing. It starts
-/// where the caster stood when the cast started (#648), the origin of the lane the start broadcast carried.
-/// It is fired as circles and cones are, with its lane, and tells how its flight met each unit and ended (#479):
-/// a hit or a pass-through before the damage it deals, then where it expired or was blocked.
+/// A projectile (#164): a world object spawned at the caster, flying flat toward the aim point at ProjectileSpeed
+/// (metres per second, the #424 velocity rule). Each tick it sweeps its step, capped at the Reach left and cut by the
+/// navmesh ray, against unit bodies, nearest first, flying through every unit it may not affect
+/// (<c>AbilityEffect.Qualifies</c>, #1181): without Pierce it ends on the first unit it may, stopping at the point of
+/// its step nearest that unit's centre; with Pierce it hits each unit once and flies on, ending on its MaxTargets-th
+/// hit when that is above 0 (#1181). It ends at Reach, at a wall, or on its last hit, and the instance despawns it once
+/// its final state has gone out. No target, no homing. It starts where the caster stood when the cast started (#648),
+/// the origin of the lane the start broadcast carried. It is fired as circles and cones are, with its lane, and tells
+/// how its flight met each unit and ended (#479): a hit or a pass-through before the damage it deals, then where it
+/// expired or was blocked.
 /// </summary>
 public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
     : AbilityScript(ability, caster, aim), IProjectileIdentity

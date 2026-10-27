@@ -24,11 +24,13 @@ public class TalentCatalogShould
     [InlineData("class without a start", "the Cleric has no start")]
     [InlineData("start on a small node", "a Small node, not a Start")]
     [InlineData("start no class owns", "Start node 5 is no class's start")]
+    [InlineData("two classes on one start", "the Hunter and the Cleric both start on node 3")]
     [InlineData("edge to a missing node", "names node 99, which the tree does not hold")]
     [InlineData("link on a small node", "node 10 is a Small node and cannot link an ability")]
     [InlineData("ability node without a link", "Ability node 11 links no ability")]
     [InlineData("link to a refused ability", "links ability 110, which the ability catalog refused")]
     [InlineData("link to a missing ability", "links ability 999, which the ability catalog does not hold")]
+    [InlineData("one ability on two nodes", "ability 110 is linked by both node 4 and node 11")]
     [InlineData("fork group of one capstone", "fork group 1 holds 1 capstones")]
     [InlineData("more on attack speed", "AttackSpeed cannot be More")]
     [InlineData("range on strength", "Strength cannot have a range")]
@@ -52,6 +54,9 @@ public class TalentCatalogShould
                 tree.Edges.Add(new TalentEdge { NodeA = 4, NodeB = 5 });
                 tree.Abilities.Add(Link(5, 102));
                 break;
+            case "two classes on one start":
+                tree.Starts.Single(s => s.Class == CharacterClass.Cleric).NodeId = 3;
+                break;
             case "edge to a missing node":
                 tree.Edges.Add(new TalentEdge { NodeA = 12, NodeB = 99 });
                 break;
@@ -66,6 +71,9 @@ public class TalentCatalogShould
                 break;
             case "link to a missing ability":
                 tree.Abilities.Single(a => a.NodeId == 11).AbilityId = new AbilityId(999);
+                break;
+            case "one ability on two nodes":
+                tree.Abilities.Single(a => a.NodeId == 4).AbilityId = new AbilityId(ChainAbility);
                 break;
             case "fork group of one capstone":
                 tree.Node(21).ForkGroupId = null;
@@ -97,6 +105,11 @@ public class TalentCatalogShould
         Assert.StartsWith("talent tree refused", catalog.Describe(), StringComparison.Ordinal);
         Assert.Equal(WizardStarter, catalog.StarterOf(CharacterClass.Wizard)?.Value);
         Assert.Equal(row == "start on a small node" ? null : WarriorStarter, catalog.StarterOf(CharacterClass.Warrior)?.Value);
+
+        // A walk on the refused tree reaches nothing rather than throwing.
+        Span<ulong> reached = [ulong.MaxValue];
+        catalog.WalkHeld(catalog.StartIndexOf(CharacterClass.Warrior), [], reached, []);
+        Assert.Equal(0UL, reached[0]);
     }
 
     [Fact]

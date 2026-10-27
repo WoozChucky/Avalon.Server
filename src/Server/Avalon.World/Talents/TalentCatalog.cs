@@ -172,10 +172,18 @@ public sealed class TalentCatalog
     /// Sets in <paramref name="reached" /> (cleared first) the start's bit and the bit of every node set in
     /// <paramref name="held" /> that a path of held nodes links to the start. Both sets hold at least
     /// <see cref="BitWords" /> words, bit i of word i / 64 standing for index i, and <paramref name="queue" /> at least
-    /// <see cref="Count" /> entries. The caller owns every buffer, so a walk allocates nothing.
+    /// <see cref="Count" /> entries. The caller owns every buffer, so a walk allocates nothing. On a refused or empty tree
+    /// (<see cref="Count" /> 0, every start index -1) it reaches nothing: <paramref name="reached" /> is cleared and no
+    /// argument is checked.
     /// </summary>
     public void WalkHeld(int startIndex, ReadOnlySpan<ulong> held, Span<ulong> reached, Span<int> queue)
     {
+        if (Count == 0)
+        {
+            reached.Clear();
+            return;
+        }
+
         ArgumentOutOfRangeException.ThrowIfNegative(startIndex);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(startIndex, Count);
         ArgumentOutOfRangeException.ThrowIfLessThan(held.Length, BitWords, nameof(held));
@@ -250,6 +258,8 @@ public sealed class TalentCatalog
                 return $"the {start.Class}'s start names node {start.NodeId}, which the tree does not hold";
             if (nodes[index].Kind != TalentNodeKind.Start)
                 return $"the {start.Class}'s start is node {start.NodeId}, a {nodes[index].Kind} node, not a Start";
+            if (rows.Starts.FirstOrDefault(s => s.NodeId == start.NodeId && s.Class != start.Class) is { } shared)
+                return $"the {start.Class} and the {shared.Class} both start on node {start.NodeId}";
         }
 
         foreach (TalentNode node in nodes)
@@ -299,6 +309,8 @@ public sealed class TalentCatalog
             }
 
             AbilityId ability = links[0].AbilityId;
+            if (rows.Abilities.FirstOrDefault(a => a.AbilityId.Value == ability.Value && a.NodeId != node.Id) is { } other)
+                return $"ability {ability.Value} is linked by both node {node.Id} and node {other.NodeId}";
             if (abilities.TryGet(ability, out _))
                 continue;
 

@@ -135,6 +135,7 @@ public class PublicMappingShould
             ScriptName = script,
             Affects = affects,
             AllowedClasses = [CharacterClass.Warrior],
+            MaxTargets = 1,
             Effects = affects == AbilityAffects.Ally
                 ? Avalon.World.Public.Enums.SpellEffect.Heal
                 : Avalon.World.Public.Enums.SpellEffect.Damage,
@@ -147,6 +148,7 @@ public class PublicMappingShould
         Assert.Equal(Avalon.Api.Contract.SpellRange.Melee, dto.Range);
         Assert.Equal(1500u, dto.CastTime);
         Assert.Equal([CharacterClass.Warrior], dto.AllowedClasses);
+        Assert.Equal(1, dto.MaxTargets);
     }
 
     /// <summary>

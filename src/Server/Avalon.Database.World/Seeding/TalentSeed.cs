@@ -135,18 +135,18 @@ public static partial class TalentSeed
         Small(31, "WH-B10.c5", L(IncreasedPhysicalDamage, 5)),
         Small(32, "WC-A1", L(Armor, 15)),
         Small(33, "WC-A2", L(Stamina, 5)),
-        Small(34, "WC-A3", L(IncreasedArmour, 6)),
+        Small(34, "WC-A3", L(IncreasedArmor, 6)),
         Small(35, "WC-A4", L(Strength, 5)),
         Ability(36, "WC-A5", "Shield Bash", ShieldBash),
         Small(37, "WC-A6", L(BlockPct, 1)),
         Small(38, "WC-A7", L(IncreasedMaximumLife, 3)),
-        Notable(39, "WC-A8", "Bulwark", L(BlockPct, 2), L(IncreasedArmour, 6)),
-        Small(40, "WC-A9", L(IncreasedArmour, 6)),
+        Notable(39, "WC-A8", "Bulwark", L(BlockPct, 2), L(IncreasedArmor, 6)),
+        Small(40, "WC-A9", L(IncreasedArmor, 6)),
         Small(41, "WC-A10", L(LightningResistance, 4)),
         Small(42, "WC-B1", L(Stamina, 5)),
-        Small(43, "WC-B2", L(IncreasedArmour, 6)),
+        Small(43, "WC-B2", L(IncreasedArmor, 6)),
         Small(44, "WC-B3", L(Strength, 5)),
-        Notable(45, "WC-B4", "Iron Skin", L(IncreasedArmour, 18)),
+        Notable(45, "WC-B4", "Iron Skin", L(IncreasedArmor, 18)),
         Small(46, "WC-B5", L(IncreasedMaximumLife, 3)),
         Small(47, "WC-B6", L(IncreasedAreaDamage, 5)),
         Small(48, "WC-B7", L(IncreasedMeleeDamage, 5)),
@@ -155,7 +155,7 @@ public static partial class TalentSeed
         Ability(51, "WC-B10", "Ground Slam", GroundSlam),
         Small(52, "WC-B10.c1", L(IncreasedAreaDamage, 5)),
         Small(53, "WC-B10.c2", L(IncreasedMeleeDamage, 5)),
-        Small(54, "WC-B10.c3", L(IncreasedArmour, 6)),
+        Small(54, "WC-B10.c3", L(IncreasedArmor, 6)),
         Small(55, "WC-B10.c4", L(IncreasedAreaDamage, 5)),
         Small(56, "WC-B10.c5", L(IncreasedMeleeDamage, 5)),
         Small(57, "Whub-S1", L(Strength, 5)),
@@ -362,7 +362,7 @@ public static partial class TalentSeed
         Small(252, "CW-A7", L(IncreasedWard, 6)),
         Notable(253, "CW-A8", "Ward of Faith", L(IncreasedWard, 18)),
         Small(254, "CW-A9", L(IncreasedHealing, 5)),
-        Small(255, "CW-A10", L(IncreasedArmour, 6)),
+        Small(255, "CW-A10", L(IncreasedArmor, 6)),
         Small(256, "CW-B1", L(Stamina, 5)),
         Small(257, "CW-B2", L(IncreasedHealing, 5)),
         Small(258, "CW-B3", L(Ward, 8)),
@@ -395,17 +395,17 @@ public static partial class TalentSeed
         Small(285, "Chub-S4", L(Intellect, 5)),
         Small(286, "Chub-S5", L(CooldownRecovery, 2)),
         Notable(287, "Chub-S6", "Faithful", L(Intellect, 15)),
-        Small(288, "Chub-L2.c1", L(IncreasedArmour, 6)),
+        Small(288, "Chub-L2.c1", L(IncreasedArmor, 6)),
         Small(289, "Chub-L2.c2", L(CooldownRecovery, 2)),
         Small(290, "Chub-L2.c3", L(IncreasedMaximumLife, 3)),
-        Small(291, "Chub-L2.c4", L(IncreasedArmour, 6)),
+        Small(291, "Chub-L2.c4", L(IncreasedArmor, 6)),
         Small(292, "Chub-L2.c5", L(CooldownRecovery, 2)),
 
         // Shared nodes: the joints, Frostbolt's branch and the hub junctions
         Notable(293, "WH-joint", "Weapon Mastery", L(IncreasedAttackDamage, 10), L(AttackSpeed, 3)),
         Ability(294, "HZ-joint", "Frostbolt", Frostbolt),
         Notable(295, "ZC-joint", "Spellweaver", L(IncreasedSpellDamage, 10), L(CastSpeed, 3)),
-        Notable(296, "CW-joint", "Holy Bulwark", L(IncreasedArmour, 10), L(IncreasedWard, 10)),
+        Notable(296, "CW-joint", "Holy Bulwark", L(IncreasedArmor, 10), L(IncreasedWard, 10)),
         Small(297, "HZ-joint.c1", L(IncreasedColdDamage, 5)),
         Small(298, "HZ-joint.c2", L(IncreasedProjectileDamage, 5)),
         Small(299, "HZ-joint.c3", L(CastSpeed, 2)),
@@ -517,8 +517,8 @@ public static partial class TalentSeed
         {
             for (int i = 1; i < chain.Length; i++)
             {
-                int a = ids[chain[i - 1]];
-                int b = ids[chain[i]];
+                int a = IdOf(chain[i - 1], chain[i]);
+                int b = IdOf(chain[i], chain[i - 1]);
                 if (!edges.Add((Math.Min(a, b), Math.Max(a, b))))
                     throw new InvalidOperationException($"The talent edge {chain[i - 1]} - {chain[i]} is written twice.");
             }
@@ -526,6 +526,12 @@ public static partial class TalentSeed
 
         return new TalentTreeRows(nodes, [.. edges.Select(e => new TalentEdge { NodeA = e.A, NodeB = e.B })], stats,
             abilities, [], starts);
+
+        int IdOf(string label, string other) =>
+            ids.TryGetValue(label, out int id)
+                ? id
+                : throw new InvalidOperationException(
+                    $"The talent edge {label} - {other} names '{label}', which no node has.");
     }
 
     /// <summary>
@@ -599,7 +605,8 @@ public static partial class TalentSeed
 
     // A label: hub-X, X-start, Xhub-Rn, XY-joint or XY-Ln, any of the last three with a branch node .ck.
     [GeneratedRegex(
-        @"^(?:hub-(?<hub>[WHZC])|(?<x>[WHZC])(?:-start|hub-(?<route>[SLR])(?<n>\d+)|(?<y>[WHZC])-(?:joint|(?<lane>[AB])(?<n>\d+))))(?:\.c(?<k>\d+))?$",
+        @"^(?:hub-(?<hub>[WHZC])|(?<x>[WHZC])(?:-start|hub-(?<route>[SLR])(?<n>\d+)|" +
+        @"(?<y>[WHZC])-(?:joint|(?<lane>[AB])(?<n>\d+))))(?:\.c(?<k>\d+))?$",
         RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex LabelPattern();
 }

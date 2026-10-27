@@ -47,7 +47,7 @@ public static class TalentStatRules
         StatType.AttackSpeed or StatType.CastSpeed or StatType.CooldownRecovery or StatType.MovementSpeed => true,
         StatType.FireResistance or StatType.ColdResistance or StatType.LightningResistance or StatType.BlightResistance => true,
         StatType.IncreasedMaximumLife or StatType.IncreasedMaximumMana or StatType.IncreasedManaRegeneration => true,
-        StatType.IncreasedArmour or StatType.IncreasedEvasion or StatType.IncreasedWard => true,
+        StatType.IncreasedArmor or StatType.IncreasedEvasion or StatType.IncreasedWard => true,
         _ => IsOffenceIncrease(stat) || IsAddedDamage(stat),
     };
 

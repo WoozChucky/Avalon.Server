@@ -61,6 +61,7 @@ public static class PublicMapping
         CastTime = t.CastTime,
         Cooldown = t.Cooldown,
         AllowedClasses = t.AllowedClasses?.ToList() ?? [],
+        MaxTargets = t.MaxTargets,
         DamageType = (DamageType?)t.DamageType,
         Tags = (AbilityTags)t.Tags,
         DamageEffectiveness = t.DamageEffectiveness,

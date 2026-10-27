@@ -26,7 +26,7 @@ balance tables: they change only through `HasData` plus a generated migration (C
   `Junction` 7 (a hub junction, where a class's spoke meets the hub ring).
 - **`TalentStatKind`** (stored, append-only): `Added` 1 (summed with the gear's lines of the same stat, as a worn item's
   global line is) and `More` 2 (a multiplier of its own, "N % more").
-- **Stat lines** speak the gear's `StatType` vocabulary. Three stats arrived for the tree: `IncreasedArmour` 56,
+- **Stat lines** speak the gear's `StatType` vocabulary. Three stats arrived for the tree: `IncreasedArmor` 56,
   `IncreasedEvasion` 57 and `IncreasedWard` 58 (the global increases of each defence, also on the API contract's
   `StatType` and the wire's `ItemStat`).
 - **The bundle.** `TalentTreeRows` (Domain) holds the six tables' rows. The seed (`TalentSeed.Rows()`), the repository
@@ -116,14 +116,17 @@ afterwards.
   an id into an index; `NodeIdAt`, `KindAt`, `NeighboursAt` (ascending), `AbilityAt`, `LinesAt` (by stat, then kind; a
   line without a range has its value at both ends), `ForkPartnerAt` (-1 when none), `StartIndexOf` and `StarterOf`
   read by index or class. `WalkHeld(startIndex, held, reached, queue)` marks every held node a path of held nodes links
-  to the start, over bit sets of `BitWords` words and a queue the caller owns, so a walk allocates nothing.
+  to the start, over bit sets of `BitWords` words and a queue the caller owns, so a walk allocates nothing. On a refused
+  or empty tree (`Count` 0, every start index -1) it reaches nothing: it clears `reached` and checks no argument.
 - **What it refuses.** A tree that breaks a rule is refused whole, logged once at Error naming the first problem, in
   this order:
   1. a node listed twice; a class 1-4 without exactly one start; a start naming a class that is not playable, a
-     missing node or a node that is not a `Start`; a `Start` node that is no class's start;
+     missing node or a node that is not a `Start`; two classes starting on one node; a `Start` node that is no
+     class's start;
   2. an edge naming a missing node;
   3. an ability link on a missing node or on a node that is neither `Start` nor `Ability`; a `Start` or `Ability` node
-     without exactly one link; a link naming an ability the ability catalog refused or does not hold;
+     without exactly one link; one ability linked by two nodes; a link naming an ability the ability catalog refused
+     or does not hold;
   4. a node naming a missing fork group; a fork group that does not hold exactly two capstones and nothing else;
   5. a stat line naming a missing node, or one `TalentStatRules.Problem` refuses;
   6. a notable, ability, capstone or keystone without a name;
@@ -135,7 +138,7 @@ afterwards.
   - `Added` is allowed on the four attributes, `Armor`, `Evasion`, `Ward`, `Health`, `Power`, `BlockPct`, `CritPct`,
     `CritMultiplier`, the four speeds (`AttackSpeed`, `CastSpeed`, `CooldownRecovery`, `MovementSpeed`), the four
     resistances, the thirteen increases `IncreasedDamage` to `IncreasedHealing`, `IncreasedMaximumLife`,
-    `IncreasedMaximumMana`, `IncreasedManaRegeneration`, `IncreasedArmour`, `IncreasedEvasion`, `IncreasedWard`, and
+    `IncreasedMaximumMana`, `IncreasedManaRegeneration`, `IncreasedArmor`, `IncreasedEvasion`, `IncreasedWard`, and
     the global added damage lines (to attacks by type, to spells by element);
   - `More` only on the thirteen offence increases and on increased maximum life and mana;
   - a `ValueMax` only on an added damage line, and at least its `Value`;

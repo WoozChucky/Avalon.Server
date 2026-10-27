@@ -2332,7 +2332,10 @@ once per hit, and `AbilityPace.Cooldown` tests an Attack's row for a cooldown of
 creatures cast cones, circles and projectiles through all three paths. Whole world ticks of one forest with three
 players at its entry; in process, five warmups, eight iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11,
 i9-12900K, SDK 10.0.403 / runtime 10.0.14, Release. One run of the base (`86a85a58d`, built from an exported copy of
-that commit) and one of the branch, in the same session on 2026-10-27, beside the branch's earlier run from Task 4:
+that commit) and one of the branch, in the same session on 2026-10-27, beside the branch's earlier run from Task 4 and
+a run after the final fixes, where a Hostile ability's units that every hit ignores stop qualifying
+(`CombatService.IgnoresHits` in `AbilityEffect.Qualifies`, a few type tests per candidate in place of the arrival
+check):
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ForestTickBenchmarks*' --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
@@ -2341,11 +2344,13 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ForestTi
 | Build | Mean (± StdDev) | 99.9 % error | Allocated |
 |---|---:|---:|---:|
 | Base `86a85a58d` | 10.73 µs (± 2.52 µs) | ± 4.82 µs | 0 B |
-| Branch `f67d1f9e5`, same session | 11.35 µs (± 1.39 µs) | ± 2.65 µs | 0 B |
-| Branch `f67d1f9e5`, earlier run | 10.65 µs (± 0.82 µs) | | 0 B |
+| Branch `f67d1f9e5` working tree (with the uncommitted export and API changes, none on the tick path), same session | 11.35 µs (± 1.39 µs) | ± 2.65 µs | 0 B |
+| Branch `f67d1f9e5`, earlier run | 10.65 µs (± 0.82 µs) | ± 1.57 µs (worked out from its SD, as BenchmarkDotNet does) | 0 B |
+| Branch after the final fixes, 2026-10-27 | 10.50 µs (± 1.64 µs) | ± 3.14 µs | 0 B |
 
-**Nothing allocates on either side.** The three means are within 0.7 µs of each other, inside each run's error, so this
-run shows no cost; it was not re-run to narrow the spread (one targeted run per side).
+**Nothing allocates on any side.** The means lie within 0.9 µs of each other, inside every run's error; the base's
+error is ± 4.82 µs, so these runs rule out only a cost above about 5 µs a tick and resolve no difference within
+that. None was re-run to narrow the spread (one targeted run per side).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

@@ -48,7 +48,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `ProjectileSpeed` | float | m/s | Projectile only; 0 otherwise. |
 | `Pierce` | bool | | Projectile only: false ends on the first unit hit; true hits each unit once and flies on. |
 | `Affects` | `AbilityAffects` | | `Hostile` (0) damages hostile units; `Ally` (1) heals allies. |
-| `MaxTargets` | int | units | The most units the shape affects, nearest first (§5); 0 is no limit, the default. It caps whatever the shape affects: hostiles for a Hostile ability, allies for an Ally one (#1181). 0 or more (`CK_AbilityTemplates_MaxTargets`, `AbilityRules`). Exported in the ability catalog, not sent on `AbilityInfo` and not editable over REST. |
+| `MaxTargets` | int | units | The most units the shape affects, nearest first (§5); 0 is no limit, the default. It caps whatever the shape affects: hostiles for a Hostile ability, allies for an Ally one (#1181), and a unit the ability may not affect, every unit hits ignore among them, takes no slot. 0 or more (`CK_AbilityTemplates_MaxTargets`, `AbilityRules`). Exported in the ability catalog and read and edited over REST (`maxTargets` on the template and the public ability), not sent on `AbilityInfo`. |
 | `Tags` | `AbilityTags` | | What the skill is (#1178, `[Flags]`): at most one of `Attack` (1), `Spell` (2) and `Heal` (4), plus its delivery, `Area` (8), `Projectile` (16), `Melee` (32). `DamageOverTime` (64) is an aura's tag, never an ability's (`CK_AbilityTemplates_Tags`). The tags pick the base (§4) and the modifiers that scale it. |
 | `DamageEffectiveness` | float | percent | What an Attack's weapon roll counts for, and a Spell's added damage; 100 counts it whole. Finite and 0 or more, above 0 for an Attack that deals damage (#1178). |
 | `SpellBaseMin`, `SpellBaseMax` | uint, uint | health points | The range a Spell or a Heal rolls at level 1, inclusive; `SpellBaseMax` above 0 for one that deals or heals, or whose aura ticks (#1178). |
@@ -197,8 +197,8 @@ refused: its cost and cooldown are spent all the same.
   but its aura; evaded or landed, it counts as combat as an evaded hit does (the encounter, the creature engaging, both
   tagged), whether or not its aura then sticks. Its aura lands only where the hit landed. An ability flagged
   `AbilityFlags.Unavoidable` is never rolled against: no evasion roll, so its damage is never evaded and its aura is
-  offered to every unit its shape affects (the aura system's own refusals, such as an
-  invulnerable creature, a corpse or a creature walking home, still apply). See
+  offered to every unit its shape affects, which never holds a unit every hit ignores (§5; the aura system's own
+  refusals still apply). See
   "Combat reads the derived stats" in [World simulation](world-simulation.md).
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + heal)`, the heal being its Heal base (below) and then a crit roll,
@@ -347,11 +347,18 @@ off the navmesh centres it on itself. Every qualifying unit whose body overlaps 
 once, when it fires.
 
 **`MaxTargets`, every shape (#1181).** A shape whose `MaxTargets` is above 0 affects at most that many units, the
-nearest first (the hit query's order). Only units that qualify count, so an ally standing in front of a Hostile
-ability never takes a hostile's place, and a unit held for the dodge wait (§4) counts as affected. A circle or a cone
-passes it to `AbilityEffect.ApplyToAll`, which stops once it has affected that many; a piercing projectile ends on
-its `MaxTargets`-th hit, told as a hit (`ProjectileImpactReason.Hit`), and one without `Pierce` already ends on its
-first.
+nearest first (the hit query's order). Only units that qualify (`AbilityEffect.Qualifies`) count. For a Hostile
+ability that leaves out every unit hits ignore (`CombatService.IgnoresHits`: an invulnerable creature, a corpse, a
+creature walking home, a protected arrival) as well as the units it is not hostile to (an invulnerable creature and a
+protected arrival already were not), so neither an ally nor a boar walking home standing in front ever takes the
+place of the nearest unit it can damage; a unit held for the dodge wait
+(§4) counts as affected. A circle or a cone passes it to `AbilityEffect.ApplyToAll`, which stops once it has affected
+that many; a piercing projectile ends on its `MaxTargets`-th hit, told as a hit (`ProjectileImpactReason.Hit`), and
+one without `Pierce` already ends on its first. A projectile flies through every unit that does not qualify, one hits
+ignore included, and a held hit whose target has since come to be ignored is dropped (§4). The same rule means an
+`Unavoidable` ability offers its aura only to a unit it may affect: an ignored unit is offered none, where the aura
+system would have refused it anyway, so a creature walking home is no longer told "Immune" by a shape's crowd control
+(a direct application, such as an item's or a Resonance proc's, still is).
 
 **Cone** (`ConeAbilityScript`). The apex is the caster. It points along the caster's facing (a
 movement skill) or toward the aim point (a cursor skill; a point on the caster falls back to facing).
@@ -369,7 +376,7 @@ tick it sweeps its whole step as a segment:
   past `Reach` or through a unit;
 - the segment is cut by `RaycastWalkable`, so a wall stops it;
 - the units whose body the segment touches are taken nearest first. Without `Pierce` it ends on the
-  first qualifying unit, stopping at the point of its step nearest that unit's centre. With `Pierce`
+  first unit that qualifies, stopping at the point of its step nearest that unit's centre. With `Pierce`
   it hits each unit once and flies on.
 - a player's projectile sweeps the units where that player sees them beside it (#1082). The client
   draws projectiles where the server has them, with no delay, but other units its render delay plus one
@@ -445,7 +452,8 @@ are never reused. Every kit skill has `AllowedClasses` its own class, `ThreatMul
 `HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune. Under the offence model
 (#1178) the bases re-express the old numbers: an Attack's effectiveness carries its old level-1 average over a
 starter weapon's roll, and a Spell's or a Heal's base and growth carry its old level-1 and level-10 averages, each
-within a few percent. A basic Attack's cooldown is its weapon's attack time (`weapon`).
+within a few percent. An Attack whose cooldown is 0, every basic one among them, waits its weapon's attack time
+(`weapon`).
 
 | id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | tags | base | type |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -470,9 +478,10 @@ Attack with `MaxTargets` 1, so it hits only the nearest hostile in its cone, pac
 ability node between the Hunter's and the Wizard's regions. No class's `StartingSpells` grants either yet, and
 their `AllowedClasses` are the Warrior and the Wizard.
 
-Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twelve rows, Heavy Strike's and
-Frostbolt's, the class links, the starting skills, one script per shape, Mending Circle as the only ally heal, and that every
-cost is payable under the power rule from a level 1 character's maximum mana.
+Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twenty-one kit abilities (this table's
+twelve and the nine aura and crowd-control abilities, [auras](auras.md)), what the design fixes of Heavy Strike and
+Frostbolt, the class links, the starting skills, one script per shape, Mending Circle as the only ally heal, and that
+every cost is payable under the power rule from a level 1 character's maximum mana.
 
 ## 8b. The creature abilities
 

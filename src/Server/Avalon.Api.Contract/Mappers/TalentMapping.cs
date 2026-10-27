@@ -36,8 +36,16 @@ public static class TalentMapping
                     ],
                 }),
             ],
-            Edges = [.. rows.Edges.OrderBy(e => e.NodeA).ThenBy(e => e.NodeB).Select(e => new TalentEdgeDto { NodeA = e.NodeA, NodeB = e.NodeB })],
-            ClassStarts = [.. rows.Starts.OrderBy(s => s.Class).Select(s => new TalentClassStartDto { Class = s.Class, NodeId = s.NodeId })],
+            Edges =
+            [
+                .. rows.Edges.OrderBy(e => e.NodeA).ThenBy(e => e.NodeB)
+                    .Select(e => new TalentEdgeDto { NodeA = e.NodeA, NodeB = e.NodeB }),
+            ],
+            ClassStarts =
+            [
+                .. rows.Starts.OrderBy(s => s.Class)
+                    .Select(s => new TalentClassStartDto { Class = s.Class, NodeId = s.NodeId }),
+            ],
         };
     }
 }

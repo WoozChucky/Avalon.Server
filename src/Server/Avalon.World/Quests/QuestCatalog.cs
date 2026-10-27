@@ -258,6 +258,8 @@ public sealed class QuestCatalog
             return $"repeat frequency {(int)frequency} is not a known frequency";
         if (!quest.IsRepeatable && quest.RepeatFrequency is { } set && set != QuestRepeatFrequency.None)
             return $"repeat frequency {set} is set on a quest that is not repeatable";
+        if (quest.RewardTalentPoints < 0)
+            return $"it pays {quest.RewardTalentPoints} talent points, below 0";
         if (quest.IsRepeatable && quest.RewardTalentPoints > 0)
             return "a repeatable quest pays no talent points";
         if (!creatures.Contains(quest.GiverCreatureId.Value))
@@ -503,7 +505,7 @@ public sealed class QuestCatalog
         q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value).Select(r => new QuestItemRewardView(r.ItemTemplateId, r.Count)).ToList(),
         q.ItemChoices.OrderBy(c => c.ItemTemplateId.Value).Select(c => new QuestItemRewardView(c.ItemTemplateId, c.Count)).ToList(),
         RepeatOf(q),
-        (uint)q.RewardTalentPoints);
+        checked((uint)q.RewardTalentPoints));   // Problem refused a negative count
 
     /// <summary>The repeat kind the catalog reads from a quest's repeat pair: Once unless repeatable; no frequency repeats at once.</summary>
     private static QuestRepeat RepeatOf(QuestTemplate q) => !q.IsRepeatable ? QuestRepeat.Once : q.RepeatFrequency switch

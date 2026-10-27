@@ -55,8 +55,9 @@ public sealed class AbilityMetadata
     public bool Pierce { get; init; }
 
     /// <summary>
-    /// The most units a circle or a cone affects, and the hit a piercing projectile ends on (#1181): the nearest that
-    /// qualify, so a unit the ability passes over uses up none. 0 is no limit.
+    /// The most units a circle or a cone affects, and the hit a piercing projectile ends on (#1181): the nearest it may
+    /// affect, so a unit it may not (an ally of a hostile ability, an unflagged player, or a unit every hit ignores: an
+    /// invulnerable creature, a corpse, a creature walking home, a protected arrival) uses up none. 0 is no limit.
     /// </summary>
     public int MaxTargets { get; init; }
 

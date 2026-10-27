@@ -62,15 +62,17 @@ public class AbilityEffectShould
     }
 
     /// <summary>
-    /// #1181: a shape affects at most <c>maxTargets</c> of the units it qualifies, in the hit query's nearest-first order
-    /// (0 is no limit), the unflagged player in front using up no slot; and the cap allocates nothing on the hit path.
+    /// #1181: the capped path allocates nothing on the hit, the unit every hit ignores in front included (the counts first
+    /// prove the window runs the capped break; the cap itself is pinned end to end in MapInstanceAbilityCastShould).
     /// </summary>
     [Fact]
     public void Affect_at_most_the_cap_without_allocating()
     {
         var arena = new TestArena { NextOutcome = HitOutcome.Dodged };   // nothing lands, so nothing is recorded
         CharacterEntity caster = arena.Player(1, 0f, 0f);
-        IUnit[] candidates = [arena.Player(2, 0f, 0.8f), Boar(3, 1.2f), Boar(4, 2f)];
+        Creature homeward = Boar(5, 1f);
+        homeward.Script = Instances.MapInstanceAbilityCastShould.HomewardScript.Walking(homeward, caster);
+        IUnit[] candidates = [arena.Player(2, 0f, 0.8f), homeward, Boar(3, 1.2f), Boar(4, 2f)];
         AbilityTemplate row = AbilityTestData.Cone(219);
         row.Effects = SpellEffect.Debuff;   // no direct amount: the arena records no damage
         IAbility ability = AbilityTestData.Game(row);

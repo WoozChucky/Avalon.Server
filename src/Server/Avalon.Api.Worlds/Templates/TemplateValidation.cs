@@ -279,6 +279,7 @@ public static class TemplateValidation
         _ when problem.StartsWith("SpellBaseMin ", StringComparison.Ordinal)
                || problem.Contains("needs a SpellBaseMax above 0", StringComparison.Ordinal) => "spellBaseMax",
         _ when problem.StartsWith("SpellBasePerLevelPct ", StringComparison.Ordinal) => "spellBasePerLevelPct",
+        _ when problem.StartsWith("MaxTargets ", StringComparison.Ordinal) => "maxTargets",
         _ when problem.StartsWith("DamageEffectiveness ", StringComparison.Ordinal)
                || problem.Contains("needs a DamageEffectiveness above 0", StringComparison.Ordinal) => "damageEffectiveness",
         _ => "template",

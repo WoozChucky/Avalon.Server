@@ -12,11 +12,14 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
+using Avalon.World.Scripts.Creatures;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
@@ -70,6 +73,33 @@ public class MapInstanceAbilityCastShould
 
         public override void OnHit(IUnit attacker, uint damage) =>
             Creature.CurrentHealth = damage >= Creature.CurrentHealth ? 0u : Creature.CurrentHealth - damage;
+    }
+
+    /// <summary>
+    /// A creature walking home (#610), which every hit ignores: its fight with <c>target</c> begun and given up, then held
+    /// there, since its walk never runs.
+    /// </summary>
+    internal sealed class HomewardScript : CreatureCombatScript
+    {
+        private HomewardScript(ICreature creature, ISimulationContext context)
+            : base(NullLoggerFactory.Instance, creature, context)
+        {
+        }
+
+        public static HomewardScript Walking(ICreature creature, ICharacter target)
+        {
+            ISimulationContext context = Substitute.For<ISimulationContext>();
+            context.MeleeSlots.Returns(Substitute.For<IMeleeSlots>());
+            var script = new HomewardScript(creature, context);
+            script.OnEnteredRange(target);
+            script.OnCharacterLeft(target);
+            Assert.Equal(CombatState.Returning, script.State);
+            return script;
+        }
+
+        public override void Update(TimeSpan deltaTime)
+        {
+        }
     }
 
     private static AbilityTemplate Timed(AbilityTemplate template, uint castTimeMs)
@@ -225,14 +255,18 @@ public class MapInstanceAbilityCastShould
 
     /// <summary>
     /// #1181 (review focus 5): an ability hits at most its <c>MaxTargets</c> nearest hostiles, counting only the units it
-    /// affects, so the unflagged player standing nearest uses up no slot; 0 is no limit. A piercing projectile ends on its
-    /// last allowed hit, told as a Hit rather than a pass-through.
+    /// can damage, so neither the unflagged player standing nearest nor a unit every hit ignores (here a creature walking
+    /// home) uses up a slot; 0 is no limit. A piercing projectile ends on its last allowed hit, told as a Hit rather
+    /// than a pass-through.
     /// </summary>
     [Theory]
-    [InlineData("cone", 1, false)]
-    [InlineData("cone", 0, true)]
-    [InlineData("piercing projectile", 1, false)]
-    public void Hit_at_most_the_nearest_hostiles_an_ability_allows(string shape, int maxTargets, bool farHit)
+    [InlineData("cone", 1, false, false)]
+    [InlineData("cone", 0, true, false)]
+    [InlineData("cone", 1, false, true)]
+    [InlineData("piercing projectile", 1, false, false)]
+    [InlineData("piercing projectile", 1, false, true)]
+    public void Hit_at_most_the_nearest_hostiles_an_ability_allows(string shape, int maxTargets, bool farHit,
+        bool ignoredNearest)
     {
         using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
         MapInstanceClient caster = Join(instance, 164_111);
@@ -240,6 +274,13 @@ public class MapInstanceAbilityCastShould
         ally.Character.Position = new Vector3(0f, 0f, 0.8f);
         ally.Character.Health = 100;
         ally.Character.CurrentHealth = 100;
+        Creature? homeward = null;
+        if (ignoredNearest)
+        {
+            homeward = AddCreature(instance, 164_970, new Vector3(0f, 0f, 1.0f), health: 50);
+            homeward.Script = HomewardScript.Walking(homeward, caster.Character);
+        }
+
         Creature near = AddCreature(instance, 164_971, new Vector3(0f, 0f, 1.2f), health: 50);
         Creature far = AddCreature(instance, 164_972, new Vector3(0f, 0f, 2.0f), health: 50);
         AbilityTemplate template = shape == "cone"
@@ -259,6 +300,7 @@ public class MapInstanceAbilityCastShould
         Assert.Equal(40u, near.CurrentHealth);
         Assert.Equal(farHit ? 40u : 50u, far.CurrentHealth);
         Assert.Equal(100u, ally.Character.CurrentHealth);
+        Assert.Equal(50u, homeward?.CurrentHealth ?? 50u);
         if (shape != "cone")
         {
             SProjectileImpactPacket impact = Assert.Single(

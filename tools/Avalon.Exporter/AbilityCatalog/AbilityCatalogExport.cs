@@ -71,8 +71,8 @@ public static class AbilityCatalogExport
                      "castTimeMs in milliseconds before cast speed, cooldownMs in milliseconds before cooldown recovery; " +
                      "an attack whose cooldownMs is 0 (every basic attack's is) is paced by its weapon instead, and a " +
                      "basic spell's cooldownMs is shortened by cast speed instead. The basic of a creature waits its " +
-                     "swing interval rather than its cooldownMs. The server sends the effective pace of the character's own abilities: trust that over " +
-                     "this file. " +
+                     "swing interval rather than its cooldownMs. The server sends the effective pace of the " +
+                     "character's own abilities: trust that over this file. " +
                      "maxTargets: the most units a circle or a cone affects, the nearest it can affect, and the hit a " +
                      "piercing projectile ends on; 0 is no limit. " +
                      "auraId: the aura each unit the ability affects receives (see aura-catalog), or null. " +

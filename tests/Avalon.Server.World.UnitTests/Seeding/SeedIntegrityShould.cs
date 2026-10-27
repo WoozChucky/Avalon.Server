@@ -886,9 +886,10 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1181: the two abilities the talent tree adds, as the design gives them. Heavy Strike, the Warrior's starter, hits
-    /// only the nearest unit in its cone and waits its weapon; Frostbolt is the node between the Hunter and the Wizard. No
-    /// other ability limits its targets.
+    /// #1181: what the design fixes of the two abilities the talent tree adds (their numbers are a first pass, left to
+    /// balance). Heavy Strike, the Warrior's starter, is a basic melee Attack cone that hits only the nearest unit and
+    /// waits its weapon (cooldown 0); Frostbolt, the node between the Hunter and the Wizard, is a cold spell projectile.
+    /// No other ability limits its targets.
     /// </summary>
     [Fact]
     public void Seed_heavy_strike_and_frostbolt_as_designed()
@@ -898,19 +899,18 @@ public class SeedIntegrityShould
 
         var abilities = context.AbilityTemplates.AsNoTracking().AsEnumerable().ToDictionary(a => a.Id.Value);
         Assert.Equal(
-            (AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 60f, 0f, 0u, 0u, 0u, AbilityFlags.Basic, (DamageType?)DamageType.Physical,
-                AbilityTags.Attack | AbilityTags.Melee, 380f, 0u, 0u, 0f, 1),
-            Shape(abilities[319]));
+            (AbilityShape.Cone, AbilityFlags.Basic, AbilityTags.Attack | AbilityTags.Melee, (DamageType?)DamageType.Physical,
+                1),
+            Design(abilities[319]));
+        Assert.Equal(0u, abilities[319].Cooldown);
         Assert.Equal(
-            (AbilityShape.Projectile, AbilityAimMode.Cursor, 22f, 0f, 13f, 500u, 2000u, 12u, AbilityFlags.None, (DamageType?)DamageType.Cold,
-                AbilityTags.Spell | AbilityTags.Projectile, 100f, 28u, 42u, 0.80f, 0),
-            Shape(abilities[320]));
+            (AbilityShape.Projectile, AbilityFlags.None, AbilityTags.Spell | AbilityTags.Projectile,
+                (DamageType?)DamageType.Cold, 0),
+            Design(abilities[320]));
         Assert.Equal([319u], abilities.Values.Where(a => a.MaxTargets > 0).Select(a => a.Id.Value));
 
-        static (AbilityShape, AbilityAimMode, float, float, float, uint, uint, uint, AbilityFlags, DamageType?, AbilityTags, float,
-            uint, uint, float, int) Shape(AbilityTemplate a) =>
-            (a.Shape, a.AimMode, a.Reach, a.ArcDegrees, a.ProjectileSpeed, a.CastTime, a.Cooldown, a.Cost, a.Flags, a.DamageType,
-                a.Tags, a.DamageEffectiveness, a.SpellBaseMin, a.SpellBaseMax, a.SpellBasePerLevelPct, a.MaxTargets);
+        static (AbilityShape, AbilityFlags, AbilityTags, DamageType?, int) Design(AbilityTemplate a) =>
+            (a.Shape, a.Flags, a.Tags, a.DamageType, a.MaxTargets);
     }
 
     /// <summary>

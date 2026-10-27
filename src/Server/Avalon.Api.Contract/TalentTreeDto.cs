@@ -27,7 +27,9 @@ public sealed class TalentNodeDto
     public float Angle { get; set; }
     /// <summary>In layout units.</summary>
     public float Radius { get; set; }
-    /// <summary>The capstone fork the node belongs to, of which a character holds one at most; null on every other node.</summary>
+    /// <summary>
+    /// The capstone fork the node belongs to, of which a character holds one at most; null on every other node.
+    /// </summary>
     public int? ForkGroupId { get; set; }
     /// <summary>The ability a start or an ability node grants; null on every other node.</summary>
     public uint? AbilityId { get; set; }
