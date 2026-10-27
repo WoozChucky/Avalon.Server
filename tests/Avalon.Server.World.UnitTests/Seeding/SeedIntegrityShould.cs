@@ -29,6 +29,7 @@ using Avalon.World.Public.Units;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Avalon.World.Scripts;
+using Avalon.World.Talents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -946,6 +947,18 @@ public class SeedIntegrityShould
         Assert.Empty(context.TalentForkGroups.AsNoTracking());
         Assert.Equal(4, context.TalentClassStarts.AsNoTracking().Count());
         Assert.Equal(305, TalentDistances(edges, 1).Count);
+
+        // The world's catalog accepts the seed against the seeded abilities, and holds node 1's five neighbours (WH-A1,
+        // WH-B1, WC-A1, WC-B1, Whub-S1).
+        var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
+            static _ => null, NullLoggerFactory.Instance);
+        var tree = new TalentCatalog(TalentSeed.Rows(),
+            new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras),
+            NullLoggerFactory.Instance);
+        Assert.True(tree.IsLoaded, tree.Refusal);
+        Assert.Equal(305, tree.Count);
+        Assert.True(tree.TryIndexOf(1, out int start));
+        Assert.Equal([2, 12, 32, 42, 57], tree.NeighboursAt(start).ToArray().Select(tree.NodeIdAt));
     }
 
     /// <summary>

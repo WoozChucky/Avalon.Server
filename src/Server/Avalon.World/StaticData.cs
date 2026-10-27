@@ -16,6 +16,7 @@ using Avalon.World.Public.Localization;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Avalon.World.Scripts;
+using Avalon.World.Talents;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -41,7 +42,8 @@ public class StaticData(
     IQuestRepository? questRepository = null,
     IScriptManager? scriptManager = null,
     IAuraTemplateRepository? auraTemplateRepository = null,
-    IDoodadTemplateRepository? doodadTemplateRepository = null)
+    IDoodadTemplateRepository? doodadTemplateRepository = null,
+    ITalentTreeRepository? talentTreeRepository = null)
 {
     private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
 
@@ -103,11 +105,20 @@ public class StaticData(
             }
 
             case ReloadArea.Abilities:
+            {
                 // Each ability's aura link is checked against the auras read here, never the ones applied. That catalog
-                // is thrown away, so it logs nothing: the Auras area reports its own refusals.
-                return new AbilitiesPatch(new AbilityCatalog(
+                // is thrown away, so it logs nothing: the Auras area reports its own refusals. The talent tree (#1181) is
+                // read first and checked against the abilities read here, and published with them: a /reload abilities
+                // re-reads the tree, so a link is never checked against another generation's abilities. No repository
+                // (tests that build StaticData without one) is the seeded tree.
+                TalentTreeRows tree = talentTreeRepository is null
+                    ? TalentSeed.Rows()
+                    : await talentTreeRepository.GetTreeAsync(ct);
+                var abilities = new AbilityCatalog(
                     (await abilityTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(), loggerFactory,
-                    await ReadAurasAsync(NullLoggerFactory.Instance, ct)));
+                    await ReadAurasAsync(NullLoggerFactory.Instance, ct));
+                return new AbilitiesPatch(abilities, new TalentCatalog(tree, abilities, loggerFactory));
+            }
 
             case ReloadArea.Auras:
             {
@@ -399,6 +410,12 @@ public class StaticData(
     /// throwing.
     /// </summary>
     public AbilityCatalog? LoadedAbilities => _abilities?.Catalog;
+
+    /// <summary>
+    /// The talent tree (#1181), the same generation as <see cref="Abilities" />: a /reload abilities replaces both
+    /// together. Read on the tick; one reference, so one generation. Empty before the first load.
+    /// </summary>
+    public TalentCatalog Talents => _abilities?.Talents ?? TalentCatalog.Empty;
     public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences => _progression!.Levels;
 
     /// <summary>The experience row of that level in the current generation, or null. By key (#883), as <see cref="FindItemTemplate" /> is.</summary>

@@ -67,6 +67,7 @@ public class CombatAssemblyShould
     [InlineData(typeof(CombatDataRules))]
     [InlineData(typeof(CreatureTemplateRules))]
     [InlineData(typeof(ManaRegenRates))]
+    [InlineData(typeof(TalentStatRules))]
     public void Hold_every_moved_rule(Type type)
     {
         Assert.Same(s_combat, type.Assembly);

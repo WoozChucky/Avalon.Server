@@ -61,7 +61,8 @@ public static class ServiceExtensions
             .AddSingleton<ILootTableRepository, LootTableRepository>()
             .AddSingleton<IVendorStockRepository, VendorStockRepository>()
             .AddSingleton<IQuestRepository, QuestRepository>()
-            .AddSingleton<ICombatDataRepository, CombatDataRepository>();
+            .AddSingleton<ICombatDataRepository, CombatDataRepository>()
+            .AddSingleton<ITalentTreeRepository, TalentTreeRepository>();
 
         return services;
     }

@@ -10,6 +10,7 @@ using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
+using Avalon.World.Talents;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
@@ -59,12 +60,13 @@ public sealed record CreaturesPatch(
 }
 
 /// <summary>
-/// Ability templates, validated (#164). Read when a character is selected, so a reload reaches the
-/// next select; abilities a character already holds keep the metadata they were built with.
+/// Ability templates, validated (#164), and the talent tree checked against them (#1181), one generation. Read when a
+/// character is selected, so a reload reaches the next select; abilities a character already holds keep the metadata
+/// they were built with, and a character online keeps its abilities until its next allocation or select.
 /// </summary>
-public sealed record AbilitiesPatch(AbilityCatalog Catalog) : StaticDataPatch(ReloadArea.Abilities)
+public sealed record AbilitiesPatch(AbilityCatalog Catalog, TalentCatalog Talents) : StaticDataPatch(ReloadArea.Abilities)
 {
-    public override string Describe() => Catalog.Describe();
+    public override string Describe() => $"{Catalog.Describe()}, {Talents.Describe()}";
 }
 
 /// <summary>
