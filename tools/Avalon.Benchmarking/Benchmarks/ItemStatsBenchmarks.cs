@@ -17,20 +17,26 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// pieces with six modifiers each, local and global lines mixed (local defence and weapon lines, added damage to
 /// attacks and spells, attributes, resistances, crit); <see cref="CalculateThemed" /> wears those same lines renumbered
 /// to seeded affix rows of five Resonance themes and counts them (#1180) into one buffer bound once, as a character's
-/// is. The world passes the worn items as a list it reuses, so the benchmark does too; no auras. 0 B expected.
+/// is; <see cref="CalculateWithTalents" /> wears the modified kit and folds the talent tree's lines (#1181) of 18 seeded
+/// nodes, the Warrior's two lanes toward the Hunter (WH-A1 to WH-A10, nodes 2-11, and WH-B1 to WH-B8, nodes 12-19),
+/// summed once into one <see cref="TalentTotals" />, as a character's allocation is. The world passes the worn items as
+/// a list it reuses, so the benchmark does too; no auras. 0 B expected.
 /// </summary>
 /// <remarks>
 /// The templates are literals of the seed rows as they stood before #1179 part A replaced them with bases (their old
 /// rarities and item power have no place in the new vocabulary and play no part in the stats), so the benchmark keeps
 /// measuring the same kit now those rows are gone. The gear gives 16 Stamina, so the maximum health is
-/// 400 + 56 x 5 = 680; each piece's modifiers add 2 Stamina more, 770 in all. Setup fails the run if either differs,
-/// or if the themed kit's health or Resonance counts are not the ones its renumbering names.
+/// 400 + 56 x 5 = 680; each piece's modifiers add 2 Stamina more, 770 in all; the 18 nodes' 6% increased maximum life
+/// (WH-A4 and WH-B2) makes it 816. Setup fails the run if any differs, or if the themed kit's health or Resonance
+/// counts are not the ones its renumbering names.
 /// </remarks>
 [MemoryDiagnoser]
 public class ItemStatsBenchmarks
 {
     private const uint ExpectedMaxHealth = 680;
     private const uint ExpectedModifiedMaxHealth = 770;
+    private const uint ExpectedTalentMaxHealth = 816;
+    private const int FirstTalentNode = 2, LastTalentNode = 19;
 
     // Each piece's six modifiers, renumbered to the first row of these seeded families (#1180): P2 (Ember), P12 (Iron),
     // P1 and S1 (both Thorn, which a piece counts once), S2 (Gale) and S3 (Veil). Nine pieces, so nine of each.
@@ -93,6 +99,8 @@ public class ItemStatsBenchmarks
 
     private readonly ResonanceCounts _resonance = new();
 
+    private readonly TalentTotals _talents = new();
+
     private readonly CombatFormula _formula = CombatSeed.Formula();
 
     [GlobalSetup]
@@ -121,6 +129,16 @@ public class ItemStatsBenchmarks
         string resonance = string.Join(", ", counted);
         if (resonance != ExpectedResonance)
             throw new InvalidOperationException($"The themed kit counts {resonance}, not {ExpectedResonance}.");
+
+        foreach (TalentNodeStat line in TalentSeed.Stats())
+        {
+            if (line.NodeId is >= FirstTalentNode and <= LastTalentNode)
+                _talents.Add(line.Stat, line.Kind, line.Value, line.ValueMax);
+        }
+
+        uint talentMaxHealth = CalculateWithTalents().MaxHealth;
+        if (talentMaxHealth != ExpectedTalentMaxHealth)
+            throw new InvalidOperationException($"The kit with talents has maximum health {talentMaxHealth}, not {ExpectedTalentMaxHealth}.");
     }
 
     [Benchmark]
@@ -134,6 +152,10 @@ public class ItemStatsBenchmarks
     [Benchmark]
     public DerivedCharacterStats CalculateThemed() =>
         CharacterStatsCalculator.Calculate(s_warriorLevel10, _wornThemed, _formula, resonance: _resonance);
+
+    [Benchmark]
+    public DerivedCharacterStats CalculateWithTalents() =>
+        CharacterStatsCalculator.Calculate(s_warriorLevel10, _wornModified, _formula, talents: _talents);
 
     // The seeded catalog, its rows given their groups, stat lines and weights by id, as the World database loads them.
     private static ItemModifierCatalog SeededCatalog()

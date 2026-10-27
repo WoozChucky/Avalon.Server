@@ -104,6 +104,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Resonanc
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AwakeningMeterBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorkbenchRequestBenchmarks*" "*InventoryFlushBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ManaRegenBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAllocateBenchmarks*" "*ItemStatsBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 
 # Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
@@ -2351,6 +2352,83 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ForestTi
 **Nothing allocates on any side.** The means lie within 0.9 µs of each other, inside every run's error; the base's
 error is ± 4.82 µs, so these runs rule out only a cost above about 5 µs a tick and resolve no difference within
 that. None was re-run to narrow the spread (one targeted run per side).
+
+### Talent allocation and the stats fold — `TalentAllocateBenchmarks.cs`, `ItemStatsBenchmarks.cs` (#1181 part B)
+
+What a talent allocation costs ([talents](talents.md), [talent protocol](talent-protocol.md)), and what the tree's
+lines add to a stats refresh. Neither is on the tick: an allocation is one request, and the tree is summed once per
+change of what a character holds and folded once per stats refresh. A client can send `CMSG_TALENT_ALLOCATE` at will,
+so a refusal must change nothing and allocate nothing beyond its pooled reply.
+
+- **`ItemStatsBenchmarks.CalculateWithTalents`** wears `CalculateModified`'s kit
+  ([item stats](#item-stats--benchmarksitemstatsbenchmarkscs-1179)) and folds the lines of 18 seeded nodes, the
+  Warrior's two lanes toward the Hunter (`WH-A1` to `WH-A10`, nodes 2-11, and `WH-B1` to `WH-B8`, nodes 12-19), summed
+  once into one `TalentTotals`, as a character's allocation is. Setup fails the run unless the maximum health is 816:
+  the modified kit's 770 with the nodes' 6 % increased maximum life.
+- **`TalentAllocateBenchmarks`**, over the scenario reference data (`ScenarioReferenceData`), with a `QuietConnection`
+  counting the ability lists sent. Neither the rules nor the change read an instance, so no instance is built: the rows
+  call `TalentRules.Allocate` and `TalentChange.Apply` as `TalentAllocateHandler` does.
+  - `Decide_refused` (the baseline): a level-10 Warrior holding nothing names nodes 2, 3, 4, 5 and 8 and is refused
+    `NotConnected` at node 8 (`WH-A7`, whose neighbours are neither held nor named).
+  - `Decide_accepted`: the same Warrior names nodes 2 to 6, `WH-A1` to `WH-A5`, and is accepted.
+  - `Decide_refused_long`: the longest request the rules scan. With 135 points earned (the design's total at level
+    100; no character earns more than 18 today, at the level cap 15 with the three paying quests), it names 134 nodes in
+    breadth-first order from the Warrior's start and then one that touches none of them, so it is refused
+    `NotConnected` at the last id after each of that node's neighbours was compared with every id named before it. This
+    is the refusal's worst case, which grows as the square of the request's length times a node's degree: each id's
+    connection and fork checks scan the ids before it, since the rules build no set.
+  - `Apply_small_nodes`: `TalentChange.Apply` for a level-15 Warrior holding the same 18 nodes as
+    `CalculateWithTalents` (Cleave at `WH-A5` among them): the lines summed again, the abilities found unchanged, the
+    stats refreshed keeping each pool's share, the state marked owed.
+  - `Apply_ability_change`: the same Warrior drops `WH-A5` and allocates it again through `TalentAllocation`, each
+    followed by `TalentChange.Apply`, so Cleave leaves, comes back as a new ability and `SMSG_CHARACTER_ABILITIES` is
+    sent twice.
+
+  Setup fails the run unless each decision row's first call gives its intended result and names the node it should,
+  unless `Apply_small_nodes` sends nothing, and unless `Apply_ability_change` sends two ability lists and ends holding
+  Cleave and its 18 nodes again.
+
+One run on the branch (`efe2c93a5` plus the benchmarks) and one of `ItemStatsBenchmarks` unchanged on the base
+(`6703f6cc3`, `main` with part B1 merged, in a scratch worktree), in the same session on 2026-10-27 (out of process,
+ten warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.403 /
+runtime 10.0.14, Release):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAllocateBenchmarks*" "*ItemStatsBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemStatsBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4   # the base
+```
+
+| Operation | Base: mean (± StdDev) | Branch: mean (± StdDev) | Allocated |
+|---|---:|---:|---:|
+| `Calculate` | 309.4 ns (± 2.95 ns) | 282.9 ns (± 2.68 ns) | 0 B / 0 B |
+| `CalculateModified` | 717.6 ns (± 4.77 ns) | 691.1 ns (± 3.04 ns) | 0 B / 0 B |
+| `CalculateThemed` | 963.5 ns (± 12.54 ns) | 881.3 ns (± 10.67 ns) | 0 B / 0 B |
+| `CalculateWithTalents` | – | 716.4 ns (± 14.76 ns) | 0 B |
+
+| Operation | Mean (± StdDev) | Allocated |
+|---|---:|---:|
+| `Decide_refused` (baseline) | 84.47 ns (± 2.67 ns) | 0 B |
+| `Decide_accepted` | 91.70 ns (± 1.19 ns) | 0 B |
+| `Decide_refused_long` | 16,452.54 ns (± 171.31 ns) | 0 B |
+| `Apply_small_nodes` | 502.85 ns (± 10.56 ns) | 0 B |
+| `Apply_ability_change` | 2,592.85 ns (± 20.33 ns) | 1,024 B |
+
+**The fold allocates nothing, with the tree or without it.** The branch's calculator rows read 4 to 9 % lower than
+the base's, `Calculate` among them, which part B2 changes only by the tree's null checks, so the difference is the two
+runs' spread, not a gain; `CalculateModified` is within noise of the base. Folding 18 nodes adds about 25 ns to the
+same kit (`CalculateWithTalents` against `CalculateModified`, same run).
+
+**No decision allocates.** A five-node request costs under 100 ns, accepted or refused. The long refusal costs
+16.5 µs, about 195 times the baseline, for 135 ids. A request is capped by the points the character has left (and by
+the tree's size), so today's characters, with at most 18 points, cannot send one longer than 18 ids; the row is the
+bound to revisit when the level cap rises toward the design's 135 points.
+
+**An allocation without an ability change allocates nothing.** `Apply_small_nodes` sums 18 nodes and refreshes the
+stats in about half a microsecond. `Apply_ability_change` is two changes, a drop and an allocation, so its 1,024 B
+covers both: per change, the held ability list `TalentAbilities.Rebuild` builds (and the boxed count of
+`CharacterAbilityContainer.Load`'s Debug line), and the `AbilityInfo[]`, one `AbilityInfo` per held ability and the
+`AbilityAmount[]` that `CharacterAbilitiesSender` builds; plus, on the allocation only, Cleave's new `GameAbility`.
+That is paid only when what a character holds changes, never per tick. Each row was run once and not re-run.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
