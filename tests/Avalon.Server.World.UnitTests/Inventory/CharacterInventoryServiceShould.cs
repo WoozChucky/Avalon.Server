@@ -482,7 +482,12 @@ public class CharacterInventoryServiceShould
     {
         ICharacterCreateInfoRepository repository = Substitute.For<ICharacterCreateInfoRepository>();
         repository.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>(
-            [new CharacterCreateInfo { Class = CharacterClass.Warrior, Map = 1, StartingItems = [.. items] }]));
+            [new CharacterCreateInfo
+            {
+                Class = CharacterClass.Warrior, Map = 1,
+                StartingItems = [.. items.Select((item, slot) =>
+                    new CharacterCreateItem { Class = CharacterClass.Warrior, Slot = (byte)slot, TemplateId = item })],
+            }]));
         return repository;
     }
 

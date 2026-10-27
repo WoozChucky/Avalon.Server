@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
@@ -26,9 +25,6 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     public SpellRange Range { get; set; } // in meters
 
     public SpellEffect Effects { get; set; }
-
-    /// <summary>Read by nothing since #1181: a class ability is one the talent tree grants. Dropped with StartingSpells.</summary>
-    public List<CharacterClass> AllowedClasses { get; set; } = [];
 
     [Required] public float ThreatMultiplier { get; set; } = 1.0f;
 

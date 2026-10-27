@@ -94,6 +94,7 @@ public class WorldDbContext : DbContext
     public DbSet<CreatureBaseStat> CreatureBaseStats { get; set; } = null!;
     public DbSet<CreatureRarityModifier> CreatureRarityModifiers { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
+    public DbSet<CharacterCreateItem> CharacterCreateItems { get; set; } = null!;
     public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
     public DbSet<AuraTemplate> AuraTemplates { get; set; } = null!;
     public DbSet<AuraStatModifier> AuraStatModifiers { get; set; } = null!;
@@ -168,6 +169,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<CreatureBaseStat>());
         Configure(modelBuilder.Entity<CreatureRarityModifier>());
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
+        Configure(modelBuilder.Entity<CharacterCreateItem>());
         Configure(modelBuilder.Entity<AuraTemplate>());
         Configure(modelBuilder.Entity<AuraStatModifier>());
         Configure(modelBuilder.Entity<AbilityTemplate>());
@@ -319,79 +321,44 @@ public class WorldDbContext : DbContext
         );
     }
 
+    /// <summary>
+    /// Where a new character of each class enters the world, and the items it carries (<see cref="CharacterCreateItem" />,
+    /// one row per Bag slot). Its abilities are the talent tree's (#1181): its class start's starter, and nothing held.
+    /// </summary>
     private static void Configure(EntityTypeBuilder<CharacterCreateInfo> builder)
     {
         builder.HasKey(b => b.Class);
+        builder.HasMany(b => b.StartingItems).WithOne().HasForeignKey(i => i.Class).OnDelete(DeleteBehavior.Cascade);
 
-        ValueConverter<List<ItemTemplateId>, string> itemIdConverter = new(
-            v => string.Join(",", v.Select(i => i.Value)),
-            v => v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(val => new ItemTemplateId(ulong.Parse(val))).ToList());
+        builder.HasData(
+            new CharacterCreateInfo { Class = CharacterClass.Warrior, Map = 1, X = 25, Y = 51, Z = 25, Rotation = 0 },
+            new CharacterCreateInfo { Class = CharacterClass.Wizard, Map = 1, X = 25, Y = 51, Z = 25, Rotation = 0 },
+            new CharacterCreateInfo { Class = CharacterClass.Hunter, Map = 1, X = 25, Y = 51, Z = 25, Rotation = 0 },
+            new CharacterCreateInfo { Class = CharacterClass.Cleric, Map = 1, X = 25, Y = 51, Z = 25, Rotation = 0 });
+    }
 
-        ValueComparer<List<ItemTemplateId>> itemIdComparer = new(
-            (c1, c2) => c1!.SequenceEqual(c2!),
-            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-            c => c.ToList());
+    /// <summary>
+    /// The items a new character carries (#1181: rows in place of a packed list): a copy of each template in its Bag slot.
+    /// Every class carries 1 and 2; the Warrior also 3.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<CharacterCreateItem> builder)
+    {
+        builder.ToTable("CharacterCreateItems",
+            t => t.HasCheckConstraint("CK_CharacterCreateItems_Slot", "\"Slot\" >= 0"));
+        builder.HasKey(i => new { i.Class, i.Slot });
+        builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(i => i.TemplateId).OnDelete(DeleteBehavior.Restrict);
 
-        builder.Property(b => b.StartingItems)
-            .HasConversion(itemIdConverter)
-            .Metadata.SetValueComparer(itemIdComparer);
-
-        ValueConverter<List<AbilityId>, string> abilityIdConverter = new(
-            v => string.Join(",", v.Select(i => i.Value)),
-            v => v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(val => new AbilityId(uint.Parse(val))).ToList());
-
-        ValueComparer<List<AbilityId>> abilityIdComparer = new(
-            (c1, c2) => c1!.SequenceEqual(c2!),
-            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-            c => c.ToList());
-
-        builder.Property(b => b.StartingSpells)
-            .HasConversion(abilityIdConverter)
-            .Metadata.SetValueComparer(abilityIdComparer);
-
-        builder.HasData(new CharacterCreateInfo
-        {
-            Class = CharacterClass.Warrior,
-            Map = 1,
-            X = 25,
-            Y = 51,
-            Z = 25,
-            Rotation = 0,
-            StartingItems = [1, 2, 3],
-            StartingSpells = [200, 201, 202, 203, 204]
-        }, new CharacterCreateInfo
-        {
-            Class = CharacterClass.Wizard,
-            Map = 1,
-            X = 25,
-            Y = 51,
-            Z = 25,
-            Rotation = 0,
-            StartingItems = [1, 2],
-            StartingSpells = [210, 211, 212, 213, 214]
-        }, new CharacterCreateInfo
-        {
-            Class = CharacterClass.Hunter,
-            Map = 1,
-            X = 25,
-            Y = 51,
-            Z = 25,
-            Rotation = 0,
-            StartingItems = [1, 2],
-            StartingSpells = [220, 221, 222, 223, 224]
-        }, new CharacterCreateInfo
-        {
-            Class = CharacterClass.Cleric,
-            Map = 1,
-            X = 25,
-            Y = 51,
-            Z = 25,
-            Rotation = 0,
-            StartingItems = [1, 2],
-            StartingSpells = [230, 231, 232, 233, 234, 235]
-        });
+        builder.HasData(
+            new CharacterCreateItem { Class = CharacterClass.Warrior, Slot = 0, TemplateId = 1 },
+            new CharacterCreateItem { Class = CharacterClass.Warrior, Slot = 1, TemplateId = 2 },
+            new CharacterCreateItem { Class = CharacterClass.Warrior, Slot = 2, TemplateId = 3 },
+            new CharacterCreateItem { Class = CharacterClass.Wizard, Slot = 0, TemplateId = 1 },
+            new CharacterCreateItem { Class = CharacterClass.Wizard, Slot = 1, TemplateId = 2 },
+            new CharacterCreateItem { Class = CharacterClass.Hunter, Slot = 0, TemplateId = 1 },
+            new CharacterCreateItem { Class = CharacterClass.Hunter, Slot = 1, TemplateId = 2 },
+            new CharacterCreateItem { Class = CharacterClass.Cleric, Slot = 0, TemplateId = 1 },
+            new CharacterCreateItem { Class = CharacterClass.Cleric, Slot = 1, TemplateId = 2 });
     }
 
     private static void Configure(EntityTypeBuilder<ClassLevelStat> builder)
@@ -1574,8 +1541,8 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
-        // AllowedClasses maps by convention to smallint[], the class numbers, as AbilityTemplates.AllowedClasses does
-        // (#921, #922): the class names never reach the database (#1142).
+        // AllowedClasses maps by convention to smallint[], the class numbers (#921, #922): the class names never reach the
+        // database (#1142).
 
         // A template's base-stat ranges (#1179) load with it on every read, whichever path makes it (the world, the API's
         // template edit and previews, the exporters): a template read without them would break ItemBaseStatRules and be
@@ -3265,42 +3232,43 @@ public class WorldDbContext : DbContext
         // and level-10 averages, each within a few percent.
         // The starter kit (#164): three skills per class, one generic script per shape. The ids are new,
         // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
-        // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres. Each class's free skill is
-        // its basic attack, flagged Basic (#770): the one ability a silence does not stop. A basic attack (Cleave, Quick
-        // Shot) is paced by its weapon's attack time over attack speed, so its Cooldown is 0; a spell basic (Spark Bolt,
-        // Smite) keeps 800 ms, shortened by cast speed (#1178, owner decision D1).
+        // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres. Each class's starter on the
+        // talent tree (#1181) is its basic attack, free and flagged Basic (#770): the one ability a silence does not stop.
+        // A basic attack (Heavy Strike, Quick Shot) is paced by its weapon's attack time over attack speed, so its Cooldown
+        // is 0; a spell basic (Spark Bolt, Smite) keeps 800 ms, shortened by cast speed (#1178, owner decision D1). Cleave,
+        // the Warrior's basic before the tree, is an ability node: an Attack paced by its weapon (cooldown 0), for 6 mana.
         builder.HasData(
-            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 0, range: SpellRange.Melee, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
-            Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, range: SpellRange.Short, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 614f),
-            Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 9f, cooldown: 3000, cost: 10, range: SpellRange.Medium, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 492f),
-            Kit(210, CharacterClass.Wizard, "Spark Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 11f, cooldown: 800, cost: 0, range: SpellRange.Long, flags: AbilityFlags.Basic, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (14, 20), growth: 0.70f),
-            Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, range: SpellRange.Long, damageType: DamageType.Fire, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (21, 32), growth: 0.75f),
-            Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, range: SpellRange.Short, damageType: DamageType.Cold, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (26, 40), growth: 0.80f),
-            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 0, cost: 0, range: SpellRange.Long, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 363f),
-            Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 12f, pierce: true, cooldown: 4000, cost: 15, range: SpellRange.Long, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 690f),
-            Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, range: SpellRange.Medium, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Area, effectiveness: 516f),
-            Kit(230, CharacterClass.Cleric, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 10f, cooldown: 800, cost: 0, range: SpellRange.Long, flags: AbilityFlags.Basic, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (12, 17), growth: 0.45f),
-            Kit(231, CharacterClass.Cleric, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, range: SpellRange.Short, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (20, 31), growth: 0.35f),
-            Kit(232, CharacterClass.Cleric, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, range: SpellRange.Medium, affects: AbilityAffects.Ally, tags: AbilityTags.Heal | AbilityTags.Area, spellBase: (30, 44)));
+            Kit(200, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 6, range: SpellRange.Melee, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
+            Kit(201, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, range: SpellRange.Short, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 614f),
+            Kit(202, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 9f, cooldown: 3000, cost: 10, range: SpellRange.Medium, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 492f),
+            Kit(210, "Spark Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 11f, cooldown: 800, cost: 0, range: SpellRange.Long, flags: AbilityFlags.Basic, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (14, 20), growth: 0.70f),
+            Kit(211, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, range: SpellRange.Long, damageType: DamageType.Fire, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (21, 32), growth: 0.75f),
+            Kit(212, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, range: SpellRange.Short, damageType: DamageType.Cold, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (26, 40), growth: 0.80f),
+            Kit(220, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 0, cost: 0, range: SpellRange.Long, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 363f),
+            Kit(221, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 12f, pierce: true, cooldown: 4000, cost: 15, range: SpellRange.Long, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 690f),
+            Kit(222, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, range: SpellRange.Medium, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Area, effectiveness: 516f),
+            Kit(230, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 10f, cooldown: 800, cost: 0, range: SpellRange.Long, flags: AbilityFlags.Basic, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (12, 17), growth: 0.45f),
+            Kit(231, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, range: SpellRange.Short, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (20, 31), growth: 0.35f),
+            Kit(232, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, range: SpellRange.Medium, affects: AbilityAffects.Ally, tags: AbilityTags.Heal | AbilityTags.Area, spellBase: (30, 44)));
 
         // Auras: one new ability per class (two for the Cleric), each applying its aura; the existing skills are
         // untouched. Ignite, Renew and Fortify deal and heal nothing directly (Effects has no Damage or Heal).
         builder.HasData(
-            Kit(203, CharacterClass.Warrior, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 6000, cost: 10, range: SpellRange.Melee, aura: 1, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 202f),
-            Kit(213, CharacterClass.Wizard, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 6000, cost: 20, range: SpellRange.Long, effects: SpellEffect.Debuff, aura: 2, damageType: DamageType.Fire, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (31, 46), growth: 0.90f),
-            Kit(223, CharacterClass.Hunter, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 8000, cost: 15, range: SpellRange.Long, aura: 3, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 495f, convertTo: DamageType.Cold, convertPct: 50f),
-            Kit(233, CharacterClass.Cleric, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 6000, cost: 15, range: SpellRange.Medium, affects: AbilityAffects.Ally, effects: SpellEffect.Buff, aura: 4, tags: AbilityTags.Heal | AbilityTags.Area, spellBase: (19, 28)),
-            Kit(234, CharacterClass.Cleric, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, radius: 8f, cooldown: 20000, cost: 20, range: SpellRange.Short, affects: AbilityAffects.Ally, effects: SpellEffect.Buff, aura: 5, tags: AbilityTags.Area));
+            Kit(203, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 6000, cost: 10, range: SpellRange.Melee, aura: 1, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 202f),
+            Kit(213, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 6000, cost: 20, range: SpellRange.Long, effects: SpellEffect.Debuff, aura: 2, damageType: DamageType.Fire, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (31, 46), growth: 0.90f),
+            Kit(223, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 8000, cost: 15, range: SpellRange.Long, aura: 3, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 495f, convertTo: DamageType.Cold, convertPct: 50f),
+            Kit(233, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 6000, cost: 15, range: SpellRange.Medium, affects: AbilityAffects.Ally, effects: SpellEffect.Buff, aura: 4, tags: AbilityTags.Heal | AbilityTags.Area, spellBase: (19, 28)),
+            Kit(234, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, radius: 8f, cooldown: 20000, cost: 20, range: SpellRange.Short, affects: AbilityAffects.Ally, effects: SpellEffect.Buff, aura: 5, tags: AbilityTags.Area));
 
         // Crowd control (#770): one ability per class, each applying its aura only where it lands (a dodged or missed one
         // lands no control). Shield Bash, Frost Bind and Binding Shot also deal a small direct amount, as Rend and
         // Crippling Shot do; Hush deals nothing and is pure silence (#1164). Shapes and reach follow each class's
         // neighbouring rows; the cooldowns are the design's.
         builder.HasData(
-            Kit(204, CharacterClass.Warrior, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 15000, cost: 15, range: SpellRange.Melee, aura: 12, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 148f),
-            Kit(214, CharacterClass.Wizard, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 20000, cost: 25, range: SpellRange.Long, aura: 14, damageType: DamageType.Cold, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (6, 9), growth: 0.45f),
-            Kit(224, CharacterClass.Hunter, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 15000, cost: 20, range: SpellRange.Long, aura: 13, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 168f, added: (DamageType.Blight, 2, 4)),
-            Kit(235, CharacterClass.Cleric, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 17f, cooldown: 20000, cost: 20, range: SpellRange.Long, effects: SpellEffect.Debuff, aura: 15, tags: AbilityTags.Projectile));
+            Kit(204, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 15000, cost: 15, range: SpellRange.Melee, aura: 12, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 148f),
+            Kit(214, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 20000, cost: 25, range: SpellRange.Long, aura: 14, damageType: DamageType.Cold, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (6, 9), growth: 0.45f),
+            Kit(224, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 15000, cost: 20, range: SpellRange.Long, aura: 13, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 168f, added: (DamageType.Blight, 2, 4)),
+            Kit(235, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 17f, cooldown: 20000, cost: 20, range: SpellRange.Long, effects: SpellEffect.Debuff, aura: 15, tags: AbilityTags.Projectile));
 
         // The forest creatures' abilities (#163), creature-only (no class), free, and dealt from each creature's
         // natural damage range times its damage effectiveness (#1178). Each creature's AI script declares its own ids and
@@ -3334,8 +3302,8 @@ public class WorldDbContext : DbContext
         // The talent tree (#1181): the Warrior's starter, Heavy Strike, hits only the nearest unit in its cone and is paced
         // by its weapon; Frostbolt is the ability node between the Hunter's and the Wizard's regions. Both first passes.
         builder.HasData(
-            Kit(319, CharacterClass.Warrior, "Heavy Strike", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 60f, maxTargets: 1, cooldown: 0, cost: 0, range: SpellRange.Melee, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee, effectiveness: 380f),
-            Kit(320, CharacterClass.Wizard, "Frostbolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 22f, speed: 13f, castTime: 500, cooldown: 2000, cost: 12, range: SpellRange.Long, damageType: DamageType.Cold, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (28, 42), growth: 0.80f));
+            Kit(319, "Heavy Strike", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 60f, maxTargets: 1, cooldown: 0, cost: 0, range: SpellRange.Melee, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee, effectiveness: 380f),
+            Kit(320, "Frostbolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 22f, speed: 13f, castTime: 500, cooldown: 2000, cost: 12, range: SpellRange.Long, damageType: DamageType.Cold, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (28, 42), growth: 0.80f));
     }
 
     /// <summary>
@@ -3367,7 +3335,6 @@ public class WorldDbContext : DbContext
                 _ => SpellRange.Long,
             },
             Effects = effects,
-            AllowedClasses = [],
             ScriptName = shape switch
             {
                 AbilityShape.Circle => "CircleAbilityScript",
@@ -3389,7 +3356,7 @@ public class WorldDbContext : DbContext
             DamageType = damageType,
         };
 
-    private static AbilityTemplate Kit(uint id, CharacterClass cls, string name, AbilityShape shape, AbilityAimMode aim,
+    private static AbilityTemplate Kit(uint id, string name, AbilityShape shape, AbilityAimMode aim,
         SpellRange range, uint cooldown, uint cost, AbilityAnchor anchor = AbilityAnchor.Caster,
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
         AbilityAffects affects = AbilityAffects.Hostile, SpellEffect? effects = null,
@@ -3406,7 +3373,6 @@ public class WorldDbContext : DbContext
             Flags = flags,
             Range = range,
             Effects = effects ?? (affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage),
-            AllowedClasses = [cls],
             ScriptName = shape switch
             {
                 AbilityShape.Circle => "CircleAbilityScript",

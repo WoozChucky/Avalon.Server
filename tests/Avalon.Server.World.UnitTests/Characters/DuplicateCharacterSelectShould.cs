@@ -547,7 +547,7 @@ public class DuplicateCharacterSelectShould : IDisposable
             _characters,
             Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(),
-            Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<ICharacterTalentRepository>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),

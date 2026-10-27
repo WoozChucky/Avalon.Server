@@ -8,8 +8,8 @@ using CharacterRow = Avalon.Domain.Characters.Character;
 
 namespace Avalon.Database.Character.Repositories;
 
-public sealed record CharacterCreationBatch(CharacterRow Row, CharacterStats Stats, IReadOnlyList<CharacterAbility> Abilities,
-    IReadOnlyList<ItemInstance> Items, IReadOnlyList<CharacterInventory> Slots);
+public sealed record CharacterCreationBatch(CharacterRow Row, CharacterStats Stats, IReadOnlyList<ItemInstance> Items,
+    IReadOnlyList<CharacterInventory> Slots);
 public sealed record CharacterCreationReply(CharacterRow? Character = null, string? Error = null);
 
 public partial interface ICharacterRepository
@@ -43,7 +43,6 @@ public partial class CharacterRepository
             await db.SaveChangesAsync(cancellationToken);
             CharacterId id = batch.Row.Id;
             batch.Stats.CharacterId = id; db.CharacterStats.Add(batch.Stats);
-            foreach (CharacterAbility ability in batch.Abilities) { ability.CharacterId = id; db.CharacterAbilities.Add(ability); }
             foreach (ItemInstance item in batch.Items) { item.CharacterId = id; db.ItemInstances.Add(item); }
             foreach (CharacterInventory slot in batch.Slots) { slot.CharacterId = id; db.CharacterInventory.Add(slot); }
             await db.SaveChangesAsync(cancellationToken);

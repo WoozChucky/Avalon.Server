@@ -17,6 +17,7 @@ using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
+using Avalon.Network.Packets.Talents;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.GameAuth;
@@ -36,6 +37,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
 using Avalon.World.Respawn;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -79,7 +81,10 @@ public class CharacterSelectHandlerShould
         ICharacterIgnoreRepository? ignores = null,
         ICharacterAuraRepository? auras = null,
         IReadOnlyCollection<AuraTemplate>? auraTemplates = null,
-        CharacterClass @class = CharacterClass.Warrior)
+        CharacterClass @class = CharacterClass.Warrior,
+        StaticData? data = null,
+        IReadOnlyList<CharacterTalent>? talents = null,
+        ushort level = 1)
     {
         var row = new Character
         {
@@ -87,7 +92,7 @@ public class CharacterSelectHandlerShould
             AccountId = s_theAccount,
             Name = "Tester",
             Class = @class,
-            Level = 1,
+            Level = level,
             Map = TownMapId,
             X = 1,
             Y = 2,
@@ -110,13 +115,10 @@ public class CharacterSelectHandlerShould
         itemInstanceRepository.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
             .Returns((IReadOnlyList<ItemInstance>)(itemInstances?.ToList() ?? new List<ItemInstance>()));
 
-        ICharacterAbilityRepository abilityRepository = Substitute.For<ICharacterAbilityRepository>();
-        // The character knows every ability template it is given.
-        CharacterAbility[] knownAbilities = (abilityTemplates ?? [])
-            .Select(t => new CharacterAbility { CharacterId = s_theCharacter, AbilityId = t.Id })
-            .ToArray();
-        abilityRepository.GetCharacterAbilitiesAsync(s_theCharacter, Arg.Any<CancellationToken>())
-            .Returns(knownAbilities);
+        // #1181: no talent rows unless given, so the character holds its class start's starter alone.
+        ICharacterTalentRepository talentRepository = Substitute.For<ICharacterTalentRepository>();
+        talentRepository.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>())
+            .Returns(talents ?? Array.Empty<CharacterTalent>());
 
         IMapInstance instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(Guid.NewGuid());
@@ -127,7 +129,7 @@ public class CharacterSelectHandlerShould
 
         // Built first: configuring a substitute inside a Returns() argument breaks NSubstitute's
         // last-call tracking.
-        StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates, auraTemplates);
+        StaticData staticData = data ?? await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates, auraTemplates);
 
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(game ?? new GameConfiguration());
@@ -158,8 +160,7 @@ public class CharacterSelectHandlerShould
         RunContinuationsInline<IMapInstance>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterInventory>>(connection);
         RunContinuationsInline<IReadOnlyList<ItemInstance>>(connection);
-        RunContinuationsInline<IReadOnlyCollection<CharacterAbility>>(connection);
-        RunContinuationsInline<CharacterQuestRows>(connection);
+        RunContinuationsInline<(IReadOnlyList<CharacterTalent>, CharacterQuestRows)>(connection);
         RunContinuationsInline<IReadOnlyList<IgnoredCharacterRow>>(connection);
         RunContinuationsInline<IReadOnlyList<CharacterAura>>(connection);
 
@@ -169,7 +170,7 @@ public class CharacterSelectHandlerShould
             characterRepository,
             inventoryRepository,
             itemInstanceRepository,
-            abilityRepository,
+            talentRepository,
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
@@ -271,6 +272,9 @@ public class CharacterSelectHandlerShould
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(itemTemplates?.ToList() ?? new List<ItemTemplate>());
         IAbilityTemplateRepository abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(abilityTemplates?.ToList() ?? new List<AbilityTemplate>());
+        ITalentTreeRepository tree = Substitute.For<ITalentTreeRepository>();
+        tree.GetTreeAsync(Arg.Any<CancellationToken>())
+            .Returns(StarterTree(abilityTemplates?.FirstOrDefault()?.Id));
 
         ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
@@ -303,10 +307,22 @@ public class CharacterSelectHandlerShould
         var data = new StaticData(createInfos, stats, items, ItemModifierRepositories.Empty(), abilities, levels,
             creatureTemplates, baseStats, rarities,
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance,
-            auraTemplateRepository: auraRepository);
+            auraTemplateRepository: auraRepository, talentTreeRepository: tree);
         await data.LoadAsync(CancellationToken.None);
         return data;
     }
+
+    /// <summary>
+    /// #1181: a tree of the Warrior's start alone, linking <paramref name="starter" />. The catalog refuses it (the other
+    /// classes have no start) and keeps the Warrior's starter, so a Warrior holds exactly that ability; no tree at all
+    /// without one.
+    /// </summary>
+    private static TalentTreeRows StarterTree(AbilityId? starter) => starter is not { } ability
+        ? new TalentTreeRows([], [], [], [], [], [])
+        : new TalentTreeRows(
+            [new TalentNode { Id = 1, Kind = TalentNodeKind.Start, Name = "Warrior start" }], [], [],
+            [new TalentNodeAbility { NodeId = 1, AbilityId = ability }], [],
+            [new TalentClassStart { Class = CharacterClass.Warrior, NodeId = 1 }]);
 
     [Fact]
     public async Task Hold_the_built_character_back_instead_of_spawning_it()
@@ -435,7 +451,7 @@ public class CharacterSelectHandlerShould
         AbilityTemplate cone = AbilityTestData.Cone(1).Dealing(10);
         cone.Cooldown = 3000;
         cone.CastTime = 500;
-        Fixture f = await BuildAsync(abilityTemplates: [cone, AbilityTestData.HealCircle(2)]);
+        Fixture f = await BuildAsync(abilityTemplates: [cone]);
         ICharacter? built = null;
         f.Connection.When(c => c.SetPendingSpawn(Arg.Any<ICharacter>(), Arg.Any<IMapInstance>(), Arg.Any<long>()))
             .Do(ci => built = ci.Arg<ICharacter>());
@@ -446,12 +462,11 @@ public class CharacterSelectHandlerShould
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
         using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
-        AbilityInfo coneInfo = Assert.Single(abilities, a => a.AbilityId == 1);
+        AbilityInfo coneInfo = Assert.Single(abilities);
+        Assert.Equal(1u, coneInfo.AbilityId);
         Assert.Equal((AbilityAmountKind.Damage, 10u, 10u), (coneInfo.AmountKind, coneInfo.AmountMin, coneInfo.AmountMax));
         Assert.Equal((AbilityTags.Spell | AbilityTags.Area, DamageTypeMask.Physical, 3000u, 500u),
             (coneInfo.Tags, coneInfo.AmountTypes, coneInfo.CooldownMs, coneInfo.CastTimeMs));
-        AbilityInfo heal = Assert.Single(abilities, a => a.AbilityId == 2);
-        Assert.Equal((AbilityAmountKind.Healing, 40u, 40u), (heal.AmountKind, heal.AmountMin, heal.AmountMax));
 
         // In the world, the flusher finds what select already said and sends nothing.
         var afterSpawn = new List<OutboundPacket>();
@@ -459,6 +474,48 @@ public class CharacterSelectHandlerShould
         TestTown.Record(inWorld, Assert.IsType<CharacterEntity>(built), afterSpawn);
         AbilityAmountsFlusher.Flush(inWorld);
         Assert.Empty(afterSpawn);
+    }
+
+    /// <summary>
+    /// #1181: a seeded Warrior at level 7 holding the five nodes to Cleave (2-6), with The Alpha's Howl (quest 3, one
+    /// talent point) turned in, enters with its starter and its one held ability node, in that order, and the tree's
+    /// lines folded into its stats (+5 Strength along the way); the talent window's state follows the abilities, and both
+    /// come before the ignore list.
+    /// </summary>
+    [Fact]
+    public async Task Enter_with_the_starter_and_every_held_ability_node_and_the_tree_folded()
+    {
+        StaticData data = ScenarioReferenceData.Shared.Data;
+        ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>()).Returns(new CharacterQuestRows([], [],
+            [new CharacterCompletedQuest { CharacterId = s_theCharacter, QuestId = 3, CompletionCount = 1 }]));
+        CharacterTalent[] held = [.. new[] { 2, 3, 4, 5, 6 }.Select(n => new CharacterTalent { CharacterId = s_theCharacter, NodeId = n })];
+        Fixture f = await BuildAsync(data: data, talents: held, quests: quests, level: 7);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
+
+        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
+        AbilityInfo[] abilities = Decode<SCharacterAbilitiesPacket>(f, NetworkPacketType.SMSG_CHARACTER_ABILITIES).Abilities;
+        Assert.Equal([319u, 200u], abilities.Select(a => a.AbilityId));
+        Assert.Equal([319u, 200u], entity.Spells.All.Select(a => a.AbilityId.Value));
+
+        ClassLevelStat row = data.ClassLevelStats.Single(r => r.Class == CharacterClass.Warrior && r.Level == 7);
+        Assert.Equal(row.Strength + 5u, entity.Stats!.Value.Strength);
+
+        STalentStatePacket state = Decode<STalentStatePacket>(f, NetworkPacketType.SMSG_TALENT_STATE);
+        Assert.Equal([2u, 3u, 4u, 5u, 6u], state.NodeIds);
+        Assert.Equal((8u, 5u), (state.PointsEarned, state.PointsSpent));
+        int abilitiesAt = f.Sent.IndexOf(NetworkPacketType.SMSG_CHARACTER_ABILITIES);
+        int stateAt = f.Sent.IndexOf(NetworkPacketType.SMSG_TALENT_STATE);
+        Assert.True(abilitiesAt < stateAt && stateAt < f.Sent.IndexOf(NetworkPacketType.SMSG_IGNORE_LIST),
+            string.Join(", ", f.Sent));
+    }
+
+    private static T Decode<T>(Fixture f, NetworkPacketType type)
+    {
+        OutboundPacket packet = Assert.Single(f.SentPackets, p => p.Header.Type == type);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
+        return Serializer.Deserialize<T>(stream);
     }
 
     /// <summary>
@@ -718,7 +775,7 @@ public class CharacterSelectHandlerShould
             Substitute.For<ICharacterRepository>(),
             Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(),
-            Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<ICharacterTalentRepository>(),
             Substitute.For<IWorld>(),
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),

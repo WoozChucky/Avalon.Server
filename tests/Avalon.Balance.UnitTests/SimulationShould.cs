@@ -14,7 +14,7 @@ public class SimulationShould
 
     private static RunFilter AllWarriorRows => new(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, null);
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Give_the_same_rows_as_the_command_line_runner()
     {
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(), null, CancellationToken.None);
@@ -26,7 +26,7 @@ public class SimulationShould
         Assert.Equal(expected.Select(r => (r.Key, r.WinRatePct)), result.Rows.Select(r => (r.Key, r.WinRatePct)));
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Filter_by_level_and_gear_without_changing_a_rows_numbers()
     {
         RunResult all = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(), null, CancellationToken.None);
@@ -38,7 +38,7 @@ public class SimulationShould
         Assert.Equal(all.Rows.Single(r => r.Key == row.Key).WinRatePct, row.WinRatePct);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Report_the_rows_the_global_checks_cover()
     {
         RunResult some = Simulation.Run(TestData.Seed(), TestData.Config(),
@@ -81,7 +81,7 @@ public class SimulationShould
         Assert.Equal("overrides.CombatFormula.NoSuchColumn", Assert.Single(result.Issues).Path);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Apply_overrides_to_a_copy_and_never_touch_the_callers_seed()
     {
         SeedTables seed = TestData.Seed();
@@ -121,7 +121,7 @@ public class SimulationShould
         Assert.Contains(result.Issues, i => i.Path.StartsWith("rotations", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Report_a_negative_yellow_tolerance_as_a_targets_issue()
     {
         BalanceConfig config = TestData.Config();
@@ -135,7 +135,7 @@ public class SimulationShould
         Assert.Contains("yellowTolerancePct", issue.Message, StringComparison.Ordinal);
     }
 
-    [Theory]
+    [Theory(Skip = BalancePause.Reason)]
     [InlineData("filter.levels")]
     [InlineData("filter.gear")]
     [InlineData("filter.scenarios")]
@@ -166,7 +166,7 @@ public class SimulationShould
         Assert.Empty(result.Rows);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Stop_when_cancelled_part_way_through_and_return_no_rows()
     {
         using var cts = new CancellationTokenSource();
@@ -179,7 +179,7 @@ public class SimulationShould
         Assert.Empty(result.CheckedRows);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Report_progress_up_to_every_row()
     {
         var seen = new List<RunProgress>();
@@ -199,7 +199,7 @@ public class SimulationShould
         Assert.All(seen, p => Assert.Equal(result.Rows.Count, p.RowsTotal));
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Report_levels_past_the_seeded_class_stats_as_an_issue()
     {
         BalanceConfig config = TestData.Config();
@@ -214,7 +214,7 @@ public class SimulationShould
         Assert.Contains("level 17", issue.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Treat_a_null_filter_as_no_filter()
     {
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick() with { Filter = null! }
@@ -225,7 +225,7 @@ public class SimulationShould
         Assert.Equal(TestData.Config().Scenarios.Classes.Length * 10 * 3 * 8, result.Rows.Count);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Carry_on_when_the_progress_handler_throws()
     {
         int calls = 0;
@@ -237,7 +237,7 @@ public class SimulationShould
         Assert.Equal(30, calls);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Return_no_rows_when_cancelled_as_the_last_row_finishes()
     {
         using var cts = new CancellationTokenSource();

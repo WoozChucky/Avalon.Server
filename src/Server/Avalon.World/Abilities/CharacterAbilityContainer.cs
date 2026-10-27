@@ -8,15 +8,15 @@ namespace Avalon.World.Abilities;
 public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacterAbilities
 {
     private readonly ILogger<CharacterAbilityContainer> _logger = loggerFactory.CreateLogger<CharacterAbilityContainer>();
-    private IReadOnlyCollection<IAbility> _abilities;
+    private IReadOnlyCollection<IAbility> _abilities = Array.Empty<IAbility>();
 
     // The loaded collection as a list, when it is one (an array, a List, a collection expression): walked by index,
     // so the per-tick Update, the cast handler's lookup and IsCasting allocate no boxed enumerator, closure or
     // delegate (#880). Null for any other collection, which is walked as before.
-    private IReadOnlyList<IAbility>? _list;
+    private IReadOnlyList<IAbility>? _list = Array.Empty<IAbility>();
 
     /// <summary>Every ability loaded, in load order; empty before the first load. World-side (#669).</summary>
-    public IReadOnlyCollection<IAbility> All => _abilities ?? [];
+    public IReadOnlyCollection<IAbility> All => _abilities;
 
     public IAbility? this[AbilityId abilityId]
     {
@@ -58,11 +58,15 @@ public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacte
         }
     }
 
+    /// <summary>
+    /// Replaces what the character holds. World-side only (#1181): the talent tree decides what a character holds
+    /// (<see cref="Talents.TalentAbilities.Rebuild" />), so <see cref="ICharacterAbilities" /> has no way in.
+    /// </summary>
     public void Load(IReadOnlyCollection<IAbility> abilities)
     {
         _abilities = abilities;
         _list = abilities as IReadOnlyList<IAbility>;
-        _logger.LogInformation("Loading {Count} abilities into character", _abilities.Count);
+        _logger.LogDebug("Loading {Count} abilities into character", _abilities.Count);
     }
 
     public void Update(TimeSpan deltaTime)

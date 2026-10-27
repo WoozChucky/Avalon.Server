@@ -41,7 +41,6 @@ public class CreatureAbilityAiShould
         AbilityTemplate row = AbilityTestData.Cone(s_specialId.Value, reach: 2.5f, arc: 90f);
         row.Name = "Special";
         row.Cooldown = 8000;
-        row.AllowedClasses = [];
         return row;
     }
 
@@ -52,7 +51,6 @@ public class CreatureAbilityAiShould
         row.Name = "Wind-up";
         row.CastTime = 1000;
         row.Cooldown = 15000;
-        row.AllowedClasses = [];
         return row;
     }
 
@@ -180,7 +178,6 @@ public class CreatureAbilityAiShould
         AbilityTemplate sting = AbilityTestData.Cone(90_166, reach: 1.5f, arc: 90f);
         sting.Name = "Sting";
         sting.Cooldown = 2250;
-        sting.AllowedClasses = [];
         var fight = new Fight(targetAt: new Vector3(10f, 0f, 0f), withRotation: false,
             catalog: TestKit.Catalog(sting), kit: new CreatureAbilityKit(new AbilityId(90_166)));
         fight.Target.BodyRadius.Returns(0.5f);

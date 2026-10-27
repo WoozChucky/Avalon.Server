@@ -17,6 +17,7 @@ using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Talents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -34,11 +35,15 @@ public class CharacterCreationShould : IDisposable
     private readonly SqliteDatabase<CharacterDbContext> _characters = SqliteDatabase.Characters();
     private readonly SqliteDatabase<WorldDbContext> _world = SqliteDatabase.World();
 
+    /// <summary>
+    /// The character, its stats and its starting items, each in its Bag slot, in one transaction. No ability is written
+    /// (#1181): its first select holds only its class start's starter, since it holds no talent node.
+    /// </summary>
     [Fact]
-    public async Task Persist_the_character_its_stats_abilities_and_items()
+    public async Task Persist_the_character_its_stats_and_items_and_enter_with_its_starter_alone()
     {
         StaticData data = await LoadStaticDataAsync();
-        CharacterCreateInfo createInfo = data.CharacterCreateInfos.First();
+        CharacterCreateInfo createInfo = data.CharacterCreateInfos.Single(c => c.Class == CharacterClass.Warrior);
 
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = NewHandler(data);
@@ -56,22 +61,29 @@ public class CharacterCreationShould : IDisposable
             await characterDb.Characters.SingleAsync(c => c.Name == "Testarossa");
 
         Assert.Equal(1, await characterDb.CharacterStats.CountAsync(s => s.CharacterId == character.Id));
-        Assert.Equal(createInfo.StartingSpells.Count,
-            await characterDb.CharacterAbilities.CountAsync(a => a.CharacterId == character.Id));
-        Assert.Equal(createInfo.StartingItems.Count,
-            await characterDb.CharacterInventory.CountAsync(i => i.CharacterId == character.Id));
+        Assert.Equal(0, await characterDb.CharacterAbilities.CountAsync(a => a.CharacterId == character.Id));
+        Assert.Equal(createInfo.StartingItems.Select(i => i.Slot),
+            (await characterDb.CharacterInventory.AsNoTracking().Where(i => i.CharacterId == character.Id).ToListAsync())
+            .Where(i => i.Container == InventoryType.Bag).Select(i => i.Slot).Order());
 
         // The item instances now live beside the slots that point at them, and each carries an id
         // the server allocated.
         List<ItemInstance> items = await characterDb.ItemInstances.AsNoTracking()
             .Where(i => i.CharacterId == character.Id).ToListAsync();
-        Assert.Equal(createInfo.StartingItems.Count, items.Count);
+        Assert.Equal(createInfo.StartingItems.Select(i => i.TemplateId.Value).Order(),
+            items.Select(i => i.TemplateId.Value).Order());
         Assert.All(items, item => Assert.NotEqual(Guid.Empty, item.Id.Value));
 
         // StaticData's cached templates were not written back into the World database.
         await using WorldDbContext worldDb = _world.CreateDbContext();
-        Assert.Equal(createInfo.StartingItems.Distinct().Count(),
-            await worldDb.ItemTemplates.CountAsync(t => createInfo.StartingItems.Contains(t.Id)));
+        Assert.Equal(createInfo.StartingItems.Count, await worldDb.ItemTemplates.CountAsync(
+            t => createInfo.StartingItems.Select(i => i.TemplateId).Contains(t.Id)));
+
+        // Its first select: no talent rows, so its abilities are the Warrior's starter, Heavy Strike, alone.
+        var entity = new CharacterEntity(NullLoggerFactory.Instance, character, new RegenConfiguration());
+        entity.Talents.Load(await new CharacterTalentRepository(_characters).GetByCharacterIdAsync(character.Id));
+        TalentAbilities.Rebuild(entity, data.Talents, data.Abilities, NullLogger.Instance);
+        Assert.Equal([319u], entity.Spells.All.Select(a => a.AbilityId.Value));
     }
 
     /// <summary>
@@ -143,7 +155,6 @@ public class CharacterCreationShould : IDisposable
             Assert.NotEqual(Guid.Empty, instance.Id.Value);
             Assert.NotEqual(default, instance.TemplateId);
         });
-        Assert.All(captured.Abilities, ability => Assert.Null(ability.Character));
         Assert.All(captured.Slots, slot => Assert.Null(slot.Character));
     }
 

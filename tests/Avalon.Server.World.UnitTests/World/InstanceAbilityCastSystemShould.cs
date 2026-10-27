@@ -143,7 +143,6 @@ public class InstanceAbilityCastSystemShould
             _scripts.GetAbilityScript(Arg.Any<string>()).Returns(typeof(RecordingAbilityScript));
             AbilityTemplate basic = AbilityTestData.Cone(770_001);
             AbilityTemplate special = AbilityTestData.Cone(770_002);
-            basic.AllowedClasses = special.AllowedClasses = [];
             var boar = new Creature
             {
                 Guid = new ObjectGuid(ObjectType.Creature, 770_901),

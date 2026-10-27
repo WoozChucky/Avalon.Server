@@ -288,7 +288,7 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 
 ## 10. Starter Kit Per Class
 
-Each class starts with three skills (#164), ordinary `AbilityTemplate` rows seeded by the World migration `SeedStarterSkillKit`. They are granted on character creation through each class's `CharacterCreateInfos.StartingSpells`, and the Character migration `GrantStarterSkillKit` gave every existing character its class's three in place of whatever it held. The client retrieves the player's full ability list via `SCharacterAbilitiesPacket` on character login, and learns each skill's shape from `AbilityInfo` fields 8-16 (`AimMode`, `Shape`, `Anchor`, `Reach`, `Radius`, `ArcDegrees`, `ProjectileSpeed`, `Pierce`, `Affects`), which is everything it needs to draw a telegraph. Field 17 (`CostPowerType`, #652) was deleted (#1181): every `Cost` is mana.
+Each class starts with three skills (#164), ordinary `AbilityTemplate` rows seeded by the World migration `SeedStarterSkillKit`. Since #1181 a character holds its class start's starter and the ability nodes it holds on the talent tree ([talents](talents.md)); nothing is granted at creation. The client retrieves the player's full ability list via `SCharacterAbilitiesPacket` on character login, and learns each skill's shape from `AbilityInfo` fields 8-16 (`AimMode`, `Shape`, `Anchor`, `Reach`, `Radius`, `ArcDegrees`, `ProjectileSpeed`, `Pierce`, `Affects`), which is everything it needs to draw a telegraph. Field 17 (`CostPowerType`, #652) was deleted (#1181): every `Cost` is mana.
 
 The retired abilities 1, 2 and 100-103 are gone, and their ids are never reused, so a client that cached them cannot confuse them with a kit skill.
 

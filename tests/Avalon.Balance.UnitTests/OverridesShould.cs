@@ -50,7 +50,7 @@ public class OverridesShould
     [Fact]
     public void Report_an_override_equal_to_the_seed_as_already_applied()
     {
-        (_, OverrideReport report) = Apply("""{ "Ability.200.Cost": 0 }""");
+        (_, OverrideReport report) = Apply("""{ "Ability.200.Cost": 6 }""");
 
         Assert.Empty(report.Applied);
         Assert.Equal(["Ability.200.Cost"], report.Stale);
@@ -75,7 +75,7 @@ public class OverridesShould
     [InlineData("""{ "Ability.201.Id": 5 }""", "'Id' is the row's key")]
     [InlineData("""{ "Ability.201.Cost": -1 }""", "-1 does not fit")]
     [InlineData("""{ "Ability.201.Cost": 1.5 }""", "1.5 does not fit")]
-    [InlineData("""{ "Ability.201.AllowedClasses": 1 }""", "cannot be overridden")]
+    [InlineData("""{ "Item.1.AllowedClasses": 1 }""", "cannot be overridden")]
     [InlineData("""{ "CombatFormula.1.ArmorBase": 1 }""", "CombatFormula has one row and takes no key")]
     [InlineData("""{ "Ability": 1 }""", "is not Table.key.Column")]
     public void Stop_naming_the_override(string json, string message)
@@ -95,7 +95,7 @@ public class OverridesShould
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => Overrides.Apply(tables, document.RootElement));
 
         Assert.Contains("'Ability.201.Cost' is given twice", error.Message, StringComparison.Ordinal);
-        Assert.Equal(0u, tables.AbilityTemplates.Single(a => a.Id.Value == 200).Cost);
+        Assert.Equal(6u, tables.AbilityTemplates.Single(a => a.Id.Value == 200).Cost);
         Assert.Equal(20u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
     }
 

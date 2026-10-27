@@ -1082,6 +1082,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_TALENT_STATE",
+      "opcode": 12529,
+      "hex": "0x30F1",
+      "message": "STalentStatePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_CHARACTER_DAMAGED",
       "opcode": 12544,
       "hex": "0x3100",

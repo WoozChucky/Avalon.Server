@@ -41,10 +41,6 @@ namespace Avalon.Database.World.Migrations
                     b.Property<byte>("AimMode")
                         .HasColumnType("smallint");
 
-                    b.PrimitiveCollection<byte[]>("AllowedClasses")
-                        .IsRequired()
-                        .HasColumnType("smallint[]");
-
                     b.Property<byte>("Anchor")
                         .HasColumnType("smallint");
 
@@ -173,18 +169,17 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 100f,
                             CastTime = 0L,
                             ConvertPct = 0f,
                             Cooldown = 0L,
-                            Cost = 0L,
+                            Cost = 6L,
                             DamageEffectiveness = 315f,
                             DamageType = 0,
                             Effects = 1,
-                            Flags = 4L,
+                            Flags = 0L,
                             HealThreatPerHp = 0f,
                             MaxTargets = 0,
                             Name = "Cleave",
@@ -209,7 +204,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -245,7 +239,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -281,7 +274,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -317,7 +309,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -353,7 +344,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 60f,
@@ -389,7 +379,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -425,7 +414,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -461,7 +449,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 45f,
@@ -497,7 +484,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -533,7 +519,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -569,7 +554,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)1,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -604,7 +588,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -641,7 +624,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -678,7 +660,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -716,7 +697,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)1,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -752,7 +732,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)1,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -788,7 +767,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -825,7 +803,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -863,7 +840,6 @@ namespace Avalon.Database.World.Migrations
                             AddedType = 4,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -900,7 +876,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -936,7 +911,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -971,7 +945,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1006,7 +979,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1041,7 +1013,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1076,7 +1047,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1111,7 +1081,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1146,7 +1115,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1181,7 +1149,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1217,7 +1184,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1252,7 +1218,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 100f,
@@ -1287,7 +1252,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1322,7 +1286,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1357,7 +1320,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 60f,
@@ -1393,7 +1355,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1429,7 +1390,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1464,7 +1424,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1499,7 +1458,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 120f,
@@ -1534,7 +1492,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1570,7 +1527,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1606,7 +1562,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 60f,
@@ -1642,7 +1597,6 @@ namespace Avalon.Database.World.Migrations
                             AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -2819,14 +2773,6 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("Rotation")
                         .HasColumnType("real");
 
-                    b.Property<string>("StartingItems")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("StartingSpells")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<float>("X")
                         .HasColumnType("real");
 
@@ -2846,8 +2792,6 @@ namespace Avalon.Database.World.Migrations
                             Class = (byte)1,
                             Map = 1,
                             Rotation = 0f,
-                            StartingItems = "1,2,3",
-                            StartingSpells = "200,201,202,203,204",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -2857,8 +2801,6 @@ namespace Avalon.Database.World.Migrations
                             Class = (byte)2,
                             Map = 1,
                             Rotation = 0f,
-                            StartingItems = "1,2",
-                            StartingSpells = "210,211,212,213,214",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -2868,8 +2810,6 @@ namespace Avalon.Database.World.Migrations
                             Class = (byte)3,
                             Map = 1,
                             Rotation = 0f,
-                            StartingItems = "1,2",
-                            StartingSpells = "220,221,222,223,224",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -2879,11 +2819,86 @@ namespace Avalon.Database.World.Migrations
                             Class = (byte)4,
                             Map = 1,
                             Rotation = 0f,
-                            StartingItems = "1,2",
-                            StartingSpells = "230,231,232,233,234,235",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.CharacterCreateItem", b =>
+                {
+                    b.Property<byte>("Class")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Slot")
+                        .HasColumnType("smallint");
+
+                    b.Property<decimal>("TemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.HasKey("Class", "Slot");
+
+                    b.HasIndex("TemplateId");
+
+                    b.ToTable("CharacterCreateItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CharacterCreateItems_Slot", "\"Slot\" >= 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Class = (byte)1,
+                            Slot = (byte)0,
+                            TemplateId = 1m
+                        },
+                        new
+                        {
+                            Class = (byte)1,
+                            Slot = (byte)1,
+                            TemplateId = 2m
+                        },
+                        new
+                        {
+                            Class = (byte)1,
+                            Slot = (byte)2,
+                            TemplateId = 3m
+                        },
+                        new
+                        {
+                            Class = (byte)2,
+                            Slot = (byte)0,
+                            TemplateId = 1m
+                        },
+                        new
+                        {
+                            Class = (byte)2,
+                            Slot = (byte)1,
+                            TemplateId = 2m
+                        },
+                        new
+                        {
+                            Class = (byte)3,
+                            Slot = (byte)0,
+                            TemplateId = 1m
+                        },
+                        new
+                        {
+                            Class = (byte)3,
+                            Slot = (byte)1,
+                            TemplateId = 2m
+                        },
+                        new
+                        {
+                            Class = (byte)4,
+                            Slot = (byte)0,
+                            TemplateId = 1m
+                        },
+                        new
+                        {
+                            Class = (byte)4,
+                            Slot = (byte)1,
+                            TemplateId = 2m
                         });
                 });
 
@@ -28496,6 +28511,21 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.CharacterCreateItem", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.CharacterCreateInfo", null)
+                        .WithMany("StartingItems")
+                        .HasForeignKey("Class")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ChunkPool", null)
@@ -29155,6 +29185,11 @@ namespace Avalon.Database.World.Migrations
             modelBuilder.Entity("Avalon.Domain.World.AuraTemplate", b =>
                 {
                     b.Navigation("Modifiers");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.CharacterCreateInfo", b =>
+                {
+                    b.Navigation("StartingItems");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ChunkGroup", b =>

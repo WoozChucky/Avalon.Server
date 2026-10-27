@@ -159,13 +159,33 @@ afterwards.
   or a contract enum (`TalentNodeKind`, `TalentStatKind`, `StatType`, `CharacterClass`)
   ([multi-world API](api-worlds.md#public-routes)).
 
+## A character on the tree
+
+- **Points.** `TalentPoints.Earned` is the character's level plus the `RewardTalentPoints` of every quest it has turned
+  in that the quest catalog holds; a repeatable quest pays none (the catalog refuses one that would). The points spent
+  are the nodes held (`TalentAllocation.Spent`). Nothing stores a balance.
+- **Select** (`CharacterSelectHandler`, [login flow](character-login-flow.md)). One step reads the talent rows and the
+  quest rows together, off the tick; back on the tick the quest log loads, then the talents, and
+  `TalentSelectCheck.Apply` drops, free and marked for the save, the rows that no longer fit the live tree: a node it no
+  longer holds or a Start, then a node no path of held nodes links to the class's start, then every row when they cost
+  more than the points earned, one Warning per step that drops anything. A tree the catalog refused drops nothing, so a
+  bad deploy wipes nobody's allocation. The held lines are summed (`TalentAllocation.RebuildTotals`) and folded by the
+  stats refresh; the inventory snapshot follows, then `TalentAbilities.Rebuild` (the class start's starter, then each
+  held ability node's ability by ascending node id; a held ability keeps its `IAbility` and its timers, a new one
+  arrives ready), `SMSG_CHARACTER_ABILITIES` (`CharacterAbilitiesSender`) and `SMSG_TALENT_STATE` (`0x30F1`,
+  `STalentStatePacket`: the held node ids ascending, the points earned and spent), before the ignore list.
+- **Creation** writes no ability: a new character holds no node, so it enters with its starter alone. Its starting
+  items are `CharacterCreateItems` rows (class, Bag slot, template), which replaced the packed
+  `CharacterCreateInfos.StartingItems` in `AbilitiesFromTheTree`, the World migration that also dropped
+  `CharacterCreateInfos.StartingSpells` and `AbilityTemplates.AllowedClasses` and made Cleave an ability node (not
+  `Basic`, 6 mana).
+- **The modding API** cannot grant an ability: `ICharacterAbilities` has no `Load`; the World-side
+  `CharacterAbilityContainer.Load` is called by the tree's rebuild.
+
 ## What later parts add
 
-- **Part B2, characters on the tree.** A character's allocation (`CharacterTalents`), points earned per level and from
-  the paying quests, the select check against the live tree, abilities derived from the class start and the held
-  ability nodes (replacing `StartingSpells`, `CharacterAbilities` and `AbilityTemplates.AllowedClasses`), the tree's
-  stat lines folded into the character's stats, `CMSG_TALENT_ALLOCATE` with `SMSG_TALENT_RESULT` and
-  `SMSG_TALENT_STATE`, and the REST character reads.
+- **Part B2, the rest.** Allocation (`CMSG_TALENT_ALLOCATE` with `SMSG_TALENT_RESULT`, and `SMSG_TALENT_STATE` after
+  every change), dropping the `CharacterAbilities` table, and the REST character reads.
 - **Part C, the Lectern and refunds.** Refunding allocated nodes for gold at the Lectern.
 - **Part D, capstones and keystones.** The capstone and keystone rows (ids from 306), their fork groups, the
   `Keystone` column and `TalentAbilityModifiers`.

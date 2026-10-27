@@ -65,17 +65,21 @@ Game Client              World Server                  Databases / API
     │                        │  skipping orphan rows and rows past MaxSlots
     │                        │  Load() all three containers (Equipment/Bag/Bank)
     │                        │                               │
+    │                        │ CharacterTalentRepository and CharacterQuestRepository
+    │                        │──────────────────────────────>│  (one step, #1181)
+    │                        │<──────────────────────────────│ talent rows, quest rows
+    │                        │ [OnProgressReceived]          │
+    │                        │  Quests.Load, Talents.Load    │
+    │                        │  TalentSelectCheck (drops what│
+    │                        │   no longer fits the tree)    │
+    │                        │  stats refresh (tree folded)  │
     │  SInventorySnapshotPacket (Equipment + Bag only; the   │
     │<───────────────────────│  bank is loaded but not sent) │
+    │  SCharacterAbilitiesPacket  the class start's starter, │
+    │<───────────────────────│  then each held ability node's│
+    │  STalentStatePacket    │  held nodes, points earned    │
+    │<───────────────────────│  and spent                    │
     │                        │                               │
-    │                        │ CharacterAbilityRepository.GetCharacterAbilitiesAsync
-    │                        │──────────────────────────────>│
-    │                        │<──────────────────────────────│ List<CharacterAbility>
-    │                        │ [OnSpellsReceived]            │
-    │  SCharacterAbilitiesPacket  Resolve AbilityMetadata     │
-    │<───────────────────────│                               │
-    │                        │                               │
-    │                        │ quest rows (#433), then       │
     │                        │ CharacterIgnoreRepository.GetByCharacterIdAsync (#723)
     │                        │──────────────────────────────>│
     │                        │<──────────────────────────────│ ignored characters

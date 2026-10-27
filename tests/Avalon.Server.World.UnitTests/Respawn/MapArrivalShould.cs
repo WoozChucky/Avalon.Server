@@ -354,7 +354,7 @@ public class MapArrivalShould : IDisposable
             characters,
             Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(),
-            Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<ICharacterTalentRepository>(),
             _world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),

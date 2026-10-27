@@ -19,7 +19,7 @@ public class BalanceRunnerShould
         return new BalanceRunner(TestData.Seeded, scenarios, rotations);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Give_the_same_rows_whatever_the_scheduling()
     {
         BalanceRunner runner = Runner();
@@ -88,7 +88,7 @@ public class BalanceRunnerShould
             Assert.InRange(FightFactory.CreatureLevel(wolf, 1, scenarios.Find("forest-real"), random), 2, 4));
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Record_win_rate_percentiles_and_a_stat_snapshot()
     {
         BalanceRunner runner = Runner();

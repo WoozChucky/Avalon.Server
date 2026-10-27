@@ -165,8 +165,8 @@ public class CharacterSelectChainShould : IDisposable
     {
         StartSelect();
 
-        // Six steps now: find character, resolve instance, persist row, load inventory rows,
-        // load item instances, load abilities.
+        // Six steps: find character, resolve instance, persist row, load inventory rows, load item instances, then the
+        // talents and the quests together (#1181), where the abilities and the quests were two reads before.
         for (int step = 0; step < 5; step++)
         {
             Assert.True(_connection.SelectInProgress, $"select not marked in progress at step {step}");
@@ -611,9 +611,11 @@ public class CharacterSelectChainShould : IDisposable
         _itemInstances.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<ItemInstance>());
 
-        ICharacterAbilityRepository abilities = Substitute.For<ICharacterAbilityRepository>();
-        abilities.GetCharacterAbilitiesAsync(s_theCharacter, Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<CharacterAbility>());
+        ICharacterTalentRepository talents = Substitute.For<ICharacterTalentRepository>();
+        talents.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<CharacterTalent>());
+        ICharacterQuestRepository quests = Substitute.For<ICharacterQuestRepository>();
+        quests.GetByCharacterIdAsync(s_theCharacter, Arg.Any<CancellationToken>()).Returns(CharacterQuestRows.None);
 
         IMapInstance instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(Guid.NewGuid());
@@ -642,7 +644,7 @@ public class CharacterSelectChainShould : IDisposable
             _characters,
             _inventory,
             _itemInstances,
-            abilities,
+            talents,
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
@@ -650,6 +652,7 @@ public class CharacterSelectChainShould : IDisposable
             saver ?? Substitute.For<ICharacterSaver>(),
             worldServer ?? Substitute.For<IWorldServer>(),
             _clock,
+            quests,
             entryGate: entryGate,
             databaseWork: databaseWork ?? InlineDatabaseWork.Instance)
         {

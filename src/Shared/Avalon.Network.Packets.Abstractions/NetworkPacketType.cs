@@ -216,4 +216,7 @@ public enum NetworkPacketType : short
     SMSG_TRADE_STATE = 0x30E2,
     SMSG_TRADE_CLOSED = 0x30E3,
     SMSG_TRADE_RESULT = 0x30E4,
+
+    // Talents
+    SMSG_TALENT_STATE = 0x30F1,
 }

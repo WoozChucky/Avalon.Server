@@ -29,7 +29,6 @@ internal static class TestKit
         AbilityTemplate row = AbilityTestData.Cone(BasicId.Value, reach: 1.8f, arc: 90f);
         row.Name = "Test basic";
         row.Cooldown = 2250;
-        row.AllowedClasses = [];
         return row;
     }
 

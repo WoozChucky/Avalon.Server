@@ -948,6 +948,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_TRADE_STATE = 12514;
    NetworkPacketType_SMSG_TRADE_CLOSED = 12515;
    NetworkPacketType_SMSG_TRADE_RESULT = 12516;
+   NetworkPacketType_SMSG_TALENT_STATE = 12529;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -1549,6 +1550,11 @@ message SServerInfoPacket {
    uint32 ServerVersion = 1;
    optional bytes PublicKey = 2;
    ServerInfoResult Result = 3;
+}
+message STalentStatePacket {
+   repeated uint32 NodeIds = 1 [packed = false];
+   uint32 PointsEarned = 2;
+   uint32 PointsSpent = 3;
 }
 message SThreatListPacket {
    uint64 TargetGuid = 1;

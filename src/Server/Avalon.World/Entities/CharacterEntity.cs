@@ -392,7 +392,10 @@ public partial class CharacterEntity : ICharacter
     /// <summary>Slots and gold the client must be told about at the end of this tick.</summary>
     public InventoryClientChanges ClientChanges { get; } = new();
 
-    public ICharacterAbilities Spells { get; }
+    /// <summary>The abilities the character holds: its class start's starter and its held ability nodes (#1181).</summary>
+    public CharacterAbilityContainer Spells { get; }
+
+    ICharacterAbilities ICharacter.Spells => Spells;
 
     /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
     public SaveStateTracker SaveState { get; } = new();

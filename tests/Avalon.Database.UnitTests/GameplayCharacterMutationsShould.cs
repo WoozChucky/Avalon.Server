@@ -1,8 +1,10 @@
+using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 using CharacterRow = Avalon.Domain.Characters.Character;
@@ -20,7 +22,7 @@ public sealed class GameplayCharacterMutationsShould
     }
     private static CharacterCreationBatch Batch(long account, string name) => new(
         new CharacterRow { AccountId = new AccountId(account), Name = name, CreationDate = DateTime.UtcNow },
-        new CharacterStats(), [new CharacterAbility { AbilityId = new AbilityId(1) }], [], []);
+        new CharacterStats(), [], []);
 
     [Fact]
     public async Task Create_all_initial_rows_in_one_authorized_transaction_and_enforce_count_under_the_guard()
@@ -30,7 +32,6 @@ public sealed class GameplayCharacterMutationsShould
         Assert.Null(created.Error); Assert.NotNull(created.Character);
         await using CharacterDbContext db = database.CreateDbContext();
         Assert.Equal(1, await db.Characters.CountAsync()); Assert.Equal(created.Character.Id, (await db.CharacterStats.SingleAsync()).CharacterId);
-        Assert.Equal(created.Character.Id, (await db.CharacterAbilities.SingleAsync()).CharacterId);
         Assert.Equal("MAX_CHARACTERS", (await repository.CreateForGameplayAsync(authority, Batch(42, "Secondplayer"), 1)).Error);
         Assert.Equal(1, await db.Characters.CountAsync());
     }
@@ -38,9 +39,18 @@ public sealed class GameplayCharacterMutationsShould
     public async Task Roll_back_the_root_when_a_child_insert_fails()
     {
         using var database = SqliteDatabase.Characters(); GameplayWriteAuthority authority = await Admit(database, 42); var repository = new CharacterRepository(database);
-        CharacterCreationBatch batch = Batch(42, "Rollbackboy") with { Abilities = [new CharacterAbility { AbilityId = new AbilityId(1) }, new CharacterAbility { AbilityId = new AbilityId(1) }] };
+        // Two items in one Bag slot: the second slot row cannot be inserted.
+        ItemInstance first = new() { Id = new ItemInstanceId(Guid.NewGuid()), TemplateId = new ItemTemplateId(1), Identified = true };
+        ItemInstance second = new() { Id = new ItemInstanceId(Guid.NewGuid()), TemplateId = new ItemTemplateId(2), Identified = true };
+        CharacterCreationBatch batch = Batch(42, "Rollbackboy") with
+        {
+            Items = [first, second],
+            Slots = [new CharacterInventory { ItemId = first.Id, Container = InventoryType.Bag, Slot = 0 },
+                new CharacterInventory { ItemId = second.Id, Container = InventoryType.Bag, Slot = 0 }],
+        };
         await Assert.ThrowsAsync<InvalidOperationException>(() => repository.CreateForGameplayAsync(authority, batch, 5));
         await using CharacterDbContext db = database.CreateDbContext(); Assert.Empty(await db.Characters.ToListAsync()); Assert.Empty(await db.CharacterStats.ToListAsync());
+        Assert.Empty(await db.ItemInstances.ToListAsync());
     }
     [Fact]
     public async Task Old_selection_and_delete_cannot_follow_a_character_to_its_new_owner()

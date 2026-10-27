@@ -35,7 +35,6 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Cost` | uint | mana | Spent from the caster's mana, the one pool every class has (#1181; see the power rule below). 0 is free. |
 | `ScriptName` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
-| `AllowedClasses` | list of `CharacterClass` | | Read by nothing since #1181: what makes a class ability is that the talent tree grants it (a class start or a node links it, `TalentNodeAbilities`). The column goes with `StartingSpells`. |
 | `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. The two floats must be finite and 0 or more (#529). |
 | `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`, `Basic` (a class's basic attack, the one ability a silence does not stop), `Unavoidable` (a Hostile ability never rolled against for evasion, #1164). |
 | `AnimationId` | uint | | Reserved for the client's cast animation. |
@@ -446,11 +445,12 @@ Towns never allow player hostility, whatever the flags.
 
 ## 8. The starter kit
 
-Seeded by the World migration `SeedStarterSkillKit`; `CharacterCreateInfos.StartingSpells` grants each
-class its three, and the Character migration `GrantStarterSkillKit` gave every existing character its
-class's three in place of whatever it held. The retired skills 1, 2 and 100-103 are gone and their ids
-are never reused. Every kit skill has `AllowedClasses` its own class, `ThreatMultiplier` 1, and
-`HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune. Under the offence model
+Seeded by the World migration `SeedStarterSkillKit`. Since #1181 no class is granted a kit: a character holds its
+class start's starter (Heavy Strike, Spark Bolt, Quick Shot, Smite) and the ability of every ability node it holds on
+the talent tree, which any class can walk to ([talents](talents.md)); the World migration `AbilitiesFromTheTree`
+dropped `CharacterCreateInfos.StartingSpells` and `AbilityTemplates.AllowedClasses`. The class column below is the
+class whose region of the tree holds the ability. The retired skills 1, 2 and 100-103 are gone and their ids are never
+reused. Every kit skill has `ThreatMultiplier` 1, and `HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune. Under the offence model
 (#1178) the bases re-express the old numbers: an Attack's effectiveness carries its old level-1 average over a
 starter weapon's roll, and a Spell's or a Heal's base and growth carry its old level-1 and level-10 averages, each
 within a few percent. An Attack whose cooldown is 0, every basic one among them, waits its weapon's attack time
@@ -458,7 +458,7 @@ within a few percent. An Attack whose cooldown is 0, every basic one among them,
 
 | id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | tags | base | type |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | weapon | 0 | Attack, Melee, Area | 315 % | Physical |
+| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | weapon | 6 | Attack, Melee, Area | 315 % | Physical |
 | 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5 s | 20 | Attack, Melee, Area | 614 % | Physical |
 | 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3 s | 10 | Attack, Projectile | 492 % | Physical |
 | 210 | Wizard | Spark Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 0.8 s | 0 | Spell, Projectile | 14-20, +0.70 %/level | Lightning |
@@ -476,18 +476,18 @@ within a few percent. An Attack whose cooldown is 0, every basic one among them,
 **Heavy Strike and Frostbolt (#1181)** come with the talent tree ([talents.md](talents.md)), seeded by the World
 migration `AddTalentTree`. Heavy Strike is the Warrior's starter, linked from the Warrior's start node: a `Basic`
 Attack with `MaxTargets` 1, so it hits only the nearest hostile in its cone, paced by the weapon. Frostbolt is the
-ability node between the Hunter's and the Wizard's regions. No class's `StartingSpells` grants either yet, and
-their `AllowedClasses` are the Warrior and the Wizard.
+ability node between the Hunter's and the Wizard's regions. Cleave, the Warrior's basic before the tree, is an
+ability node since `AbilitiesFromTheTree`: not `Basic`, and 6 mana; the four starters are the only basics.
 
 Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twenty-one kit abilities (this table's
 twelve and the nine aura and crowd-control abilities, [auras](auras.md)), what the design fixes of Heavy Strike and
-Frostbolt, the class links, the starting skills, one script per shape, Mending Circle as the only ally heal, and that
-every cost is payable under the power rule from a level 1 character's maximum mana.
+Frostbolt, the class links, one script per shape, Mending Circle as the only ally heal, and that every granted
+ability's cost is payable under the power rule from the lowest level-1 maximum mana of the four classes (180).
 
 ## 8b. The creature abilities
 
 Seeded by the World migration `SeedCreatureAbilities` (#163). Every one is creature-only
-(`AllowedClasses` empty), costs nothing, has `ThreatMultiplier` 1, and is an Attack (#1178, tagged
+(the talent tree links none), costs nothing, has `ThreatMultiplier` 1, and is an Attack (#1178, tagged
 Projectile or Area by its shape and Melee as a cone of 2.5 m or less) that deals a roll of the creature's natural
 `DamageMin..DamageMax` times its `DamageEffectiveness`.
 Each basic has effectiveness 100 %, so it deals what the old raw swing did, and lists the seeded 2250 ms

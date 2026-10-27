@@ -112,16 +112,20 @@ public sealed class BalanceData
         return CharacterStatsCalculator.Calculate(row, items, Combat.Formula, auras);
     }
 
-    /// <summary>The class's starting abilities (CharacterCreateInfos.StartingSpells), as the catalog holds them.</summary>
+    /// <summary>
+    /// The abilities a new character of the class holds (#1181): its starter alone, which its start on the talent tree
+    /// links, as the catalog holds it. Every other ability is a node it must walk to.
+    /// </summary>
     public IReadOnlyList<AbilityTemplate> KitOf(CharacterClass characterClass)
     {
-        CharacterCreateInfo info = Tables.CharacterCreateInfos.FirstOrDefault(i => i.Class == characterClass)
-            ?? throw new InvalidDataException($"CharacterCreateInfo {characterClass} is not seeded");
-        return info.StartingSpells
-            .Select(id => Abilities.TryGetValue(id, out AbilityTemplate? t)
-                ? t
-                : throw new InvalidDataException($"{characterClass} starts with ability {id.Value}, which the catalog does not hold"))
-            .ToList();
+        TalentClassStart start = Tables.TalentClassStarts.FirstOrDefault(s => s.Class == characterClass)
+            ?? throw new InvalidDataException($"The talent tree has no start for {characterClass}");
+        TalentNodeAbility link = Tables.TalentNodeAbilities.FirstOrDefault(l => l.NodeId == start.NodeId)
+            ?? throw new InvalidDataException($"{characterClass}'s start {start.NodeId} links no ability");
+        return Abilities.TryGetValue(link.AbilityId, out AbilityTemplate? starter)
+            ? [starter]
+            : throw new InvalidDataException(
+                $"{characterClass} starts with ability {link.AbilityId.Value}, which the catalog does not hold");
     }
 
     public ItemTemplate Item(ulong id) =>
