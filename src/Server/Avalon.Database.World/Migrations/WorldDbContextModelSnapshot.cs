@@ -87,6 +87,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("HealThreatPerHp")
                         .HasColumnType("real");
 
+                    b.Property<int>("MaxTargets")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -151,6 +154,8 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_AbilityTemplates_HealThreatPerHp_NonNegative", "\"HealThreatPerHp\" >= 0 AND \"HealThreatPerHp\" < 'Infinity'");
 
+                            t.HasCheckConstraint("CK_AbilityTemplates_MaxTargets", "\"MaxTargets\" >= 0");
+
                             t.HasCheckConstraint("CK_AbilityTemplates_SpellBase", "\"SpellBaseMin\" <= \"SpellBaseMax\"");
 
                             t.HasCheckConstraint("CK_AbilityTemplates_SpellBasePerLevelPct", "\"SpellBasePerLevelPct\" >= 0 AND \"SpellBasePerLevelPct\" < 'Infinity'");
@@ -181,6 +186,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 4L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Cleave",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -216,6 +222,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Ground Slam",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -251,6 +258,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Hurled Axe",
                             Pierce = false,
                             ProjectileSpeed = 9f,
@@ -286,6 +294,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 4L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Spark Bolt",
                             Pierce = false,
                             ProjectileSpeed = 11f,
@@ -321,6 +330,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Flame Burst",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -356,6 +366,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Frost Fan",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -391,6 +402,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 4L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Quick Shot",
                             Pierce = false,
                             ProjectileSpeed = 14f,
@@ -426,6 +438,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Piercing Arrow",
                             Pierce = true,
                             ProjectileSpeed = 12f,
@@ -461,6 +474,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Scatter Shot",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -496,6 +510,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 4L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Smite",
                             Pierce = false,
                             ProjectileSpeed = 10f,
@@ -531,6 +546,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Radiant Pulse",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -565,6 +581,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 2,
                             Flags = 0L,
                             HealThreatPerHp = 0.5f,
+                            MaxTargets = 0,
                             Name = "Mending Circle",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -601,6 +618,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Rend",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -637,6 +655,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 8,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Ignite",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -674,6 +693,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Crippling Shot",
                             Pierce = false,
                             ProjectileSpeed = 14f,
@@ -709,6 +729,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 4,
                             Flags = 0L,
                             HealThreatPerHp = 0.5f,
+                            MaxTargets = 0,
                             Name = "Renew",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -744,6 +765,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 4,
                             Flags = 0L,
                             HealThreatPerHp = 0.5f,
+                            MaxTargets = 0,
                             Name = "Fortify",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -780,6 +802,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Shield Bash",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -816,6 +839,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Frost Bind",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -853,6 +877,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Binding Shot",
                             Pierce = false,
                             ProjectileSpeed = 14f,
@@ -888,6 +913,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 8,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Hush",
                             Pierce = false,
                             ProjectileSpeed = 17f,
@@ -922,6 +948,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Gore",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -956,6 +983,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Trample",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -990,6 +1018,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Bite",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1024,6 +1053,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Ravenous Claw",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1058,6 +1088,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Sting",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1092,6 +1123,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Blight Spit",
                             Pierce = false,
                             ProjectileSpeed = 14f,
@@ -1126,6 +1158,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Slam",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1161,6 +1194,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Rotting Burst",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1195,6 +1229,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Maul",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1229,6 +1264,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Rending Frenzy",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1263,6 +1299,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Howling Roar",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1297,6 +1334,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Tusk Gore",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1332,6 +1370,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Earthsplitter",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1367,6 +1406,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Thorn Volley",
                             Pierce = true,
                             ProjectileSpeed = 16f,
@@ -1401,6 +1441,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Bramble Lash",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1435,6 +1476,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Bramble Nova",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1469,6 +1511,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Thornspray",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1504,6 +1547,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Venom Spit",
                             Pierce = false,
                             ProjectileSpeed = 14f,
@@ -1539,6 +1583,7 @@ namespace Avalon.Database.World.Migrations
                             Effects = 8,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
+                            MaxTargets = 0,
                             Name = "Sundering Howl",
                             Pierce = false,
                             ProjectileSpeed = 0f,
@@ -1551,6 +1596,78 @@ namespace Avalon.Database.World.Migrations
                             SpellBaseMin = 0L,
                             SpellBasePerLevelPct = 0f,
                             Tags = 9,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 319L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
+                            Affects = (byte)0,
+                            AimMode = (byte)0,
+                            AllowedClasses = new byte[] { 1 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 60f,
+                            CastTime = 0L,
+                            ConvertPct = 0f,
+                            Cooldown = 0L,
+                            Cost = 0L,
+                            DamageEffectiveness = 380f,
+                            DamageType = 0,
+                            Effects = 1,
+                            Flags = 4L,
+                            HealThreatPerHp = 0f,
+                            MaxTargets = 1,
+                            Name = "Heavy Strike",
+                            Pierce = false,
+                            ProjectileSpeed = 0f,
+                            Radius = 0f,
+                            Range = 2,
+                            Reach = 2.5f,
+                            ScriptName = "ConeAbilityScript",
+                            Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 33,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 320L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new byte[] { 2 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 500L,
+                            ConvertPct = 0f,
+                            Cooldown = 2000L,
+                            Cost = 12L,
+                            DamageEffectiveness = 100f,
+                            DamageType = 2,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            MaxTargets = 0,
+                            Name = "Frostbolt",
+                            Pierce = false,
+                            ProjectileSpeed = 13f,
+                            Radius = 0f,
+                            Range = 20,
+                            Reach = 22f,
+                            ScriptName = "ProjectileAbilityScript",
+                            Shape = (byte)2,
+                            SpellBaseMax = 42L,
+                            SpellBaseMin = 28L,
+                            SpellBasePerLevelPct = 0.8f,
+                            Tags = 18,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         });
@@ -21634,6 +21751,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<decimal>("RewardGold")
                         .HasColumnType("numeric(20,0)");
 
+                    b.Property<int>("RewardTalentPoints")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ScriptName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -21652,7 +21772,10 @@ namespace Avalon.Database.World.Migrations
 
                     b.HasIndex("RequiredQuestId");
 
-                    b.ToTable("QuestTemplates", (string)null);
+                    b.ToTable("QuestTemplates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuestTemplates_RewardTalentPoints", "\"RewardTalentPoints\" >= 0");
+                        });
 
                     b.HasData(
                         new
@@ -21668,6 +21791,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RewardExperience = 150L,
                             RewardGold = 100m,
+                            RewardTalentPoints = 0,
                             TitleTextId = 25,
                             Type = 0
                         },
@@ -21685,6 +21809,7 @@ namespace Avalon.Database.World.Migrations
                             RequiredQuestId = 1L,
                             RewardExperience = 250L,
                             RewardGold = 150m,
+                            RewardTalentPoints = 0,
                             TitleTextId = 29,
                             Type = 0
                         },
@@ -21702,6 +21827,7 @@ namespace Avalon.Database.World.Migrations
                             RequiredQuestId = 2L,
                             RewardExperience = 600L,
                             RewardGold = 400m,
+                            RewardTalentPoints = 1,
                             TitleTextId = 33,
                             Type = 0
                         },
@@ -21718,6 +21844,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RewardExperience = 300L,
                             RewardGold = 200m,
+                            RewardTalentPoints = 0,
                             TitleTextId = 43,
                             Type = 0
                         },
@@ -21735,6 +21862,7 @@ namespace Avalon.Database.World.Migrations
                             RequiredQuestId = 4L,
                             RewardExperience = 400L,
                             RewardGold = 250m,
+                            RewardTalentPoints = 0,
                             TitleTextId = 47,
                             Type = 0
                         },
@@ -21752,6 +21880,7 @@ namespace Avalon.Database.World.Migrations
                             RequiredQuestId = 5L,
                             RewardExperience = 500L,
                             RewardGold = 300m,
+                            RewardTalentPoints = 0,
                             TitleTextId = 51,
                             Type = 0
                         },
@@ -21769,6 +21898,7 @@ namespace Avalon.Database.World.Migrations
                             RequiredQuestId = 6L,
                             RewardExperience = 700L,
                             RewardGold = 400m,
+                            RewardTalentPoints = 1,
                             TitleTextId = 55,
                             Type = 0
                         },
@@ -21786,6 +21916,7 @@ namespace Avalon.Database.World.Migrations
                             RequiredQuestId = 7L,
                             RewardExperience = 1500L,
                             RewardGold = 1000m,
+                            RewardTalentPoints = 1,
                             TitleTextId = 59,
                             Type = 0
                         },
@@ -21803,6 +21934,7 @@ namespace Avalon.Database.World.Migrations
                             RequiredQuestId = 6L,
                             RewardExperience = 600L,
                             RewardGold = 350m,
+                            RewardTalentPoints = 0,
                             TitleTextId = 67,
                             Type = 0
                         },
@@ -21820,6 +21952,7 @@ namespace Avalon.Database.World.Migrations
                             RepeatFrequency = 1,
                             RewardExperience = 800L,
                             RewardGold = 500m,
+                            RewardTalentPoints = 0,
                             TitleTextId = 75,
                             Type = 0
                         },
@@ -21837,6 +21970,7 @@ namespace Avalon.Database.World.Migrations
                             RequiredQuestId = 5L,
                             RewardExperience = 550L,
                             RewardGold = 325m,
+                            RewardTalentPoints = 0,
                             TitleTextId = 79,
                             Type = 0
                         });
@@ -21854,6 +21988,6191 @@ namespace Avalon.Database.World.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("SpawnTables");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentClassStart", b =>
+                {
+                    b.Property<byte>("Class")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Class");
+
+                    b.HasIndex("NodeId")
+                        .IsUnique();
+
+                    b.ToTable("TalentClassStarts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TalentClassStarts_Class", "\"Class\" BETWEEN 1 AND 4");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Class = (byte)1,
+                            NodeId = 1
+                        },
+                        new
+                        {
+                            Class = (byte)3,
+                            NodeId = 74
+                        },
+                        new
+                        {
+                            Class = (byte)2,
+                            NodeId = 147
+                        },
+                        new
+                        {
+                            Class = (byte)4,
+                            NodeId = 220
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentEdge", b =>
+                {
+                    b.Property<int>("NodeA")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NodeB")
+                        .HasColumnType("integer");
+
+                    b.HasKey("NodeA", "NodeB");
+
+                    b.HasIndex("NodeB");
+
+                    b.ToTable("TalentEdges", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TalentEdges_Order", "\"NodeA\" < \"NodeB\"");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            NodeA = 1,
+                            NodeB = 2
+                        },
+                        new
+                        {
+                            NodeA = 1,
+                            NodeB = 12
+                        },
+                        new
+                        {
+                            NodeA = 1,
+                            NodeB = 32
+                        },
+                        new
+                        {
+                            NodeA = 1,
+                            NodeB = 42
+                        },
+                        new
+                        {
+                            NodeA = 1,
+                            NodeB = 57
+                        },
+                        new
+                        {
+                            NodeA = 2,
+                            NodeB = 3
+                        },
+                        new
+                        {
+                            NodeA = 3,
+                            NodeB = 4
+                        },
+                        new
+                        {
+                            NodeA = 4,
+                            NodeB = 5
+                        },
+                        new
+                        {
+                            NodeA = 4,
+                            NodeB = 14
+                        },
+                        new
+                        {
+                            NodeA = 5,
+                            NodeB = 6
+                        },
+                        new
+                        {
+                            NodeA = 6,
+                            NodeB = 7
+                        },
+                        new
+                        {
+                            NodeA = 6,
+                            NodeB = 22
+                        },
+                        new
+                        {
+                            NodeA = 7,
+                            NodeB = 8
+                        },
+                        new
+                        {
+                            NodeA = 7,
+                            NodeB = 17
+                        },
+                        new
+                        {
+                            NodeA = 8,
+                            NodeB = 9
+                        },
+                        new
+                        {
+                            NodeA = 9,
+                            NodeB = 10
+                        },
+                        new
+                        {
+                            NodeA = 10,
+                            NodeB = 11
+                        },
+                        new
+                        {
+                            NodeA = 10,
+                            NodeB = 20
+                        },
+                        new
+                        {
+                            NodeA = 11,
+                            NodeB = 293
+                        },
+                        new
+                        {
+                            NodeA = 12,
+                            NodeB = 13
+                        },
+                        new
+                        {
+                            NodeA = 13,
+                            NodeB = 14
+                        },
+                        new
+                        {
+                            NodeA = 14,
+                            NodeB = 15
+                        },
+                        new
+                        {
+                            NodeA = 15,
+                            NodeB = 16
+                        },
+                        new
+                        {
+                            NodeA = 16,
+                            NodeB = 17
+                        },
+                        new
+                        {
+                            NodeA = 17,
+                            NodeB = 18
+                        },
+                        new
+                        {
+                            NodeA = 18,
+                            NodeB = 19
+                        },
+                        new
+                        {
+                            NodeA = 19,
+                            NodeB = 20
+                        },
+                        new
+                        {
+                            NodeA = 20,
+                            NodeB = 21
+                        },
+                        new
+                        {
+                            NodeA = 21,
+                            NodeB = 27
+                        },
+                        new
+                        {
+                            NodeA = 21,
+                            NodeB = 293
+                        },
+                        new
+                        {
+                            NodeA = 22,
+                            NodeB = 23
+                        },
+                        new
+                        {
+                            NodeA = 23,
+                            NodeB = 24
+                        },
+                        new
+                        {
+                            NodeA = 24,
+                            NodeB = 25
+                        },
+                        new
+                        {
+                            NodeA = 25,
+                            NodeB = 26
+                        },
+                        new
+                        {
+                            NodeA = 27,
+                            NodeB = 28
+                        },
+                        new
+                        {
+                            NodeA = 28,
+                            NodeB = 29
+                        },
+                        new
+                        {
+                            NodeA = 29,
+                            NodeB = 30
+                        },
+                        new
+                        {
+                            NodeA = 30,
+                            NodeB = 31
+                        },
+                        new
+                        {
+                            NodeA = 32,
+                            NodeB = 33
+                        },
+                        new
+                        {
+                            NodeA = 33,
+                            NodeB = 34
+                        },
+                        new
+                        {
+                            NodeA = 34,
+                            NodeB = 35
+                        },
+                        new
+                        {
+                            NodeA = 34,
+                            NodeB = 44
+                        },
+                        new
+                        {
+                            NodeA = 35,
+                            NodeB = 36
+                        },
+                        new
+                        {
+                            NodeA = 36,
+                            NodeB = 37
+                        },
+                        new
+                        {
+                            NodeA = 37,
+                            NodeB = 38
+                        },
+                        new
+                        {
+                            NodeA = 37,
+                            NodeB = 47
+                        },
+                        new
+                        {
+                            NodeA = 38,
+                            NodeB = 39
+                        },
+                        new
+                        {
+                            NodeA = 39,
+                            NodeB = 40
+                        },
+                        new
+                        {
+                            NodeA = 40,
+                            NodeB = 41
+                        },
+                        new
+                        {
+                            NodeA = 40,
+                            NodeB = 50
+                        },
+                        new
+                        {
+                            NodeA = 41,
+                            NodeB = 296
+                        },
+                        new
+                        {
+                            NodeA = 42,
+                            NodeB = 43
+                        },
+                        new
+                        {
+                            NodeA = 43,
+                            NodeB = 44
+                        },
+                        new
+                        {
+                            NodeA = 44,
+                            NodeB = 45
+                        },
+                        new
+                        {
+                            NodeA = 45,
+                            NodeB = 46
+                        },
+                        new
+                        {
+                            NodeA = 46,
+                            NodeB = 47
+                        },
+                        new
+                        {
+                            NodeA = 47,
+                            NodeB = 48
+                        },
+                        new
+                        {
+                            NodeA = 48,
+                            NodeB = 49
+                        },
+                        new
+                        {
+                            NodeA = 49,
+                            NodeB = 50
+                        },
+                        new
+                        {
+                            NodeA = 50,
+                            NodeB = 51
+                        },
+                        new
+                        {
+                            NodeA = 51,
+                            NodeB = 52
+                        },
+                        new
+                        {
+                            NodeA = 51,
+                            NodeB = 296
+                        },
+                        new
+                        {
+                            NodeA = 52,
+                            NodeB = 53
+                        },
+                        new
+                        {
+                            NodeA = 53,
+                            NodeB = 54
+                        },
+                        new
+                        {
+                            NodeA = 54,
+                            NodeB = 55
+                        },
+                        new
+                        {
+                            NodeA = 55,
+                            NodeB = 56
+                        },
+                        new
+                        {
+                            NodeA = 57,
+                            NodeB = 58
+                        },
+                        new
+                        {
+                            NodeA = 58,
+                            NodeB = 59
+                        },
+                        new
+                        {
+                            NodeA = 59,
+                            NodeB = 60
+                        },
+                        new
+                        {
+                            NodeA = 59,
+                            NodeB = 63
+                        },
+                        new
+                        {
+                            NodeA = 60,
+                            NodeB = 61
+                        },
+                        new
+                        {
+                            NodeA = 61,
+                            NodeB = 62
+                        },
+                        new
+                        {
+                            NodeA = 61,
+                            NodeB = 69
+                        },
+                        new
+                        {
+                            NodeA = 62,
+                            NodeB = 66
+                        },
+                        new
+                        {
+                            NodeA = 63,
+                            NodeB = 64
+                        },
+                        new
+                        {
+                            NodeA = 64,
+                            NodeB = 65
+                        },
+                        new
+                        {
+                            NodeA = 65,
+                            NodeB = 66
+                        },
+                        new
+                        {
+                            NodeA = 66,
+                            NodeB = 67
+                        },
+                        new
+                        {
+                            NodeA = 67,
+                            NodeB = 68
+                        },
+                        new
+                        {
+                            NodeA = 68,
+                            NodeB = 302
+                        },
+                        new
+                        {
+                            NodeA = 69,
+                            NodeB = 70
+                        },
+                        new
+                        {
+                            NodeA = 70,
+                            NodeB = 71
+                        },
+                        new
+                        {
+                            NodeA = 71,
+                            NodeB = 72
+                        },
+                        new
+                        {
+                            NodeA = 72,
+                            NodeB = 73
+                        },
+                        new
+                        {
+                            NodeA = 74,
+                            NodeB = 75
+                        },
+                        new
+                        {
+                            NodeA = 74,
+                            NodeB = 85
+                        },
+                        new
+                        {
+                            NodeA = 74,
+                            NodeB = 105
+                        },
+                        new
+                        {
+                            NodeA = 74,
+                            NodeB = 115
+                        },
+                        new
+                        {
+                            NodeA = 74,
+                            NodeB = 135
+                        },
+                        new
+                        {
+                            NodeA = 75,
+                            NodeB = 76
+                        },
+                        new
+                        {
+                            NodeA = 76,
+                            NodeB = 77
+                        },
+                        new
+                        {
+                            NodeA = 77,
+                            NodeB = 78
+                        },
+                        new
+                        {
+                            NodeA = 77,
+                            NodeB = 87
+                        },
+                        new
+                        {
+                            NodeA = 78,
+                            NodeB = 79
+                        },
+                        new
+                        {
+                            NodeA = 79,
+                            NodeB = 80
+                        },
+                        new
+                        {
+                            NodeA = 79,
+                            NodeB = 95
+                        },
+                        new
+                        {
+                            NodeA = 80,
+                            NodeB = 81
+                        },
+                        new
+                        {
+                            NodeA = 80,
+                            NodeB = 90
+                        },
+                        new
+                        {
+                            NodeA = 81,
+                            NodeB = 82
+                        },
+                        new
+                        {
+                            NodeA = 82,
+                            NodeB = 83
+                        },
+                        new
+                        {
+                            NodeA = 83,
+                            NodeB = 84
+                        },
+                        new
+                        {
+                            NodeA = 83,
+                            NodeB = 93
+                        },
+                        new
+                        {
+                            NodeA = 84,
+                            NodeB = 293
+                        },
+                        new
+                        {
+                            NodeA = 85,
+                            NodeB = 86
+                        },
+                        new
+                        {
+                            NodeA = 86,
+                            NodeB = 87
+                        },
+                        new
+                        {
+                            NodeA = 87,
+                            NodeB = 88
+                        },
+                        new
+                        {
+                            NodeA = 88,
+                            NodeB = 89
+                        },
+                        new
+                        {
+                            NodeA = 89,
+                            NodeB = 90
+                        },
+                        new
+                        {
+                            NodeA = 90,
+                            NodeB = 91
+                        },
+                        new
+                        {
+                            NodeA = 91,
+                            NodeB = 92
+                        },
+                        new
+                        {
+                            NodeA = 92,
+                            NodeB = 93
+                        },
+                        new
+                        {
+                            NodeA = 93,
+                            NodeB = 94
+                        },
+                        new
+                        {
+                            NodeA = 94,
+                            NodeB = 100
+                        },
+                        new
+                        {
+                            NodeA = 94,
+                            NodeB = 293
+                        },
+                        new
+                        {
+                            NodeA = 95,
+                            NodeB = 96
+                        },
+                        new
+                        {
+                            NodeA = 96,
+                            NodeB = 97
+                        },
+                        new
+                        {
+                            NodeA = 97,
+                            NodeB = 98
+                        },
+                        new
+                        {
+                            NodeA = 98,
+                            NodeB = 99
+                        },
+                        new
+                        {
+                            NodeA = 100,
+                            NodeB = 101
+                        },
+                        new
+                        {
+                            NodeA = 101,
+                            NodeB = 102
+                        },
+                        new
+                        {
+                            NodeA = 102,
+                            NodeB = 103
+                        },
+                        new
+                        {
+                            NodeA = 103,
+                            NodeB = 104
+                        },
+                        new
+                        {
+                            NodeA = 105,
+                            NodeB = 106
+                        },
+                        new
+                        {
+                            NodeA = 106,
+                            NodeB = 107
+                        },
+                        new
+                        {
+                            NodeA = 107,
+                            NodeB = 108
+                        },
+                        new
+                        {
+                            NodeA = 107,
+                            NodeB = 117
+                        },
+                        new
+                        {
+                            NodeA = 108,
+                            NodeB = 109
+                        },
+                        new
+                        {
+                            NodeA = 109,
+                            NodeB = 110
+                        },
+                        new
+                        {
+                            NodeA = 109,
+                            NodeB = 125
+                        },
+                        new
+                        {
+                            NodeA = 110,
+                            NodeB = 111
+                        },
+                        new
+                        {
+                            NodeA = 110,
+                            NodeB = 120
+                        },
+                        new
+                        {
+                            NodeA = 111,
+                            NodeB = 112
+                        },
+                        new
+                        {
+                            NodeA = 112,
+                            NodeB = 113
+                        },
+                        new
+                        {
+                            NodeA = 113,
+                            NodeB = 114
+                        },
+                        new
+                        {
+                            NodeA = 113,
+                            NodeB = 123
+                        },
+                        new
+                        {
+                            NodeA = 114,
+                            NodeB = 294
+                        },
+                        new
+                        {
+                            NodeA = 115,
+                            NodeB = 116
+                        },
+                        new
+                        {
+                            NodeA = 116,
+                            NodeB = 117
+                        },
+                        new
+                        {
+                            NodeA = 117,
+                            NodeB = 118
+                        },
+                        new
+                        {
+                            NodeA = 118,
+                            NodeB = 119
+                        },
+                        new
+                        {
+                            NodeA = 119,
+                            NodeB = 120
+                        },
+                        new
+                        {
+                            NodeA = 120,
+                            NodeB = 121
+                        },
+                        new
+                        {
+                            NodeA = 121,
+                            NodeB = 122
+                        },
+                        new
+                        {
+                            NodeA = 122,
+                            NodeB = 123
+                        },
+                        new
+                        {
+                            NodeA = 123,
+                            NodeB = 124
+                        },
+                        new
+                        {
+                            NodeA = 124,
+                            NodeB = 130
+                        },
+                        new
+                        {
+                            NodeA = 124,
+                            NodeB = 294
+                        },
+                        new
+                        {
+                            NodeA = 125,
+                            NodeB = 126
+                        },
+                        new
+                        {
+                            NodeA = 126,
+                            NodeB = 127
+                        },
+                        new
+                        {
+                            NodeA = 127,
+                            NodeB = 128
+                        },
+                        new
+                        {
+                            NodeA = 128,
+                            NodeB = 129
+                        },
+                        new
+                        {
+                            NodeA = 130,
+                            NodeB = 131
+                        },
+                        new
+                        {
+                            NodeA = 131,
+                            NodeB = 132
+                        },
+                        new
+                        {
+                            NodeA = 132,
+                            NodeB = 133
+                        },
+                        new
+                        {
+                            NodeA = 133,
+                            NodeB = 134
+                        },
+                        new
+                        {
+                            NodeA = 135,
+                            NodeB = 136
+                        },
+                        new
+                        {
+                            NodeA = 136,
+                            NodeB = 137
+                        },
+                        new
+                        {
+                            NodeA = 137,
+                            NodeB = 138
+                        },
+                        new
+                        {
+                            NodeA = 137,
+                            NodeB = 141
+                        },
+                        new
+                        {
+                            NodeA = 138,
+                            NodeB = 139
+                        },
+                        new
+                        {
+                            NodeA = 139,
+                            NodeB = 140
+                        },
+                        new
+                        {
+                            NodeA = 140,
+                            NodeB = 144
+                        },
+                        new
+                        {
+                            NodeA = 141,
+                            NodeB = 142
+                        },
+                        new
+                        {
+                            NodeA = 142,
+                            NodeB = 143
+                        },
+                        new
+                        {
+                            NodeA = 143,
+                            NodeB = 144
+                        },
+                        new
+                        {
+                            NodeA = 144,
+                            NodeB = 145
+                        },
+                        new
+                        {
+                            NodeA = 145,
+                            NodeB = 146
+                        },
+                        new
+                        {
+                            NodeA = 146,
+                            NodeB = 303
+                        },
+                        new
+                        {
+                            NodeA = 147,
+                            NodeB = 148
+                        },
+                        new
+                        {
+                            NodeA = 147,
+                            NodeB = 158
+                        },
+                        new
+                        {
+                            NodeA = 147,
+                            NodeB = 178
+                        },
+                        new
+                        {
+                            NodeA = 147,
+                            NodeB = 188
+                        },
+                        new
+                        {
+                            NodeA = 147,
+                            NodeB = 208
+                        },
+                        new
+                        {
+                            NodeA = 148,
+                            NodeB = 149
+                        },
+                        new
+                        {
+                            NodeA = 149,
+                            NodeB = 150
+                        },
+                        new
+                        {
+                            NodeA = 150,
+                            NodeB = 151
+                        },
+                        new
+                        {
+                            NodeA = 150,
+                            NodeB = 160
+                        },
+                        new
+                        {
+                            NodeA = 151,
+                            NodeB = 152
+                        },
+                        new
+                        {
+                            NodeA = 152,
+                            NodeB = 153
+                        },
+                        new
+                        {
+                            NodeA = 152,
+                            NodeB = 168
+                        },
+                        new
+                        {
+                            NodeA = 153,
+                            NodeB = 154
+                        },
+                        new
+                        {
+                            NodeA = 153,
+                            NodeB = 163
+                        },
+                        new
+                        {
+                            NodeA = 154,
+                            NodeB = 155
+                        },
+                        new
+                        {
+                            NodeA = 155,
+                            NodeB = 156
+                        },
+                        new
+                        {
+                            NodeA = 156,
+                            NodeB = 157
+                        },
+                        new
+                        {
+                            NodeA = 156,
+                            NodeB = 166
+                        },
+                        new
+                        {
+                            NodeA = 157,
+                            NodeB = 294
+                        },
+                        new
+                        {
+                            NodeA = 158,
+                            NodeB = 159
+                        },
+                        new
+                        {
+                            NodeA = 159,
+                            NodeB = 160
+                        },
+                        new
+                        {
+                            NodeA = 160,
+                            NodeB = 161
+                        },
+                        new
+                        {
+                            NodeA = 161,
+                            NodeB = 162
+                        },
+                        new
+                        {
+                            NodeA = 162,
+                            NodeB = 163
+                        },
+                        new
+                        {
+                            NodeA = 163,
+                            NodeB = 164
+                        },
+                        new
+                        {
+                            NodeA = 164,
+                            NodeB = 165
+                        },
+                        new
+                        {
+                            NodeA = 165,
+                            NodeB = 166
+                        },
+                        new
+                        {
+                            NodeA = 166,
+                            NodeB = 167
+                        },
+                        new
+                        {
+                            NodeA = 167,
+                            NodeB = 173
+                        },
+                        new
+                        {
+                            NodeA = 167,
+                            NodeB = 294
+                        },
+                        new
+                        {
+                            NodeA = 168,
+                            NodeB = 169
+                        },
+                        new
+                        {
+                            NodeA = 169,
+                            NodeB = 170
+                        },
+                        new
+                        {
+                            NodeA = 170,
+                            NodeB = 171
+                        },
+                        new
+                        {
+                            NodeA = 171,
+                            NodeB = 172
+                        },
+                        new
+                        {
+                            NodeA = 173,
+                            NodeB = 174
+                        },
+                        new
+                        {
+                            NodeA = 174,
+                            NodeB = 175
+                        },
+                        new
+                        {
+                            NodeA = 175,
+                            NodeB = 176
+                        },
+                        new
+                        {
+                            NodeA = 176,
+                            NodeB = 177
+                        },
+                        new
+                        {
+                            NodeA = 178,
+                            NodeB = 179
+                        },
+                        new
+                        {
+                            NodeA = 179,
+                            NodeB = 180
+                        },
+                        new
+                        {
+                            NodeA = 180,
+                            NodeB = 181
+                        },
+                        new
+                        {
+                            NodeA = 180,
+                            NodeB = 190
+                        },
+                        new
+                        {
+                            NodeA = 181,
+                            NodeB = 182
+                        },
+                        new
+                        {
+                            NodeA = 182,
+                            NodeB = 183
+                        },
+                        new
+                        {
+                            NodeA = 182,
+                            NodeB = 198
+                        },
+                        new
+                        {
+                            NodeA = 183,
+                            NodeB = 184
+                        },
+                        new
+                        {
+                            NodeA = 183,
+                            NodeB = 193
+                        },
+                        new
+                        {
+                            NodeA = 184,
+                            NodeB = 185
+                        },
+                        new
+                        {
+                            NodeA = 185,
+                            NodeB = 186
+                        },
+                        new
+                        {
+                            NodeA = 186,
+                            NodeB = 187
+                        },
+                        new
+                        {
+                            NodeA = 186,
+                            NodeB = 196
+                        },
+                        new
+                        {
+                            NodeA = 187,
+                            NodeB = 295
+                        },
+                        new
+                        {
+                            NodeA = 188,
+                            NodeB = 189
+                        },
+                        new
+                        {
+                            NodeA = 189,
+                            NodeB = 190
+                        },
+                        new
+                        {
+                            NodeA = 190,
+                            NodeB = 191
+                        },
+                        new
+                        {
+                            NodeA = 191,
+                            NodeB = 192
+                        },
+                        new
+                        {
+                            NodeA = 192,
+                            NodeB = 193
+                        },
+                        new
+                        {
+                            NodeA = 193,
+                            NodeB = 194
+                        },
+                        new
+                        {
+                            NodeA = 194,
+                            NodeB = 195
+                        },
+                        new
+                        {
+                            NodeA = 195,
+                            NodeB = 196
+                        },
+                        new
+                        {
+                            NodeA = 196,
+                            NodeB = 197
+                        },
+                        new
+                        {
+                            NodeA = 197,
+                            NodeB = 203
+                        },
+                        new
+                        {
+                            NodeA = 197,
+                            NodeB = 295
+                        },
+                        new
+                        {
+                            NodeA = 198,
+                            NodeB = 199
+                        },
+                        new
+                        {
+                            NodeA = 199,
+                            NodeB = 200
+                        },
+                        new
+                        {
+                            NodeA = 200,
+                            NodeB = 201
+                        },
+                        new
+                        {
+                            NodeA = 201,
+                            NodeB = 202
+                        },
+                        new
+                        {
+                            NodeA = 203,
+                            NodeB = 204
+                        },
+                        new
+                        {
+                            NodeA = 204,
+                            NodeB = 205
+                        },
+                        new
+                        {
+                            NodeA = 205,
+                            NodeB = 206
+                        },
+                        new
+                        {
+                            NodeA = 206,
+                            NodeB = 207
+                        },
+                        new
+                        {
+                            NodeA = 208,
+                            NodeB = 209
+                        },
+                        new
+                        {
+                            NodeA = 209,
+                            NodeB = 210
+                        },
+                        new
+                        {
+                            NodeA = 210,
+                            NodeB = 211
+                        },
+                        new
+                        {
+                            NodeA = 210,
+                            NodeB = 214
+                        },
+                        new
+                        {
+                            NodeA = 211,
+                            NodeB = 212
+                        },
+                        new
+                        {
+                            NodeA = 212,
+                            NodeB = 213
+                        },
+                        new
+                        {
+                            NodeA = 213,
+                            NodeB = 217
+                        },
+                        new
+                        {
+                            NodeA = 214,
+                            NodeB = 215
+                        },
+                        new
+                        {
+                            NodeA = 215,
+                            NodeB = 216
+                        },
+                        new
+                        {
+                            NodeA = 216,
+                            NodeB = 217
+                        },
+                        new
+                        {
+                            NodeA = 217,
+                            NodeB = 218
+                        },
+                        new
+                        {
+                            NodeA = 218,
+                            NodeB = 219
+                        },
+                        new
+                        {
+                            NodeA = 219,
+                            NodeB = 304
+                        },
+                        new
+                        {
+                            NodeA = 220,
+                            NodeB = 221
+                        },
+                        new
+                        {
+                            NodeA = 220,
+                            NodeB = 231
+                        },
+                        new
+                        {
+                            NodeA = 220,
+                            NodeB = 246
+                        },
+                        new
+                        {
+                            NodeA = 220,
+                            NodeB = 256
+                        },
+                        new
+                        {
+                            NodeA = 220,
+                            NodeB = 276
+                        },
+                        new
+                        {
+                            NodeA = 221,
+                            NodeB = 222
+                        },
+                        new
+                        {
+                            NodeA = 222,
+                            NodeB = 223
+                        },
+                        new
+                        {
+                            NodeA = 223,
+                            NodeB = 224
+                        },
+                        new
+                        {
+                            NodeA = 223,
+                            NodeB = 233
+                        },
+                        new
+                        {
+                            NodeA = 224,
+                            NodeB = 225
+                        },
+                        new
+                        {
+                            NodeA = 225,
+                            NodeB = 226
+                        },
+                        new
+                        {
+                            NodeA = 225,
+                            NodeB = 241
+                        },
+                        new
+                        {
+                            NodeA = 226,
+                            NodeB = 227
+                        },
+                        new
+                        {
+                            NodeA = 226,
+                            NodeB = 236
+                        },
+                        new
+                        {
+                            NodeA = 227,
+                            NodeB = 228
+                        },
+                        new
+                        {
+                            NodeA = 228,
+                            NodeB = 229
+                        },
+                        new
+                        {
+                            NodeA = 229,
+                            NodeB = 230
+                        },
+                        new
+                        {
+                            NodeA = 229,
+                            NodeB = 239
+                        },
+                        new
+                        {
+                            NodeA = 230,
+                            NodeB = 295
+                        },
+                        new
+                        {
+                            NodeA = 231,
+                            NodeB = 232
+                        },
+                        new
+                        {
+                            NodeA = 232,
+                            NodeB = 233
+                        },
+                        new
+                        {
+                            NodeA = 233,
+                            NodeB = 234
+                        },
+                        new
+                        {
+                            NodeA = 234,
+                            NodeB = 235
+                        },
+                        new
+                        {
+                            NodeA = 235,
+                            NodeB = 236
+                        },
+                        new
+                        {
+                            NodeA = 236,
+                            NodeB = 237
+                        },
+                        new
+                        {
+                            NodeA = 237,
+                            NodeB = 238
+                        },
+                        new
+                        {
+                            NodeA = 238,
+                            NodeB = 239
+                        },
+                        new
+                        {
+                            NodeA = 239,
+                            NodeB = 240
+                        },
+                        new
+                        {
+                            NodeA = 240,
+                            NodeB = 295
+                        },
+                        new
+                        {
+                            NodeA = 241,
+                            NodeB = 242
+                        },
+                        new
+                        {
+                            NodeA = 242,
+                            NodeB = 243
+                        },
+                        new
+                        {
+                            NodeA = 243,
+                            NodeB = 244
+                        },
+                        new
+                        {
+                            NodeA = 244,
+                            NodeB = 245
+                        },
+                        new
+                        {
+                            NodeA = 246,
+                            NodeB = 247
+                        },
+                        new
+                        {
+                            NodeA = 247,
+                            NodeB = 248
+                        },
+                        new
+                        {
+                            NodeA = 248,
+                            NodeB = 249
+                        },
+                        new
+                        {
+                            NodeA = 248,
+                            NodeB = 258
+                        },
+                        new
+                        {
+                            NodeA = 249,
+                            NodeB = 250
+                        },
+                        new
+                        {
+                            NodeA = 250,
+                            NodeB = 251
+                        },
+                        new
+                        {
+                            NodeA = 250,
+                            NodeB = 266
+                        },
+                        new
+                        {
+                            NodeA = 251,
+                            NodeB = 252
+                        },
+                        new
+                        {
+                            NodeA = 251,
+                            NodeB = 261
+                        },
+                        new
+                        {
+                            NodeA = 252,
+                            NodeB = 253
+                        },
+                        new
+                        {
+                            NodeA = 253,
+                            NodeB = 254
+                        },
+                        new
+                        {
+                            NodeA = 254,
+                            NodeB = 255
+                        },
+                        new
+                        {
+                            NodeA = 254,
+                            NodeB = 264
+                        },
+                        new
+                        {
+                            NodeA = 255,
+                            NodeB = 296
+                        },
+                        new
+                        {
+                            NodeA = 256,
+                            NodeB = 257
+                        },
+                        new
+                        {
+                            NodeA = 257,
+                            NodeB = 258
+                        },
+                        new
+                        {
+                            NodeA = 258,
+                            NodeB = 259
+                        },
+                        new
+                        {
+                            NodeA = 259,
+                            NodeB = 260
+                        },
+                        new
+                        {
+                            NodeA = 260,
+                            NodeB = 261
+                        },
+                        new
+                        {
+                            NodeA = 261,
+                            NodeB = 262
+                        },
+                        new
+                        {
+                            NodeA = 262,
+                            NodeB = 263
+                        },
+                        new
+                        {
+                            NodeA = 263,
+                            NodeB = 264
+                        },
+                        new
+                        {
+                            NodeA = 264,
+                            NodeB = 265
+                        },
+                        new
+                        {
+                            NodeA = 265,
+                            NodeB = 271
+                        },
+                        new
+                        {
+                            NodeA = 265,
+                            NodeB = 296
+                        },
+                        new
+                        {
+                            NodeA = 266,
+                            NodeB = 267
+                        },
+                        new
+                        {
+                            NodeA = 267,
+                            NodeB = 268
+                        },
+                        new
+                        {
+                            NodeA = 268,
+                            NodeB = 269
+                        },
+                        new
+                        {
+                            NodeA = 269,
+                            NodeB = 270
+                        },
+                        new
+                        {
+                            NodeA = 271,
+                            NodeB = 272
+                        },
+                        new
+                        {
+                            NodeA = 272,
+                            NodeB = 273
+                        },
+                        new
+                        {
+                            NodeA = 273,
+                            NodeB = 274
+                        },
+                        new
+                        {
+                            NodeA = 274,
+                            NodeB = 275
+                        },
+                        new
+                        {
+                            NodeA = 276,
+                            NodeB = 277
+                        },
+                        new
+                        {
+                            NodeA = 277,
+                            NodeB = 278
+                        },
+                        new
+                        {
+                            NodeA = 278,
+                            NodeB = 279
+                        },
+                        new
+                        {
+                            NodeA = 278,
+                            NodeB = 282
+                        },
+                        new
+                        {
+                            NodeA = 279,
+                            NodeB = 280
+                        },
+                        new
+                        {
+                            NodeA = 280,
+                            NodeB = 281
+                        },
+                        new
+                        {
+                            NodeA = 280,
+                            NodeB = 288
+                        },
+                        new
+                        {
+                            NodeA = 281,
+                            NodeB = 285
+                        },
+                        new
+                        {
+                            NodeA = 282,
+                            NodeB = 283
+                        },
+                        new
+                        {
+                            NodeA = 283,
+                            NodeB = 284
+                        },
+                        new
+                        {
+                            NodeA = 284,
+                            NodeB = 285
+                        },
+                        new
+                        {
+                            NodeA = 285,
+                            NodeB = 286
+                        },
+                        new
+                        {
+                            NodeA = 286,
+                            NodeB = 287
+                        },
+                        new
+                        {
+                            NodeA = 287,
+                            NodeB = 305
+                        },
+                        new
+                        {
+                            NodeA = 288,
+                            NodeB = 289
+                        },
+                        new
+                        {
+                            NodeA = 289,
+                            NodeB = 290
+                        },
+                        new
+                        {
+                            NodeA = 290,
+                            NodeB = 291
+                        },
+                        new
+                        {
+                            NodeA = 291,
+                            NodeB = 292
+                        },
+                        new
+                        {
+                            NodeA = 294,
+                            NodeB = 297
+                        },
+                        new
+                        {
+                            NodeA = 297,
+                            NodeB = 298
+                        },
+                        new
+                        {
+                            NodeA = 298,
+                            NodeB = 299
+                        },
+                        new
+                        {
+                            NodeA = 299,
+                            NodeB = 300
+                        },
+                        new
+                        {
+                            NodeA = 300,
+                            NodeB = 301
+                        },
+                        new
+                        {
+                            NodeA = 302,
+                            NodeB = 303
+                        },
+                        new
+                        {
+                            NodeA = 302,
+                            NodeB = 305
+                        },
+                        new
+                        {
+                            NodeA = 303,
+                            NodeB = 304
+                        },
+                        new
+                        {
+                            NodeA = 304,
+                            NodeB = 305
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentForkGroup", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TalentForkGroups", (string)null);
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentNode", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("Angle")
+                        .HasColumnType("real");
+
+                    b.Property<int?>("ForkGroupId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<float>("Radius")
+                        .HasColumnType("real");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ForkGroupId");
+
+                    b.ToTable("TalentNodes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TalentNodes_Angle", "\"Angle\" > -180 AND \"Angle\" <= 180");
+
+                            t.HasCheckConstraint("CK_TalentNodes_ForkGroup", "\"ForkGroupId\" IS NULL OR \"Kind\" = 5");
+
+                            t.HasCheckConstraint("CK_TalentNodes_Kind", "\"Kind\" BETWEEN 1 AND 7");
+
+                            t.HasCheckConstraint("CK_TalentNodes_Name", "\"Name\" IS NOT NULL OR \"Kind\" NOT IN (3, 4, 5, 6)");
+
+                            t.HasCheckConstraint("CK_TalentNodes_Radius", "\"Radius\" >= 0 AND \"Radius\" < 'Infinity'");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Angle = -90f,
+                            Kind = (byte)1,
+                            Name = "Warrior start",
+                            Radius = 600f
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Angle = -86f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Angle = -82f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Angle = -78f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Angle = -74f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Angle = -70f,
+                            Kind = (byte)4,
+                            Name = "Cleave",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Angle = -66f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Angle = -62f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Angle = -58f,
+                            Kind = (byte)3,
+                            Name = "Cleaving Force",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Angle = -54f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Angle = -50f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Angle = -86f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Angle = -82f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Angle = -78f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Angle = -74f,
+                            Kind = (byte)3,
+                            Name = "Bloodletter",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Angle = -70f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Angle = -66f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Angle = -62f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Angle = -58f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Angle = -54f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Angle = -50f,
+                            Kind = (byte)4,
+                            Name = "Rend",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Angle = -70f,
+                            Kind = (byte)2,
+                            Radius = 680f
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Angle = -70f,
+                            Kind = (byte)2,
+                            Radius = 720f
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Angle = -70f,
+                            Kind = (byte)2,
+                            Radius = 760f
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Angle = -70f,
+                            Kind = (byte)2,
+                            Radius = 800f
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Angle = -70f,
+                            Kind = (byte)2,
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Angle = -50f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Angle = -50f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Angle = -50f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Angle = -50f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Angle = -50f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Angle = -94f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Angle = -98f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Angle = -102f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Angle = -106f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Angle = -110f,
+                            Kind = (byte)4,
+                            Name = "Shield Bash",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Angle = -114f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Angle = -118f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 39,
+                            Angle = -122f,
+                            Kind = (byte)3,
+                            Name = "Bulwark",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 40,
+                            Angle = -126f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 41,
+                            Angle = -130f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 42,
+                            Angle = -94f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 43,
+                            Angle = -98f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 44,
+                            Angle = -102f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 45,
+                            Angle = -106f,
+                            Kind = (byte)3,
+                            Name = "Iron Skin",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 46,
+                            Angle = -110f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 47,
+                            Angle = -114f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 48,
+                            Angle = -118f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 49,
+                            Angle = -122f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 50,
+                            Angle = -126f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 51,
+                            Angle = -130f,
+                            Kind = (byte)4,
+                            Name = "Ground Slam",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 52,
+                            Angle = -130f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 53,
+                            Angle = -130f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 54,
+                            Angle = -130f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 55,
+                            Angle = -130f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 56,
+                            Angle = -130f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 57,
+                            Angle = -90f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 58,
+                            Angle = -90f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 59,
+                            Angle = -90f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 60,
+                            Angle = -94f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 61,
+                            Angle = -94f,
+                            Kind = (byte)4,
+                            Name = "Hurled Axe",
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 62,
+                            Angle = -94f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 63,
+                            Angle = -86f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 64,
+                            Angle = -86f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 65,
+                            Angle = -86f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 66,
+                            Angle = -90f,
+                            Kind = (byte)2,
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 67,
+                            Angle = -90f,
+                            Kind = (byte)2,
+                            Radius = 280f
+                        },
+                        new
+                        {
+                            Id = 68,
+                            Angle = -90f,
+                            Kind = (byte)3,
+                            Name = "Brawn",
+                            Radius = 240f
+                        },
+                        new
+                        {
+                            Id = 69,
+                            Angle = -98f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 70,
+                            Angle = -102f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 71,
+                            Angle = -106f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 72,
+                            Angle = -110f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 73,
+                            Angle = -114f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 74,
+                            Angle = 0f,
+                            Kind = (byte)1,
+                            Name = "Hunter start",
+                            Radius = 600f
+                        },
+                        new
+                        {
+                            Id = 75,
+                            Angle = -4f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 76,
+                            Angle = -8f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 77,
+                            Angle = -12f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 78,
+                            Angle = -16f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 79,
+                            Angle = -20f,
+                            Kind = (byte)4,
+                            Name = "Scatter Shot",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 80,
+                            Angle = -24f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 81,
+                            Angle = -28f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 82,
+                            Angle = -32f,
+                            Kind = (byte)3,
+                            Name = "Eagle Eye",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 83,
+                            Angle = -36f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 84,
+                            Angle = -40f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 85,
+                            Angle = -4f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 86,
+                            Angle = -8f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 87,
+                            Angle = -12f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 88,
+                            Angle = -16f,
+                            Kind = (byte)3,
+                            Name = "Fleetfoot",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 89,
+                            Angle = -20f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 90,
+                            Angle = -24f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 91,
+                            Angle = -28f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 92,
+                            Angle = -32f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 93,
+                            Angle = -36f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 94,
+                            Angle = -40f,
+                            Kind = (byte)4,
+                            Name = "Piercing Arrow",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 95,
+                            Angle = -20f,
+                            Kind = (byte)2,
+                            Radius = 680f
+                        },
+                        new
+                        {
+                            Id = 96,
+                            Angle = -20f,
+                            Kind = (byte)2,
+                            Radius = 720f
+                        },
+                        new
+                        {
+                            Id = 97,
+                            Angle = -20f,
+                            Kind = (byte)2,
+                            Radius = 760f
+                        },
+                        new
+                        {
+                            Id = 98,
+                            Angle = -20f,
+                            Kind = (byte)2,
+                            Radius = 800f
+                        },
+                        new
+                        {
+                            Id = 99,
+                            Angle = -20f,
+                            Kind = (byte)2,
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 100,
+                            Angle = -40f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 101,
+                            Angle = -40f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 102,
+                            Angle = -40f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 103,
+                            Angle = -40f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 104,
+                            Angle = -40f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 105,
+                            Angle = 4f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 106,
+                            Angle = 8f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 107,
+                            Angle = 12f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 108,
+                            Angle = 16f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 109,
+                            Angle = 20f,
+                            Kind = (byte)4,
+                            Name = "Crippling Shot",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 110,
+                            Angle = 24f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 111,
+                            Angle = 28f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 112,
+                            Angle = 32f,
+                            Kind = (byte)3,
+                            Name = "Frostfletched",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 113,
+                            Angle = 36f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 114,
+                            Angle = 40f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 115,
+                            Angle = 4f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 116,
+                            Angle = 8f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 117,
+                            Angle = 12f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 118,
+                            Angle = 16f,
+                            Kind = (byte)3,
+                            Name = "Venom Tips",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 119,
+                            Angle = 20f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 120,
+                            Angle = 24f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 121,
+                            Angle = 28f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 122,
+                            Angle = 32f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 123,
+                            Angle = 36f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 124,
+                            Angle = 40f,
+                            Kind = (byte)4,
+                            Name = "Binding Shot",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 125,
+                            Angle = 20f,
+                            Kind = (byte)2,
+                            Radius = 680f
+                        },
+                        new
+                        {
+                            Id = 126,
+                            Angle = 20f,
+                            Kind = (byte)2,
+                            Radius = 720f
+                        },
+                        new
+                        {
+                            Id = 127,
+                            Angle = 20f,
+                            Kind = (byte)2,
+                            Radius = 760f
+                        },
+                        new
+                        {
+                            Id = 128,
+                            Angle = 20f,
+                            Kind = (byte)2,
+                            Radius = 800f
+                        },
+                        new
+                        {
+                            Id = 129,
+                            Angle = 20f,
+                            Kind = (byte)2,
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 130,
+                            Angle = 40f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 131,
+                            Angle = 40f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 132,
+                            Angle = 40f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 133,
+                            Angle = 40f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 134,
+                            Angle = 40f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 135,
+                            Angle = 0f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 136,
+                            Angle = 0f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 137,
+                            Angle = 0f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 138,
+                            Angle = -4f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 139,
+                            Angle = -4f,
+                            Kind = (byte)3,
+                            Name = "Marksman",
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 140,
+                            Angle = -4f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 141,
+                            Angle = 4f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 142,
+                            Angle = 4f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 143,
+                            Angle = 4f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 144,
+                            Angle = 0f,
+                            Kind = (byte)2,
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 145,
+                            Angle = 0f,
+                            Kind = (byte)2,
+                            Radius = 280f
+                        },
+                        new
+                        {
+                            Id = 146,
+                            Angle = 0f,
+                            Kind = (byte)3,
+                            Name = "Nimble",
+                            Radius = 240f
+                        },
+                        new
+                        {
+                            Id = 147,
+                            Angle = 90f,
+                            Kind = (byte)1,
+                            Name = "Wizard start",
+                            Radius = 600f
+                        },
+                        new
+                        {
+                            Id = 148,
+                            Angle = 86f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 149,
+                            Angle = 82f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 150,
+                            Angle = 78f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 151,
+                            Angle = 74f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 152,
+                            Angle = 70f,
+                            Kind = (byte)4,
+                            Name = "Frost Fan",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 153,
+                            Angle = 66f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 154,
+                            Angle = 62f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 155,
+                            Angle = 58f,
+                            Kind = (byte)3,
+                            Name = "Bitter Cold",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 156,
+                            Angle = 54f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 157,
+                            Angle = 50f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 158,
+                            Angle = 86f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 159,
+                            Angle = 82f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 160,
+                            Angle = 78f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 161,
+                            Angle = 74f,
+                            Kind = (byte)3,
+                            Name = "Deep Reserves",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 162,
+                            Angle = 70f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 163,
+                            Angle = 66f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 164,
+                            Angle = 62f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 165,
+                            Angle = 58f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 166,
+                            Angle = 54f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 167,
+                            Angle = 50f,
+                            Kind = (byte)4,
+                            Name = "Frost Bind",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 168,
+                            Angle = 70f,
+                            Kind = (byte)2,
+                            Radius = 680f
+                        },
+                        new
+                        {
+                            Id = 169,
+                            Angle = 70f,
+                            Kind = (byte)2,
+                            Radius = 720f
+                        },
+                        new
+                        {
+                            Id = 170,
+                            Angle = 70f,
+                            Kind = (byte)2,
+                            Radius = 760f
+                        },
+                        new
+                        {
+                            Id = 171,
+                            Angle = 70f,
+                            Kind = (byte)2,
+                            Radius = 800f
+                        },
+                        new
+                        {
+                            Id = 172,
+                            Angle = 70f,
+                            Kind = (byte)2,
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 173,
+                            Angle = 50f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 174,
+                            Angle = 50f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 175,
+                            Angle = 50f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 176,
+                            Angle = 50f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 177,
+                            Angle = 50f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 178,
+                            Angle = 94f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 179,
+                            Angle = 98f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 180,
+                            Angle = 102f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 181,
+                            Angle = 106f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 182,
+                            Angle = 110f,
+                            Kind = (byte)4,
+                            Name = "Flame Burst",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 183,
+                            Angle = 114f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 184,
+                            Angle = 118f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 185,
+                            Angle = 122f,
+                            Kind = (byte)3,
+                            Name = "Kindling",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 186,
+                            Angle = 126f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 187,
+                            Angle = 130f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 188,
+                            Angle = 94f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 189,
+                            Angle = 98f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 190,
+                            Angle = 102f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 191,
+                            Angle = 106f,
+                            Kind = (byte)3,
+                            Name = "Arcane Flow",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 192,
+                            Angle = 110f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 193,
+                            Angle = 114f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 194,
+                            Angle = 118f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 195,
+                            Angle = 122f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 196,
+                            Angle = 126f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 197,
+                            Angle = 130f,
+                            Kind = (byte)4,
+                            Name = "Ignite",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 198,
+                            Angle = 110f,
+                            Kind = (byte)2,
+                            Radius = 680f
+                        },
+                        new
+                        {
+                            Id = 199,
+                            Angle = 110f,
+                            Kind = (byte)2,
+                            Radius = 720f
+                        },
+                        new
+                        {
+                            Id = 200,
+                            Angle = 110f,
+                            Kind = (byte)2,
+                            Radius = 760f
+                        },
+                        new
+                        {
+                            Id = 201,
+                            Angle = 110f,
+                            Kind = (byte)2,
+                            Radius = 800f
+                        },
+                        new
+                        {
+                            Id = 202,
+                            Angle = 110f,
+                            Kind = (byte)2,
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 203,
+                            Angle = 130f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 204,
+                            Angle = 130f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 205,
+                            Angle = 130f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 206,
+                            Angle = 130f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 207,
+                            Angle = 130f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 208,
+                            Angle = 90f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 209,
+                            Angle = 90f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 210,
+                            Angle = 90f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 211,
+                            Angle = 86f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 212,
+                            Angle = 86f,
+                            Kind = (byte)3,
+                            Name = "Quickened Casting",
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 213,
+                            Angle = 86f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 214,
+                            Angle = 94f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 215,
+                            Angle = 94f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 216,
+                            Angle = 94f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 217,
+                            Angle = 90f,
+                            Kind = (byte)2,
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 218,
+                            Angle = 90f,
+                            Kind = (byte)2,
+                            Radius = 280f
+                        },
+                        new
+                        {
+                            Id = 219,
+                            Angle = 90f,
+                            Kind = (byte)3,
+                            Name = "Studious",
+                            Radius = 240f
+                        },
+                        new
+                        {
+                            Id = 220,
+                            Angle = 180f,
+                            Kind = (byte)1,
+                            Name = "Cleric start",
+                            Radius = 600f
+                        },
+                        new
+                        {
+                            Id = 221,
+                            Angle = 176f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 222,
+                            Angle = 172f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 223,
+                            Angle = 168f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 224,
+                            Angle = 164f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 225,
+                            Angle = 160f,
+                            Kind = (byte)4,
+                            Name = "Radiant Pulse",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 226,
+                            Angle = 156f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 227,
+                            Angle = 152f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 228,
+                            Angle = 148f,
+                            Kind = (byte)3,
+                            Name = "Storm Hymn",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 229,
+                            Angle = 144f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 230,
+                            Angle = 140f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 231,
+                            Angle = 176f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 232,
+                            Angle = 172f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 233,
+                            Angle = 168f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 234,
+                            Angle = 164f,
+                            Kind = (byte)3,
+                            Name = "Zeal",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 235,
+                            Angle = 160f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 236,
+                            Angle = 156f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 237,
+                            Angle = 152f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 238,
+                            Angle = 148f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 239,
+                            Angle = 144f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 240,
+                            Angle = 140f,
+                            Kind = (byte)4,
+                            Name = "Hush",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 241,
+                            Angle = 160f,
+                            Kind = (byte)2,
+                            Radius = 680f
+                        },
+                        new
+                        {
+                            Id = 242,
+                            Angle = 160f,
+                            Kind = (byte)2,
+                            Radius = 720f
+                        },
+                        new
+                        {
+                            Id = 243,
+                            Angle = 160f,
+                            Kind = (byte)2,
+                            Radius = 760f
+                        },
+                        new
+                        {
+                            Id = 244,
+                            Angle = 160f,
+                            Kind = (byte)2,
+                            Radius = 800f
+                        },
+                        new
+                        {
+                            Id = 245,
+                            Angle = 160f,
+                            Kind = (byte)2,
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 246,
+                            Angle = -176f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 247,
+                            Angle = -172f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 248,
+                            Angle = -168f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 249,
+                            Angle = -164f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 250,
+                            Angle = -160f,
+                            Kind = (byte)4,
+                            Name = "Mending Circle",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 251,
+                            Angle = -156f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 252,
+                            Angle = -152f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 253,
+                            Angle = -148f,
+                            Kind = (byte)3,
+                            Name = "Ward of Faith",
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 254,
+                            Angle = -144f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 255,
+                            Angle = -140f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 256,
+                            Angle = -176f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 257,
+                            Angle = -172f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 258,
+                            Angle = -168f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 259,
+                            Angle = -164f,
+                            Kind = (byte)3,
+                            Name = "Devotion",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 260,
+                            Angle = -160f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 261,
+                            Angle = -156f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 262,
+                            Angle = -152f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 263,
+                            Angle = -148f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 264,
+                            Angle = -144f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 265,
+                            Angle = -140f,
+                            Kind = (byte)4,
+                            Name = "Renew",
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 266,
+                            Angle = -160f,
+                            Kind = (byte)2,
+                            Radius = 680f
+                        },
+                        new
+                        {
+                            Id = 267,
+                            Angle = -160f,
+                            Kind = (byte)2,
+                            Radius = 720f
+                        },
+                        new
+                        {
+                            Id = 268,
+                            Angle = -160f,
+                            Kind = (byte)2,
+                            Radius = 760f
+                        },
+                        new
+                        {
+                            Id = 269,
+                            Angle = -160f,
+                            Kind = (byte)2,
+                            Radius = 800f
+                        },
+                        new
+                        {
+                            Id = 270,
+                            Angle = -160f,
+                            Kind = (byte)2,
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 271,
+                            Angle = -140f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 272,
+                            Angle = -140f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 273,
+                            Angle = -140f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 274,
+                            Angle = -140f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 275,
+                            Angle = -140f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 276,
+                            Angle = 180f,
+                            Kind = (byte)2,
+                            Radius = 560f
+                        },
+                        new
+                        {
+                            Id = 277,
+                            Angle = 180f,
+                            Kind = (byte)2,
+                            Radius = 520f
+                        },
+                        new
+                        {
+                            Id = 278,
+                            Angle = 180f,
+                            Kind = (byte)2,
+                            Radius = 480f
+                        },
+                        new
+                        {
+                            Id = 279,
+                            Angle = 176f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 280,
+                            Angle = 176f,
+                            Kind = (byte)4,
+                            Name = "Fortify",
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 281,
+                            Angle = 176f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 282,
+                            Angle = -176f,
+                            Kind = (byte)2,
+                            Radius = 440f
+                        },
+                        new
+                        {
+                            Id = 283,
+                            Angle = -176f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 284,
+                            Angle = -176f,
+                            Kind = (byte)2,
+                            Radius = 360f
+                        },
+                        new
+                        {
+                            Id = 285,
+                            Angle = 180f,
+                            Kind = (byte)2,
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 286,
+                            Angle = 180f,
+                            Kind = (byte)2,
+                            Radius = 280f
+                        },
+                        new
+                        {
+                            Id = 287,
+                            Angle = 180f,
+                            Kind = (byte)3,
+                            Name = "Faithful",
+                            Radius = 240f
+                        },
+                        new
+                        {
+                            Id = 288,
+                            Angle = 172f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 289,
+                            Angle = 168f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 290,
+                            Angle = 164f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 291,
+                            Angle = 160f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 292,
+                            Angle = 156f,
+                            Kind = (byte)2,
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 293,
+                            Angle = -45f,
+                            Kind = (byte)3,
+                            Name = "Weapon Mastery",
+                            Radius = 600f
+                        },
+                        new
+                        {
+                            Id = 294,
+                            Angle = 45f,
+                            Kind = (byte)4,
+                            Name = "Frostbolt",
+                            Radius = 600f
+                        },
+                        new
+                        {
+                            Id = 295,
+                            Angle = 135f,
+                            Kind = (byte)3,
+                            Name = "Spellweaver",
+                            Radius = 600f
+                        },
+                        new
+                        {
+                            Id = 296,
+                            Angle = -135f,
+                            Kind = (byte)3,
+                            Name = "Holy Bulwark",
+                            Radius = 600f
+                        },
+                        new
+                        {
+                            Id = 297,
+                            Angle = 45f,
+                            Kind = (byte)2,
+                            Radius = 640f
+                        },
+                        new
+                        {
+                            Id = 298,
+                            Angle = 45f,
+                            Kind = (byte)2,
+                            Radius = 680f
+                        },
+                        new
+                        {
+                            Id = 299,
+                            Angle = 45f,
+                            Kind = (byte)2,
+                            Radius = 720f
+                        },
+                        new
+                        {
+                            Id = 300,
+                            Angle = 45f,
+                            Kind = (byte)2,
+                            Radius = 760f
+                        },
+                        new
+                        {
+                            Id = 301,
+                            Angle = 45f,
+                            Kind = (byte)2,
+                            Radius = 800f
+                        },
+                        new
+                        {
+                            Id = 302,
+                            Angle = -90f,
+                            Kind = (byte)7,
+                            Radius = 160f
+                        },
+                        new
+                        {
+                            Id = 303,
+                            Angle = 0f,
+                            Kind = (byte)7,
+                            Radius = 160f
+                        },
+                        new
+                        {
+                            Id = 304,
+                            Angle = 90f,
+                            Kind = (byte)7,
+                            Radius = 160f
+                        },
+                        new
+                        {
+                            Id = 305,
+                            Angle = 180f,
+                            Kind = (byte)7,
+                            Radius = 160f
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentNodeAbility", b =>
+                {
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("AbilityId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("NodeId");
+
+                    b.HasIndex("AbilityId")
+                        .IsUnique();
+
+                    b.ToTable("TalentNodeAbilities", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            NodeId = 1,
+                            AbilityId = 319L
+                        },
+                        new
+                        {
+                            NodeId = 6,
+                            AbilityId = 200L
+                        },
+                        new
+                        {
+                            NodeId = 21,
+                            AbilityId = 203L
+                        },
+                        new
+                        {
+                            NodeId = 36,
+                            AbilityId = 204L
+                        },
+                        new
+                        {
+                            NodeId = 51,
+                            AbilityId = 201L
+                        },
+                        new
+                        {
+                            NodeId = 61,
+                            AbilityId = 202L
+                        },
+                        new
+                        {
+                            NodeId = 74,
+                            AbilityId = 220L
+                        },
+                        new
+                        {
+                            NodeId = 79,
+                            AbilityId = 222L
+                        },
+                        new
+                        {
+                            NodeId = 94,
+                            AbilityId = 221L
+                        },
+                        new
+                        {
+                            NodeId = 109,
+                            AbilityId = 223L
+                        },
+                        new
+                        {
+                            NodeId = 124,
+                            AbilityId = 224L
+                        },
+                        new
+                        {
+                            NodeId = 147,
+                            AbilityId = 210L
+                        },
+                        new
+                        {
+                            NodeId = 152,
+                            AbilityId = 212L
+                        },
+                        new
+                        {
+                            NodeId = 167,
+                            AbilityId = 214L
+                        },
+                        new
+                        {
+                            NodeId = 182,
+                            AbilityId = 211L
+                        },
+                        new
+                        {
+                            NodeId = 197,
+                            AbilityId = 213L
+                        },
+                        new
+                        {
+                            NodeId = 220,
+                            AbilityId = 230L
+                        },
+                        new
+                        {
+                            NodeId = 225,
+                            AbilityId = 231L
+                        },
+                        new
+                        {
+                            NodeId = 240,
+                            AbilityId = 235L
+                        },
+                        new
+                        {
+                            NodeId = 250,
+                            AbilityId = 232L
+                        },
+                        new
+                        {
+                            NodeId = 265,
+                            AbilityId = 233L
+                        },
+                        new
+                        {
+                            NodeId = 280,
+                            AbilityId = 234L
+                        },
+                        new
+                        {
+                            NodeId = 294,
+                            AbilityId = 320L
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentNodeStat", b =>
+                {
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<short>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ValueMax")
+                        .HasColumnType("integer");
+
+                    b.HasKey("NodeId", "Stat", "Kind");
+
+                    b.ToTable("TalentNodeStats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TalentNodeStats_Kind", "\"Kind\" IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_TalentNodeStats_Range", "\"ValueMax\" IS NULL OR \"ValueMax\" >= \"Value\"");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            NodeId = 2,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 3,
+                            Stat = (short)20,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 4,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 5,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 7,
+                            Stat = (short)29,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 8,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 9,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 10,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 11,
+                            Stat = (short)25,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 12,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 13,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 14,
+                            Stat = (short)20,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 15,
+                            Stat = (short)30,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 16,
+                            Stat = (short)30,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 17,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 18,
+                            Stat = (short)20,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 19,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 20,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 22,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 23,
+                            Stat = (short)29,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 24,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 25,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 26,
+                            Stat = (short)29,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 27,
+                            Stat = (short)30,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 28,
+                            Stat = (short)20,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 29,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 30,
+                            Stat = (short)30,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 31,
+                            Stat = (short)20,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 32,
+                            Stat = (short)4,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 33,
+                            Stat = (short)0,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 34,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 35,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 37,
+                            Stat = (short)5,
+                            Kind = (byte)1,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 38,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 39,
+                            Stat = (short)5,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 39,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 40,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 41,
+                            Stat = (short)17,
+                            Kind = (byte)1,
+                            Value = 4
+                        },
+                        new
+                        {
+                            NodeId = 42,
+                            Stat = (short)0,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 43,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 44,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 45,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 18
+                        },
+                        new
+                        {
+                            NodeId = 46,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 47,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 48,
+                            Stat = (short)29,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 49,
+                            Stat = (short)58,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 50,
+                            Stat = (short)4,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 52,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 53,
+                            Stat = (short)29,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 54,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 55,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 56,
+                            Stat = (short)29,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 57,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 58,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 59,
+                            Stat = (short)20,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 60,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 62,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 63,
+                            Stat = (short)4,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 64,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 65,
+                            Stat = (short)5,
+                            Kind = (byte)1,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 66,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 67,
+                            Stat = (short)25,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 68,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 69,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 70,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 71,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 72,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 73,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 75,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 76,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 77,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 78,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 80,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 81,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 82,
+                            Stat = (short)7,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 83,
+                            Stat = (short)25,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 84,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 85,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 86,
+                            Stat = (short)6,
+                            Kind = (byte)1,
+                            Value = 20
+                        },
+                        new
+                        {
+                            NodeId = 87,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 88,
+                            Stat = (short)57,
+                            Kind = (byte)1,
+                            Value = 18
+                        },
+                        new
+                        {
+                            NodeId = 89,
+                            Stat = (short)7,
+                            Kind = (byte)1,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 90,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 91,
+                            Stat = (short)20,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 92,
+                            Stat = (short)32,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 93,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 95,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 96,
+                            Stat = (short)25,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 97,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 98,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 99,
+                            Stat = (short)25,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 100,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 101,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 102,
+                            Stat = (short)7,
+                            Kind = (byte)1,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 103,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 104,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 105,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 106,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 107,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 108,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 110,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 111,
+                            Stat = (short)13,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 112,
+                            Stat = (short)47,
+                            Kind = (byte)1,
+                            Value = 2,
+                            ValueMax = 4
+                        },
+                        new
+                        {
+                            NodeId = 113,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 114,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 115,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 116,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 117,
+                            Stat = (short)24,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 118,
+                            Stat = (short)24,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 119,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 120,
+                            Stat = (short)24,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 121,
+                            Stat = (short)6,
+                            Kind = (byte)1,
+                            Value = 20
+                        },
+                        new
+                        {
+                            NodeId = 122,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 123,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 125,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 126,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 127,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 128,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 129,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 130,
+                            Stat = (short)24,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 131,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 132,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 133,
+                            Stat = (short)24,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 134,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 135,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 136,
+                            Stat = (short)6,
+                            Kind = (byte)1,
+                            Value = 20
+                        },
+                        new
+                        {
+                            NodeId = 137,
+                            Stat = (short)7,
+                            Kind = (byte)1,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 138,
+                            Stat = (short)32,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 139,
+                            Stat = (short)32,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 140,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 141,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 142,
+                            Stat = (short)6,
+                            Kind = (byte)1,
+                            Value = 20
+                        },
+                        new
+                        {
+                            NodeId = 143,
+                            Stat = (short)13,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 144,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 145,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 146,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 148,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 149,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 150,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 151,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 153,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 154,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 155,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 156,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 157,
+                            Stat = (short)2,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 158,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 159,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 160,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 161,
+                            Stat = (short)54,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 162,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 163,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 164,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 165,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 166,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 168,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 169,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 170,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 171,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 172,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 173,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 174,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 175,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 176,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 177,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 178,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 179,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 180,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 181,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 183,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 184,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 185,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 186,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 187,
+                            Stat = (short)23,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 188,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 189,
+                            Stat = (short)11,
+                            Kind = (byte)1,
+                            Value = 10
+                        },
+                        new
+                        {
+                            NodeId = 190,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 191,
+                            Stat = (short)55,
+                            Kind = (byte)1,
+                            Value = 25
+                        },
+                        new
+                        {
+                            NodeId = 192,
+                            Stat = (short)30,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 193,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 194,
+                            Stat = (short)30,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 195,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 196,
+                            Stat = (short)55,
+                            Kind = (byte)1,
+                            Value = 8
+                        },
+                        new
+                        {
+                            NodeId = 198,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 199,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 200,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 201,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 202,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 203,
+                            Stat = (short)30,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 204,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 205,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 206,
+                            Stat = (short)30,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 207,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 208,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 209,
+                            Stat = (short)55,
+                            Kind = (byte)1,
+                            Value = 8
+                        },
+                        new
+                        {
+                            NodeId = 210,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 211,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 212,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 213,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 214,
+                            Stat = (short)14,
+                            Kind = (byte)1,
+                            Value = 8
+                        },
+                        new
+                        {
+                            NodeId = 215,
+                            Stat = (short)58,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 216,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 217,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 218,
+                            Stat = (short)54,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 219,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 221,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 222,
+                            Stat = (short)23,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 223,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 224,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 226,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 227,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 228,
+                            Stat = (short)23,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 229,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 230,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 231,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 232,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 233,
+                            Stat = (short)23,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 234,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 235,
+                            Stat = (short)34,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 236,
+                            Stat = (short)23,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 237,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 238,
+                            Stat = (short)21,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 239,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 241,
+                            Stat = (short)23,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 242,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 243,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 244,
+                            Stat = (short)23,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 245,
+                            Stat = (short)27,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 246,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 247,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 248,
+                            Stat = (short)58,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 249,
+                            Stat = (short)0,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 251,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 252,
+                            Stat = (short)58,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 253,
+                            Stat = (short)58,
+                            Kind = (byte)1,
+                            Value = 18
+                        },
+                        new
+                        {
+                            NodeId = 254,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 255,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 256,
+                            Stat = (short)0,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 257,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 258,
+                            Stat = (short)14,
+                            Kind = (byte)1,
+                            Value = 8
+                        },
+                        new
+                        {
+                            NodeId = 259,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 260,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 261,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 262,
+                            Stat = (short)5,
+                            Kind = (byte)1,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 263,
+                            Stat = (short)1,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 264,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 266,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 267,
+                            Stat = (short)34,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 268,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 269,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 270,
+                            Stat = (short)34,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 271,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 272,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 273,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 274,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 275,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 276,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 277,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 278,
+                            Stat = (short)58,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 279,
+                            Stat = (short)4,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 281,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 282,
+                            Stat = (short)18,
+                            Kind = (byte)1,
+                            Value = 4
+                        },
+                        new
+                        {
+                            NodeId = 283,
+                            Stat = (short)55,
+                            Kind = (byte)1,
+                            Value = 8
+                        },
+                        new
+                        {
+                            NodeId = 284,
+                            Stat = (short)31,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 285,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 286,
+                            Stat = (short)34,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 287,
+                            Stat = (short)3,
+                            Kind = (byte)1,
+                            Value = 15
+                        },
+                        new
+                        {
+                            NodeId = 288,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 289,
+                            Stat = (short)34,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 290,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 291,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 6
+                        },
+                        new
+                        {
+                            NodeId = 292,
+                            Stat = (short)34,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 293,
+                            Stat = (short)25,
+                            Kind = (byte)1,
+                            Value = 10
+                        },
+                        new
+                        {
+                            NodeId = 293,
+                            Stat = (short)12,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 295,
+                            Stat = (short)26,
+                            Kind = (byte)1,
+                            Value = 10
+                        },
+                        new
+                        {
+                            NodeId = 295,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 296,
+                            Stat = (short)56,
+                            Kind = (byte)1,
+                            Value = 10
+                        },
+                        new
+                        {
+                            NodeId = 296,
+                            Stat = (short)58,
+                            Kind = (byte)1,
+                            Value = 10
+                        },
+                        new
+                        {
+                            NodeId = 297,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 298,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 299,
+                            Stat = (short)33,
+                            Kind = (byte)1,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 300,
+                            Stat = (short)22,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 301,
+                            Stat = (short)28,
+                            Kind = (byte)1,
+                            Value = 5
+                        },
+                        new
+                        {
+                            NodeId = 302,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 303,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 304,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 305,
+                            Stat = (short)53,
+                            Kind = (byte)1,
+                            Value = 3
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.VendorStock", b =>
@@ -22745,6 +29064,62 @@ namespace Avalon.Database.World.Migrations
                         });
 
                     b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentClassStart", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.TalentNode", null)
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentEdge", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.TalentNode", null)
+                        .WithMany()
+                        .HasForeignKey("NodeA")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.TalentNode", null)
+                        .WithMany()
+                        .HasForeignKey("NodeB")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentNode", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.TalentForkGroup", null)
+                        .WithMany()
+                        .HasForeignKey("ForkGroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentNodeAbility", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.AbilityTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("AbilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.TalentNode", null)
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentNodeStat", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.TalentNode", null)
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.VendorStock", b =>

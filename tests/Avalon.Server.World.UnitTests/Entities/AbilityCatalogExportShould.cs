@@ -83,13 +83,16 @@ public class AbilityCatalogExportShould
             bite.EnumerateObject().Select(p => p.Name));
     }
 
-    /// <summary>#770: the class basics, the one ability a silence does not stop, so a client need not list their ids.</summary>
+    /// <summary>
+    /// #770: the class basics, the one ability a silence does not stop, so a client need not list their ids; Heavy Strike
+    /// (319, #1181) beside Cleave until characters learn from the talent tree.
+    /// </summary>
     [Fact]
     public void Mark_the_class_basic_attacks()
     {
         List<JsonElement> rows = Rows(AbilityCatalogExport.Render(Seeded()));
 
-        Assert.Equal([200L, 210L, 220L, 230L],
+        Assert.Equal([200L, 210L, 220L, 230L, 319L],
             rows.Where(r => r.GetProperty("basic").GetBoolean()).Select(r => r.GetProperty("id").GetInt64()));
     }
 

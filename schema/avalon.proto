@@ -716,6 +716,9 @@ enum ItemStat {
    ItemStat_IncreasedMaximumLife = 53;
    ItemStat_IncreasedMaximumMana = 54;
    ItemStat_IncreasedManaRegeneration = 55;
+   ItemStat_IncreasedArmour = 56;
+   ItemStat_IncreasedEvasion = 57;
+   ItemStat_IncreasedWard = 58;
 }
 enum ItemUseResult {
    ItemUseResult_Unknown = 0;

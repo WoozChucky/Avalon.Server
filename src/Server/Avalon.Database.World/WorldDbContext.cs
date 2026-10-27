@@ -76,6 +76,12 @@ public class WorldDbContext : DbContext
     public DbSet<ItemModifierStat> ItemModifierStats { get; set; } = null!;
     public DbSet<ItemModifierWeight> ItemModifierWeights { get; set; } = null!;
     public DbSet<ItemTemplateModifier> ItemTemplateModifiers { get; set; } = null!;
+    public DbSet<TalentNode> TalentNodes { get; set; } = null!;
+    public DbSet<TalentEdge> TalentEdges { get; set; } = null!;
+    public DbSet<TalentNodeStat> TalentNodeStats { get; set; } = null!;
+    public DbSet<TalentNodeAbility> TalentNodeAbilities { get; set; } = null!;
+    public DbSet<TalentForkGroup> TalentForkGroups { get; set; } = null!;
+    public DbSet<TalentClassStart> TalentClassStarts { get; set; } = null!;
     public DbSet<MapTemplate> MapTemplates { get; set; } = null!;
     public DbSet<QuestTemplate> QuestTemplates { get; set; } = null!;
     public DbSet<QuestStage> QuestStages { get; set; } = null!;
@@ -144,6 +150,12 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<ItemModifierStat>());
         Configure(modelBuilder.Entity<ItemModifierWeight>());
         Configure(modelBuilder.Entity<ItemTemplateModifier>());
+        Configure(modelBuilder.Entity<TalentForkGroup>());
+        Configure(modelBuilder.Entity<TalentNode>());
+        Configure(modelBuilder.Entity<TalentEdge>());
+        Configure(modelBuilder.Entity<TalentNodeStat>());
+        Configure(modelBuilder.Entity<TalentNodeAbility>());
+        Configure(modelBuilder.Entity<TalentClassStart>());
         Configure(modelBuilder.Entity<MapTemplate>());
         Configure(modelBuilder.Entity<QuestTemplate>());
         Configure(modelBuilder.Entity<QuestStage>());
@@ -632,7 +644,9 @@ public class WorldDbContext : DbContext
     /// <summary>Quests (#433). Reference data; QuestCatalog validates it on load and on /reload quests.</summary>
     private static void Configure(EntityTypeBuilder<QuestTemplate> builder)
     {
-        builder.ToTable("QuestTemplates");
+        // #1181: the talent points a turn-in pays, 0 or more.
+        builder.ToTable("QuestTemplates", t =>
+            t.HasCheckConstraint("CK_QuestTemplates_RewardTalentPoints", "\"RewardTalentPoints\" >= 0"));
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id)
             .HasConversion(v => v.Value, v => new QuestTemplateId(v))
@@ -721,6 +735,7 @@ public class WorldDbContext : DbContext
                 RequiredQuestId = 2,
                 RewardExperience = 600,
                 RewardGold = 400,
+                RewardTalentPoints = 1,
             });
 
         // The second chain (forest content pass): 4 → 5 → 6 → 7 → 8, beside 1 → 2 → 3. Numbers are first drafts for
@@ -776,6 +791,7 @@ public class WorldDbContext : DbContext
                 RequiredQuestId = 6,
                 RewardExperience = 700,
                 RewardGold = 400,
+                RewardTalentPoints = 1,
             },
             new QuestTemplate
             {
@@ -789,6 +805,7 @@ public class WorldDbContext : DbContext
                 RequiredQuestId = 7,
                 RewardExperience = 1500,
                 RewardGold = 1000,
+                RewardTalentPoints = 1,
             });
 
         // "The Lost Caravan" (doodads S3): Marta's sequel to quest 6, the strongbox, the notice board, then Marta again.
@@ -1932,6 +1949,97 @@ public class WorldDbContext : DbContext
         builder.HasOne<ItemModifier>().WithMany().HasForeignKey(l => l.ModifierId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasData(ItemModifierSeed.TemplateLinks());
+    }
+
+    /// <summary>
+    /// The shared talent tree's nodes (#1181): a balance table, one row per node with a literal id (TalentSeed). Kind 1
+    /// Start, 2 Small, 3 Notable, 4 Ability, 5 Capstone, 6 Keystone, 7 Junction; a notable, an ability, a capstone and a
+    /// keystone are named; only a capstone sits in a fork. Angle in degrees, in (-180, 180]; radius finite and 0 or more
+    /// (the upper bound refuses Infinity and NaN, as the threat checks do).
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<TalentNode> builder)
+    {
+        builder.ToTable("TalentNodes", t =>
+        {
+            t.HasCheckConstraint("CK_TalentNodes_Kind", "\"Kind\" BETWEEN 1 AND 7");
+            t.HasCheckConstraint("CK_TalentNodes_Name", "\"Name\" IS NOT NULL OR \"Kind\" NOT IN (3, 4, 5, 6)");
+            t.HasCheckConstraint("CK_TalentNodes_Angle", "\"Angle\" > -180 AND \"Angle\" <= 180");
+            t.HasCheckConstraint("CK_TalentNodes_Radius", "\"Radius\" >= 0 AND \"Radius\" < 'Infinity'");
+            t.HasCheckConstraint("CK_TalentNodes_ForkGroup", "\"ForkGroupId\" IS NULL OR \"Kind\" = 5");
+        });
+        builder.HasKey(n => n.Id);
+        builder.Property(n => n.Id).ValueGeneratedNever();
+        builder.Property(n => n.Name).HasMaxLength(40);
+        builder.HasOne<TalentForkGroup>().WithMany().HasForeignKey(n => n.ForkGroupId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(TalentSeed.Nodes());
+    }
+
+    /// <summary>The tree's edges (#1181): each undirected edge one row, the smaller id first.</summary>
+    private static void Configure(EntityTypeBuilder<TalentEdge> builder)
+    {
+        builder.ToTable("TalentEdges", t => t.HasCheckConstraint("CK_TalentEdges_Order", "\"NodeA\" < \"NodeB\""));
+        builder.HasKey(e => new { e.NodeA, e.NodeB });
+        builder.HasOne<TalentNode>().WithMany().HasForeignKey(e => e.NodeA).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<TalentNode>().WithMany().HasForeignKey(e => e.NodeB).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(TalentSeed.Edges());
+    }
+
+    /// <summary>
+    /// A node's stat lines (#1181): Kind 1 Added, 2 More; a range's high end at or above its low end. Which stats take
+    /// which kind, and which take a range, the catalog checks.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<TalentNodeStat> builder)
+    {
+        builder.ToTable("TalentNodeStats", t =>
+        {
+            t.HasCheckConstraint("CK_TalentNodeStats_Kind", "\"Kind\" IN (1, 2)");
+            t.HasCheckConstraint("CK_TalentNodeStats_Range", "\"ValueMax\" IS NULL OR \"ValueMax\" >= \"Value\"");
+        });
+        builder.HasKey(s => new { s.NodeId, s.Stat, s.Kind });
+        builder.Property(s => s.Stat).HasColumnType("smallint");
+        builder.HasOne<TalentNode>().WithMany().HasForeignKey(s => s.NodeId).OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasData(TalentSeed.Stats());
+    }
+
+    /// <summary>
+    /// The ability a start or an ability node grants (#1181); an ability is granted by one node at most. A linked ability
+    /// cannot be deleted.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<TalentNodeAbility> builder)
+    {
+        builder.ToTable("TalentNodeAbilities");
+        builder.HasKey(a => a.NodeId);
+        builder.Property(a => a.AbilityId).HasConversion(v => v.Value, v => new AbilityId(v)).IsRequired();
+        builder.HasIndex(a => a.AbilityId).IsUnique();
+        builder.HasOne<TalentNode>().WithMany().HasForeignKey(a => a.NodeId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<AbilityTemplate>().WithMany().HasForeignKey(a => a.AbilityId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(TalentSeed.Abilities());
+    }
+
+    /// <summary>The capstone forks (#1181): a character holds one capstone of a fork at most. None until Part D.</summary>
+    private static void Configure(EntityTypeBuilder<TalentForkGroup> builder)
+    {
+        builder.ToTable("TalentForkGroups");
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.Id).ValueGeneratedNever();
+
+        builder.HasData(TalentSeed.ForkGroups());
+    }
+
+    /// <summary>The node each class starts on (#1181): one per class (Warrior 1 to Cleric 4), each on a node of its own.</summary>
+    private static void Configure(EntityTypeBuilder<TalentClassStart> builder)
+    {
+        builder.ToTable("TalentClassStarts", t =>
+            t.HasCheckConstraint("CK_TalentClassStarts_Class", "\"Class\" BETWEEN 1 AND 4"));
+        builder.HasKey(s => s.Class);
+        builder.HasIndex(s => s.NodeId).IsUnique();
+        builder.HasOne<TalentNode>().WithMany().HasForeignKey(s => s.NodeId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(TalentSeed.Starts());
     }
 
     private static void Configure(EntityTypeBuilder<MapTemplate> builder)
@@ -3128,6 +3236,8 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_AbilityTemplates_ConvertToType",
                 "\"ConvertToType\" IS NULL OR \"ConvertToType\" BETWEEN 1 AND 4");
             t.HasCheckConstraint("CK_AbilityTemplates_AddedType", "\"AddedType\" IS NULL OR \"AddedType\" BETWEEN 0 AND 4");
+            // #1181: the most units a shape affects, 0 for no limit.
+            t.HasCheckConstraint("CK_AbilityTemplates_MaxTargets", "\"MaxTargets\" >= 0");
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -3220,6 +3330,12 @@ public class WorldDbContext : DbContext
         builder.HasData(
             CreatureAbility(317, "Venom Spit", AbilityShape.Projectile, reach: 10f, speed: 14f, cooldown: 8000, baseDamage: 0.6f, aura: 6),
             CreatureAbility(318, "Sundering Howl", AbilityShape.Circle, radius: 6f, cooldown: 18000, baseDamage: 0f, effects: SpellEffect.Debuff, aura: 7));
+
+        // The talent tree (#1181): the Warrior's starter, Heavy Strike, hits only the nearest unit in its cone and is paced
+        // by its weapon; Frostbolt is the ability node between the Hunter's and the Wizard's regions. Both first passes.
+        builder.HasData(
+            Kit(319, CharacterClass.Warrior, "Heavy Strike", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 60f, maxTargets: 1, cooldown: 0, cost: 0, range: SpellRange.Melee, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee, effectiveness: 380f),
+            Kit(320, CharacterClass.Wizard, "Frostbolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 22f, speed: 13f, castTime: 500, cooldown: 2000, cost: 12, range: SpellRange.Long, damageType: DamageType.Cold, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (28, 42), growth: 0.80f));
     }
 
     /// <summary>
@@ -3280,7 +3396,7 @@ public class WorldDbContext : DbContext
         uint? aura = null, AbilityFlags flags = AbilityFlags.None, DamageType? damageType = null,
         AbilityTags tags = AbilityTags.None, float effectiveness = 100f, (uint Min, uint Max) spellBase = default,
         float growth = 0f, DamageType? convertTo = null, float convertPct = 0f,
-        (DamageType Type, uint Min, uint Max)? added = null) => new()
+        (DamageType Type, uint Min, uint Max)? added = null, int maxTargets = 0) => new()
         {
             Id = id,
             Name = name,
@@ -3320,6 +3436,7 @@ public class WorldDbContext : DbContext
             AddedType = added?.Type,
             AddedMin = added?.Min ?? 0,
             AddedMax = added?.Max ?? 0,
+            MaxTargets = maxTargets,
         };
 
     /// <summary>

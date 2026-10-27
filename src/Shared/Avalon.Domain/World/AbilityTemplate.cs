@@ -119,4 +119,9 @@ public class AbilityTemplate : IDbEntity<AbilityId>
 
     /// <summary>The highest built-in added damage, inclusive; 0 adds none.</summary>
     public uint AddedMax { get; set; }
+
+    /// <summary>
+    /// The most units the ability's shape affects (#1181), taken nearest first among those it qualifies; 0 for no limit.
+    /// </summary>
+    public int MaxTargets { get; set; }
 }

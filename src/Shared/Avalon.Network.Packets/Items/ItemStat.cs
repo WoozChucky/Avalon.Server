@@ -75,4 +75,10 @@ public enum ItemStat
     // percentage of increased mana regeneration, which scales both regeneration rates.
     IncreasedMaximumMana = 54,
     IncreasedManaRegeneration = 55,
+
+    // Global percentages of increased armour, evasion and ward (#1181): each scales the character's whole rating, after
+    // gear, attributes and flat amounts, where an item's local lines scale only that item's own.
+    IncreasedArmour = 56,
+    IncreasedEvasion = 57,
+    IncreasedWard = 58,
 }
