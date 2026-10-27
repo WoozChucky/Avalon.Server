@@ -29,10 +29,11 @@ public class CharacterRenameShould
         _characters.UpdateAsync(Arg.Any<Character>(), Arg.Any<CancellationToken>())
             .Returns(call => call.Arg<Character>());
         _service = new CharacterService(_characters, Substitute.For<ICharacterInventoryRepository>(),
-            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterTalentRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
             Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
+            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>(),
+            Substitute.For<ITalentTreeRepository>(), Substitute.For<IQuestRepository>());
     }
 
     public static TheoryData<bool> BothPaths => new() { true, false };

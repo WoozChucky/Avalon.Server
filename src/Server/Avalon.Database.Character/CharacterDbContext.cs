@@ -63,7 +63,6 @@ public partial class CharacterDbContext : DbContext
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
-    public DbSet<CharacterAbility> CharacterAbilities { get; set; } = null!;
     public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
     public DbSet<ItemInstanceModifier> ItemInstanceModifiers { get; set; } = null!;
     public DbSet<ItemInstanceModifierValue> ItemInstanceModifierValues { get; set; } = null!;
@@ -106,7 +105,6 @@ public partial class CharacterDbContext : DbContext
         fence.HasKey(f => f.AccountId);
         fence.Property(f => f.AccountId).HasConversion(v => v.Value, v => new AccountId(v)).ValueGeneratedNever();
         Configure(modelBuilder.Entity<CharacterInventory>());
-        Configure(modelBuilder.Entity<CharacterAbility>());
         Configure(modelBuilder.Entity<ItemInstance>());
         Configure(modelBuilder.Entity<ItemInstanceModifier>());
         Configure(modelBuilder.Entity<ItemInstanceModifierValue>());
@@ -327,30 +325,6 @@ public partial class CharacterDbContext : DbContext
         builder.HasOne<ItemInstance>()
             .WithMany()
             .HasForeignKey(e => e.ItemId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasIndex(b => b.CharacterId);
-    }
-
-    private static void Configure(EntityTypeBuilder<CharacterAbility> builder)
-    {
-        builder.HasKey(b => new { b.CharacterId, b.AbilityId });
-
-        builder.Property(b => b.CharacterId)
-            .HasConversion(
-                v => v.Value,
-                v => new CharacterId(v)
-            ).IsRequired();
-
-        builder.Property(b => b.AbilityId)
-            .HasConversion(
-                v => v.Value,
-                v => new AbilityId(v)
-            );
-
-        builder.HasOne(e => e.Character)
-            .WithMany()
-            .HasForeignKey(e => e.CharacterId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(b => b.CharacterId);

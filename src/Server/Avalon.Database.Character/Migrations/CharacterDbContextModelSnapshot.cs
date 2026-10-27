@@ -173,24 +173,6 @@ namespace Avalon.Database.Character.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
-                {
-                    b.Property<long>("CharacterId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("AbilityId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Cooldown")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("CharacterId", "AbilityId");
-
-                    b.HasIndex("CharacterId");
-
-                    b.ToTable("CharacterAbilities");
-                });
-
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterAura", b =>
                 {
                     b.Property<long>("CharacterId")
@@ -756,17 +738,6 @@ namespace Avalon.Database.Character.Migrations
                         {
                             t.HasCheckConstraint("CK_ItemInstanceModifierValues_Range", "\"Value2\" IS NULL OR \"Value2\" >= \"Value\"");
                         });
-                });
-
-            modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
-                {
-                    b.HasOne("Avalon.Domain.Characters.Character", "Character")
-                        .WithMany()
-                        .HasForeignKey("CharacterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Character");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterAura", b =>

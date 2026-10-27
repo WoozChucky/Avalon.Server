@@ -89,6 +89,25 @@ public class CharacterController : BaseController
         return Ok(abilities);
     }
 
+    /// <summary>
+    /// The talent nodes the character holds as its world last saved them (#1181), with the points it has earned and spent.
+    /// </summary>
+    [HttpGet("{id}/talents", Name = "GetCharacterTalents")]
+    [ProducesResponseType(typeof(CharacterTalentsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetTalents([FromRoute] uint id, CancellationToken ct)
+    {
+        Character? character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        if (character is null) return NotFound();
+
+        AuthorizationResult authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        if (!authz.Succeeded) return NotFoundOrForbid();
+
+        CharacterTalentsDto? talents = await _service.GetTalentsAsync(new CharacterId(id), ct);
+        return talents is null ? NotFound() : Ok(talents);
+    }
+
     /// <summary>The character's stats as its world last saved them (#676); 404 when none are saved.</summary>
     [HttpGet("{id}/stats", Name = "GetCharacterStats")]
     [ProducesResponseType(typeof(CharacterStatsDto), StatusCodes.Status200OK)]

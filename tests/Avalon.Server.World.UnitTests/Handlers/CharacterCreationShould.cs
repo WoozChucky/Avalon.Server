@@ -61,7 +61,6 @@ public class CharacterCreationShould : IDisposable
             await characterDb.Characters.SingleAsync(c => c.Name == "Testarossa");
 
         Assert.Equal(1, await characterDb.CharacterStats.CountAsync(s => s.CharacterId == character.Id));
-        Assert.Equal(0, await characterDb.CharacterAbilities.CountAsync(a => a.CharacterId == character.Id));
         Assert.Equal(createInfo.StartingItems.Select(i => i.Slot),
             (await characterDb.CharacterInventory.AsNoTracking().Where(i => i.CharacterId == character.Id).ToListAsync())
             .Where(i => i.Container == InventoryType.Bag).Select(i => i.Slot).Order());
@@ -324,7 +323,6 @@ public class CharacterCreationShould : IDisposable
         Avalon.Domain.Characters.Character only = await characterDb.Characters.AsNoTracking().SingleAsync();
         Assert.Equal(new AccountId(2), only.AccountId);
         Assert.False(await characterDb.CharacterStats.AnyAsync());
-        Assert.Empty(await characterDb.CharacterAbilities.ToListAsync());
         Assert.Empty(await characterDb.ItemInstances.ToListAsync());
     }
 

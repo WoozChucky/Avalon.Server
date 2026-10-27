@@ -49,6 +49,7 @@ public sealed class WorldRoutesOpenApiShould(OpenApiDocumentFixture fixture) : I
         { "/world/{worldId}/character/{id}/stats", "get" },
         { "/world/{worldId}/character/{id}/quests", "get" },
         { "/world/{worldId}/character/{id}/auras", "get" },
+        { "/world/{worldId}/character/{id}/talents", "get" },
         { "/world/{worldId}/map-template", "get" },
         { "/world/{worldId}/map-template/{id}", "get" },
         { "/world/{worldId}/map-template/{id}/preview-layout", "get" },

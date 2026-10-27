@@ -64,6 +64,7 @@ public class CharacterControllerShould
             nameof(CharacterController.GetStats) => sut.GetStats(42, CancellationToken.None),
             nameof(CharacterController.GetQuests) => sut.GetQuests(42, CancellationToken.None),
             nameof(CharacterController.GetAuras) => sut.GetAuras(42, CancellationToken.None),
+            nameof(CharacterController.GetTalents) => sut.GetTalents(42, CancellationToken.None),
             _ => throw new ArgumentOutOfRangeException(nameof(endpoint), endpoint, null),
         };
     }
@@ -83,6 +84,7 @@ public class CharacterControllerShould
     [InlineData(nameof(CharacterController.GetStats))]
     [InlineData(nameof(CharacterController.GetQuests))]
     [InlineData(nameof(CharacterController.GetAuras))]
+    [InlineData(nameof(CharacterController.GetTalents))]
     public async Task Answer_404_for_a_missing_character(string endpoint)
     {
         _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
@@ -98,6 +100,7 @@ public class CharacterControllerShould
     [InlineData(nameof(CharacterController.GetStats))]
     [InlineData(nameof(CharacterController.GetQuests))]
     [InlineData(nameof(CharacterController.GetAuras))]
+    [InlineData(nameof(CharacterController.GetTalents))]
     public async Task Answer_404_to_a_player_the_character_is_refused_to(string endpoint)
     {
         ClaimsPrincipal user = User(7, AvalonRoles.Player);
@@ -266,5 +269,25 @@ public class CharacterControllerShould
 
         CharacterAurasDto auras = Assert.IsType<CharacterAurasDto>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal((1u, 4000u), (Assert.Single(auras.Auras).AuraId, auras.Auras[0].RemainingMs));
+    }
+
+    /// <summary>A character's talents are read by its owner, or by a game master, as its other reads are (#1181).</summary>
+    [Theory]
+    [InlineData(7L, AvalonRoles.Player)]
+    [InlineData(99L, AvalonRoles.GameMaster)]
+    public async Task GetTalents_Returns200_To_the_owner_and_a_game_master(long accountId, string role)
+    {
+        ClaimsPrincipal user = User(accountId, role);
+        Character ch = MakeChar(7);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Success());
+        _service.GetTalentsAsync(new CharacterId(42), Arg.Any<CancellationToken>())
+            .Returns(new CharacterTalentsDto { CharacterId = 42, NodeIds = [2, 3], PointsEarned = 8, PointsSpent = 2 });
+
+        IActionResult result = await MakeSut(user).GetTalents(42, CancellationToken.None);
+
+        CharacterTalentsDto talents = Assert.IsType<CharacterTalentsDto>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal([2, 3], talents.NodeIds);
     }
 }
