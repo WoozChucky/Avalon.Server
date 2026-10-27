@@ -20,8 +20,8 @@ using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 namespace Avalon.Server.World.UnitTests.Combat;
 
 /// <summary>
-/// #1178, through the real cast handler, cast system and instance: a basic attack is paced by its weapon's attack
-/// time over attack speed, a basic spell by its row over cast speed, every other cooldown by its row over cooldown recovery,
+/// #1178, through the real cast handler, cast system and instance: an Attack on no cooldown (every basic attack, #1181) is
+/// paced by its weapon's attack time over attack speed, a basic spell by its row over cast speed, every other cooldown by its row over cooldown recovery,
 /// and every cast time by cast speed. Each is read once, when the cast starts. The global cooldown does not change.
 /// Character ids 627_1xx and 1178_4xx are unique to this class.
 /// </summary>
@@ -83,6 +83,8 @@ public class CastPaceShould
     [InlineData("basic spell", 800u, 0u, 50f, 25f, 50f, 792u, 0.64f, 0f)]   // D1: cast speed only
     [InlineData("ability", 5000u, 600u, 50f, 50f, 25f, 792u, 4.0f, 0.4f)]   // recovery for the cooldown, cast speed for the cast
     [InlineData("creature basic", 2250u, 0u, 50f, 0f, 0f, 2250u, 1.5f, 0f)]
+    [InlineData("paced attack", 0u, 0u, 20f, 0f, 0f, 792u, 0.66f, 0f)]       // #1181: any Attack on no cooldown waits its weapon
+    [InlineData("attack on a cooldown", 5000u, 0u, 50f, 0f, 25f, 792u, 4.0f, 0f)]   // recovery only
     public void Pace_each_ability_by_the_rule_its_kind_follows(string kind, uint rowCooldownMs, uint castTimeMs,
         float attackSpeedPct, float castSpeedPct, float cooldownRecoveryPct, uint attackTimeMs, float cooldownSeconds,
         float castSeconds)
@@ -92,7 +94,8 @@ public class CastPaceShould
             "basic attack" => (AbilityFlags.Basic, AbilityTags.Attack),
             "basic spell" => (AbilityFlags.Basic, AbilityTags.Spell),
             "ability" => (AbilityFlags.None, AbilityTags.Spell),
-            _ => (AbilityFlags.None, AbilityTags.Attack),
+            "creature basic" or "paced attack" or "attack on a cooldown" => (AbilityFlags.None, AbilityTags.Attack),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
         };
         var ability = new AbilityMetadata
         {

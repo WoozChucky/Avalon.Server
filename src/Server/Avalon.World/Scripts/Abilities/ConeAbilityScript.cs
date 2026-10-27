@@ -39,7 +39,7 @@ public sealed class ConeAbilityScript(IAbility ability, IUnit caster, AbilityAim
 
         arena.BroadcastAbilityFired(Caster, Ability, footprint);
         AbilityEffect.ApplyToAll(arena, Caster, Ability,
-            arena.Hits.InCone(origin, footprint.Direction!.Value, footprint.Reach, footprint.ArcDegrees));
+            arena.Hits.InCone(origin, footprint.Direction!.Value, footprint.Reach, footprint.ArcDegrees), Ability.Metadata.MaxTargets);
 
         State = SpellState.Finished;
     }

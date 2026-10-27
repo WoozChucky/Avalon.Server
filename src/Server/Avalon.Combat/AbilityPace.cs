@@ -14,21 +14,21 @@ public static class AbilityPace
         Speed.Scale(ability.CastTime, pace.CastSpeedPct);
 
     /// <summary>
-    /// The cooldown a cast sets. A basic Attack waits its caster's attack time over attack speed (its row's Cooldown is 0,
-    /// validated); any other basic (a spell basic, D1) its row over cast speed; every other ability its row over cooldown
-    /// recovery. A <paramref name="creatureBasic" /> (a creature's basic, whatever its row) waits the creature's
-    /// BaseAttackTime over attack speed, its SwingInterval.
+    /// The cooldown a cast sets. Any Attack whose row's Cooldown is 0 waits its caster's attack time over attack speed
+    /// (#1181), every basic Attack among them (its Cooldown is 0, validated); any other basic (a spell basic, D1) its row
+    /// over cast speed; every other ability its row over cooldown recovery. A <paramref name="creatureBasic" /> (a
+    /// creature's basic, whatever its row) waits the creature's BaseAttackTime over attack speed, its SwingInterval.
     /// </summary>
     public static float Cooldown(AbilityMetadata ability, in CasterPace pace, bool creatureBasic = false)
     {
         if (creatureBasic)
             return Speed.Scale(pace.AttackTimeSeconds, pace.AttackSpeedPct);
 
-        if ((ability.Flags & AbilityFlags.Basic) == AbilityFlags.None)
-            return Speed.Scale(ability.Cooldown, pace.CooldownRecoveryPct);
+        if ((ability.Tags & AbilityTags.Attack) != AbilityTags.None && ability.Cooldown == 0f)
+            return Speed.Scale(pace.AttackTimeSeconds, pace.AttackSpeedPct);
 
-        return (ability.Tags & AbilityTags.Attack) != AbilityTags.None
-            ? Speed.Scale(pace.AttackTimeSeconds, pace.AttackSpeedPct)
-            : Speed.Scale(ability.Cooldown, pace.CastSpeedPct);
+        return (ability.Flags & AbilityFlags.Basic) != AbilityFlags.None
+            ? Speed.Scale(ability.Cooldown, pace.CastSpeedPct)
+            : Speed.Scale(ability.Cooldown, pace.CooldownRecoveryPct);
     }
 }

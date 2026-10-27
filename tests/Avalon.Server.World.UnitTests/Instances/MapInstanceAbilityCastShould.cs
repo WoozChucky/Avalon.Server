@@ -224,6 +224,50 @@ public class MapInstanceAbilityCastShould
     }
 
     /// <summary>
+    /// #1181 (review focus 5): an ability hits at most its <c>MaxTargets</c> nearest hostiles, counting only the units it
+    /// affects, so the unflagged player standing nearest uses up no slot; 0 is no limit. A piercing projectile ends on its
+    /// last allowed hit, told as a Hit rather than a pass-through.
+    /// </summary>
+    [Theory]
+    [InlineData("cone", 1, false)]
+    [InlineData("cone", 0, true)]
+    [InlineData("piercing projectile", 1, false)]
+    public void Hit_at_most_the_nearest_hostiles_an_ability_allows(string shape, int maxTargets, bool farHit)
+    {
+        using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
+        MapInstanceClient caster = Join(instance, 164_111);
+        MapInstanceClient ally = Join(instance, 164_112);
+        ally.Character.Position = new Vector3(0f, 0f, 0.8f);
+        ally.Character.Health = 100;
+        ally.Character.CurrentHealth = 100;
+        Creature near = AddCreature(instance, 164_971, new Vector3(0f, 0f, 1.2f), health: 50);
+        Creature far = AddCreature(instance, 164_972, new Vector3(0f, 0f, 2.0f), health: 50);
+        AbilityTemplate template = shape == "cone"
+            ? AbilityTestData.Cone(219, reach: 2.5f, arc: 60f)
+            : AbilityTestData.Projectile(219, reach: 5f, speed: 20f, pierce: true);
+        template.MaxTargets = maxTargets;
+        caster.Character.Spells.Load([AbilityTestData.Game(template.Dealing(10))]);
+
+        handler.Execute(caster.Connection,
+            new CCastAbilityPacket { AbilityId = 219, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
+        for (int i = 0; i < 30; i++)
+        {
+            instance.Update(s_tick);
+        }
+
+        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        Assert.Equal(40u, near.CurrentHealth);
+        Assert.Equal(farHit ? 40u : 50u, far.CurrentHealth);
+        Assert.Equal(100u, ally.Character.CurrentHealth);
+        if (shape != "cone")
+        {
+            SProjectileImpactPacket impact = Assert.Single(
+                caster.Read<SProjectileImpactPacket>(NetworkPacketType.SMSG_PROJECTILE_IMPACT));
+            Assert.Equal(ProjectileImpactReason.Hit, impact.Reason);
+        }
+    }
+
+    /// <summary>
     /// End to end (#164): Mending Circle heals the ally inside it and leaves the hostile creature beside it
     /// untouched, and the ally's new health reaches the ally and a watcher.
     /// </summary>

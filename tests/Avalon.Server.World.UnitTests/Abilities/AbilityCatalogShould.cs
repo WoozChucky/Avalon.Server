@@ -59,6 +59,7 @@ public class AbilityCatalogShould
         { "cone on the projectile script", "a cone must use ConeAbilityScript", With(AbilityTestData.Cone(1), t => t.ScriptName = "ProjectileAbilityScript") },
         { "projectile on the circle script", "a projectile must use ProjectileAbilityScript", With(AbilityTestData.Projectile(1), t => t.ScriptName = "CircleAbilityScript") },
         { "unknown shape", "unknown shape 9", With(AbilityTestData.Circle(1), t => t.Shape = (AbilityShape)9) },
+        { "negative max targets", "MaxTargets -1 is below 0", With(AbilityTestData.Cone(1), t => t.MaxTargets = -1) },
     };
 
     [Theory]

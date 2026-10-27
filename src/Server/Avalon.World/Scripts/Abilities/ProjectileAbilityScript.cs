@@ -17,8 +17,9 @@ namespace Avalon.World.Scripts.Abilities;
 /// ProjectileSpeed (metres per second, the #424 velocity rule). Each tick it sweeps its step, capped at
 /// the Reach left and cut by the navmesh ray, against unit bodies, nearest first: without Pierce it
 /// ends on the first qualifying hit, stopping at the point of its step nearest that unit's centre;
-/// with Pierce it hits each unit once and flies on. It ends at Reach, at a wall, or on a first hit,
-/// and the instance despawns it once its final state has gone out. No target, no homing. It starts
+/// with Pierce it hits each unit once and flies on, ending on its MaxTargets-th hit when that is above 0 (#1181).
+/// It ends at Reach, at a wall, or on its last hit, and the instance despawns it once its final state has gone
+/// out. No target, no homing. It starts
 /// where the caster stood when the cast started (#648), the origin of the lane the start broadcast carried.
 /// It is fired as circles and cones are, with its lane, and tells how its flight met each unit and ended (#479):
 /// a hit or a pass-through before the damage it deals, then where it expired or was blocked.
@@ -97,14 +98,17 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
 
             _hit.Add(unit.Guid);
 
+            // Without Pierce the first hit is the last; with it, the MaxTargets-th (#1181), told as a Hit.
+            bool last = !meta.Pierce || (meta.MaxTargets > 0 && _hit.Count >= meta.MaxTargets);
+
             // Where it met the unit: the point of its step nearest the unit's centre, where the sweep tested it
             // (rewound for a player's projectile, #1082). Told before the damage, so the damage belongs to it.
             Vector3 hitPoint = HitShapes.ClosestPointOnSegment(_ground, end, arena.Hits.PositionOf(unit));
             arena.BroadcastProjectileImpact(Guid, Caster, Ability, CastId, hitPoint + HeightOffset,
-                meta.Pierce ? ProjectileImpactReason.Pierced : ProjectileImpactReason.Hit, unit);
+                last ? ProjectileImpactReason.Hit : ProjectileImpactReason.Pierced, unit);
             AbilityEffect.Apply(arena, Caster, Ability, unit);
 
-            if (!meta.Pierce)
+            if (last)
             {
                 MoveTo(hitPoint, HitShapes.Distance2D(_ground, hitPoint));
                 Finish();
