@@ -54,15 +54,22 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
 
     /// <summary>
     /// Holds each node not held yet and marks it for the save. The talent rules have accepted the ids, so each is a node
-    /// of the tree, and so a positive <see cref="int" />.
+    /// of the tree, and so a positive <see cref="int" />. Every id is checked before anything changes, so one that is not
+    /// throws and leaves what is held as it was.
     /// </summary>
     public void Allocate(IReadOnlyList<uint> nodeIds)
     {
         tickThread?.AssertOnTick("TalentAllocation.Allocate");
+        for (int i = 0; i < nodeIds.Count; i++)
+        {
+            if (nodeIds[i] is 0 or > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(nodeIds), nodeIds[i], "A talent node id is a positive int.");
+        }
+
         bool changed = false;
         for (int i = 0; i < nodeIds.Count; i++)
         {
-            int nodeId = checked((int)nodeIds[i]);
+            int nodeId = (int)nodeIds[i];
             if (!Insert(nodeId))
                 continue;
 

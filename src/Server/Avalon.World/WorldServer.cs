@@ -1013,9 +1013,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             CharacterSheetFlusher.Flush(conns[i], combat);
         stageStart = StageDone(stageStart, s_sheetStage);
 
-        // Each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it.
+        // The talent window's state (#1181), when an allocation or a paying turn-in marked it owed or the level moved;
+        // then each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it. The quest
+        // catalog the points are priced by is read once, so every connection is priced by the same one.
+        QuestCatalog questCatalog = _world.Data.Quests;
         for (int i = 0; i < conns.Length; i++)
+        {
+            TalentFlusher.Flush(conns[i], questCatalog);
             AbilityAmountsFlusher.Flush(conns[i]);
+        }
         stageStart = StageDone(stageStart, s_abilityAmountsStage);
 
         // Party members' pools (2026-09-30), to the members in their instance, at most four times a second each.

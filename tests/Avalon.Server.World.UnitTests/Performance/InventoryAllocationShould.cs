@@ -2,10 +2,12 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Talents;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World;
+using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
@@ -17,6 +19,7 @@ using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
+using Avalon.World.Talents;
 using Avalon.World.Testing;
 using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -249,6 +252,41 @@ public class InventoryAllocationShould
             () => Assert.Equal(0, extractRefused),
             () => Assert.Equal(0, imprintRefused));
         Assert.Equal(4 * 4 * Rounds, _connection.Sent);
+    }
+
+    /// <summary>
+    /// #1181: a talent request the rules refuse allocates nothing beyond its pooled reply, refused late or early: five
+    /// nodes of the seeded tree whose fourth is not connected, and three whose third repeats the first; and the tick's
+    /// talent flush passes a character whose state is not owed and whose level has not moved, sending and allocating
+    /// nothing.
+    /// </summary>
+    [Fact]
+    public void Refuse_a_talent_request_and_pass_a_settled_talent_state_allocating_nothing()
+    {
+        StaticData data = ScenarioReferenceData.Shared.Data;
+        _character.Level = 10;
+        _character.Talents.StateSent(_character.Level);
+        var handler = new TalentAllocateHandler(NullLogger<TalentAllocateHandler>.Instance, new QuietWorld(data));
+        var notConnected = new CTalentAllocatePacket { RequestId = 1, NodeIds = [2, 3, 4, 58, 5] };
+        var listedTwice = new CTalentAllocatePacket { RequestId = 2, NodeIds = [2, 3, 2] };
+        Assert.Equal(TalentResult.NotConnected, TalentRules.Allocate(_character.Talents, data.Talents, _character.Class,
+            dead: false, earned: 10, notConnected.NodeIds, out uint refused));
+        Assert.Equal(58u, refused);
+
+        long refusals = Allocated(() =>
+        {
+            handler.Execute(_connection, notConnected);
+            handler.Execute(_connection, listedTwice);
+        });
+        Assert.Empty(_character.Talents.Held);
+        Assert.Equal(2 * 4 * Rounds, _connection.Sent);
+
+        long flushes = Allocated(() => TalentFlusher.Flush(_connection, data.Quests));
+
+        Assert.Multiple(
+            () => Assert.Equal(0, refusals),
+            () => Assert.Equal(0, flushes));
+        Assert.Equal(2 * 4 * Rounds, _connection.Sent);
     }
 
     /// <summary>

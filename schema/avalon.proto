@@ -354,6 +354,10 @@ message CRequestServerInfoPacket {
 }
 message CRespawnAtTownPacket {
 }
+message CTalentAllocatePacket {
+   uint32 RequestId = 1;
+   repeated uint32 NodeIds = 2 [packed = false];
+}
 message CTargetUnitPacket {
    optional uint64 TargetGuid = 1;
 }
@@ -882,6 +886,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_TRADE_SET_GOLD = 8404;
    NetworkPacketType_CMSG_TRADE_CONFIRM = 8405;
    NetworkPacketType_CMSG_TRADE_CANCEL = 8406;
+   NetworkPacketType_CMSG_TALENT_ALLOCATE = 8416;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
@@ -948,6 +953,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_TRADE_STATE = 12514;
    NetworkPacketType_SMSG_TRADE_CLOSED = 12515;
    NetworkPacketType_SMSG_TRADE_RESULT = 12516;
+   NetworkPacketType_SMSG_TALENT_RESULT = 12528;
    NetworkPacketType_SMSG_TALENT_STATE = 12529;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
@@ -1551,6 +1557,11 @@ message SServerInfoPacket {
    optional bytes PublicKey = 2;
    ServerInfoResult Result = 3;
 }
+message STalentResultPacket {
+   uint32 RequestId = 1;
+   TalentResult Result = 2;
+   uint32 NodeId = 3;
+}
 message STalentStatePacket {
    repeated uint32 NodeIds = 1 [packed = false];
    uint32 PointsEarned = 2;
@@ -1668,6 +1679,16 @@ message SellFactorDto {
 enum ServerInfoResult {
    ServerInfoResult_Success = 0;
    ServerInfoResult_ClientVersionTooOld = 1;
+}
+enum TalentResult {
+   TalentResult_Ok = 0;
+   TalentResult_Dead = 1;
+   TalentResult_TooMany = 2;
+   TalentResult_UnknownNode = 3;
+   TalentResult_AlreadyAllocated = 4;
+   TalentResult_NotConnected = 5;
+   TalentResult_ForkLocked = 6;
+   TalentResult_InternalError = 7;
 }
 message ThreatEntry {
    uint64 AttackerGuid = 1;
