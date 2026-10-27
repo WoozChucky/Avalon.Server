@@ -25,6 +25,7 @@ public static class QuestDisplay
         {
             Experience = quest.RewardExperience,
             Gold = quest.RewardGold,
+            TalentPoints = quest.RewardTalentPoints,
             Items = paid,
         };
 

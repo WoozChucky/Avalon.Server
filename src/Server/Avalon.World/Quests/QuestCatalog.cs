@@ -37,7 +37,8 @@ public sealed record QuestView(
     IReadOnlyList<QuestStageView> Stages,
     IReadOnlyList<QuestItemRewardView> ItemRewards,
     IReadOnlyList<QuestItemRewardView> ItemChoices,
-    QuestRepeat Repeat)
+    QuestRepeat Repeat,
+    uint RewardTalentPoints = 0)
 {
     public QuestStageView LastStage => Stages[^1];
 
@@ -257,6 +258,8 @@ public sealed class QuestCatalog
             return $"repeat frequency {(int)frequency} is not a known frequency";
         if (!quest.IsRepeatable && quest.RepeatFrequency is { } set && set != QuestRepeatFrequency.None)
             return $"repeat frequency {set} is set on a quest that is not repeatable";
+        if (quest.IsRepeatable && quest.RewardTalentPoints > 0)
+            return "a repeatable quest pays no talent points";
         if (!creatures.Contains(quest.GiverCreatureId.Value))
             return $"giver creature template {quest.GiverCreatureId.Value} does not exist";
         if (!creatures.Contains(quest.EnderCreatureId.Value))
@@ -499,7 +502,8 @@ public sealed class QuestCatalog
                 .ToList())).ToList(),
         q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value).Select(r => new QuestItemRewardView(r.ItemTemplateId, r.Count)).ToList(),
         q.ItemChoices.OrderBy(c => c.ItemTemplateId.Value).Select(c => new QuestItemRewardView(c.ItemTemplateId, c.Count)).ToList(),
-        RepeatOf(q));
+        RepeatOf(q),
+        (uint)q.RewardTalentPoints);
 
     /// <summary>The repeat kind the catalog reads from a quest's repeat pair: Once unless repeatable; no frequency repeats at once.</summary>
     private static QuestRepeat RepeatOf(QuestTemplate q) => !q.IsRepeatable ? QuestRepeat.Once : q.RepeatFrequency switch

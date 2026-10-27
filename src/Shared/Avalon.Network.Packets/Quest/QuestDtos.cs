@@ -83,7 +83,7 @@ public class QuestRewardItemDto
     [ProtoMember(4)] public ulong PaidItemTemplateId { get; set; }
 }
 
-/// <summary>A quest's rewards: experience, gold, the fixed items and the choice set.</summary>
+/// <summary>A quest's rewards: experience, gold, the fixed items, the choice set and the talent points.</summary>
 [ProtoContract]
 public class QuestRewardsDto
 {
@@ -93,6 +93,9 @@ public class QuestRewardsDto
 
     /// <summary>Pick exactly one at turn-in (#711); empty when the quest has none.</summary>
     [ProtoMember(4)] public List<QuestRewardItemDto> Choices { get; set; } = [];
+
+    /// <summary>The talent points the turn-in pays (#1181); 0 for most quests, and always for a repeatable one.</summary>
+    [ProtoMember(5)] public uint TalentPoints { get; set; }
 }
 
 /// <summary>

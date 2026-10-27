@@ -44,6 +44,9 @@ public sealed class QuestTemplateDto
     /// <summary>Gold.</summary>
     public ulong RewardGold { get; set; }
 
+    /// <summary>The talent points the turn-in pays (#1181); 0 for most quests. A repeatable quest pays none.</summary>
+    public int RewardTalentPoints { get; set; }
+
     /// <summary>Whether the quest can be done again after it is turned in (#710).</summary>
     public bool IsRepeatable { get; set; }
 

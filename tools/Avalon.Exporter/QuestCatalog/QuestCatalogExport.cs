@@ -72,9 +72,10 @@ public static class QuestCatalogExport
                      "title is the base-locale (enUS) wording. Stages run in order from sequence 0; every objective " +
                      "of a stage completes it. type: 1 kill, 2 collect, 3 talk, 4 scripted, 5 use doodad. targetId is a " +
                      "creature template for kill and talk, an item template for collect, a doodad template for use " +
-                     "doodad, 0 for scripted. items are always paid; choices is the set the player " +
-                     "picks exactly one item from at turn-in, empty when the quest has none. repeat: 1 once, 2 " +
-                     "repeatable (offered again at once), 3 daily, 4 weekly, 5 monthly, the wire's QuestRepeatKind.",
+                     "doodad, 0 for scripted. talentPoints is what the turn-in pays, 0 for most quests. items are always " +
+                     "paid; choices is the set the player picks exactly one item from at turn-in, empty when the quest " +
+                     "has none. repeat: 1 once, 2 repeatable (offered again at once), 3 daily, 4 weekly, 5 monthly, " +
+                     "the wire's QuestRepeatKind.",
             Quests: quests.OrderBy(q => q.Id.Value).Select(q => Quest.From(q, texts)).ToList());
 
         return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
@@ -100,6 +101,7 @@ public static class QuestCatalogExport
             new Rewards(
                 q.RewardExperience,
                 q.RewardGold,
+                q.RewardTalentPoints,
                 q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value)
                     .Select(r => new RewardItem(r.ItemTemplateId.Value, r.Count))
                     .ToList(),
@@ -128,7 +130,7 @@ public static class QuestCatalogExport
             o.Id, (byte)o.Type, o.CreatureTemplateId?.Value ?? o.ItemTemplateId?.Value ?? o.DoodadTemplateId?.Value ?? 0, o.Count);
     }
 
-    private sealed record Rewards(uint Experience, ulong Gold, List<RewardItem> Items, List<RewardItem> Choices);
+    private sealed record Rewards(uint Experience, ulong Gold, int TalentPoints, List<RewardItem> Items, List<RewardItem> Choices);
 
     private sealed record RewardItem(ulong ItemTemplateId, uint Count);
 }

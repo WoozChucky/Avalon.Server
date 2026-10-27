@@ -1150,6 +1150,7 @@ message QuestRewardsDto {
    uint64 Gold = 2;
    repeated QuestRewardItemDto Items = 3;
    repeated QuestRewardItemDto Choices = 4;
+   uint32 TalentPoints = 5;
 }
 message QuestStageDto {
    int32 Sequence = 1;
