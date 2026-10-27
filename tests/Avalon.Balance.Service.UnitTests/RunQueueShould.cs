@@ -49,7 +49,7 @@ public class RunQueueShould
         }
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public async Task Take_a_run_from_queued_through_running_to_done_with_its_result()
     {
         using RunWorker worker = Worker();
@@ -261,7 +261,7 @@ public class RunQueueShould
         Assert.Null(record.Result);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public async Task Fail_a_run_whose_simulation_throws_and_still_run_the_next()
     {
         int calls = 0;

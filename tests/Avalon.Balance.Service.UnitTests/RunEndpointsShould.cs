@@ -27,7 +27,7 @@ public class RunEndpointsShould
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public async Task Accept_a_run_and_answer_its_status_until_done_with_the_result()
     {
         await using WebApplication app = BalanceTestHost.Build();

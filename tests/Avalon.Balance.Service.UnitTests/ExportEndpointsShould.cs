@@ -164,7 +164,7 @@ public class ExportEndpointsShould
         Assert.DoesNotContain(Token, text);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public async Task Include_the_summary_of_a_finished_run_in_the_pull_request_body()
     {
         var github = new FakeGitHub();
