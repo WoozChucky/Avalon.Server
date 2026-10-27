@@ -17,7 +17,8 @@ public static class CharacterStatsCalculator
     /// Intellect (truncated once), plus gear's flat power, scaled by gear's increased maximum mana. Gear's increased mana
     /// regeneration is summed as it is, for the regeneration rates.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
-    /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
+    /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances
+    /// are gear's and the tree's (#1181) alone.
     /// Every worn item gives its template's lines, its copy's base stats and its modifiers' lines (#1179); a defence line is
     /// its own item's: each item's armour is <c>round((its base Armour + its Armor lines) x max(0, 1 + its
     /// LocalIncreasedArmor / 100))</c>, half away from zero, and the same for evasion and ward, so increased armour on one
@@ -28,18 +29,28 @@ public static class CharacterStatsCalculator
     /// <paramref name="worn" /> is read by index, so a refresh allocates nothing here. Pure but for
     /// <paramref name="resonance" />: when given, bound by the caller to its catalog's table, it is cleared and filled with
     /// each Resonance theme's count across the worn items (#1180, <see cref="ResonanceCounts.AddItem" />) in the same walk;
-    /// null counts nothing.
+    /// null counts nothing. <paramref name="talents" />, when given (#1181), folds exactly as gear's lines do, before the
+    /// auras: its attributes join gear's before the conversions; its flat life, mana, armour, evasion and ward join gear's;
+    /// its increased maximum life and mana and its increased armour, evasion and ward join gear's global ones, each
+    /// increase scaling the whole rating (gear, attributes and flat lines together); its offence lines and added damage
+    /// join gear's sums before <see cref="CharacterOffence.Finish" />; and its More on life or mana multiplies the scaled
+    /// maximum last (<see cref="LocalScaling.More" />). Null, or empty, folds nothing.
     /// </summary>
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<WornItem> worn,
-        CombatFormula formula, AuraStatTotals? auras = null, ResonanceCounts? resonance = null)
+        CombatFormula formula, AuraStatTotals? auras = null, ResonanceCounts? resonance = null,
+        TalentTotals? talents = null)
     {
-        // One walk of every worn item's lines feeds the gear totals, the offence block's line sums (#1179) and the
-        // Resonance counts (#1180).
-        OffenceStats offenceLines = default;
-        DamageRanges addedToAttacks = default;
-        DamageRanges addedToSpells = default;
+        // The tree's offence lines and added damage are where the sums start, so gear's join them and Finish folds both;
+        // then one walk of every worn item's lines feeds the gear totals, the offence block's line sums (#1179) and the
+        // Resonance counts (#1180), and the tree's other sums join the gear totals.
+        TalentTotals? tree = talents is { IsEmpty: false } ? talents : null;
+        OffenceStats offenceLines = tree?.Offence ?? default;
+        DamageRanges addedToAttacks = tree?.AddedToAttacks ?? default;
+        DamageRanges addedToSpells = tree?.AddedToSpells ?? default;
         resonance?.Clear();
         var gear = GearTotals.Of(worn, ref offenceLines, ref addedToAttacks, ref addedToSpells, resonance);
+        if (tree is not null)
+            gear.Add(tree);
 
         long stamina = row.Stamina + gear.Stamina;
         long strength = row.Strength + gear.Strength;
@@ -47,17 +58,24 @@ public static class CharacterStatsCalculator
         long intellect = row.Intellect + gear.Intellect;
 
         long flatLife = LocalScaling.Saturate((Int128)row.BaseHp + ((Int128)stamina * formula.LifePerStamina) + gear.Health);
-        long maxHealth = LocalScaling.Increase(flatLife, gear.IncreasedMaximumLife);
+        long maxHealth = LocalScaling.More(LocalScaling.Increase(flatLife, gear.IncreasedMaximumLife),
+            tree?.MoreLife ?? 1d);
         // Intellect's share is held to the long's range before the sum, so a huge conversion caps the maximum
         // rather than wrapping it, as life's does.
         long flatMana = LocalScaling.Saturate((Int128)formula.ManaBase
             + ((Int128)formula.ManaPerLevel * Math.Max(0, row.Level - 1))
             + (Int128)Math.Clamp(intellect * (double)formula.ManaPerIntellect, long.MinValue, long.MaxValue)
             + gear.Power);
-        long maxPower = LocalScaling.Increase(flatMana, gear.IncreasedMaximumMana);
-        long armor = LocalScaling.Add(gear.Armor, (long)(strength * (double)formula.ArmorPerStrength));
-        long evasion = LocalScaling.Add(gear.Evasion, (long)(agility * (double)formula.EvasionPerAgility));
-        long ward = LocalScaling.Add(gear.Ward, (long)(intellect * (double)formula.WardPerIntellect));
+        long maxPower = LocalScaling.More(LocalScaling.Increase(flatMana, gear.IncreasedMaximumMana),
+            tree?.MoreMana ?? 1d);
+        // A global increase scales the whole rating: every item's own (locally scaled) defence, the tree's flat lines and
+        // the attribute's share (#1181).
+        long armor = LocalScaling.Increase(
+            LocalScaling.Add(gear.Armor, (long)(strength * (double)formula.ArmorPerStrength)), gear.IncreasedArmor);
+        long evasion = LocalScaling.Increase(
+            LocalScaling.Add(gear.Evasion, (long)(agility * (double)formula.EvasionPerAgility)), gear.IncreasedEvasion);
+        long ward = LocalScaling.Increase(
+            LocalScaling.Add(gear.Ward, (long)(intellect * (double)formula.WardPerIntellect)), gear.IncreasedWard);
 
         // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
         WornItem? weapon = MainHandOf(worn);
@@ -146,7 +164,7 @@ public static class CharacterStatsCalculator
     private struct GearTotals
     {
         public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, IncreasedMaximumLife, Power,
-            IncreasedMaximumMana;
+            IncreasedMaximumMana, IncreasedArmor, IncreasedEvasion, IncreasedWard;
         public float BlockPct, CritPct, MovementSpeedPct, IncreasedManaRegenPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
@@ -184,6 +202,36 @@ public static class CharacterStatsCalculator
             return totals;
         }
 
+        /// <summary>
+        /// The tree's sums joined to the gear's (#1181), each the same stat a gear line of it adds to. Its offence lines
+        /// and added damage are not here: they start the offence sums before the walk.
+        /// </summary>
+        public void Add(TalentTotals tree)
+        {
+            Stamina += tree.Stamina;
+            Strength += tree.Strength;
+            Agility += tree.Agility;
+            Intellect += tree.Intellect;
+            Armor = LocalScaling.Add(Armor, tree.Armor);
+            Evasion = LocalScaling.Add(Evasion, tree.Evasion);
+            Ward = LocalScaling.Add(Ward, tree.Ward);
+            Health += tree.Health;
+            Power += tree.Power;
+            IncreasedMaximumLife += tree.IncreasedMaximumLife;
+            IncreasedMaximumMana += tree.IncreasedMaximumMana;
+            IncreasedArmor += tree.IncreasedArmor;
+            IncreasedEvasion += tree.IncreasedEvasion;
+            IncreasedWard += tree.IncreasedWard;
+            IncreasedManaRegenPct += tree.IncreasedManaRegenPct;
+            BlockPct += tree.BlockPct;
+            CritPct += tree.CritPct;
+            MovementSpeedPct += tree.MovementSpeedPct;
+            FireResistance += tree.FireResistance;
+            ColdResistance += tree.ColdResistance;
+            LightningResistance += tree.LightningResistance;
+            BlightResistance += tree.BlightResistance;
+        }
+
         private void Add(StatType type, int value)
         {
             switch (type)
@@ -199,6 +247,10 @@ public static class CharacterStatsCalculator
                 case StatType.Power: Power += value; break;
                 case StatType.IncreasedMaximumMana: IncreasedMaximumMana += value; break;
                 case StatType.IncreasedManaRegeneration: IncreasedManaRegenPct += value; break;
+                // #1181: global, scaling the whole rating, unlike an item's local increase (ItemDefence).
+                case StatType.IncreasedArmor: IncreasedArmor += value; break;
+                case StatType.IncreasedEvasion: IncreasedEvasion += value; break;
+                case StatType.IncreasedWard: IncreasedWard += value; break;
                 // #627: a percentage, summed raw; the entity applies the combat formula's bounds. Attack speed, cast speed
                 // and cooldown recovery are the offence block's (#1178), CharacterOffence's to sum.
                 case StatType.MovementSpeed: MovementSpeedPct += value; break;
