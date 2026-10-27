@@ -28,6 +28,7 @@ public static class AbilityMetadataMapper
         ArcDegrees = template.ArcDegrees,
         ProjectileSpeed = template.ProjectileSpeed,
         Pierce = template.Pierce,
+        MaxTargets = template.MaxTargets,
         Affects = template.Affects,
         DamageType = template.DamageType,
         Tags = template.Tags,

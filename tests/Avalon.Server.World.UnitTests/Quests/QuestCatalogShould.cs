@@ -76,6 +76,8 @@ public class QuestCatalogShould
         { Quest(1).WithStage(0, Collect(11, Tusk, 1)).WithStage(1, Collect(12, Tusk, 1)), "objective 12 collects item template 7101, which objective 11 already collects" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Repeating(QuestRepeatFrequency.Daily, repeatable: false), "repeat frequency Daily" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Repeating((QuestRepeatFrequency)7), "repeat frequency 7" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Repeating(QuestRepeatFrequency.Daily).PayingTalentPoints(1), "a repeatable quest pays no talent points" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).PayingTalentPoints(-1), "it pays -1 talent points, below 0" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((999, 1), (Charm, 1)), "choice item template 999 does not exist" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Tonic, 0), (Charm, 1)), "choice item template 7102 has count 0" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Charm, 1)), "2-6 items, not 1" },

@@ -33,6 +33,7 @@ public sealed class PublicRouteShould : IAsyncLifetime
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
     private readonly IItemTemplateRepository _items = Substitute.For<IItemTemplateRepository>();
     private readonly IAbilityTemplateRepository _abilities = Substitute.For<IAbilityTemplateRepository>();
+    private readonly SqliteWorlds _sqlite = new(Open); // the seeded world the talent tree is read from
     private ApiTestHost _host = null!;
 
     public async Task InitializeAsync()
@@ -60,10 +61,15 @@ public sealed class PublicRouteShould : IAsyncLifetime
             services.AddSingleton(_items);
             services.AddSingleton(NoModifiers());
             services.AddSingleton(_abilities);
+            services.AddSingleton<IWorldDbContextFactory>(_sqlite);
         });
     }
 
-    public async Task DisposeAsync() => await _host.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await _host.DisposeAsync();
+        _sqlite.Dispose();
+    }
 
     /// <summary>A world catalog with no modifiers (#1179): these items link none.</summary>
     private static IItemModifierRepository NoModifiers()
@@ -113,6 +119,22 @@ public sealed class PublicRouteShould : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("Cleave", (await response.Content.ReadFromJsonAsync<PublicAbilityDto>())!.Name);
+    }
+
+    /// <summary>The seeded tree (#1181), node 6 (Cleave) and node 2 (the Warrior's first small node) as samples.</summary>
+    [Fact]
+    public async Task Serve_the_talent_tree_to_anyone()
+    {
+        HttpResponseMessage response = await Anonymous($"/public/world/{Open}/talents");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        TalentTreeDto tree = (await response.Content.ReadFromJsonAsync<TalentTreeDto>())!;
+        TalentNodeDto cleave = tree.Nodes.Single(n => n.Id == 6);
+        Assert.Equal(("Cleave", (uint?)200), (cleave.Name, cleave.AbilityId));
+        Assert.Equal([(Contract.StatType.Strength, Contract.TalentStatKind.Added, 5, (int?)null)],
+            tree.Nodes.Single(n => n.Id == 2).Stats.Select(s => (s.Stat, s.Kind, s.Value, s.ValueMax)));
+        Assert.Equal(4, tree.ClassStarts.Count);
+        Assert.True(response.Headers.CacheControl!.Public);
     }
 
     [Theory]

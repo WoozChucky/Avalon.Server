@@ -72,11 +72,11 @@ variant populated
             field 1 ModifierId : uint = 7
             field 2 Values : List<ItemModifierValueDto> = 2 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedProjectileDamage (28)
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
                 field 2 Value : int = 70000
                 field 3 Value2 : int? = -9
               element 1
-                field 1 Stat : ItemStat = AddedFireDamage (36)
+                field 1 Stat : ItemStat = CastSpeed (33)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
             field 3 SealProgress : uint? = 7
@@ -86,11 +86,11 @@ variant populated
             field 1 ModifierId : uint = 1000000
             field 2 Values : List<ItemModifierValueDto> = 2 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedProjectileDamage (28)
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
                 field 2 Value : int = 70000
                 field 3 Value2 : int? = -9
               element 1
-                field 1 Stat : ItemStat = AddedFireDamage (36)
+                field 1 Stat : ItemStat = CastSpeed (33)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
             field 3 SealProgress : uint? = 1000000
@@ -124,11 +124,11 @@ variant populated
             field 1 ModifierId : uint = 7
             field 2 Values : List<ItemModifierValueDto> = 2 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedProjectileDamage (28)
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
                 field 2 Value : int = 70000
                 field 3 Value2 : int? = -9
               element 1
-                field 1 Stat : ItemStat = AddedFireDamage (36)
+                field 1 Stat : ItemStat = CastSpeed (33)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
             field 3 SealProgress : uint? = 7
@@ -138,11 +138,11 @@ variant populated
             field 1 ModifierId : uint = 1000000
             field 2 Values : List<ItemModifierValueDto> = 2 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedProjectileDamage (28)
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
                 field 2 Value : int = 70000
                 field 3 Value2 : int? = -9
               element 1
-                field 1 Stat : ItemStat = AddedFireDamage (36)
+                field 1 Stat : ItemStat = CastSpeed (33)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
             field 3 SealProgress : uint? = 1000000
@@ -168,11 +168,11 @@ variant populated
     08 01 10 13 18 80 d0 ac f3 0e 22 12 09 5b ad 8f
     0f cb d9 9f 46 11 a1 65 70 86 77 28 95 0e 28 2a
     30 ac 02 38 ac 02 40 01 48 c0 84 3d 52 2d 08 07
-    12 11 08 1c 10 f0 a2 04 18 f7 ff ff ff ff ff ff
-    ff ff 01 12 10 08 24 10 e8 07 18 fd ff ff ff ff
+    12 11 08 34 10 f0 a2 04 18 f7 ff ff ff ff ff ff
+    ff ff 01 12 10 08 21 10 e8 07 18 fd ff ff ff ff
     ff ff ff ff 01 18 07 20 2a 28 01 52 31 08 c0 84
-    3d 12 11 08 1c 10 f0 a2 04 18 f7 ff ff ff ff ff
-    ff ff ff 01 12 10 08 24 10 e8 07 18 fd ff ff ff
+    3d 12 11 08 34 10 f0 a2 04 18 f7 ff ff ff ff ff
+    ff ff ff 01 12 10 08 21 10 e8 07 18 fd ff ff ff
     ff ff ff ff ff 01 18 c0 84 3d 20 13 28 01 5a 15
     ce a9 ce bc ce ad ce b3 ce b1 20 ce 94 ce 95 ce
     9b ce a4 ce 91 62 0d 08 05 10 f7 ff ff ff ff ff
@@ -181,11 +181,11 @@ variant populated
     12 c5 01 08 02 10 2a 18 c0 84 3d 22 12 09 04 03
     02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28
     13 30 2a 38 2a 40 03 48 80 d0 ac f3 0e 52 2d 08
-    07 12 11 08 1c 10 f0 a2 04 18 f7 ff ff ff ff ff
-    ff ff ff 01 12 10 08 24 10 e8 07 18 fd ff ff ff
+    07 12 11 08 34 10 f0 a2 04 18 f7 ff ff ff ff ff
+    ff ff ff 01 12 10 08 21 10 e8 07 18 fd ff ff ff
     ff ff ff ff ff 01 18 07 20 2a 28 01 52 31 08 c0
-    84 3d 12 11 08 1c 10 f0 a2 04 18 f7 ff ff ff ff
-    ff ff ff ff 01 12 10 08 24 10 e8 07 18 fd ff ff
+    84 3d 12 11 08 34 10 f0 a2 04 18 f7 ff ff ff ff
+    ff ff ff ff 01 12 10 08 21 10 e8 07 18 fd ff ff
     ff ff ff ff ff ff 01 18 c0 84 3d 20 13 28 01 5a
     15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20
     61 73 74 72 61 6c 62 0d 08 05 10 f7 ff ff ff ff
@@ -258,15 +258,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -276,15 +276,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -294,15 +294,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -339,15 +339,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -357,15 +357,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -375,15 +375,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -420,15 +420,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -438,15 +438,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -456,15 +456,15 @@ variant maxima
             field 1 ModifierId : uint = 4294967295
             field 2 Values : List<ItemModifierValueDto> = 3 elements
               element 0
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 1
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
               element 2
-                field 1 Stat : ItemStat = IncreasedManaRegeneration (55)
+                field 1 Stat : ItemStat = IncreasedWard (58)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
             field 3 SealProgress : uint? = 4294967295
@@ -508,18 +508,18 @@ variant maxima
     09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
     ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff
     ff ff ff 0f 40 03 48 ff ff ff ff 0f 52 44 08 ff
-    ff ff ff 0f 12 0e 08 37 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 12 0e 08 37 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 12 0e 08 37 10 ff ff ff ff 07 18 ff
+    ff ff ff 0f 12 0e 08 3a 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 3a 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 3a 10 ff ff ff ff 07 18 ff
     ff ff ff 07 18 ff ff ff ff 0f 20 ff ff ff ff 0f
-    28 01 52 44 08 ff ff ff ff 0f 12 0e 08 37 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 37 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 37 10 ff
+    28 01 52 44 08 ff ff ff ff 0f 12 0e 08 3a 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 3a 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 3a 10 ff
     ff ff ff 07 18 ff ff ff ff 07 18 ff ff ff ff 0f
     20 ff ff ff ff 0f 28 01 52 44 08 ff ff ff ff 0f
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
     18 ff ff ff ff 0f 20 ff ff ff ff 0f 28 01 5a 84
     01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -537,18 +537,18 @@ variant maxima
     09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
     ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff
     ff ff ff 0f 40 03 48 ff ff ff ff 0f 52 44 08 ff
-    ff ff ff 0f 12 0e 08 37 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 12 0e 08 37 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 12 0e 08 37 10 ff ff ff ff 07 18 ff
+    ff ff ff 0f 12 0e 08 3a 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 3a 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 3a 10 ff ff ff ff 07 18 ff
     ff ff ff 07 18 ff ff ff ff 0f 20 ff ff ff ff 0f
-    28 01 52 44 08 ff ff ff ff 0f 12 0e 08 37 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 37 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 37 10 ff
+    28 01 52 44 08 ff ff ff ff 0f 12 0e 08 3a 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 3a 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 3a 10 ff
     ff ff ff 07 18 ff ff ff ff 07 18 ff ff ff ff 0f
     20 ff ff ff ff 0f 28 01 52 44 08 ff ff ff ff 0f
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
     18 ff ff ff ff 0f 20 ff ff ff ff 0f 28 01 5a 84
     01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -566,18 +566,18 @@ variant maxima
     09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
     ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff
     ff ff ff 0f 40 03 48 ff ff ff ff 0f 52 44 08 ff
-    ff ff ff 0f 12 0e 08 37 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 12 0e 08 37 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 12 0e 08 37 10 ff ff ff ff 07 18 ff
+    ff ff ff 0f 12 0e 08 3a 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 3a 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 3a 10 ff ff ff ff 07 18 ff
     ff ff ff 07 18 ff ff ff ff 0f 20 ff ff ff ff 0f
-    28 01 52 44 08 ff ff ff ff 0f 12 0e 08 37 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 37 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 37 10 ff
+    28 01 52 44 08 ff ff ff ff 0f 12 0e 08 3a 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 3a 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 3a 10 ff
     ff ff ff 07 18 ff ff ff ff 07 18 ff ff ff ff 0f
     20 ff ff ff ff 0f 28 01 52 44 08 ff ff ff ff 0f
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
-    12 0e 08 37 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 3a 10 ff ff ff ff 07 18 ff ff ff ff 07
     18 ff ff ff ff 0f 20 ff ff ff ff 0f 28 01 5a 84
     01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -687,11 +687,11 @@ variant varint-edges
             field 1 ModifierId : uint = 16383
             field 2 Values : List<ItemModifierValueDto> = 2 elements
               element 0
-                field 1 Stat : ItemStat = <not a declared member> (56)
+                field 1 Stat : ItemStat = <not a declared member> (59)
                 field 2 Value : int = 268435455
                 field 3 Value2 : int? = 2097151
               element 1
-                field 1 Stat : ItemStat = <not a declared member> (56)
+                field 1 Stat : ItemStat = <not a declared member> (59)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
             field 3 SealProgress : uint? = 2097151
@@ -701,11 +701,11 @@ variant varint-edges
             field 1 ModifierId : uint = 2097152
             field 2 Values : List<ItemModifierValueDto> = 2 elements
               element 0
-                field 1 Stat : ItemStat = <not a declared member> (56)
+                field 1 Stat : ItemStat = <not a declared member> (59)
                 field 2 Value : int = 268435455
                 field 3 Value2 : int? = 2097151
               element 1
-                field 1 Stat : ItemStat = <not a declared member> (56)
+                field 1 Stat : ItemStat = <not a declared member> (59)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
             field 3 SealProgress : uint? = 268435456
@@ -739,11 +739,11 @@ variant varint-edges
             field 1 ModifierId : uint = 16383
             field 2 Values : List<ItemModifierValueDto> = 2 elements
               element 0
-                field 1 Stat : ItemStat = <not a declared member> (56)
+                field 1 Stat : ItemStat = <not a declared member> (59)
                 field 2 Value : int = 268435455
                 field 3 Value2 : int? = 2097151
               element 1
-                field 1 Stat : ItemStat = <not a declared member> (56)
+                field 1 Stat : ItemStat = <not a declared member> (59)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
             field 3 SealProgress : uint? = 2097151
@@ -753,11 +753,11 @@ variant varint-edges
             field 1 ModifierId : uint = 2097152
             field 2 Values : List<ItemModifierValueDto> = 2 elements
               element 0
-                field 1 Stat : ItemStat = <not a declared member> (56)
+                field 1 Stat : ItemStat = <not a declared member> (59)
                 field 2 Value : int = 268435455
                 field 3 Value2 : int? = 2097151
               element 1
-                field 1 Stat : ItemStat = <not a declared member> (56)
+                field 1 Stat : ItemStat = <not a declared member> (59)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
             field 3 SealProgress : uint? = 268435456
@@ -784,11 +784,11 @@ variant varint-edges
     02 08 03 10 80 01 18 80 01 22 12 09 04 03 02 01
     06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 ff ff
     ff 7f 30 ff ff 7f 38 ff ff ff 7f 40 04 48 ff ff
-    ff 7f 52 26 08 ff 7f 12 0b 08 38 10 ff ff ff 7f
-    18 ff ff 7f 12 0b 08 38 10 80 80 80 01 18 80 80
+    ff 7f 52 26 08 ff 7f 12 0b 08 3b 10 ff ff ff 7f
+    18 ff ff 7f 12 0b 08 3b 10 80 80 80 01 18 80 80
     01 18 ff ff 7f 20 ff 7f 28 01 52 2c 08 80 80 80
-    01 12 0b 08 38 10 ff ff ff 7f 18 ff ff 7f 12 0b
-    08 38 10 80 80 80 01 18 80 80 01 18 80 80 80 80
+    01 12 0b 08 3b 10 ff ff ff 7f 18 ff ff 7f 12 0b
+    08 3b 10 80 80 80 01 18 80 80 01 18 80 80 80 80
     01 20 80 80 80 01 28 01 5a 7f 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -802,11 +802,11 @@ variant varint-edges
     7f 1a a5 02 08 ff ff 7f 12 9b 02 08 03 10 7f 18
     ff 7f 22 12 09 04 03 02 01 06 05 08 07 11 09 0a
     0b 0c 0d 0e 0f 10 28 80 01 30 80 80 80 80 01 38
-    80 01 40 04 48 80 01 52 26 08 ff 7f 12 0b 08 38
-    10 ff ff ff 7f 18 ff ff 7f 12 0b 08 38 10 80 80
+    80 01 40 04 48 80 01 52 26 08 ff 7f 12 0b 08 3b
+    10 ff ff ff 7f 18 ff ff 7f 12 0b 08 3b 10 80 80
     80 01 18 80 80 01 18 ff ff 7f 20 ff 7f 28 01 52
-    2c 08 80 80 80 01 12 0b 08 38 10 ff ff ff 7f 18
-    ff ff 7f 12 0b 08 38 10 80 80 80 01 18 80 80 01
+    2c 08 80 80 80 01 12 0b 08 3b 10 ff ff ff 7f 18
+    ff ff 7f 12 0b 08 3b 10 80 80 80 01 18 80 80 01
     18 80 80 80 80 01 20 80 80 80 01 28 01 5a 81 01
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9

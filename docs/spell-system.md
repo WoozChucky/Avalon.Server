@@ -31,7 +31,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Id` | `AbilityId` | | Primary key. Retired ids are never reused, so no client cache confuses an old skill with a new one. |
 | `Name` | string | | Display name. |
 | `CastTime` | uint | ms | 0 is instant; above 0 the cast waits in the queue first. |
-| `Cooldown` | uint | ms | Time before the skill can be cast again, before cooldown recovery (or, for a basic Spell, cast speed). 0 for a basic Attack, which its weapon paces (#1178, §3). |
+| `Cooldown` | uint | ms | Time before the skill can be cast again, before cooldown recovery (or, for a basic Spell, cast speed). 0 on an Attack makes its weapon pace it (#1181, §3); a basic Attack's is always 0 (#1178). |
 | `Cost` | uint | mana | Spent from the caster's mana, the one pool every class has (#1181; see the power rule below). 0 is free. |
 | `ScriptName` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
@@ -48,6 +48,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `ProjectileSpeed` | float | m/s | Projectile only; 0 otherwise. |
 | `Pierce` | bool | | Projectile only: false ends on the first unit hit; true hits each unit once and flies on. |
 | `Affects` | `AbilityAffects` | | `Hostile` (0) damages hostile units; `Ally` (1) heals allies. |
+| `MaxTargets` | int | units | The most units the shape affects, nearest first (§5); 0 is no limit, the default. It caps whatever the shape affects: hostiles for a Hostile ability, allies for an Ally one (#1181), and a unit the ability may not affect, every unit hits ignore among them, takes no slot. 0 or more (`CK_AbilityTemplates_MaxTargets`, `AbilityRules`). Exported in the ability catalog and read and edited over REST (`maxTargets` on the template and the public ability), not sent on `AbilityInfo`. |
 | `Tags` | `AbilityTags` | | What the skill is (#1178, `[Flags]`): at most one of `Attack` (1), `Spell` (2) and `Heal` (4), plus its delivery, `Area` (8), `Projectile` (16), `Melee` (32). `DamageOverTime` (64) is an aura's tag, never an ability's (`CK_AbilityTemplates_Tags`). The tags pick the base (§4) and the modifiers that scale it. |
 | `DamageEffectiveness` | float | percent | What an Attack's weapon roll counts for, and a Spell's added damage; 100 counts it whole. Finite and 0 or more, above 0 for an Attack that deals damage (#1178). |
 | `SpellBaseMin`, `SpellBaseMax` | uint, uint | health points | The range a Spell or a Heal rolls at level 1, inclusive; `SpellBaseMax` above 0 for one that deals or heals, or whose aura ticks (#1178). |
@@ -147,11 +148,17 @@ crowd's separation) could move it. See [creature-system.md](creature-system.md).
 **Pace (#1178).** The cast system reads the caster's pace once, when it takes the cast (`CasterPace`: a
 character's is fixed at its last stats refresh), through `AbilityPace`, the one rule: the cast time is
 `CastTime / (1 + cast speed / 100)`, and the cooldown the cast sets when it fires is worked out then and kept on
-the cast (`AbilityInstance.CooldownSeconds`). A basic Attack (Cleave, Quick Shot) waits its weapon's
-attack time (`WeaponDamage.AttackTimeMs`: the attack time the main hand's copy rolled, a base stat since #1179, after its
-local attack speed; the formula's `UnarmedAttackTimeMs`, 816, with no weapon) over attack speed; a basic Spell (Spark
-Bolt, Smite) its row's `Cooldown` (800 ms) over cast speed, still instant and with no cast bar (owner decision
-D1); every other skill its row's `Cooldown` over cooldown recovery. Each speed is percentage points, from 0 to its
+the cast (`AbilityInstance.CooldownSeconds`). The cooldown follows four rules (`AbilityPace.Cooldown`), the first that
+applies:
+
+1. a creature's basic waits its swing (`SwingInterval`, below);
+2. any Attack whose row's `Cooldown` is 0 waits its weapon's attack time (`WeaponDamage.AttackTimeMs`: the attack time
+   the main hand's copy rolled, a base stat since #1179, after its local attack speed; the formula's
+   `UnarmedAttackTimeMs`, 816, with no weapon) over attack speed (#1181). Every basic Attack (Cleave, Quick Shot, Heavy
+   Strike) is one, since a basic Attack's `Cooldown` is validated as 0;
+3. any other basic, a basic Spell (Spark Bolt, Smite), waits its row's `Cooldown` (800 ms) over cast speed, still
+   instant and with no cast bar (owner decision D1);
+4. every other skill waits its row's `Cooldown` over cooldown recovery. Each speed is percentage points, from 0 to its
 cap (`AttackSpeedCap`, `CastSpeedCap`, `CooldownRecoveryCap`, 50 each), so a negative one never lengthens a time.
 A weapon swap mid-fight changes neither a queued cast's time nor the cooldown it will set, and never a running
 cooldown; the next cast follows the new weapon. The global cooldown is no speed's.
@@ -190,8 +197,8 @@ refused: its cost and cooldown are spent all the same.
   but its aura; evaded or landed, it counts as combat as an evaded hit does (the encounter, the creature engaging, both
   tagged), whether or not its aura then sticks. Its aura lands only where the hit landed. An ability flagged
   `AbilityFlags.Unavoidable` is never rolled against: no evasion roll, so its damage is never evaded and its aura is
-  offered to every unit its shape affects (the aura system's own refusals, such as an
-  invulnerable creature, a corpse or a creature walking home, still apply). See
+  offered to every unit its shape affects, which never holds a unit every hit ignores (§5; the aura system's own
+  refusals still apply). See
   "Combat reads the derived stats" in [World simulation](world-simulation.md).
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + heal)`, the heal being its Heal base (below) and then a crit roll,
@@ -339,6 +346,21 @@ back by `MapNavigator.RaycastWalkable` from the caster, so a blast cannot land b
 off the navmesh centres it on itself. Every qualifying unit whose body overlaps `Radius` is affected,
 once, when it fires.
 
+**`MaxTargets`, every shape (#1181).** A shape whose `MaxTargets` is above 0 affects at most that many units, the
+nearest first (the hit query's order). Only units that qualify (`AbilityEffect.Qualifies`) count. For a Hostile
+ability that leaves out every unit hits ignore (`CombatService.IgnoresHits`: an invulnerable creature, a corpse, a
+creature walking home, a protected arrival) as well as the units it is not hostile to (an invulnerable creature and a
+protected arrival already were not), so neither an ally nor a boar walking home standing in front ever takes the
+place of the nearest unit it can damage; a unit held for the dodge wait
+(§4) counts as affected. A circle or a cone passes it to `AbilityEffect.ApplyToAll`, which stops once it has affected
+that many; a piercing projectile ends on its `MaxTargets`-th hit, told as a hit (`ProjectileImpactReason.Hit`), and
+one without `Pierce` already ends on its first. A projectile flies through every unit that does not qualify, one hits
+ignore included, and a held hit whose target has since come to be ignored is dropped (§4). The same rule means an
+`Unavoidable` ability offers its aura only to a unit it may affect: an ignored unit is offered none. Before #1181 the
+aura system refused such an aura, except crowd control on a creature walking home, which it resisted and answered
+"Immune"; a shape's crowd control now skips that creature and tells nothing (crowd control applied to it directly, by
+a Resonance proc, is still resisted and answered "Immune").
+
 **Cone** (`ConeAbilityScript`). The apex is the caster. It points along the caster's facing (a
 movement skill) or toward the aim point (a cursor skill; a point on the caster falls back to facing).
 A unit is inside when its centre is within `Reach` plus its body radius, and its direction from the
@@ -355,7 +377,7 @@ tick it sweeps its whole step as a segment:
   past `Reach` or through a unit;
 - the segment is cut by `RaycastWalkable`, so a wall stops it;
 - the units whose body the segment touches are taken nearest first. Without `Pierce` it ends on the
-  first qualifying unit, stopping at the point of its step nearest that unit's centre. With `Pierce`
+  first unit that qualifies, stopping at the point of its step nearest that unit's centre. With `Pierce`
   it hits each unit once and flies on.
 - a player's projectile sweeps the units where that player sees them beside it (#1082). The client
   draws projectiles where the server has them, with no delay, but other units its render delay plus one
@@ -431,7 +453,8 @@ are never reused. Every kit skill has `AllowedClasses` its own class, `ThreatMul
 `HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune. Under the offence model
 (#1178) the bases re-express the old numbers: an Attack's effectiveness carries its old level-1 average over a
 starter weapon's roll, and a Spell's or a Heal's base and growth carry its old level-1 and level-10 averages, each
-within a few percent. A basic Attack's cooldown is its weapon's attack time (`weapon`).
+within a few percent. An Attack whose cooldown is 0, every basic one among them, waits its weapon's attack time
+(`weapon`).
 
 | id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | tags | base | type |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -447,10 +470,19 @@ within a few percent. A basic Attack's cooldown is its weapon's attack time (`we
 | 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 0.8 s | 0 | Spell, Projectile | 12-17, +0.45 %/level | Lightning |
 | 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | Spell, Area | 20-31, +0.35 %/level | Lightning |
 | 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | Heal, Area | 30-44 | – |
+| 319 | Warrior | Heavy Strike | Cone | Movement | – | 2.5 | – | 60 | – | – | Hostile | 0 | weapon | 0 | Attack, Melee | 380 % | Physical |
+| 320 | Wizard | Frostbolt | Projectile | Cursor | – | 22 | – | – | 13 | no | Hostile | 0.5 s | 2 s | 12 | Spell, Projectile | 28-42, +0.80 %/level | Cold |
 
-Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twelve rows, the class
-links, the starting skills, one script per shape, Mending Circle as the only ally heal, and that every
-cost is payable under the power rule from a level 1 character's maximum mana.
+**Heavy Strike and Frostbolt (#1181)** come with the talent tree ([talents.md](talents.md)), seeded by the World
+migration `AddTalentTree`. Heavy Strike is the Warrior's starter, linked from the Warrior's start node: a `Basic`
+Attack with `MaxTargets` 1, so it hits only the nearest hostile in its cone, paced by the weapon. Frostbolt is the
+ability node between the Hunter's and the Wizard's regions. No class's `StartingSpells` grants either yet, and
+their `AllowedClasses` are the Warrior and the Wizard.
+
+Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twenty-one kit abilities (this table's
+twelve and the nine aura and crowd-control abilities, [auras](auras.md)), what the design fixes of Heavy Strike and
+Frostbolt, the class links, the starting skills, one script per shape, Mending Circle as the only ally heal, and that
+every cost is payable under the power rule from a level 1 character's maximum mana.
 
 ## 8b. The creature abilities
 

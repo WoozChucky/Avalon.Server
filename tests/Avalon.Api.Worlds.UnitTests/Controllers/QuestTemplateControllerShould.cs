@@ -46,8 +46,7 @@ public class QuestTemplateControllerShould
         ScriptName = "AlphaHowlScript",
         RewardExperience = 600,
         RewardGold = 400,
-        IsRepeatable = true,
-        RepeatFrequency = Avalon.World.Public.Enums.QuestRepeatFrequency.Weekly,
+        RewardTalentPoints = 1,
         Stages =
         [
             new QuestStage { QuestId = 3, Sequence = 1, DescriptionTextId = 41 },
@@ -112,9 +111,8 @@ public class QuestTemplateControllerShould
         Assert.Equal(CharacterClass.Hunter, dto.ClassRequirement);
         Assert.Equal(2u, dto.RequiredQuestId);
         Assert.Equal("AlphaHowlScript", dto.ScriptName);
-        Assert.Equal((600u, 400ul), (dto.RewardExperience, dto.RewardGold));
-        Assert.Equal((true, (Avalon.Api.Contract.QuestRepeatFrequency?)Avalon.Api.Contract.QuestRepeatFrequency.Weekly),
-            (dto.IsRepeatable, dto.RepeatFrequency));
+        Assert.Equal((600u, 400ul, 1), (dto.RewardExperience, dto.RewardGold, dto.RewardTalentPoints));
+        Assert.Equal((false, (Avalon.Api.Contract.QuestRepeatFrequency?)null), (dto.IsRepeatable, dto.RepeatFrequency));
 
         Assert.Equal([0, 1], dto.Stages.Select(s => s.Sequence));
         Assert.Equal(((string?)null, (int?)null), (dto.Stages[0].Text, dto.Stages[0].TextId));
@@ -138,6 +136,18 @@ public class QuestTemplateControllerShould
         Assert.Equal([(5ul, 1u), (8ul, 1u)], dto.ItemChoices.Select(r => (r.ItemTemplateId, r.Count)));
         Assert.Equal([(302u, 4ul, 60f), (302u, 7ul, 25f)],
             dto.ItemDrops.Select(d => (d.ObjectiveId, d.CreatureTemplateId, d.Chance)));
+
+        // A repeatable quest, which pays no talent points, carries its frequency.
+        QuestTemplate weekly = Quest();
+        weekly.IsRepeatable = true;
+        weekly.RepeatFrequency = Avalon.World.Public.Enums.QuestRepeatFrequency.Weekly;
+        weekly.RewardTalentPoints = 0;
+        _quests.FindByIdAsync(new QuestTemplateId(3), Arg.Any<CancellationToken>()).Returns(weekly);
+
+        QuestTemplateDto repeating = await GetOk(3);
+
+        Assert.Equal((true, (Avalon.Api.Contract.QuestRepeatFrequency?)Avalon.Api.Contract.QuestRepeatFrequency.Weekly, 0),
+            (repeating.IsRepeatable, repeating.RepeatFrequency, repeating.RewardTalentPoints));
     }
 
     [Fact]
@@ -149,6 +159,7 @@ public class QuestTemplateControllerShould
         quest.ScriptName = null;
         quest.IsRepeatable = true;
         quest.RepeatFrequency = Avalon.World.Public.Enums.QuestRepeatFrequency.None;
+        quest.RewardTalentPoints = 0;   // a repeatable quest pays none
         _quests.FindByIdAsync(Arg.Any<QuestTemplateId>(), Arg.Any<CancellationToken>()).Returns(quest);
 
         QuestTemplateDto dto = await GetOk(3);

@@ -38,7 +38,8 @@ public sealed class CircleAbilityScript(IAbility ability, IUnit caster, AbilityA
         Position = centre;
 
         arena.BroadcastAbilityFired(Caster, Ability, footprint);
-        AbilityEffect.ApplyToAll(arena, Caster, Ability, arena.Hits.InCircle(centre, footprint.Radius));
+        AbilityEffect.ApplyToAll(arena, Caster, Ability, arena.Hits.InCircle(centre, footprint.Radius),
+            Ability.Metadata.MaxTargets);
 
         State = SpellState.Finished;
     }

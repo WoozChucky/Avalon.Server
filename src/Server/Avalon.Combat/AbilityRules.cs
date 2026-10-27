@@ -40,6 +40,9 @@ public static class AbilityRules
                 return $"{name} {value} is not a finite value of 0 or more";
         }
 
+        // #1181: 0 is no limit, and a negative cap would mean nothing.
+        if (t.MaxTargets < 0) return $"MaxTargets {t.MaxTargets} is below 0";
+
         if (!Enum.IsDefined(t.AimMode)) return $"unknown aim mode {(byte)t.AimMode}";
         if (!Enum.IsDefined(t.Shape)) return $"unknown shape {(byte)t.Shape}";
         if (!Enum.IsDefined(t.Anchor)) return $"unknown anchor {(byte)t.Anchor}";

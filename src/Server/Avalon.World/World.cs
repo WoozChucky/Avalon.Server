@@ -154,7 +154,8 @@ public class World : IWorld
         IAuraTemplateRepository? auraTemplateRepository = null,
         IDoodadTemplateRepository? doodadTemplateRepository = null,
         TradeService? trades = null,
-        AwakeningQueue? awakening = null)
+        AwakeningQueue? awakening = null,
+        ITalentTreeRepository? talentTreeRepository = null)
     {
         _parties = parties;
         _trades = trades;
@@ -176,7 +177,7 @@ public class World : IWorld
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
             dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository,
             questRepository, serviceProvider.GetService<IScriptManager>(), auraTemplateRepository,
-            doodadTemplateRepository);
+            doodadTemplateRepository, talentTreeRepository);
 
         Time = new GameTime(serviceProvider.GetService<TimeProvider>());
         _instanceTicker = new InstanceTicker(_logger, DiagnosticsConfig.World.Meter,

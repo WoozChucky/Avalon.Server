@@ -69,10 +69,12 @@ public static class AbilityCatalogExport
                      "8 area, 16 projectile, 32 melee (64, damage over time, is an aura's tag and never an ability's). " +
                      "Distances in metres, arcDegrees the full arc of a cone, projectileSpeed in metres per second, " +
                      "castTimeMs in milliseconds before cast speed, cooldownMs in milliseconds before cooldown recovery; " +
-                     "a basic attack's pace is its weapon's (its cooldownMs is 0), and a basic spell's cooldownMs is " +
-                     "shortened by cast speed instead. The basic of a creature waits its swing interval rather than its " +
-                     "cooldownMs. The server sends the effective pace of the character's own abilities: trust that over " +
-                     "this file. " +
+                     "an attack whose cooldownMs is 0 (every basic attack's is) is paced by its weapon instead, and a " +
+                     "basic spell's cooldownMs is shortened by cast speed instead. The basic of a creature waits its " +
+                     "swing interval rather than its cooldownMs. The server sends the effective pace of the " +
+                     "character's own abilities: trust that over this file. " +
+                     "maxTargets: the most units a circle or a cone affects, the nearest it can affect, and the hit a " +
+                     "piercing projectile ends on; 0 is no limit. " +
                      "auraId: the aura each unit the ability affects receives (see aura-catalog), or null. " +
                      "basic: true for the basic attack of a class, the one ability a silence does not stop.",
             Abilities: templates.OrderBy(template => template.Id.Value).Select(Row.From).ToList());
@@ -99,6 +101,7 @@ public static class AbilityCatalogExport
         float ArcDegrees,
         float ProjectileSpeed,
         bool Pierce,
+        int MaxTargets,
         uint CastTimeMs,
         uint CooldownMs,
         uint? AuraId,
@@ -106,7 +109,8 @@ public static class AbilityCatalogExport
     {
         public static Row From(AbilityTemplate t) => new(
             t.Id.Value, t.Name ?? string.Empty, (byte)t.Shape, (byte)t.AimMode, (byte)t.Anchor, (byte)t.Affects,
-            (int?)t.DamageType, (int)t.Tags, t.Radius, t.Reach, t.ArcDegrees, t.ProjectileSpeed, t.Pierce, t.CastTime, t.Cooldown, t.AuraId?.Value,
+            (int?)t.DamageType, (int)t.Tags, t.Radius, t.Reach, t.ArcDegrees, t.ProjectileSpeed, t.Pierce, t.MaxTargets,
+            t.CastTime, t.Cooldown, t.AuraId?.Value,
             (t.Flags & AbilityFlags.Basic) != 0);
     }
 }

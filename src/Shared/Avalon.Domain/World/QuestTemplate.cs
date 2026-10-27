@@ -45,6 +45,11 @@ public class QuestTemplate
     /// <summary>Gold.</summary>
     public ulong RewardGold { get; set; }
 
+    /// <summary>
+    /// Talent points the turn-in pays (#1181), 0 or more; a repeatable quest pays none, so a point is earned once.
+    /// </summary>
+    public int RewardTalentPoints { get; set; }
+
     /// <summary>A QuestScript type name, or null for a quest that is data only.</summary>
     public string? ScriptName { get; set; }
 

@@ -135,6 +135,7 @@ public class PublicMappingShould
             ScriptName = script,
             Affects = affects,
             AllowedClasses = [CharacterClass.Warrior],
+            MaxTargets = 1,
             Effects = affects == AbilityAffects.Ally
                 ? Avalon.World.Public.Enums.SpellEffect.Heal
                 : Avalon.World.Public.Enums.SpellEffect.Damage,
@@ -147,6 +148,7 @@ public class PublicMappingShould
         Assert.Equal(Avalon.Api.Contract.SpellRange.Melee, dto.Range);
         Assert.Equal(1500u, dto.CastTime);
         Assert.Equal([CharacterClass.Warrior], dto.AllowedClasses);
+        Assert.Equal(1, dto.MaxTargets);
     }
 
     /// <summary>
@@ -175,6 +177,8 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.AuraStacking), typeof(Avalon.Api.Contract.AuraStacking))]
     [InlineData(typeof(Avalon.Domain.World.AuraStat), typeof(Avalon.Api.Contract.AuraStat))]
     [InlineData(typeof(Avalon.Domain.World.AuraModifierKind), typeof(Avalon.Api.Contract.AuraModifierKind))]
+    [InlineData(typeof(Avalon.Domain.World.TalentNodeKind), typeof(Avalon.Api.Contract.TalentNodeKind))]
+    [InlineData(typeof(Avalon.Domain.World.TalentStatKind), typeof(Avalon.Api.Contract.TalentStatKind))]
     public void Keep_enum_members_in_step_with_the_contract(Type source, Type target)
     {
         Assert.Equal(Enum.GetValues(source).Length, Enum.GetValues(target).Length);

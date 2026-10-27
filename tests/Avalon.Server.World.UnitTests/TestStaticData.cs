@@ -1,7 +1,9 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Vendors;
 using Avalon.World;
@@ -61,6 +63,14 @@ internal static class TestStaticData
         MaxStackSize = 1,
         Rarity = ItemRarity.Common,
     };
+
+    /// <summary>
+    /// A plain cone for each ability the seeded talent tree links (#1181), the abilities a sound tree needs: a test whose
+    /// StaticData falls back on the seeded tree and asks that nothing was logged at Error passes them among its abilities,
+    /// as it passes <see cref="Glyph" /> among its items.
+    /// </summary>
+    public static IReadOnlyCollection<AbilityTemplate> TalentTreeAbilities() =>
+        [.. TalentSeed.Abilities().Select(link => AbilityTestData.Cone(link.AbilityId.Value))];
 
     public static Task<StaticData> LoadAsync(
         IReadOnlyCollection<ClassLevelStat>? classStats = null,

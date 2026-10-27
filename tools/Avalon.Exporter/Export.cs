@@ -110,6 +110,11 @@ internal static class Exports
             root => QuestCatalogExport.Write(
                 Path.Combine(root, QuestCatalogExport.DirectoryName, QuestCatalogExport.FileName)),
             QuestCatalogExport.Readiness),
+
+        new("talent-catalog", TalentCatalogExport.DirectoryName + "/" + TalentCatalogExport.FileName,
+            "the shared talent tree: nodes, stat lines, linked abilities, edges and class starts (from the seed)",
+            root => TalentCatalogExport.Write(
+                Path.Combine(root, TalentCatalogExport.DirectoryName, TalentCatalogExport.FileName))),
     ];
 
     internal static Export? ByName(string name)

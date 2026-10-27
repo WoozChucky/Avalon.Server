@@ -144,8 +144,9 @@ at full health). A killing tick is sent like any killing hit, before `SMSG_UNIT_
   evaded), naming the ability and its type, and a landed one with no damage sends only the aura, no damage number. An
   ability flagged `Unavoidable` is never evaded (none is seeded). Heals, helpful auras and aura ticks are never
   evaded. A target that
-  takes no hits (an invulnerable town creature, a corpse, a creature walking home) gets no harmful aura; crowd control
-  an `Unavoidable` ability puts on a creature walking home is answered "Immune" (section 10).
+  takes no hits (an invulnerable town creature, a corpse, a creature walking home) gets no harmful aura. No ability
+  reaches a creature walking home, `Unavoidable` or not: its shape passes over it (#1181). Only crowd control applied
+  to it directly, by a Resonance proc, is answered "Immune" (section 10).
 - **A harmful aura starts combat**, as a hit does: the creature engages its caster, and both are in combat.
 - **Auras survive map changes and logout.** Their time does not run while the character is offline, nor while it
   loads into the world after a login; it starts again when the character enters its instance. Across a map change (a
@@ -254,8 +255,9 @@ holds (the union of their bits), never from the catalog:
   the hit get a damage packet of 0 with `Result` `HitResult.Immune` (8), after the ability's own damage packet if it
   has one: on a creature whose resistance to that type is 0 (a boss is immune to stun and silence), on a character
   that has already taken a stun, root or silence of that type three times from other characters within the
-  diminishing window, and on a creature walking home hit by an `Unavoidable` ability (any other ability, as every
-  seeded crowd-control ability is, is passed over whole by such a creature: no damage, no aura, no "Immune", #1164).
+  diminishing window, and on a creature walking home given it directly, by a Resonance proc. No ability
+  reaches a creature walking home, `Unavoidable` or not: its shape passes over it, so it takes no damage, no aura and
+  no "Immune", and a capped ability hits the nearest unit it can damage instead (#1181).
 - **Shorter durations.** Resistance and diminishing shorten an aura rather than refuse it: a Rare creature takes half
   of each, a Boss half a root or slow, and a character takes a stun, root or silence from another character at full,
   then half, then a quarter of its duration until none of that type has landed for 6 s

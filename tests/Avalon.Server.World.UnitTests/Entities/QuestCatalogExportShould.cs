@@ -96,6 +96,12 @@ public class QuestCatalogExportShould
             .GetProperty("rewards").GetProperty("choices").EnumerateArray()
             .Select(i => (i.GetProperty("itemTemplateId").GetInt64(), i.GetProperty("count").GetInt32())));
         Assert.Empty(quests.Single(q => q.GetProperty("id").GetInt32() == 1).GetProperty("rewards").GetProperty("choices").EnumerateArray());
+
+        // #1181: the talent points a turn-in pays, 1 on a forest storyline quest (3), 0 on one that pays none (2).
+        Assert.Equal((1, 0), (TalentPoints(3), TalentPoints(2)));
+
+        int TalentPoints(int id) => quests.Single(q => q.GetProperty("id").GetInt32() == id)
+            .GetProperty("rewards").GetProperty("talentPoints").GetInt32();
     }
 
     /// <summary>The script, requirements and drops are server-only; the file carries the outline and nothing else.</summary>
@@ -108,7 +114,7 @@ public class QuestCatalogExportShould
         Assert.Equal(["id", "title", "repeat", "stages", "rewards"], quest.EnumerateObject().Select(p => p.Name));
         Assert.Equal(["sequence", "objectives"], quest.GetProperty("stages")[0].EnumerateObject().Select(p => p.Name));
         Assert.Equal(["id", "type", "targetId", "count"], objective.EnumerateObject().Select(p => p.Name));
-        Assert.Equal(["experience", "gold", "items", "choices"], quest.GetProperty("rewards").EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["experience", "gold", "talentPoints", "items", "choices"], quest.GetProperty("rewards").EnumerateObject().Select(p => p.Name));
     }
 
     [Fact]

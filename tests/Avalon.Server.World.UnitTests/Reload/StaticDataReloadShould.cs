@@ -335,7 +335,8 @@ public class StaticDataReloadShould
             creatures: Quests.QuestTestData.Creatures,
             nodes: () => nodes,
             quests: Quests.QuestRepositories.Of(Quests.QuestTestData.Chain),
-            scripts: Quests.QuestTestData.ScriptManager()).ToStaticData(log);
+            scripts: Quests.QuestTestData.ScriptManager(),
+            abilities: TestStaticData.TalentTreeAbilities).ToStaticData(log);
         await data.LoadAsync();
         Assert.Empty(log.Errors);
 
@@ -399,7 +400,8 @@ public class StaticDataReloadShould
                 Quests.QuestTestData.WithStage(Quests.QuestTestData.Quest(QuestId), 0,
                     Quests.QuestTestData.UseDoodad(ObjectiveId, Quests.QuestTestData.Lever, 1)),
             ]),
-            doodads: () => doodads).ToStaticData(log);
+            doodads: () => doodads,
+            abilities: TestStaticData.TalentTreeAbilities).ToStaticData(log);
         await data.LoadAsync();
         Assert.Empty(log.Errors);
 

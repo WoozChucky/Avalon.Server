@@ -200,10 +200,10 @@ Server → the player's own client only. The character sheet (#506), always whol
 | `LightningResistance` | 20 | `float` | As `FireResistance`. |
 | `BlightResistance` | 21 | `float` | As `FireResistance`. |
 | `CritMultiplier` | 22 | `float` | What a crit multiplies a hit or a heal by: the formula's `CritMultiplier` plus the crit multiplier bonus / 100 (#1178). |
-| `AttackSpeedPct` | 23 | `float` | Effective attack speed, percentage points from 0 to `AttackSpeedCap`: a basic attack waits `AttackTimeMs / (1 + it / 100)`. |
+| `AttackSpeedPct` | 23 | `float` | Effective attack speed, percentage points from 0 to `AttackSpeedCap`: every Attack whose cooldown is 0 (every basic attack among them, #1181) waits `AttackTimeMs / (1 + it / 100)`. |
 | `CastSpeedPct` | 24 | `float` | Effective cast speed, 0 to `CastSpeedCap`: divides every cast time and a basic spell's use time. |
 | `CooldownRecoveryPct` | 25 | `float` | Effective cooldown recovery, 0 to `CooldownRecoveryCap`: divides every other cooldown. |
-| `AttackTimeMs` | 26 | `uint` | The main hand's time between basic attacks, the bare hand's with none, before attack speed. |
+| `AttackTimeMs` | 26 | `uint` | The main hand's time between attacks paced by the weapon (every Attack whose cooldown is 0), the bare hand's with none, before attack speed. |
 | `IncreasedPct` | 27 | `repeated float` (not packed) | The offence block's increased percentage points, one per `OffenceStat`, indexed by its number: `Damage` 0, `Physical` 1, `Fire` 2, `Cold` 3, `Lightning` 4, `Blight` 5, `Attack` 6, `Spell` 7, `Area` 8, `Projectile` 9, `Melee` 10, `DamageOverTime` 11, `Healing` 12, `PhysicalAttack` 13 (Strength's physical attack damage). For display; each ability's own amount and pace come worked out (below). |
 | `Resonance` | 28 | `repeated ResonanceDto` | The Resonance counts (#1180): each theme at least one worn item carries, as `ThemeId` (1, `uint`) and `Count` (2, `uint`, how many worn items carry at least one prefix or suffix of it, never 0). A theme at 0 is not listed; empty when none is. The theme's name is in the vendored `item-modifier-catalog-v1.json` (`themes`); any number of themes, keyed by id. A change in these alone sends a sheet. |
 
@@ -222,7 +222,7 @@ What each learned ability deals or heals per unit hit, and how long its cooldown
 | `AmountMax` | 20 | `uint` | With every roll at the high end. |
 | `Tags` | 21 | `AbilityTags` | Flags: `Attack` 1, `Spell` 2, `Heal` 4, `Area` 8, `Projectile` 16, `Melee` 32 (`DamageOverTime` 64 is an aura's, never an ability's). |
 | `AmountTypes` | 22 | `DamageTypeMask` | The damage types the amount is dealt as (`Physical` 1, `Fire` 2, `Cold` 4, `Lightning` 8, `Blight` 16): every type a hit at the high end has a part of. `None` for a heal or no amount. |
-| `CooldownMs` | 23 | `uint` | The cooldown a cast sets now, ms rounded to the nearest: a basic attack's weapon attack time over attack speed, a basic spell's row over cast speed, any other row over cooldown recovery. |
+| `CooldownMs` | 23 | `uint` | The cooldown a cast sets now, ms rounded to the nearest: any Attack whose row's cooldown is 0 (every basic attack among them, #1181) waits its weapon's attack time over attack speed, a basic spell its row over cast speed, any other row its row over cooldown recovery. |
 | `CastTimeMs` | 24 | `uint` | The cast time over cast speed, ms rounded to the nearest; 0 for an instant. |
 
 `CooldownMs` and `CastTimeMs` are the only pace `AbilityInfo` carries: fields 3 and 4 (the row's own cooldown and cast time in seconds, before any speed) are deleted (#1178). A row's own cooldown, for a tooltip that shows it, is the ability catalog's `cooldownMs` (`schema/abilities/ability-catalog-v1.json`).

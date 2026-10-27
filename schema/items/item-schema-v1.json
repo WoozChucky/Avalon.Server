@@ -700,6 +700,18 @@
       {
         "name": "IncreasedManaRegeneration",
         "value": 55
+      },
+      {
+        "name": "IncreasedArmor",
+        "value": 56
+      },
+      {
+        "name": "IncreasedEvasion",
+        "value": 57
+      },
+      {
+        "name": "IncreasedWard",
+        "value": 58
       }
     ],
     "ItemTemplateFlags": [

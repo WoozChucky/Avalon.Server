@@ -122,6 +122,13 @@ internal static class QuestTestData
         return quest;
     }
 
+    /// <summary>Sets the talent points the quest pays at turn-in (#1181).</summary>
+    public static QuestTemplate PayingTalentPoints(this QuestTemplate quest, int points)
+    {
+        quest.RewardTalentPoints = points;
+        return quest;
+    }
+
     public static QuestObjective Kill(uint id, ulong creature, uint count) => new()
     { Id = id, Type = QuestObjectiveType.Kill, CreatureTemplateId = creature, Count = count, DescriptionTextId = ObjectiveText };
 

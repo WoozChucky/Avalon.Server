@@ -54,6 +54,13 @@ public sealed class AbilityMetadata
     /// <summary>Projectile only: false ends at the first hit, true hits each unit once and flies on.</summary>
     public bool Pierce { get; init; }
 
+    /// <summary>
+    /// The most units a circle or a cone affects, and the hit a piercing projectile ends on (#1181): the nearest it may
+    /// affect, so a unit it may not (an ally of a hostile ability, an unflagged player, or a unit every hit ignores: an
+    /// invulnerable creature, a corpse, a creature walking home, a protected arrival) uses up none. 0 is no limit.
+    /// </summary>
+    public int MaxTargets { get; init; }
+
     /// <summary>Hostile units are damaged, allies are healed.</summary>
     public AbilityAffects Affects { get; init; } = AbilityAffects.Hostile;
 
@@ -118,6 +125,7 @@ public sealed class AbilityMetadata
             ArcDegrees = ArcDegrees,
             ProjectileSpeed = ProjectileSpeed,
             Pierce = Pierce,
+            MaxTargets = MaxTargets,
             Affects = Affects,
             DamageType = DamageType,
             Tags = Tags,

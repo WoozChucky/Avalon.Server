@@ -105,13 +105,15 @@ language:
 `Kill` and `Talk`, the item template for `Collect`, the doodad template for `UseDoodad`, 0 for `Scripted`),
 4 `Count` (how many are needed), 5 `Text` (e.g. "Thornback Boars slain").
 
-`QuestRewardsDto` has four fields: 1 `Experience`, 2 `Gold`, 3 `Items` (the fixed rewards, every one paid) and
+`QuestRewardsDto` has five fields: 1 `Experience`, 2 `Gold`, 3 `Items` (the fixed rewards, every one paid),
 4 `Choices` (#711: the choice set, of which the player picks exactly one at turn-in, by item template id; empty when
-the quest has none). Both lists are repeated `QuestRewardItemDto`, whose own fields are: 1 `ItemTemplateId` (the
-template the quest names, which a pick sends back), 2 `Count`, 3 `Rarity` (#1179: `Magic` for a Common base, which the
-turn-in rolls Magic at the quest's level, else the template's rarity) and 4 `PaidItemTemplateId` (#1179: the template
-the reward is paid as, for a base the best tier of its line the quest's level reaches, which may be above the named
-one; else the same as its field 1: what a reward window shows). A reward paid as `Magic` arrives **unidentified**
+the quest has none) and 5 `TalentPoints`. Both lists are repeated `QuestRewardItemDto`, whose own fields are:
+1 `ItemTemplateId` (the template the quest names, which a pick sends back), 2 `Count`, 3 `Rarity` (#1179: `Magic` for
+a Common base, which the turn-in rolls Magic at the quest's level, else the template's rarity) and
+4 `PaidItemTemplateId` (#1179: the template the reward is paid as, for a base the best tier of its line the quest's
+level reaches, which may be above the named one; else the same as its field 1: what a reward window shows).
+`TalentPoints` (uint32, #1181) is the talent points the turn-in pays: 0 for most quests and for every repeatable one,
+which the catalog refuses to pay any. A reward paid as `Magic` arrives **unidentified**
 (#1179): its `ItemSlotDto.Identified` is false, it shows its base stats and implicit line only, and it is worn only
 once it is identified at the Resonance Workbench
 ([inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)); any other reward
@@ -297,25 +299,26 @@ English):
 
 The storyline "Trouble in the Forest", in the town (map 1) and the forest:
 
-| Quest | Giver → ender | Needs | Asks | Pays |
-|---|---|---|---|---|
-| 1 Thinning the Herd | Uriel → Uriel | level 1 | kill 6 Thornback Boars | 150 experience, 100 gold |
-| 2 Tusks for Borin | Uriel → Borin Stoutbeard | quest 1 | collect 4 Boar Tusks (item 57; 60 % from Thornback Boars) | 250 experience, 150 gold, 2 Greater Health Potions (item 56) |
-| 3 The Alpha's Howl | Borin → Borin | level 2, quest 2 | stage 0: kill 3 Grey Fen Wolves and 2 Husks of the Wold; stage 1: speak with Marta Ledgerwell; stage 2: kill the Bramblemaw Alpha | 600 experience, 400 gold, the Bone Charm (item 69, the amulet base), and a choice of one weapon base: Ash Staff (33), Hunter's Shortbow (34), Ironwood Sword (32) or Oak Mace (35) |
+| Quest | Giver → ender | Needs | Asks | Pays | Talent points |
+|---|---|---|---|---|---|
+| 1 Thinning the Herd | Uriel → Uriel | level 1 | kill 6 Thornback Boars | 150 experience, 100 gold | 0 |
+| 2 Tusks for Borin | Uriel → Borin Stoutbeard | quest 1 | collect 4 Boar Tusks (item 57; 60 % from Thornback Boars) | 250 experience, 150 gold, 2 Greater Health Potions (item 56) | 0 |
+| 3 The Alpha's Howl | Borin → Borin | level 2, quest 2 | stage 0: kill 3 Grey Fen Wolves and 2 Husks of the Wold; stage 1: speak with Marta Ledgerwell; stage 2: kill the Bramblemaw Alpha | 600 experience, 400 gold, the Bone Charm (item 69, the amulet base), and a choice of one weapon base: Ash Staff (33), Hunter's Shortbow (34), Ironwood Sword (32) or Oak Mace (35) | 1 |
 
 A second chain runs beside it, from quest 4 (no prerequisite):
 
-| Quest | Giver → ender | Needs | Asks | Pays |
-|---|---|---|---|---|
-| 4 Wings for the Still | Tobin Marrowfield → Tobin | level 2 | collect 6 Blightfly Wings (item 59; 50 % from Blightfly Swarmlings) | 300 experience, 200 gold, 3 Mana Potions (item 2) |
-| 5 Pelts Before Frost | Hilde Brassbuckle → Hilde | level 3, quest 4 | collect 8 Fen Wolf Pelts (item 60; 50 % from Grey Fen Wolves) | 400 experience, 250 gold |
-| 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 gold, 2 Greater Health Potions (item 56) |
-| 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 gold, the Copper Band (item 68, the ring base) |
-| 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 gold, the Copper Band (item 68, the ring base) |
-| 11 Earn It Fancy | Hilde Brassbuckle → Hilde | level 4, quest 5 | kill 6 Grey Fen Wolves and the Bramblemaw Alpha | 550 experience, 325 gold, and a choice of one chest base (no fixed item): Ironbound Chestguard (37, plate), Hide Jerkin (47, leather) or Linen Robe (42, cloth) |
+| Quest | Giver → ender | Needs | Asks | Pays | Talent points |
+|---|---|---|---|---|---|
+| 4 Wings for the Still | Tobin Marrowfield → Tobin | level 2 | collect 6 Blightfly Wings (item 59; 50 % from Blightfly Swarmlings) | 300 experience, 200 gold, 3 Mana Potions (item 2) | 0 |
+| 5 Pelts Before Frost | Hilde Brassbuckle → Hilde | level 3, quest 4 | collect 8 Fen Wolf Pelts (item 60; 50 % from Grey Fen Wolves) | 400 experience, 250 gold | 0 |
+| 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 gold, 2 Greater Health Potions (item 56) | 0 |
+| 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 gold, the Copper Band (item 68, the ring base) | 1 |
+| 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 gold, the Copper Band (item 68, the ring base) | 1 |
+| 9 The Lost Caravan | Marta Ledgerwell → Marta | level 4, quest 6 | stage 0: open the caravan's strongbox in the forest (doodad 5); stage 1: pin the caravan's fate to the notice board in Glimmerdell (doodad 6); stage 2: speak with Marta | 600 experience, 350 gold, 2 Greater Health Potions (item 56) | 0 |
+| 11 Earn It Fancy | Hilde Brassbuckle → Hilde | level 4, quest 5 | kill 6 Grey Fen Wolves and the Bramblemaw Alpha | 550 experience, 325 gold, and a choice of one chest base (no fixed item): Ironbound Chestguard (37, plate), Hide Jerkin (47, leather) or Linen Robe (42, cloth) | 0 |
 
 One daily (#710), offered again after each daily reset (repeat kind `Daily`, the blue markers):
 
-| Quest | Giver → ender | Needs | Asks | Pays |
-|---|---|---|---|---|
-| 10 Boar Cull | Hilde Brassbuckle → Hilde | level 8 | kill 15 Thornback Boars | 800 experience, 500 gold |
+| Quest | Giver → ender | Needs | Asks | Pays | Talent points |
+|---|---|---|---|---|---|
+| 10 Boar Cull | Hilde Brassbuckle → Hilde | level 8 | kill 15 Thornback Boars | 800 experience, 500 gold | 0 |

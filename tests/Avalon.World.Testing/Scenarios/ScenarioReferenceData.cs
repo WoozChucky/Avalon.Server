@@ -283,7 +283,8 @@ public sealed class ScenarioReferenceData
             repositories.GetRequiredService<IQuestRepository>(),
             scripts,
             auras,
-            repositories.GetRequiredService<IDoodadTemplateRepository>());
+            repositories.GetRequiredService<IDoodadTemplateRepository>(),
+            repositories.GetRequiredService<ITalentTreeRepository>());
 
     /// <summary>The repositories' contexts, each over its own connection to the named in-memory database.</summary>
     private sealed class SqliteWorldDatabase(DbContextOptions<WorldDbContext> options) : IDbContextFactory<WorldDbContext>

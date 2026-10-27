@@ -55,7 +55,10 @@
     "AddedLightningDamageToSpells": "Adds 5 Lightning Damage to Spells",
     "IncreasedMaximumLife": "+5% increased Health",
     "IncreasedMaximumMana": "+5% increased Mana",
-    "IncreasedManaRegeneration": "+5% increased Mana Regeneration"
+    "IncreasedManaRegeneration": "+5% increased Mana Regeneration",
+    "IncreasedArmor": "+5% increased Armor",
+    "IncreasedEvasion": "+5% increased Evasion",
+    "IncreasedWard": "+5% increased Ward"
   },
   "negative": [
     {

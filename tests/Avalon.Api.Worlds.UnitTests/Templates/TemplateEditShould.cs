@@ -839,6 +839,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         attack["damageEffectiveness"] = 170f;
         attack["addedMin"] = 3;
         attack["addedMax"] = 6;
+        attack["maxTargets"] = 2;
         JsonObject aura = (await ReadAsync("aura", 1)).Json;           // Bleed
         aura["periodicEffectiveness"] = 35f;
         JsonObject creature = (await ReadAsync("creature", 7)).Json;
@@ -871,7 +872,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
                          "damageType", "fireResistance", "coldResistance", "lightningResistance", "blightResistance",
                          "evasionModifier", "wardModifier", "requiredStrength", "requiredAgility", "requiredIntellect",
                          "tags", "damageEffectiveness", "addedMin", "addedMax", "periodicEffectiveness",
-                         "baseKind", "requiresAnyAttribute",
+                         "baseKind", "requiresAnyAttribute", "maxTargets",
                      }.Where(body.ContainsKey))
             {
                 Assert.Equal(body[field]!.ToJsonString(), stored[field]?.ToJsonString());

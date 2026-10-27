@@ -29,6 +29,7 @@ using Avalon.World.Public.Units;
 using Avalon.World.Quests;
 using Avalon.World.Reload;
 using Avalon.World.Scripts;
+using Avalon.World.Talents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -648,7 +649,10 @@ public class SeedIntegrityShould
         [CharacterClass.Cleric] = [230, 231, 232, 233, 234, 235],
     };
 
-    /// <summary>The twenty-one kit abilities and the nineteen creature abilities 300-318; none of the retired ones.</summary>
+    /// <summary>
+    /// The twenty-one kit abilities, the nineteen creature abilities 300-318, and the talent tree's Heavy Strike and
+    /// Frostbolt (319, 320, #1181); none of the retired ones.
+    /// </summary>
     [Fact]
     public void Seed_exactly_the_kit_abilities_and_the_creature_abilities_and_none_of_the_old_ones()
     {
@@ -657,7 +661,8 @@ public class SeedIntegrityShould
 
         var ids = context.AbilityTemplates.AsNoTracking().AsEnumerable().Select(a => a.Id.Value).OrderBy(i => i).ToList();
 
-        Assert.Equal(s_kit.Values.SelectMany(v => v).Concat(Enumerable.Range(300, 19).Select(i => (uint)i)).OrderBy(i => i), ids);
+        Assert.Equal(s_kit.Values.SelectMany(v => v).Concat(Enumerable.Range(300, 19).Select(i => (uint)i)).Concat([319u, 320u])
+            .OrderBy(i => i), ids);
     }
 
     /// <summary>
@@ -764,6 +769,8 @@ public class SeedIntegrityShould
             [233] = null,
             [234] = null,
             [235] = null,
+            [319] = DamageType.Physical,
+            [320] = DamageType.Cold,
         };
         for (uint id = 300; id <= 318; id++)
             expectedAbilities[id] = id is 307 or 312 or 313 ? DamageType.Blight : null;
@@ -791,7 +798,7 @@ public class SeedIntegrityShould
 
         Assert.Empty(auras.Refused);
         Assert.Empty(catalog.Refused);
-        Assert.Equal(21 + 19, catalog.Count);
+        Assert.Equal(23 + 19, catalog.Count);
     }
 
     [Fact]
@@ -864,15 +871,211 @@ public class SeedIntegrityShould
         }, a.ScriptName));
     }
 
-    /// <summary>#770: each class's basic attack, the one ability a silence spares, is flagged Basic; nothing else is.</summary>
+    /// <summary>
+    /// #770: each class's basic attack, the one ability a silence spares, is flagged Basic; nothing else is. Heavy Strike,
+    /// the Warrior's starter on the talent tree (#1181), is Basic beside Cleave until characters learn from the tree.
+    /// </summary>
     [Fact]
     public void Flag_each_classs_basic_attack_and_no_other_ability_as_basic()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Assert.Equal([200u, 210u, 220u, 230u], context.AbilityTemplates.AsNoTracking().AsEnumerable()
+        Assert.Equal([200u, 210u, 220u, 230u, 319u], context.AbilityTemplates.AsNoTracking().AsEnumerable()
             .Where(a => (a.Flags & AbilityFlags.Basic) != 0).Select(a => a.Id.Value).Order());
+    }
+
+    /// <summary>
+    /// #1181: what the design fixes of the two abilities the talent tree adds (their numbers are a first pass, left to
+    /// balance). Heavy Strike, the Warrior's starter, is a basic melee Attack cone that hits only the nearest unit and
+    /// waits its weapon (cooldown 0); Frostbolt, the node between the Hunter and the Wizard, is a cold spell projectile.
+    /// No other ability limits its targets.
+    /// </summary>
+    [Fact]
+    public void Seed_heavy_strike_and_frostbolt_as_designed()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var abilities = context.AbilityTemplates.AsNoTracking().AsEnumerable().ToDictionary(a => a.Id.Value);
+        Assert.Equal(
+            (AbilityShape.Cone, AbilityFlags.Basic, AbilityTags.Attack | AbilityTags.Melee, (DamageType?)DamageType.Physical,
+                1),
+            Design(abilities[319]));
+        Assert.Equal(0u, abilities[319].Cooldown);
+        Assert.Equal(
+            (AbilityShape.Projectile, AbilityFlags.None, AbilityTags.Spell | AbilityTags.Projectile,
+                (DamageType?)DamageType.Cold, 0),
+            Design(abilities[320]));
+        Assert.Equal([319u], abilities.Values.Where(a => a.MaxTargets > 0).Select(a => a.Id.Value));
+
+        static (AbilityShape, AbilityFlags, AbilityTags, DamageType?, int) Design(AbilityTemplate a) =>
+            (a.Shape, a.Flags, a.Tags, a.DamageType, a.MaxTargets);
+    }
+
+    /// <summary>
+    /// #1181: the shared talent tree's first region (TalentSeed), without its capstones and keystones: the design's 305
+    /// nodes at ids 1-305, by kind, its 345 edges each written once, its stat lines, a link on every start and ability
+    /// node, no fork yet, a start for each class, and every node reachable from the Warrior's start.
+    /// </summary>
+    [Fact]
+    public void Seed_the_first_region_of_the_talent_tree()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var nodes = context.TalentNodes.AsNoTracking().ToList();
+        var edges = context.TalentEdges.AsNoTracking().ToList();
+        var stats = context.TalentNodeStats.AsNoTracking().ToList();
+
+        Assert.Equal(Enumerable.Range(1, 305), nodes.Select(n => n.Id).Order());
+        Assert.Equal(
+            new Dictionary<TalentNodeKind, int>
+            {
+                [TalentNodeKind.Start] = 4,
+                [TalentNodeKind.Small] = 253,
+                [TalentNodeKind.Notable] = 25,
+                [TalentNodeKind.Ability] = 19,
+                [TalentNodeKind.Junction] = 4,
+            },
+            nodes.GroupBy(n => n.Kind).ToDictionary(g => g.Key, g => g.Count()));
+        Assert.Equal(345, edges.Count);
+        Assert.All(edges, e => Assert.True(e.NodeA < e.NodeB, $"edge {e.NodeA}-{e.NodeB}"));
+        Assert.Equal(286, stats.Count);
+        Assert.All(stats, line => Assert.Equal(TalentStatKind.Added, line.Kind));
+        Assert.Equal(23, context.TalentNodeAbilities.AsNoTracking().Count());
+        Assert.Empty(context.TalentForkGroups.AsNoTracking());
+        Assert.Equal(4, context.TalentClassStarts.AsNoTracking().Count());
+        Assert.Equal(305, TalentDistances(edges, 1).Count);
+
+        // The world's catalog accepts the seed against the seeded abilities, and holds node 1's five neighbours (WH-A1,
+        // WH-B1, WC-A1, WC-B1, Whub-S1).
+        var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
+            static _ => null, NullLoggerFactory.Instance);
+        var tree = new TalentCatalog(TalentSeed.Rows(),
+            new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras),
+            NullLoggerFactory.Instance);
+        Assert.True(tree.IsLoaded, tree.Refusal);
+        Assert.Equal(305, tree.Count);
+        Assert.True(tree.TryIndexOf(1, out int start));
+        Assert.Equal([2, 12, 32, 42, 57], tree.NeighboursAt(start).ToArray().Select(tree.NodeIdAt));
+    }
+
+    /// <summary>
+    /// #1181: the points each ability, joint and hub junction takes from a class's own start (the start is free), walked
+    /// over the seeded edges: the design's distances (5 and 10 for a region's abilities, 11 for a joint from either side,
+    /// 10 for a hub junction).
+    /// </summary>
+    [Theory]
+    [InlineData(CharacterClass.Warrior, 6, 5)]      // Cleave
+    [InlineData(CharacterClass.Warrior, 21, 10)]    // Rend
+    [InlineData(CharacterClass.Warrior, 36, 5)]     // Shield Bash
+    [InlineData(CharacterClass.Warrior, 51, 10)]    // Ground Slam
+    [InlineData(CharacterClass.Warrior, 61, 5)]     // Hurled Axe
+    [InlineData(CharacterClass.Hunter, 79, 5)]      // Scatter Shot
+    [InlineData(CharacterClass.Hunter, 94, 10)]     // Piercing Arrow
+    [InlineData(CharacterClass.Hunter, 109, 5)]     // Crippling Shot
+    [InlineData(CharacterClass.Hunter, 124, 10)]    // Binding Shot
+    [InlineData(CharacterClass.Wizard, 152, 5)]     // Frost Fan
+    [InlineData(CharacterClass.Wizard, 167, 10)]    // Frost Bind
+    [InlineData(CharacterClass.Wizard, 182, 5)]     // Flame Burst
+    [InlineData(CharacterClass.Wizard, 197, 10)]    // Ignite
+    [InlineData(CharacterClass.Cleric, 225, 5)]     // Radiant Pulse
+    [InlineData(CharacterClass.Cleric, 240, 10)]    // Hush
+    [InlineData(CharacterClass.Cleric, 250, 5)]     // Mending Circle
+    [InlineData(CharacterClass.Cleric, 265, 10)]    // Renew
+    [InlineData(CharacterClass.Cleric, 280, 5)]     // Fortify
+    [InlineData(CharacterClass.Hunter, 294, 11)]    // Frostbolt
+    [InlineData(CharacterClass.Wizard, 294, 11)]    // Frostbolt
+    [InlineData(CharacterClass.Warrior, 293, 11)]   // Weapon Mastery
+    [InlineData(CharacterClass.Hunter, 293, 11)]    // Weapon Mastery
+    [InlineData(CharacterClass.Wizard, 295, 11)]    // Spellweaver
+    [InlineData(CharacterClass.Cleric, 295, 11)]    // Spellweaver
+    [InlineData(CharacterClass.Warrior, 296, 11)]   // Holy Bulwark
+    [InlineData(CharacterClass.Cleric, 296, 11)]    // Holy Bulwark
+    [InlineData(CharacterClass.Warrior, 302, 10)]   // hub-W
+    [InlineData(CharacterClass.Hunter, 303, 10)]    // hub-H
+    [InlineData(CharacterClass.Wizard, 304, 10)]    // hub-Z
+    [InlineData(CharacterClass.Cleric, 305, 10)]    // hub-C
+    public void Place_each_ability_and_joint_at_its_distance_from_its_own_start(CharacterClass start, int nodeId, int points)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        int startNode = context.TalentClassStarts.AsNoTracking().Single(s => s.Class == start).NodeId;
+
+        Assert.Equal(points, TalentDistances(context.TalentEdges.AsNoTracking().ToList(), startNode)[nodeId]);
+    }
+
+    /// <summary>
+    /// #1181: each class starts on its own start node, which grants its single-target starter, free and Basic: Heavy
+    /// Strike, Quick Shot, Spark Bolt and Smite.
+    /// </summary>
+    [Theory]
+    [InlineData(CharacterClass.Warrior, 1, 319u)]
+    [InlineData(CharacterClass.Hunter, 74, 220u)]
+    [InlineData(CharacterClass.Wizard, 147, 210u)]
+    [InlineData(CharacterClass.Cleric, 220, 230u)]
+    public void Grant_each_class_its_starter_from_its_start(CharacterClass c, int startNode, uint abilityId)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Assert.Equal(startNode, context.TalentClassStarts.AsNoTracking().Single(s => s.Class == c).NodeId);
+        Assert.Equal(TalentNodeKind.Start, context.TalentNodes.AsNoTracking().Single(n => n.Id == startNode).Kind);
+        Assert.Equal(abilityId,
+            context.TalentNodeAbilities.AsNoTracking().AsEnumerable().Single(a => a.NodeId == startNode).AbilityId.Value);
+        AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == abilityId);
+        Assert.Equal((AbilityFlags.Basic, 0u), (ability.Flags & AbilityFlags.Basic, ability.Cost));
+    }
+
+    /// <summary>#1181: the client draws the wheel from the seed, so no two nodes share a place, and each angle is normalised.</summary>
+    [Fact]
+    public void Lay_every_talent_node_out_at_a_position_of_its_own()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var nodes = context.TalentNodes.AsNoTracking().ToList();
+
+        Assert.Equal(nodes.Count, nodes.Select(n => (n.Angle, n.Radius)).Distinct().Count());
+        Assert.All(nodes, n => Assert.True(n.Angle is > -180f and <= 180f && n.Radius >= 0f,
+            $"node {n.Id} at ({n.Angle}, {n.Radius})"));
+    }
+
+    /// <summary>
+    /// #1181: The Alpha's Howl (3), Heartwood (7) and Mother of Thorns (8) each pay one talent point; no other quest pays
+    /// any, and no repeatable one, so a point is earned once.
+    /// </summary>
+    [Fact]
+    public void Pay_one_talent_point_for_each_forest_storyline_quest()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var quests = context.QuestTemplates.AsNoTracking().AsEnumerable().ToList();
+
+        Assert.All(quests, q => Assert.Equal(q.Id.Value is 3 or 7 or 8 ? 1 : 0, q.RewardTalentPoints));
+        Assert.DoesNotContain(quests, q => q.IsRepeatable && q.RewardTalentPoints > 0);
+    }
+
+    /// <summary>The fewest points from <paramref name="from" /> to each node it reaches over <paramref name="edges" />.</summary>
+    private static Dictionary<int, int> TalentDistances(IReadOnlyList<TalentEdge> edges, int from)
+    {
+        ILookup<int, int> neighbours = edges.SelectMany(e => new[] { (e.NodeA, e.NodeB), (e.NodeB, e.NodeA) })
+            .ToLookup(pair => pair.Item1, pair => pair.Item2);
+        var distances = new Dictionary<int, int> { [from] = 0 };
+        var queue = new Queue<int>([from]);
+        while (queue.TryDequeue(out int node))
+        {
+            foreach (int next in neighbours[node])
+            {
+                if (distances.TryAdd(next, distances[node] + 1))
+                    queue.Enqueue(next);
+            }
+        }
+
+        return distances;
     }
 
     /// <summary>The Cleric's three ally abilities; Mending Circle the only direct heal, Renew and Fortify aura-only (auras).</summary>
@@ -1187,14 +1390,19 @@ public class SeedIntegrityShould
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
         List<WornItem> worn = starter ? RetiredGearProfiles.For("starter", c) : [];
-        AbilityTemplate basic = context.AbilityTemplates.AsNoTracking().AsEnumerable()
-            .Single(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c));
+        // The Warrior has two basics until characters learn from the talent tree (#1181): Cleave and Heavy Strike, both
+        // weapon-paced.
+        var basics = context.AbilityTemplates.AsNoTracking().AsEnumerable()
+            .Where(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c)).ToList();
+        Assert.NotEmpty(basics);
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, formula);
         var pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
-        double paceMs = AbilityPace.Cooldown(AbilityMetadataMapper.From(basic), pace) * 1000d;
-
-        Assert.InRange(Math.Abs(paceMs - todayMs) / todayMs * 100d, 0d, tolerancePct);
+        Assert.All(basics, basic =>
+        {
+            double paceMs = AbilityPace.Cooldown(AbilityMetadataMapper.From(basic), pace) * 1000d;
+            Assert.InRange(Math.Abs(paceMs - todayMs) / todayMs * 100d, 0d, tolerancePct);
+        });
     }
 
     /// <summary>

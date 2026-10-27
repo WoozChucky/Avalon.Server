@@ -2324,6 +2324,34 @@ on the branch, 2.5 or 15 on the base, in and out of combat, which is why the bra
 its in-combat one. Removing Fury also took its gain and its damage-taken gain off every hit and its decay off every
 tick, none of which the rows above exercise (a Wizard never had Fury).
 
+### Targets and pace — `ForestTickBenchmarks` (#1181 part B)
+
+What `MaxTargets` and the pace rule ([spell system](spell-system.md), §3 and §5) cost the tick. A circle or a cone now
+compares its affected count with `MaxTargets` once per affected unit (`AbilityEffect.ApplyToAll`), a piercing projectile
+once per hit, and `AbilityPace.Cooldown` tests an Attack's row for a cooldown of 0 before the basic test. The forest's
+creatures cast cones, circles and projectiles through all three paths. Whole world ticks of one forest with three
+players at its entry; in process, five warmups, eight iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11,
+i9-12900K, SDK 10.0.403 / runtime 10.0.14, Release. One run of the base (`86a85a58d`, built from an exported copy of
+that commit) and one of the branch, in the same session on 2026-10-27, beside the branch's earlier run from Task 4 and
+a run after the final fixes, where a Hostile ability's units that every hit ignores stop qualifying
+(`CombatService.IgnoresHits` in `AbilityEffect.Qualifies`, a few type tests per candidate in place of the arrival
+check):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ForestTickBenchmarks*' --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
+```
+
+| Build | Mean (± StdDev) | 99.9 % error | Allocated |
+|---|---:|---:|---:|
+| Base `86a85a58d` | 10.73 µs (± 2.52 µs) | ± 4.82 µs | 0 B |
+| Branch `f67d1f9e5` working tree (with the uncommitted export and API changes, none on the tick path), same session | 11.35 µs (± 1.39 µs) | ± 2.65 µs | 0 B |
+| Branch `f67d1f9e5`, earlier run | 10.65 µs (± 0.82 µs) | ± 1.57 µs (worked out from its SD, as BenchmarkDotNet does) | 0 B |
+| Branch after the final fixes, 2026-10-27 | 10.50 µs (± 1.64 µs) | ± 3.14 µs | 0 B |
+
+**Nothing allocates on any side.** The means lie within 0.9 µs of each other, inside every run's error; the base's
+error is ± 4.82 µs, so these runs rule out only a cost above about 5 µs a tick and resolve no difference within
+that. None was re-run to narrow the spread (one targeted run per side).
+
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
 Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation

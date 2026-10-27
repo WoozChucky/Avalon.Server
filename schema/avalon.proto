@@ -716,6 +716,9 @@ enum ItemStat {
    ItemStat_IncreasedMaximumLife = 53;
    ItemStat_IncreasedMaximumMana = 54;
    ItemStat_IncreasedManaRegeneration = 55;
+   ItemStat_IncreasedArmor = 56;
+   ItemStat_IncreasedEvasion = 57;
+   ItemStat_IncreasedWard = 58;
 }
 enum ItemUseResult {
    ItemUseResult_Unknown = 0;
@@ -1147,6 +1150,7 @@ message QuestRewardsDto {
    uint64 Gold = 2;
    repeated QuestRewardItemDto Items = 3;
    repeated QuestRewardItemDto Choices = 4;
+   uint32 TalentPoints = 5;
 }
 message QuestStageDto {
    int32 Sequence = 1;

@@ -1,11 +1,16 @@
+using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Auras;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
+using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
+using Avalon.World.Testing;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 
@@ -49,10 +54,45 @@ public class AbilityEffectShould
         IAbility ability = hostile ? AbilityTestData.Game(row) : Blessing(effects);
         ArrivalProtectionTestData.Apply(arrival);
 
-        Assert.Equal(affected ? 1 : 0, AbilityEffect.ApplyToAll(arena, caster, ability, [arrival]));
+        Assert.Equal(affected ? 1 : 0, AbilityEffect.ApplyToAll(arena, caster, ability, [arrival], maxTargets: 0));
         Assert.Equal(affected ? 1 : 0, arena.AurasApplied.Count);
 
         ArrivalProtection.End(arrival);
-        Assert.Equal(1, AbilityEffect.ApplyToAll(arena, caster, ability, [arrival]));
+        Assert.Equal(1, AbilityEffect.ApplyToAll(arena, caster, ability, [arrival], maxTargets: 0));
     }
+
+    /// <summary>
+    /// #1181: the capped path allocates nothing on the hit, the unit every hit ignores in front included (the counts first
+    /// prove the window runs the capped break; the cap itself is pinned end to end in MapInstanceAbilityCastShould).
+    /// </summary>
+    [Fact]
+    public void Affect_at_most_the_cap_without_allocating()
+    {
+        var arena = new TestArena { NextOutcome = HitOutcome.Dodged };   // nothing lands, so nothing is recorded
+        CharacterEntity caster = arena.Player(1, 0f, 0f);
+        Creature homeward = Boar(5, 1f);
+        homeward.Script = HomewardScript.Walking(homeward, caster);
+        IUnit[] candidates = [arena.Player(2, 0f, 0.8f), homeward, Boar(3, 1.2f), Boar(4, 2f)];
+        AbilityTemplate row = AbilityTestData.Cone(219);
+        row.Effects = SpellEffect.Debuff;   // no direct amount: the arena records no damage
+        IAbility ability = AbilityTestData.Game(row);
+
+        Assert.Equal(1, AbilityEffect.ApplyToAll(arena, caster, ability, candidates, maxTargets: 1));
+        Assert.Equal(2, AbilityEffect.ApplyToAll(arena, caster, ability, candidates, maxTargets: 0));
+
+        long before = ThreadAllocations.BeforeQuietWindow();
+        for (int i = 0; i < 1000; i++)
+            AbilityEffect.ApplyToAll(arena, caster, ability, candidates, maxTargets: 1);
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    private static Creature Boar(uint id, float z) => new()
+    {
+        Guid = new ObjectGuid(ObjectType.Creature, id),
+        Metadata = Loot.LootTestData.BoarTemplate(null),
+        Position = new Vector3(0f, 0f, z),
+        Health = 50,
+        CurrentHealth = 50,
+    };
 }

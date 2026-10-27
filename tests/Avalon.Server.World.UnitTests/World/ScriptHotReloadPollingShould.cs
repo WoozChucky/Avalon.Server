@@ -94,7 +94,7 @@ public class ScriptHotReloadPollingShould
             .Returns(new List<Avalon.Domain.World.ItemTemplate> { TestStaticData.Glyph() });
         IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(new List<Avalon.Domain.World.AbilityTemplate>());
+            .Returns([.. TestStaticData.TalentTreeAbilities()]);
         ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedText>>([]));
