@@ -135,7 +135,7 @@ public class SimulationShould
         Assert.Contains("yellowTolerancePct", issue.Message, StringComparison.Ordinal);
     }
 
-    [Theory(Skip = BalancePause.Reason)]
+    [Theory]
     [InlineData("filter.levels")]
     [InlineData("filter.gear")]
     [InlineData("filter.scenarios")]
