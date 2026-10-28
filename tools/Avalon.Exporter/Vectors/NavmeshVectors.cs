@@ -110,8 +110,9 @@ public static class NavmeshVectors
                 // Into walls, from several angles and distances, each from open ground. The navmesh is
                 // eroded by the agent radius before a polygon reaches a wall, so these clamp short of the
                 // wall's face.
-                Ray(35f, 5f, 25f, 5f, "head-on into the x = 30 wall, west across the market's open ground"),
-                Ray(40f, 5f, 20f, 5f, "the same line from twice the distance"),
+                // North of the Resonance Workbench and the Lectern of Paths, so only the wall stops them.
+                Ray(35f, 6.5f, 25f, 6.5f, "head-on into the x = 30 wall, west across the market's open ground"),
+                Ray(40f, 6.5f, 20f, 6.5f, "the same line from twice the distance"),
                 Ray(34f, 4.5f, 24f, -5.5f, "45 degrees toward the corner where the x = 30 and z = 0 walls meet, half a metre north of it"),
                 Ray(15f, 3f, 15f, 12f, "starts within the agent radius of the bench south of the fountain: no step"),
                 Ray(28.9f, 25f, 35f, 25f, "flush against the x = 30 wall, pointing into it"),

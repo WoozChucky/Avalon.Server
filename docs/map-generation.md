@@ -756,16 +756,19 @@ town (`MapDoodadSpawns`, [doodads](doodads.md#placement)) at the same spot and y
 the item's model; `TownDoodadSpawnsShould` pins one seed row per item and none without one. The box stays whatever
 the doodad shows, so a doodad-drawn prop is never hidden: no visibility gate on its row or template, no despawn once
 spent, no script, which could despawn it or hide it through `CanSee` (the same test). There are three today.
-Glimmerdell's notice board (`avalon_notice_board` at local (9, 24), yaw 90, in `town_sw_01`) left
+Glimmerdell's notice board (`avalon_notice_board` at local (9, 24), yaw 180, its notices toward -Z, in `town_sw_01`) left
 `Maps/Decor/town_sw_01.json` and is doodad 6, the board of quest 9's objective 902. The Resonance Workbench (#1179,
 the props kit's `Workbench`, 2.02 x 1.02 m, at local (6, 4), yaw 0, in the market `town_se_01`, so world (36, 0, 4))
 was added as a doodad-drawn prop from the start, so it added a box to `town_se_01.obj` and a piece to the town's count;
 it is doodad 7, where a player identifies items ([doodads](doodads.md#the-resonance-workbench)). It stands in the
 market's open south-west, its nearest corner about 9.7 m from the walking benchmarks' loop centre, outside the 7-9 m
 band kept clear. The Lectern of Paths (#1181, the props kit's `BookStand`, 0.51 x 0.51 m and 1.44 m tall, at local
-(3, 4), yaw 90, in `town_se_01`, so world (33, 0, 4)) was added the same way, with its own box and piece; it is doodad
-8, where a player refunds talent nodes ([doodads](doodads.md#the-lectern-of-paths)). It stands 3 m west of the
-Workbench, 1.7 m clear of the Workbench's box and 2.5 m from the west wall, about 13 m from the loop centre.
+(11.5, 5), yaw 225, its reading side toward (-X, -Z), the camera, in `town_se_01`, so world (41.5, 0, 5)) was added the
+same way, with its own box and piece; it is doodad 8, where a player refunds talent nodes
+([doodads](doodads.md#the-lectern-of-paths)). It stands in the market's open south, west of the north road's line,
+4.4 m from the south wall, and its box, 5.6-6.6 m from the loop centre, stays short of the 7-9 m band. A doodad is off
+the kit's grid, so a doodad-drawn prop may turn by any whole degree (decor only by quarter turns); off a quarter turn,
+as the Lectern's, its box is the bounds of its turned footprint (`DecorRules.WorldBounds`), 0.72 m square here.
 
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:
