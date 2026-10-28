@@ -66,11 +66,7 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
     public void Allocate(IReadOnlyList<uint> nodeIds)
     {
         tickThread?.AssertOnTick("TalentAllocation.Allocate");
-        for (int i = 0; i < nodeIds.Count; i++)
-        {
-            if (nodeIds[i] is 0 or > int.MaxValue)
-                throw new ArgumentOutOfRangeException(nameof(nodeIds), nodeIds[i], "A talent node id is a positive int.");
-        }
+        ThrowUnlessNodeIds(nodeIds);
 
         bool changed = false;
         for (int i = 0; i < nodeIds.Count; i++)
@@ -95,11 +91,7 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
     public void Refund(IReadOnlyList<uint> nodeIds)
     {
         tickThread?.AssertOnTick("TalentAllocation.Refund");
-        for (int i = 0; i < nodeIds.Count; i++)
-        {
-            if (nodeIds[i] is 0 or > int.MaxValue)
-                throw new ArgumentOutOfRangeException(nameof(nodeIds), nodeIds[i], "A talent node id is a positive int.");
-        }
+        ThrowUnlessNodeIds(nodeIds);
 
         bool changed = false;
         for (int i = 0; i < nodeIds.Count; i++)
@@ -148,18 +140,46 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
         }
     }
 
-    public void MarkStateOwed() => StateOwed = true;
+    public void MarkStateOwed()
+    {
+        tickThread?.AssertOnTick("TalentAllocation.MarkStateOwed");
+        StateOwed = true;
+    }
 
-    public void MarkAbilitiesOwed() => AbilitiesOwed = true;
+    public void MarkAbilitiesOwed()
+    {
+        tickThread?.AssertOnTick("TalentAllocation.MarkAbilitiesOwed");
+        AbilitiesOwed = true;
+    }
 
     /// <summary>The ability list was sent: nothing is owed until the abilities held change again.</summary>
-    public void AbilitiesSent() => AbilitiesOwed = false;
+    public void AbilitiesSent()
+    {
+        tickThread?.AssertOnTick("TalentAllocation.AbilitiesSent");
+        AbilitiesOwed = false;
+    }
 
     /// <summary>The state was sent at <paramref name="level" />: nothing is owed until it changes again.</summary>
     public void StateSent(ushort level)
     {
+        tickThread?.AssertOnTick("TalentAllocation.StateSent");
         StateOwed = false;
         StateSentLevel = level;
+    }
+
+    /// <summary>
+    /// Throws, before anything changes, when an id is not a positive <see cref="int" />, as every node id is.
+    /// </summary>
+    private static void ThrowUnlessNodeIds(IReadOnlyList<uint> nodeIds)
+    {
+        for (int i = 0; i < nodeIds.Count; i++)
+        {
+            if (nodeIds[i] is 0 or > int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(nodeIds), nodeIds[i],
+                    "A talent node id is a positive int.");
+            }
+        }
     }
 
     /// <summary>Inserts the node at its place in the ascending list; false when it is held already.</summary>

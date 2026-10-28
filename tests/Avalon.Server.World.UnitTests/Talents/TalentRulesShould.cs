@@ -63,6 +63,8 @@ public class TalentRulesShould
     [InlineData("reset all, tip last", new uint[] { 2, 3, 4, 5 }, new uint[] { 2, 5, 3, 4 }, TalentResult.Ok, 0u)]
     [InlineData("the middle of a chain", new uint[] { 2, 3, 4 }, new uint[] { 3 }, TalentResult.WouldDisconnect, 4u)]
     [InlineData("the first node", new uint[] { 2, 3 }, new uint[] { 2 }, TalentResult.WouldDisconnect, 3u)]
+    [InlineData("a cut that strands several", new uint[] { 2, 3, 4, 5 }, new uint[] { 2 }, TalentResult.WouldDisconnect,
+        3u)]
     [InlineData("another path keeps the far side", new uint[] { 2, 3, 5, 8 }, new uint[] { 3 }, TalentResult.Ok, 0u)]
     [InlineData("a node already cut off is no obstacle", new uint[] { 2, 4 }, new uint[] { 2 }, TalentResult.Ok, 0u)]
     [InlineData("not held", new uint[] { 2 }, new uint[] { 3 }, TalentResult.NotAllocated, 3u)]
@@ -96,6 +98,7 @@ public class TalentRulesShould
         talents.Refund(request);
 
         Assert.Equal([2, 3, 4], talents.Held);
+        Assert.Equal(version + 1, talents.Version);
         Assert.Equal([6], save.TakeMarks().Talents!.Keys);
         Assert.Equal(TalentResult.Ok,
             TalentRules.Allocate(talents, s_tree, CharacterClass.Warrior, dead: false, earned: 5, [7], out _));

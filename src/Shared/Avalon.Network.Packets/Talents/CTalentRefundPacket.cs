@@ -7,7 +7,8 @@ namespace Avalon.Network.Packets.Talents;
 /// <summary>
 /// Client to server (#1181 Part C): refund talent nodes at the Lectern of Paths, all or nothing. Free up to the free
 /// level, then priced per node by the character's level (the price the talent state carries). Answered with exactly one
-/// STalentResultPacket; an accepted request is followed by an STalentStatePacket at the end of the tick.
+/// STalentResultPacket; an accepted request is followed at the end of the tick by the ability list
+/// (SCharacterAbilitiesPacket) when the abilities held changed, then by an STalentStatePacket.
 /// </summary>
 [ProtoContract]
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_TALENT_REFUND)]

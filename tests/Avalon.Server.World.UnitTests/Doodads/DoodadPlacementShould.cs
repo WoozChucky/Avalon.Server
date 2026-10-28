@@ -228,10 +228,10 @@ public class DoodadPlacementShould
         Assert.Null(lifted.VisibleGate);
         Assert.True(ground.y < 0.5f, $"the ground at the entry is {ground.y} m up");
         Assert.Equal(new Vector3(5f, 0.3f, 5f), shrine.Position);
-        Assert.Equal((Lectern, null, null),
-            (gatedLectern.Template.Id.Value, gatedLectern.VisibleGate, gatedLectern.UsableGate));
+        // The Lectern is walk-through (not solid), so its service alone drops the row's gate.
+        Assert.Equal((Lectern, false, null, null), (gatedLectern.Template.Id.Value, gatedLectern.Template.Solid,
+            gatedLectern.VisibleGate, gatedLectern.UsableGate));
         Assert.Equal(2, log.Entries.Count(e => e.Level >= LogLevel.Warning));
-        Assert.Single(log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("a service doodad", StringComparison.Ordinal));
     }
 
     private static MapDoodadSpawn TownSpawn(int id, uint template, float x, float y, float z, float yaw,

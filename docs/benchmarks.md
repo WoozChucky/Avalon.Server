@@ -2382,11 +2382,12 @@ so a refusal must change nothing and allocate nothing beyond its pooled reply.
     stats refreshed keeping each pool's share, the state marked owed.
   - `Apply_ability_change`: the same Warrior drops `WH-A5` and allocates it again through `TalentAllocation`, each
     followed by `TalentChange.Apply`, so Cleave leaves, comes back as a new ability and `SMSG_CHARACTER_ABILITIES` is
-    sent twice.
+    sent twice (until part C, [below](#talent-refunds-and-the-talent-change--talentallocatebenchmarkscs-1181-part-c),
+    which parks Cleave and sends the list once, at the tick's flush).
 
   Setup fails the run unless each decision row's first call gives its intended result and names the node it should,
   unless `Apply_small_nodes` sends nothing, and unless `Apply_ability_change` sends two ability lists and ends holding
-  Cleave and its 18 nodes again.
+  Cleave and its 18 nodes again (as of part B; part C's Setup requires none).
 
 One run on the branch (`efe2c93a5` plus the benchmarks) and one of `ItemStatsBenchmarks` unchanged on the base
 (`6703f6cc3`, `main` with part B1 merged, in a scratch worktree), in the same session on 2026-10-27 (out of process,
@@ -2468,6 +2469,14 @@ Setup fails the run unless each refund row's first call gives its intended resul
 unless `Apply_ability_change` sends nothing and ends holding Cleave and 18 nodes, and unless `Cycle_flushed` sends
 exactly two packets, the list and the state.
 
+After the final review, `CharacterAbilitiesSender` keeps the last list's entries and amounts on the character and
+overwrites them when the next list has as many abilities, and `Cycle_flushed` alone was run again, once, on that
+change (same machine and settings, 2026-10-28; the "then" figures below):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAllocateBenchmarks.Cycle_flushed*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
 One run on the branch (`2221b578f` plus the benchmarks) and one of `Apply_ability_change` on the base (`182b305d8`,
 `main` with part B2 merged, in a scratch worktree), in the same session on 2026-10-28 (out of process, ten warmups,
 twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.403 / runtime 10.0.14,
@@ -2488,7 +2497,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAl
 | `Refund_refused` | – | 461.31 ns (± 76.53 ns) | 0 B |
 | `Refund_accepted` | – | 588.41 ns (± 119.17 ns) | 0 B |
 | `Refund_refused_long` | – | 2,035.04 ns (± 41.14 ns) | 0 B |
-| `Cycle_flushed` | – | 2,257.19 ns (± 30.75 ns) | 288 B |
+| `Cycle_flushed` | – | 2,257.19 ns (± 30.75 ns), then 2,354 ns (± 25.9 ns) | 288 B, then 0 B |
 
 **No refund decision allocates.** Each walks the tree twice over four bit sets and a queue rented from the shared
 pool. Over 18 held nodes a decision costs about half a microsecond, accepted or refused; over 134 it costs about
@@ -2496,27 +2505,37 @@ pool. Over 18 held nodes a decision costs about half a microsecond, accepted or 
 BenchmarkDotNet flagged `Refund_accepted`'s distribution as bimodal, and both 18-node rows spread widely (± 77 and
 ± 119 ns); the figures are one run's and were not tuned by running again.
 
-**A change of the abilities held allocates nothing once warm.** `Apply_ability_change` falls from 832 B on the base to 0 B:
-the rebuild fills the container's spare list, Cleave is parked when it leaves and taken back when it returns, and
-no list is sent. Its time is part B's work less the two sends and the allocations: 1.6 µs against the base's 3.3 µs (median
-2.5 µs). Both runs of this row spread widely (± 345 ns and ± 1,172 ns, and BenchmarkDotNet warned in both that the
-shortest iteration was under 100 ms), so the times compare only roughly; the bytes are exact. `Cycle_flushed`'s 288 B is one `SMSG_CHARACTER_ABILITIES` send for the two abilities held (Heavy Strike and
-Cleave): its `AbilityInfo[]`, two `AbilityInfo` objects and its `AbilityAmount[]`; the state allocates nothing (its
-id list is refilled per thread) and both packets are the encoder's scratch. The flush adds about 0.6 µs to the
-change (`Cycle_flushed` against `Apply_ability_change`).
+**A change of the abilities held allocates nothing once warm.** `Apply_ability_change` falls from 832 B on the base
+to 0 B: the rebuild fills the container's spare list, Cleave is parked when it leaves and taken back when it
+returns, and no list is sent. Its time is part B's work less the two sends and the allocations: 1.6 µs against the
+base's 3.3 µs (median 2.5 µs). Both runs of this row spread widely (± 345 ns and ± 1,172 ns, and BenchmarkDotNet
+warned in both that the shortest iteration was under 100 ms), so the times compare only roughly; the bytes are
+exact. `Cycle_flushed`'s 288 B in the first run was one `SMSG_CHARACTER_ABILITIES` send for the two abilities held
+(Heavy Strike and Cleave): its `AbilityInfo[]`, two `AbilityInfo` objects and its `AbilityAmount[]`. The list now
+overwrites the last one's entries and amounts when it has as many abilities, as it does here, so the row is 0 B; a
+list whose count changed (a tick that only allocated, or only refunded, an ability node) still allocates its own
+arrays and entries, once. The state allocates nothing (its id list is refilled per thread) and both packets are the
+encoder's scratch. The flush adds about 0.6 µs to the change (`Cycle_flushed` against `Apply_ability_change`). The
+second run took 2.35 µs against the first's 2.26 µs; with one run each, that 0.1 µs is not told apart from the
+variation between runs (BenchmarkDotNet again warned of an iteration under 100 ms).
 
-**The bound is one list per connection per tick while changes keep coming, nothing per request.** A loop of
-allocations and refunds pays its decisions and rebuilds, 0 B each, and one ability list (288 B for two abilities,
-growing with the abilities held) at the end of each tick in which one changed what is held. Its CPU is bounded by
-the cap on requests a connection runs per pass, `WorldConnection.MaxPacketsPerUpdate` (150): at the measured costs,
-a refund is about 1.4 µs (0.59 µs to decide and about 0.8 µs for its change, half of `Apply_ability_change`) and an
-allocation about 0.9 µs, so a connection sending 150 alternating requests every pass costs about 75 × 2.3 µs, about
-0.17 ms of a 16.7 ms tick, plus one flush. The handler's own work around the rules (the Lectern lookup, its range,
-the pooled reply) is not in these rows. **There is no refund rate limit and no new refusal for it:** the owner
-decided there is no arrival-rate budget and none per opcode, only the cap per pass
-([packet handlers](packet-handlers.md)), and a rate limit would be a gameplay rule the design does not have. Above
-level 10 each refund also costs gold. `InventoryAllocationShould` pins 0 B for the loop through both real handlers,
-and every refund refusal through the real refund handler, in Debug and Release.
+**The bound is one list per connection per tick while changes keep coming, nothing per request.** A loop of allocations
+and refunds pays its decisions and rebuilds, 0 B each, and one ability list at the end of each tick in which one changed
+what is held: 0 B when the tick leaves as many abilities held as the last list carried, and otherwise new arrays and
+entries for the list (288 B for two abilities, growing with the abilities held), so a loop that alternates one change
+per tick pays that each tick. Its CPU is bounded by the cap on requests a connection runs per pass,
+`WorldConnection.MaxPacketsPerUpdate` (150): at the measured costs, a refund is about 1.4 µs (0.59 µs to decide and
+about 0.8 µs for its change, half of `Apply_ability_change`) and an allocation about 0.9 µs, so a connection sending 150
+alternating requests every pass costs about 75 × 2.3 µs, about 0.17 ms of a 16.7 ms tick, plus one flush. The handler's
+own work around the rules (the Lectern lookup, its range, the pooled reply) is not in these rows. A character high
+enough to hold about 134 nodes decides a refund in about 2 µs (`Refund_refused_long`) and rebuilds more on each change,
+but it is far past the free level, so each refund costs gold and its gold bounds such a loop. **There is no refund rate
+limit and no new refusal for it:** leaving one out is this part's ruling (C-R10), approved with its plan, and a rate
+limit would be a gameplay rule the design does not have. The receive queue's standing owner decision (#927) is no
+arrival-rate budget and none per opcode, only the cap per pass ([packet handlers](packet-handlers.md)).
+`InventoryAllocationShould` pins 0 B for the loop through both real handlers and the tick's flush (an allocation and a
+refund each tick, so each flush sends a list as long as the last), and every refund refusal through the real refund
+handler, in Debug and Release.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

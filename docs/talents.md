@@ -304,16 +304,20 @@ Allocating works anywhere in a map. "Reset all" is the client naming every node 
   saturating at `ulong.MaxValue`: 100 gold a node at level 11, 125 at 12, 200 at 15, 575 at 30, 1,075 at 50 and 2,325
   at 100. The anchor follows the setting, which at the defaults is the design's `level − 11`. `TalentPrice.Total` is the
   per-node price times the nodes named, saturating, so a total no wallet holds is refused `NotEnoughGold`. The price is
-  the character's level's when it refunds; nothing is stored. The settings are read at startup, and a price above
-  `Game:MaxGold` stops the start (`TalentConfigurationValidation`, [configuration](configuration-reference.md)).
+  the character's level's when it refunds; nothing is stored. The settings are read at startup, and each price setting
+  must be at most `Game:MaxGold` or the start stops (`TalentConfigurationValidation`,
+  [configuration](configuration-reference.md)); no total is checked, so a high level's price above the cap is simply
+  refused `NotEnoughGold`.
 - **The handler.** It reads `world.Data` once, takes the character's instance as the doodad host, prices the request,
   and takes the wallet only when the price is above 0. On a refusal, or `Ok` with an empty list, it answers and stops.
   Otherwise it spends the gold first (`IWallet.TrySpend`; nothing up to the free level), then drops the nodes
   (`TalentAllocation.Refund`, which checks every id is a positive `int` before it changes anything, removes each held
   one, marks it for the save and moves `Version` once), then runs `TalentChange.Apply` as an allocation does. An
   exception is logged at Error and answered `InternalError`: a throw while dropping the nodes changed nothing, so the
-  gold is given back (`IWallet.TryAddGold`, an Error logged if that fails); a throw in `TalentChange.Apply` comes after
-  the nodes were dropped, so the refund stands, paid for, and the state is still owed. Every request with a character
+  gold is given back (`IWallet.GiveBack`, which no cap or trade refuses, since it restores the balance held before the
+  spend on the same tick; no test reaches this path through the real surface, since the rules refuse every id it would
+  throw on); a throw in `TalentChange.Apply` comes after the nodes were dropped, so the refund stands, paid for, and the
+  state is still owed. Every request with a character
   gets exactly one `SMSG_TALENT_RESULT`; the refused node is named for `UnknownNode`, `NotAllocated` and
   `WouldDisconnect`, and 0 otherwise. A refusal changes nothing, marks no save, spends no gold and allocates nothing
   beyond its pooled reply.
@@ -342,12 +346,15 @@ mod can grant an ability.
 `TalentChange.Apply` does not send the list: it marks it owed (`TalentAllocation.AbilitiesOwed`). The tick's
 `TalentFlusher` sends `SMSG_CHARACTER_ABILITIES` (`CharacterAbilitiesSender`, its amounts the stats as they stand then)
 once, before the state, however many changes the tick made, after every request's result; the amounts the list records
-keep `AbilityAmountsFlusher`, next, from sending them again. That is the bound on an allocate and refund loop at the
+keep `AbilityAmountsFlusher`, next, from sending them again. The character keeps the last list's entries and amounts
+(`CharacterEntity.AbilityInfosSent`, `AbilityAmountsSent`), and a list with as many abilities overwrites them, so it
+allocates nothing; one whose count changed allocates its own. That is the bound on an allocate and refund loop at the
 Lectern, where refunds are free up to level 10: each request costs its decision and its rebuild, 0 B once warm, and
 the connection one ability list per tick while changes keep coming; its CPU is bounded by the 150 packets a connection
-may run per pass (`WorldConnection.MaxPacketsPerUpdate`), as for every request, with no budget per opcode (an owner
-decision, [packet handlers](packet-handlers.md)). There is no rate limit and no refusal code for it
-([benchmarks](benchmarks.md), `Apply_ability_change` and `Cycle_flushed`).
+may run per pass (`WorldConnection.MaxPacketsPerUpdate`), as for every request, with no budget per opcode (the
+receive queue's standing owner decision, #927, [packet handlers](packet-handlers.md)). There is no rate limit and no
+refusal code for it, this part's ruling, approved with its plan ([benchmarks](benchmarks.md), `Apply_ability_change`
+and `Cycle_flushed`).
 
 ## The talent state
 

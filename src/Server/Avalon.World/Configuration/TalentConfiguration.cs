@@ -2,8 +2,9 @@ namespace Avalon.World.Configuration;
 
 /// <summary>
 /// Game:Talents (#1181 Part C): what refunding talent nodes at the Lectern of Paths costs
-/// (<see cref="Avalon.World.Talents.TalentPrice" />). Read at startup; a price above Game:MaxGold, which no character
-/// could pay, stops the start (<see cref="TalentConfigurationValidation" />).
+/// (<see cref="Avalon.World.Talents.TalentPrice" />). Read at startup; each price setting must be at most Game:MaxGold,
+/// or the start stops (<see cref="TalentConfigurationValidation" />). The per-node price a high level works out to is
+/// not bounded by the cap: one no wallet holds is refused NotEnoughGold.
 /// </summary>
 public sealed class TalentConfiguration
 {

@@ -57,6 +57,10 @@ public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : I
     /// </summary>
     public void Load(IReadOnlyCollection<IAbility> abilities)
     {
+        // Clearing the held list first would leave nothing to copy (Load(All)).
+        if (ReferenceEquals(abilities, _held))
+            throw new ArgumentException("A container cannot load the list it holds.", nameof(abilities));
+
         _held.Clear();
         _held.AddRange(abilities);
         _parked.Clear();

@@ -48,6 +48,17 @@ public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWal
         return WalletResult.Ok;
     }
 
+    public void GiveBack(ulong gold)
+    {
+        if (gold == 0)
+            return;
+
+        // The balance it makes was the balance before the spend, so it fits wherever that did; checked, so a misuse
+        // (gold this wallet never spent) throws rather than wraps.
+        Row.Gold = checked(Row.Gold + gold);
+        Changed();
+    }
+
     private ulong Spendable => owner.Locks.Any ? owner.Locks.Spendable(Row.Gold) : Row.Gold;
 
     private void Changed()

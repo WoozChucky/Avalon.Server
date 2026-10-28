@@ -15,4 +15,12 @@ public interface IWallet
     /// completing trade is about to pay (#1175) as already in it.
     /// </summary>
     WalletResult TryAddGold(ulong gold);
+
+    /// <summary>
+    /// Gives back <paramref name="gold" /> that <see cref="TrySpend" /> took earlier in the same handler call, on the
+    /// same tick, when the work it paid for changed nothing. Never refused: it restores a balance the character held a
+    /// moment ago, so neither the cap nor a trade's incoming gold applies. Any other gold goes through
+    /// <see cref="TryAddGold" />.
+    /// </summary>
+    void GiveBack(ulong gold);
 }

@@ -35,9 +35,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <see cref="Apply_ability_change" /> drops WH-A5 and allocates it again through <see cref="TalentAllocation" />, each
 /// followed by the change, so Cleave is parked and taken back, and the ability list is owed, not sent;
 /// <see cref="Cycle_flushed" /> is that change followed by the tick's <see cref="TalentFlusher.Flush" />, which sends
-/// the owed list and state once. 0 B expected on every row but <see cref="Cycle_flushed" />, whose bytes are one
-/// SMSG_CHARACTER_ABILITIES send for the two abilities held (its AbilityInfo[], two AbilityInfo objects and its
-/// AbilityAmount[]; the packets are the encoder's scratch, so they allocate nothing).
+/// the owed list and state once. 0 B expected on every row: the packets are the encoder's scratch, and the list's
+/// entries and amounts are the last list's, overwritten, since the change leaves as many abilities held.
 /// </summary>
 /// <remarks>
 /// Neither the rules, the change nor the flusher read an instance or the handler's packet, so the rows call them
@@ -104,7 +103,8 @@ public class TalentAllocateBenchmarks
             throw new InvalidOperationException($"A change of small nodes sent {_connection.Sent} ability lists, not none.");
 
         Apply_ability_change();
-        if (_connection.Sent != 0 || _holder.Spells[s_cleaveAbility] is null || _holder.Talents.Spent != s_eighteen.Length)
+        if (_connection.Sent != 0 || _holder.Spells[s_cleaveAbility] is null
+            || _holder.Talents.Spent != s_eighteen.Length)
         {
             throw new InvalidOperationException(
                 $"Dropping and allocating Cleave sent {_connection.Sent} ability lists, not none, or left it unheld.");
@@ -112,7 +112,10 @@ public class TalentAllocateBenchmarks
 
         int flushed = Cycle_flushed();
         if (flushed != 2)
-            throw new InvalidOperationException($"A flushed change sent {flushed} packets, not the list and the state.");
+        {
+            throw new InvalidOperationException(
+                $"A flushed change sent {flushed} packets, not the list and the state.");
+        }
     }
 
     [Benchmark(Baseline = true)]
@@ -150,7 +153,9 @@ public class TalentAllocateBenchmarks
     [Benchmark]
     public TalentResult Refund_refused_long() => Refund(_long134, _startNeighbours, out _);
 
-    /// <summary>A change of the abilities held, then the tick's flush: the packets sent (the list and the state).</summary>
+    /// <summary>
+    /// A change of the abilities held, then the tick's flush: the packets sent (the list and the state).
+    /// </summary>
     [Benchmark]
     public int Cycle_flushed()
     {
@@ -232,8 +237,8 @@ public class TalentAllocateBenchmarks
         TalentResult answered = Refund(character, request, out uint refused);
         if (answered != intended || refused != intendedNode)
         {
-            throw new InvalidOperationException(
-                $"A refund of {request.Length} nodes was answered {answered} naming {refused}, not {intended} naming {intendedNode}.");
+            throw new InvalidOperationException($"A refund of {request.Length} nodes was answered {answered} naming " +
+                $"{refused}, not {intended} naming {intendedNode}.");
         }
     }
 
@@ -245,8 +250,8 @@ public class TalentAllocateBenchmarks
         TalentResult answered = Decide(request, earned, out uint refused);
         if (answered != intended || refused != intendedNode)
         {
-            throw new InvalidOperationException(
-                $"A request of {request.Length} nodes was answered {answered} naming {refused}, not {intended} naming {intendedNode}.");
+            throw new InvalidOperationException($"A request of {request.Length} nodes was answered {answered} naming " +
+                $"{refused}, not {intended} naming {intendedNode}.");
         }
     }
 }

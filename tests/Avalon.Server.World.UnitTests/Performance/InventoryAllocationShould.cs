@@ -294,8 +294,9 @@ public class InventoryAllocationShould
         CharacterEconomy economy = TestEconomy.Over(world);
         var refunder = new TalentRefundHandler(NullLogger<TalentRefundHandler>.Instance, world, economy);
         var notFound = new CTalentRefundPacket { RequestId = 3, LecternGuid = 999, NodeIds = [6] };
-        var wouldDisconnect = new CTalentRefundPacket { RequestId = 4, LecternGuid = lectern.Guid.RawValue, NodeIds = [3] };
-        var notEnoughGold = new CTalentRefundPacket { RequestId = 5, LecternGuid = lectern.Guid.RawValue, NodeIds = [6] };
+        ulong lecternGuid = lectern.Guid.RawValue;
+        var wouldDisconnect = new CTalentRefundPacket { RequestId = 4, LecternGuid = lecternGuid, NodeIds = [3] };
+        var notEnoughGold = new CTalentRefundPacket { RequestId = 5, LecternGuid = lecternGuid, NodeIds = [6] };
         ulong price = TalentPrice.PerNode(_character.Level, world.Configuration.Talents);
         Assert.Equal(
             [TalentResult.NotFound, TalentResult.WouldDisconnect, TalentResult.NotEnoughGold],
@@ -323,11 +324,12 @@ public class InventoryAllocationShould
     }
 
     /// <summary>
-    /// #1181 Part C: a level-10 Warrior holding the first four nodes of its lane (2-5) allocates Cleave's node (6) through
-    /// the real handler and refunds it at a placed Lectern through the real refund handler, free at level 10, over and
-    /// over: a change of the abilities held allocates nothing once warm, since the held list is rebuilt in place and
-    /// Cleave's ability, parked when it leaves, is taken back, ready, when it returns; and each request sends only its
-    /// result, the ability list waiting for the tick's flush.
+    /// #1181 Part C: a level-10 Warrior holding the first four nodes of its lane (2-5) allocates Cleave's node (6)
+    /// through the real handler and refunds it at a placed Lectern through the real refund handler, free at level 10,
+    /// over and over: a change of the abilities held allocates nothing once warm, since the held list is rebuilt in
+    /// place and Cleave's ability, parked when it leaves, is taken back, ready, when it returns; and each request sends
+    /// only its result, the ability list waiting for the tick's flush. Both requests land in one tick, so its flush
+    /// sends the list (as many abilities as the last one) and the state, reusing the last list's entries.
     /// </summary>
     [Fact]
     public void Allocate_and_refund_an_ability_node_again_and_again_allocating_nothing()
@@ -348,22 +350,27 @@ public class InventoryAllocationShould
         IAbility cleave = _character.Spells[cleaveId]!;
         cleave.CooldownTimer = 3f;
         refunder.Execute(_connection, refund);
+        TalentConfiguration config = world.Configuration.Talents;
+        TalentFlusher.Flush(_connection, data.Quests, config);
         Assert.Equal([2, 3, 4, 5], _character.Talents.Held);
 
         long rounds = Allocated(() =>
         {
             handler.Execute(_connection, allocate);
             refunder.Execute(_connection, refund);
+            TalentFlusher.Flush(_connection, data.Quests, config);
         });
 
         handler.Execute(_connection, allocate);
         Assert.Equal(0, rounds);
         Assert.Same(cleave, _character.Spells[cleaveId]);
         Assert.Equal((0f, false), (cleave.CooldownTimer, cleave.Casting));
-        Assert.Equal(3 + 2 * 4 * Rounds, _connection.Sent);
+        Assert.Equal(5 + 4 * 4 * Rounds, _connection.Sent);
     }
 
-    /// <summary>The seeded Lectern of Paths placed where the character stands, in <paramref name="instance" />, the character's.</summary>
+    /// <summary>
+    /// The seeded Lectern of Paths placed where the character stands, in <paramref name="instance" />, the character's.
+    /// </summary>
     private Doodad PlaceLectern(MapInstance instance, StaticData data)
     {
         var lectern = new Doodad(new ObjectGuid(ObjectType.Doodad, 1),

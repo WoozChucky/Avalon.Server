@@ -71,7 +71,10 @@ public sealed class TalentRefundHandler(ILogger<TalentRefundHandler> logger, IWo
 
         // Both were decided a moment ago, on this thread, against this state.
         if (wallet is not null && wallet.TrySpend(price) != WalletResult.Ok)
-            throw new InvalidOperationException($"Spending {price} gold on a talent refund failed after the rules allowed it.");
+        {
+            throw new InvalidOperationException(
+                $"Spending {price} gold on a talent refund failed after the rules allowed it.");
+        }
 
         try
         {
@@ -80,13 +83,9 @@ public sealed class TalentRefundHandler(ILogger<TalentRefundHandler> logger, IWo
         catch
         {
             // Dropping the nodes checks every id before it changes anything, so a throw left them all held: nothing
-            // changed, and the gold goes back.
-            if (wallet is not null && wallet.TryAddGold(price) != WalletResult.Ok)
-            {
-                logger.LogError("Giving back {Price} gold after a failed talent refund to character {CharacterId} failed",
-                    price, character.Guid.Id);
-            }
-
+            // changed, and the gold goes back. GiveBack, not TryAddGold: it restores the balance the character held
+            // before the spend above, on this tick, so the cap or a trade's incoming gold can never refuse it.
+            wallet?.GiveBack(price);
             throw;
         }
 

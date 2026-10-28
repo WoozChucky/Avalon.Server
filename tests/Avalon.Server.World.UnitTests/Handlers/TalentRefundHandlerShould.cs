@@ -37,7 +37,8 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 public class TalentRefundHandlerShould
 {
     private static readonly StaticData s_data = ScenarioReferenceData.Shared.Data;
-    private static readonly DoodadTemplateView s_lectern = s_data.Doodads.Templates.Single(t => t.Service == DoodadService.Lectern);
+    private static readonly DoodadTemplateView s_lectern =
+        s_data.Doodads.Templates.Single(t => t.Service == DoodadService.Lectern);
     private static readonly DoodadTemplateView s_workbench =
         s_data.Doodads.Templates.Single(t => t.Service == DoodadService.Workbench);
     private static readonly AbilityId s_heavyStrike = new(319), s_cleave = new(200);
@@ -170,6 +171,12 @@ public class TalentRefundHandlerShould
                 Assert.NotNull(marks.GoldVersion);
                 Assert.Equal([6], marks.Talents!.Keys);
                 Assert.Equal((12u, 4u, 125UL), (state.PointsEarned, state.PointsSpent, state.RefundPricePerNode));
+                // The same request again finds the node no longer held, and charges nothing.
+                f.Client.Sent.Clear();
+                f.Refund(f.Lectern.Guid, [6]);
+                STalentResultPacket again = Assert.Single(f.Results());
+                Assert.Equal((TalentResult.NotAllocated, 6u), (again.Result, again.NodeId));
+                Assert.Equal(175UL, character.Data!.Gold);
                 break;
             case "reset all":
                 Assert.Empty(character.Talents.Held);
