@@ -4,7 +4,8 @@ The shared talent tree (#1181): one wheel of nodes every class shares. Each clas
 which grants its single-target starter ability, and every other class ability is a node any class can walk to. This
 page covers the tree as data (Part B1): its tables, the seeded first region, the world's catalog, the client export and
 the public read; and characters on the tree (Part B2): saved talents, points, the select check, abilities from the
-tree, allocation, the talent state, the stats fold and the REST reads. The client's view is the
+tree, allocation, the talent state, the stats fold and the REST reads; and respec at the Lectern of Paths (Part C):
+refunds, their price, and how a change of the abilities held is bounded. The client's view is the
 [talent protocol](talent-protocol.md).
 
 ## The tables
@@ -173,10 +174,10 @@ afterwards.
   node ids as a list kept ascending, with membership by binary search (no set; nothing allocated by a lookup or a
   walk), and the held lines summed into one `TalentTotals` buffer, rebuilt in place by `RebuildTotals` after a change,
   never per tick or per refresh. Memory is authoritative for a character in the world: its talents change only through
-  `TalentAllocation` (`Load` at select, `Allocate`, `Drop`), whose mutators assert the tick thread while
+  `TalentAllocation` (`Load` at select, `Allocate`, `Drop`, `Refund`), whose mutators assert the tick thread while
   `TickThreadGuard` is enabled.
-- **The save.** `Allocate` and `Drop` mark each node changed for the save (`SaveStateTracker.TalentChanged`, keyed by
-  node id like an ignore); `Load` marks nothing. The snapshot rewrites every marked node from memory
+- **The save.** `Allocate`, `Drop` and `Refund` mark each node changed for the save
+  (`SaveStateTracker.TalentChanged`, keyed by node id like an ignore); `Load` marks nothing. The snapshot rewrites every marked node from memory
   (`CharacterTalentWrite(Rewrite, Insert)`): the repository deletes the rewritten nodes' rows and inserts again the ones
   still held, in the save's one transaction ([inventory and saves](inventory-and-saves.md)), so a retry writes the same
   rows.
@@ -212,8 +213,8 @@ repository). Back on the tick:
    row;
 4. the inventory snapshot;
 5. `TalentAbilities.Rebuild` and `SMSG_CHARACTER_ABILITIES` (`CharacterAbilitiesSender`);
-6. `SMSG_TALENT_STATE`, sent directly (the flusher reaches only spawned characters), and the level it was sent at
-   recorded;
+6. `SMSG_TALENT_STATE`, sent directly (the flusher reaches only spawned characters), priced at the character's level
+   (`Game:Talents`, below), and the level it was sent at recorded;
 7. the ignore list, then the saved auras, as before.
 
 ## Abilities from the tree
@@ -224,17 +225,8 @@ ability, and `CharacterCreateInfos.StartingSpells`, `AbilityTemplates.AllowedCla
 table are gone ([spell system](spell-system.md), §8). An ability already held keeps its `IAbility`, and with it its
 cooldown and cast timers; a new one is a `GameAbility` that arrives ready. An ability the catalog does not hold (it
 refused it, or a reload removed it) is left out with a Warning. When the ids held are the same, in the same order,
-nothing is built and nothing is allocated, and `Rebuild` returns false. Otherwise the list is rebuilt in place on the
-World-side `CharacterAbilityContainer`: `StartRebuild` hands out its spare list, `FinishRebuild` swaps it with the
-held one and parks every ability that left, and a later rebuild takes a parked ability back with `Unpark`, reset as a
-new one (cooldown 0, its cast time, not casting), so a change allocates nothing once warm, however often a character
-allocates and refunds. Parking is safe because a cast holds its own copy (`GameAbility.CloneForCast`), never the
-character's ability. Each ability the tree builds is a `TreeAbility` tagged with the ability catalog it was built
-from, and only one built from the catalog the rebuild reads is parked or taken back; the parked list is cleared when
-the generation changes (`/reload abilities`, a live edit). So it holds at most the abilities the tree grants, and an
-ability refunded and taken again after a reload is built afresh from the new catalog, never brought back with its old
-details. The modding API's `ICharacterAbilities` has none of these, so no mod
-can grant an ability.
+nothing is built and nothing is allocated, and `Rebuild` returns false. Otherwise the list is rebuilt in place
+("Abilities after a change", below).
 
 **Creation** writes no ability: a new character holds no node, so it enters with its starter alone. Its starting items
 are `CharacterCreateItems` rows (class, Bag slot, template), which replaced the packed
@@ -265,31 +257,115 @@ client's view):
 - **On `Ok`.** `TalentAllocation.Allocate` checks every id before it changes anything, holds each node and marks it for
   the save; then `TalentChange.Apply` (World/Talents): the totals rebuilt, `TalentAbilities.Rebuild`, the stats
   refreshed with `KeepShare` (a Warning when there is no class row), the ability list marked owed
-  (`TalentAllocation.AbilitiesOwed`) only when the abilities held changed, and the talent state marked owed. The tick's
-  `TalentFlusher` sends the list (`CharacterAbilitiesSender`, its amounts the stats as they stand then), then the
-  state, once per tick however many changes the tick made, after every request's result; the amounts the list records
-  keep `AbilityAmountsFlusher`, next, from sending them again. Both are marked in a `finally`: when the refresh throws
-  after the abilities were rebuilt, the new list still reaches the client, so it never lacks an ability the server lets
-  it cast, and the window still learns what is held.
+  (`TalentAllocation.AbilitiesOwed`) only when the abilities held changed, and the talent state marked owed. Both are
+  marked in a `finally`: when the refresh throws after the abilities were rebuilt, the new list still reaches the
+  client, so it never lacks an ability the server lets it cast, and the window still learns what is held. The tick's
+  `TalentFlusher` sends them after every request's result ("Abilities after a change" and "The talent state", below).
 - **The reply.** Every request is answered with exactly one `SMSG_TALENT_RESULT` (`0x30F0`, `STalentResultPacket`
   over the encoder's scratch packet); a connection with no character gets nothing. An exception is logged at Error and
-  answered `InternalError`. `TalentResult` (`Ok` 0, `Dead` 1, `TooMany` 2, `UnknownNode` 3, `AlreadyAllocated` 4,
-  `NotConnected` 5, `ForkLocked` 6, `InternalError` 7) is append-only.
+  answered `InternalError`. `TalentResult` is append-only: `Ok` 0, `Dead` 1, `TooMany` 2, `UnknownNode` 3,
+  `AlreadyAllocated` 4, `NotConnected` 5, `ForkLocked` 6, `InternalError` 7, then Part C's refund codes, `Stunned` 8,
+  `NotFound` 9, `TooFar` 10, `Casting` 11, `NotAllocated` 12, `WouldDisconnect` 13 and `NotEnoughGold` 14, appended
+  after `InternalError` rather than in the order the rules ask them.
+
+## Refunding at the Lectern
+
+`CMSG_TALENT_REFUND` (`0x20E1`, `CTalentRefundPacket { RequestId, LecternGuid, NodeIds }`, a `MapSessionFilter`
+entry) is handled by `TalentRefundHandler` in the map pass, all or nothing, and only at the Lectern of Paths, the
+service doodad Glimmerdell's market seeds beside the Resonance Workbench ([doodads](doodads.md#the-lectern-of-paths)).
+Allocating works anywhere in a map. "Reset all" is the client naming every node held.
+
+- **The rules, in order.** `TalentRefundRules.Decide(character, host, lectern, tree, nodeIds, price, wallet, out
+  refusedNode)` reads and never changes:
+  1. the service doodads' shared prefix, `DoodadServiceRules.Access(…, DoodadService.Lectern)`, mapped to `Dead`,
+     `Stunned`, `NotFound` (no instance, no doodad of that guid in it, a despawned one, or one whose service is not
+     Lectern, so the Workbench's guid is not found) and `TooFar` (beyond the Lectern's 5 m `InteractionRange`, asked
+     on every request, so walking away with the window open is caught);
+  2. `Casting`, when the character is casting an ability (`Spells.IsCasting`), so no ability leaves mid-cast; an item
+     use or a doodad cast does not count;
+  3. the tree's own rules, `TalentRules.Refund(talents, tree, class, nodeIds, out refusedNode)`: for each id in the
+     order sent, `UnknownNode` (0, past `int.MaxValue`, or not in the tree, so every id while the tree is refused,
+     whose inert rows stay) and `NotAllocated` (not held, named earlier in the request, or a class start, never held);
+     then `WouldDisconnect`;
+  4. `NotEnoughGold`, when the list is not empty, the price is above 0 and `IWallet.CanSpend` refuses it (the wallet
+     leaves out gold an open trade holds);
+  5. `Ok`. An empty list passes the Lectern checks and is then `Ok`, changing nothing.
+- **What a refund may cut.** `WouldDisconnect` compares what the class's start reaches before and after. The held
+  nodes the tree holds are one bit each; the walk from the start over them (`TalentCatalog.WalkHeld`) gives what is
+  reached before; the named nodes leave the set and a second walk gives what is reached after. A held node reached
+  before and not after would be stranded, and the lowest such id is named. A node no held path reached before the
+  refund (only a mid-session `/reload abilities` can leave one; the select check drops it at the next select) does not
+  block a refund. Any order of the ids gives the same answer, so "reset all" passes whatever order the client lists
+  them in. Refunding the held side of a fork frees the other, since `ForkLocked` asks whether the partner is held. The
+  four bit sets (named, held, before, after) and the queue are rented from the shared pool and returned on every path,
+  so a decision allocates nothing once the pool is warm ([benchmarks](benchmarks.md), `Refund_*`).
+- **The price.** `TalentPrice.PerNode(level, Game:Talents)` is 0 up to and including `FreeRefundMaxLevel` (10), and
+  otherwise `RefundBasePrice + RefundPricePerLevel × (level − FreeRefundMaxLevel − 1)`, worked out in 128 bits and
+  saturating at `ulong.MaxValue`: 100 gold a node at level 11, 125 at 12, 200 at 15, 575 at 30, 1,075 at 50 and 2,325
+  at 100. The anchor follows the setting, which at the defaults is the design's `level − 11`. `TalentPrice.Total` is the
+  per-node price times the nodes named, saturating, so a total no wallet holds is refused `NotEnoughGold`. The price is
+  the character's level's when it refunds; nothing is stored. The settings are read at startup, and a price above
+  `Game:MaxGold` stops the start (`TalentConfigurationValidation`, [configuration](configuration-reference.md)).
+- **The handler.** It reads `world.Data` once, takes the character's instance as the doodad host, prices the request,
+  and takes the wallet only when the price is above 0. On a refusal, or `Ok` with an empty list, it answers and stops.
+  Otherwise it spends the gold first (`IWallet.TrySpend`; nothing up to the free level), then drops the nodes
+  (`TalentAllocation.Refund`, which checks every id is a positive `int` before it changes anything, removes each held
+  one, marks it for the save and moves `Version` once), then runs `TalentChange.Apply` as an allocation does. An
+  exception is logged at Error and answered `InternalError`: a throw while dropping the nodes changed nothing, so the
+  gold is given back (`IWallet.TryAddGold`, an Error logged if that fails); a throw in `TalentChange.Apply` comes after
+  the nodes were dropped, so the refund stands, paid for, and the state is still owed. Every request with a character
+  gets exactly one `SMSG_TALENT_RESULT`; the refused node is named for `UnknownNode`, `NotAllocated` and
+  `WouldDisconnect`, and 0 otherwise. A refusal changes nothing, marks no save, spends no gold and allocates nothing
+  beyond its pooled reply.
+- **The price on the state.** `SMSG_TALENT_STATE` carries `RefundPricePerNode`, the per-node price at the character's
+  level, so the window can show a refund's cost before it is asked. The price follows the level alone, and the flusher
+  already sends the state again whenever the level moves, so a level-up from 10 to 11 tells the window 100 at once.
+- **The save.** A paid refund marks the gold (`CharacterWallet`'s dirty flag) and each refunded node
+  (`SaveStateTracker.TalentChanged`) on the same tick, so the next save's one snapshot writes both in one transaction
+  (`ICharacterSaver`, [inventory and saves](inventory-and-saves.md)). There is no new save code and no Character
+  migration.
+
+## Abilities after a change
+
+An accepted allocation or refund that changes the abilities held rebuilds them through `TalentAbilities.Rebuild`, in
+place on the World-side `CharacterAbilityContainer`: `StartRebuild` hands out its spare list, `FinishRebuild` swaps
+it with the held one and parks every ability that left, and a later rebuild takes a parked ability back with `Unpark`,
+reset as a new one (cooldown 0, its cast time, not casting), so "new ones arrive ready" holds, and a change allocates
+nothing once warm however often a character allocates and refunds. Parking is safe because a cast holds its own copy
+(`GameAbility.CloneForCast`), never the character's ability. Each ability the tree builds is a `TreeAbility` tagged
+with the ability catalog it was built from, and only one built from the catalog the rebuild reads is parked or taken
+back; the parked list is cleared when the generation changes (`/reload abilities`, a live edit). So it holds at most
+the abilities the tree grants, and an ability refunded and taken again after a reload is built afresh from the new
+catalog, never brought back with its old details. The modding API's `ICharacterAbilities` has none of these, so no
+mod can grant an ability.
+
+`TalentChange.Apply` does not send the list: it marks it owed (`TalentAllocation.AbilitiesOwed`). The tick's
+`TalentFlusher` sends `SMSG_CHARACTER_ABILITIES` (`CharacterAbilitiesSender`, its amounts the stats as they stand then)
+once, before the state, however many changes the tick made, after every request's result; the amounts the list records
+keep `AbilityAmountsFlusher`, next, from sending them again. That is the bound on an allocate and refund loop at the
+Lectern, where refunds are free up to level 10: each request costs its decision and its rebuild, 0 B once warm, and
+the connection one ability list per tick while changes keep coming; its CPU is bounded by the 150 packets a connection
+may run per pass (`WorldConnection.MaxPacketsPerUpdate`), as for every request, with no budget per opcode (an owner
+decision, [packet handlers](packet-handlers.md)). There is no rate limit and no refusal code for it
+([benchmarks](benchmarks.md), `Apply_ability_change` and `Cycle_flushed`).
 
 ## The talent state
 
-`SMSG_TALENT_STATE` (`0x30F1`, `STalentStatePacket { NodeIds, PointsEarned, PointsSpent }`) is what the window shows,
-whole every time. `Create` refills one id list per thread, so a send allocates nothing once the list has grown.
+`SMSG_TALENT_STATE` (`0x30F1`, `STalentStatePacket { NodeIds, PointsEarned, PointsSpent, RefundPricePerNode }`) is
+what the window shows, whole every time; `RefundPricePerNode` is `TalentPrice.PerNode` at the character's level, 0
+while refunds are free. `Create` refills one id list per thread, so a send allocates nothing once the list has grown.
 
-`TalentFlusher.Flush(connection, quests)` (World/Characters) runs once per tick for each connection, in the post-update
-`ability_amounts` stage, after `CharacterSheetFlusher` and before `AbilityAmountsFlusher`
+`TalentFlusher.Flush(connection, quests, config)` (World/Characters) runs once per tick for each connection, in the
+post-update `ability_amounts` stage, after `CharacterSheetFlusher` and before `AbilityAmountsFlusher`
 ([instrumentation](instrumentation.md)). It reads two flags and one level. First, when the ability list is owed (a
 talent change changed the abilities held), it sends `SMSG_CHARACTER_ABILITIES` and clears that flag. Then it sends the
 state when the state is owed (an accepted
-allocation, or a turn-in of a quest that pays talent points, which also says "You gained 1 talent point.",
+allocation or refund, or a turn-in of a quest that pays talent points, which also says "You gained 1 talent point.",
 [quests](quests.md)) or when the character's level differs from the one the last state was sent at, which catches
-every level-up (anything that grants experience: a kill, a quest, an item) without touching the experience award. It
-then clears the flag and records the level. The quest catalog the points are priced by is read once per tick.
+every level-up (anything that grants experience: a kill, a quest, an item) without touching the experience award, and
+with it every change of the refund price. Each flag is cleared, and the level recorded, before its send, so a send
+that throws is not tried again on every tick. The quest catalog the points are priced by and `Game:Talents` are read
+once per tick by `WorldServer`.
 
 ## The stats fold
 
@@ -336,22 +412,21 @@ class's start), never the whole tree.
   `CharacterOffence.Of`).
 - The character sheet (`/stats`) reads the saved `CharacterStats` row, which already folds the tree.
 
-## What Part C consumes
+## What Part D consumes
 
-Part C (the Lectern, refunds and their price) ships in the same release and designs its own tasks. Part B gives it:
+Part D (capstones and keystones) designs its own tasks. Parts B and C give it:
 
-- **`TalentCatalog`'s index API:** `Count`, `TryIndexOf`, `NodeIdAt`, `KindAt`, `NeighboursAt`, `StartIndexOf`,
-  `ForkPartnerAt`, `BitWords` and `WalkHeld(startIndex, held, reached, queue)`, for a would-disconnect walk over
-  caller-owned bit sets.
-- **On `TalentAllocation`:** `Held`, `Holds`, `Spent`, `Version`, `MarkStateOwed` and the save mark; Part C adds a
-  `Refund` mirroring `Allocate`.
-- **After a refund:** `TalentChange.Apply` and `TalentPoints.Earned`.
-- **Wire and flush:** `TalentResult`, `STalentStatePacket` and `TalentFlusher`, to append to.
-- **Free numbers:** the opcode `0x20E1` (`CMSG_TALENT_REFUND`), `TalentResult` from 8, and field 4 of the state
-  packet.
+- **`TalentCatalog`'s index API**, `ForkPartnerAt` and the fork rules: `ForkLocked` on allocation, and a refund of
+  the held side of a fork freeing the other.
+- **`TalentRules.Allocate` and `TalentRules.Refund`**, `TalentAllocation` (`Allocate`, `Refund`, the save marks) and
+  `TalentChange.Apply` after either.
+- **The in-place ability rebuild** ("Abilities after a change"). A capstone changes an ability's shaped metadata, so
+  Part D must not unpark an ability across a shape change either, as a parked ability is never taken back across a
+  catalog generation.
+- **Wire and flush:** `TalentResult`, `STalentStatePacket` and `TalentFlusher`, to append to. The next free numbers
+  are `TalentResult` 15 and field 5 of the state packet.
 
 ## What later parts add
 
-- **Part C, the Lectern and refunds.** Refunding allocated nodes for gold at the Lectern.
 - **Part D, capstones and keystones.** The capstone and keystone rows (ids from 306), their fork groups, the
   `Keystone` column and `TalentAbilityModifiers`.

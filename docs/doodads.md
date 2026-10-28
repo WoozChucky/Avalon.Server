@@ -293,14 +293,14 @@ World migration `AddResonanceWorkbench` (#1179) adds the `Service` column and it
 
 ## The Lectern of Paths
 
-World migration `AddLecternOfPaths` (#1181 Part C) widens `CK_DoodadTemplates_Service` to 1-2, seeds template 8, the Lectern of Paths, and places it in Glimmerdell's market beside the Workbench (fixed spawn row 3, see "Placement"). It is where a player refunds talent nodes; what a refund needs and costs is in [talents](talents.md). Nothing finds it by its id: the refund asks for a doodad whose service is Lectern. The migration is reordered by hand: `Up` widens the check before it inserts row 8, and `Down` deletes rows 3 and 8 before it narrows the check again.
+World migration `AddLecternOfPaths` (#1181 Part C) widens `CK_DoodadTemplates_Service` to 1-2, seeds template 8, the Lectern of Paths, and places it in Glimmerdell's market beside the Workbench (fixed spawn row 3, see "Placement"). It is where a player refunds talent nodes (`CMSG_TALENT_REFUND`, free up to `Game:Talents:FreeRefundMaxLevel`, then priced per node and paid through `IWallet`); what a refund needs and costs is in [talents](talents.md#refunding-at-the-lectern) and the client's view in the [talent protocol](talent-protocol.md#refunding). Nothing finds it by its id: the refund asks for a doodad whose service is Lectern. The migration is reordered by hand: `Up` widens the check before it inserts row 8, and `Down` deletes rows 3 and 8 before it narrows the check again.
 
 | Id | Name | Kit / model / used model | Cast | Range | Use limit | Service | Collision | Placed |
 |---|---|---|---|---|---|---|---|---|
 | 8 | Lectern of Paths | `props-kit` / `BookStand` / none, no clips | instant | 5 m | `Unlimited` | Lectern | none | Glimmerdell's fixed doodad spawn 3, at (33, 0, 4), yaw 90 |
 
 - **A click opens the respec window, and nothing more**, as the Workbench's opens its window: the same `CMSG_INTERACT` path, no script, loot or gate, never spent, radius 0, no respawn, `SpentLook` ShowUsed. The client opens its respec window when the player clicks a doodad whose catalog `service` is 2. Each refund names the Lectern and is checked against it again with `DoodadServiceRules.Access` and `DoodadService.Lectern`, so a guid naming the Workbench is not found.
-- **Walk-through, as the Workbench is.** Its collision box is the market piece's chunk proxy (`SquareBuilder.DoodadProp` in `TownPieces.Market`, kept in `town_se_01.obj`), and the doodad itself is `Collision None`. Its model is the props kit's `BookStand`, in the kit's bounds table (0.51 x 0.51 m, 1.44 m tall).
+- **Walk-through as a doodad, solid in the town, as the Workbench is.** Its collision box is the market piece's chunk proxy (`SquareBuilder.DoodadProp` in `TownPieces.Market`, kept in `town_se_01.obj`), and the doodad itself is `Collision None`. Its model is the props kit's `BookStand`, in the kit's bounds table (0.51 x 0.51 m, 1.44 m tall).
 
 ## Placement
 
