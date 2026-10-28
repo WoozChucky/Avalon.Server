@@ -37,14 +37,14 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
     {
         if (!TryParse(args, out string creature, out int count, out float radius, out bool idle))
         {
-            ctx.Reply(Usage);
+            ctx.Refuse(Usage);
             return;
         }
 
         CreatureTemplate? template = Find(world.Data.Creatures.Templates, creature, out IReadOnlyList<CreatureTemplate> candidates);
         if (template is null)
         {
-            ctx.Reply(candidates.Count == 0
+            ctx.Refuse(candidates.Count == 0
                 ? $"No creature template matches '{creature}'."
                 : $"'{creature}' matches several: {string.Join(", ", candidates.Take(MaxCandidates).Select(t => $"{t.Id.Value} {t.Name}"))}" +
                   (candidates.Count > MaxCandidates ? ", ..." : "."));
@@ -53,13 +53,13 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
 
         if (ctx.Connection.Character is not CharacterEntity character)
         {
-            ctx.Reply("No character selected.");
+            ctx.Refuse("No character selected.");
             return;
         }
 
         if (world.InstanceRegistry.GetInstanceById(character.InstanceId) is not { } instance)
         {
-            ctx.Reply("You are not in a map.");
+            ctx.Refuse("You are not in a map.");
             return;
         }
 
@@ -79,9 +79,13 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
             ctx.Connection.AccountId, placed, count, template.Name, template.Id.Value, idle, character.Guid);
 
         int missed = count - placed;
-        ctx.Reply(placed == 0
-            ? $"No {template.Name} could be placed: no ground nearby."
-            : $"Spawned {placed} {template.Name}{(idle ? " (idle)" : "")}{(missed > 0 ? $"; {missed} found no ground" : "")}.");
+        if (placed == 0)
+        {
+            ctx.Refuse($"No {template.Name} could be placed: no ground nearby.");
+            return;
+        }
+
+        ctx.Reply($"Spawned {placed} {template.Name}{(idle ? " (idle)" : "")}{(missed > 0 ? $"; {missed} found no ground" : "")}.");
     }
 
     /// <summary>

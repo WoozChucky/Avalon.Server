@@ -58,8 +58,11 @@ public sealed class InstanceBuildTimeoutException : TimeoutException
         if (Of(failure) is not { } timeout)
             return false;
 
-        connection.Send(SChatMessagePacket.System(retrying ? RetryingMessage : PlayerMessage, timeout.TimedOutAt,
-            PacketEncoder.Shared));
+        // A move that is given up is a refusal (#1249); one the server tries again is news.
+        DateTime at = timeout.TimedOutAt;
+        connection.Send(retrying
+            ? SChatMessagePacket.System(RetryingMessage, at, PacketEncoder.Shared)
+            : SChatMessagePacket.Refusal(PlayerMessage, at, PacketEncoder.Shared));
         return true;
     }
 }

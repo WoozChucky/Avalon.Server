@@ -38,7 +38,7 @@ public sealed class IgnoreCommand(
 
         if (args.Length != 1)
         {
-            ctx.Reply(IgnoreLines.IgnoreUsage);
+            ctx.Refuse(IgnoreLines.IgnoreUsage);
             return;
         }
 
@@ -51,7 +51,7 @@ public sealed class IgnoreCommand(
         // before the lookup, whatever the lookup finds.
         if (!rateLimiter.Check(owner.Guid.Id, out TimeSpan retryAfter))
         {
-            ctx.Reply(ChatRateLimiter.TooFast(retryAfter));
+            ctx.Refuse(ChatRateLimiter.TooFast(retryAfter));
             return;
         }
 
@@ -61,7 +61,7 @@ public sealed class IgnoreCommand(
         // and neither the online characters nor the database are asked.
         if (!CharacterName.IsValid(name))
         {
-            ctx.Reply(IgnoreLines.NoSuchCharacter(name));
+            ctx.Refuse(IgnoreLines.NoSuchCharacter(name));
             return;
         }
 
@@ -79,7 +79,7 @@ public sealed class IgnoreCommand(
 
             if (match is null)
             {
-                ctx.Reply(IgnoreLines.NoSuchCharacter(name));
+                ctx.Refuse(IgnoreLines.NoSuchCharacter(name));
                 return;
             }
 
@@ -93,19 +93,19 @@ public sealed class IgnoreCommand(
         int max = options.Value.MaxIgnoredCharacters;
         if (CharacterName.Same(name, owner.Name))
         {
-            ctx.Reply(IgnoreLines.Self);
+            ctx.Refuse(IgnoreLines.Self);
             return true;
         }
 
         if (owner.Ignores.FindByName(name) is { } listed)
         {
-            ctx.Reply(IgnoreLines.Already(listed.Name));
+            ctx.Refuse(IgnoreLines.Already(listed.Name));
             return true;
         }
 
         if (owner.Ignores.Count >= max)
         {
-            ctx.Reply(IgnoreLines.Full(max));
+            ctx.Refuse(IgnoreLines.Full(max));
             return true;
         }
 
@@ -117,19 +117,19 @@ public sealed class IgnoreCommand(
         int max = options.Value.MaxIgnoredCharacters;
         if (id == owner.Guid.Id)
         {
-            ctx.Reply(IgnoreLines.Self);
+            ctx.Refuse(IgnoreLines.Self);
             return;
         }
 
         if (owner.Ignores.Contains(id))
         {
-            ctx.Reply(IgnoreLines.Already(owner.Ignores.Entries.First(e => e.Id == id).Name));
+            ctx.Refuse(IgnoreLines.Already(owner.Ignores.Entries.First(e => e.Id == id).Name));
             return;
         }
 
         if (owner.Ignores.Count >= max)
         {
-            ctx.Reply(IgnoreLines.Full(max));
+            ctx.Refuse(IgnoreLines.Full(max));
             return;
         }
 

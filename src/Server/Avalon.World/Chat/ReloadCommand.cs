@@ -26,7 +26,7 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
 
         if (requested is "maps" or "chunks")
         {
-            ctx.Reply(MapsRefusal);
+            ctx.Refuse(MapsRefusal);
             return;
         }
 
@@ -39,7 +39,7 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
 
         if (areas is null)
         {
-            ctx.Reply(Usage);
+            ctx.Refuse(Usage);
             return;
         }
 

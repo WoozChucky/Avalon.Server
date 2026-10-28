@@ -52,9 +52,13 @@ public sealed class CommandContext
     /// </remarks>
     public DateTime Now => (_dispatcher?.Time ?? TimeProvider.System).GetUtcNow().UtcDateTime;
 
-    /// <summary>A system line to the caller.</summary>
+    /// <summary>A system line to the caller: an answer, a listing, a done.</summary>
     public void Reply(string message) =>
         Connection.Send(SChatMessagePacket.System(message, Now, PacketEncoder.Shared));
+
+    /// <summary>A refusal to the caller (#1249): usage, nothing to act on, not allowed, already so.</summary>
+    public void Refuse(string message) =>
+        Connection.Send(SChatMessagePacket.Refusal(message, Now, PacketEncoder.Shared));
 
     /// <summary>Runs <paramref name="callback" /> on the tick once <paramref name="task" /> has succeeded.</summary>
     public void Then<T>(Task<T> task, Action<T> callback) =>

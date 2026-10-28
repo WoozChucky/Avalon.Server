@@ -45,14 +45,14 @@ variant populated
   field 3 CharacterName : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
   field 4 Message : string = "héllo wörld" (11 chars, 13 bytes utf-8)
   field 5 DateTime : DateTime = 2026-01-01T00:00:00.0000001Z (Utc)
-  field 6 Channel : ChatChannel = Party (1)
+  field 6 Channel : ChatChannel = Whisper (3)
   field 7 TargetName : string = "héllo wörld" (11 chars, 13 bytes utf-8)
   field 8 CharacterClass : CharacterClass = Hunter (3)
   bytes 78
     08 ac 02 10 13 1a 18 e6 97 a5 e6 9c ac e8 aa 9e
     e3 81 ae e3 83 86 e3 82 ad e3 82 b9 e3 83 88 22
     0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64 2a 0b
-    08 82 80 94 d4 d7 b4 e4 3e 10 05 30 01 3a 0d 68
+    08 82 80 94 d4 d7 b4 e4 3e 10 05 30 03 3a 0d 68
     c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64 40 03
 
 variant maxima
@@ -61,7 +61,7 @@ variant maxima
   field 3 CharacterName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
   field 4 Message : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
   field 5 DateTime : DateTime = 9999-12-31T23:59:59.9999999 (Unspecified)
-  field 6 Channel : ChatChannel = Whisper (3)
+  field 6 Channel : ChatChannel = Refusal (4)
   field 7 TargetName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
   field 8 CharacterClass : CharacterClass = Cleric (4)
   bytes 437
@@ -83,7 +83,7 @@ variant maxima
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 2a 04 08 02 10 0f 30 03 3a 84 01 ce
+    78 ce a9 78 2a 04 08 02 10 0f 30 04 3a 84 01 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -112,7 +112,7 @@ variant varint-edges
   field 3 CharacterName : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
   field 4 Message : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
   field 5 DateTime : DateTime = 1970-01-01T00:02:08.0000000Z (Utc)
-  field 6 Channel : ChatChannel = <not a declared member> (4)
+  field 6 Channel : ChatChannel = <not a declared member> (5)
   field 7 TargetName : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
   field 8 CharacterClass : CharacterClass = <not a declared member> (5)
   bytes 417
@@ -133,7 +133,7 @@ variant varint-edges
     a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 2a 05 08 80 02 10 03 30 04 3a 81 01 c3 a9
+    7a 7a 2a 05 08 80 02 10 03 30 05 3a 81 01 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9

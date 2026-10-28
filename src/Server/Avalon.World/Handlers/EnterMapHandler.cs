@@ -299,7 +299,7 @@ public partial class EnterMapHandler(
             {
                 entity.InstanceCreateCooldownTold = entity.InstanceCreateAllowedAt;
                 int seconds = (int)Math.Ceiling((entity.InstanceCreateAllowedAt - now).TotalSeconds);
-                connection.Send(SChatMessagePacket.System(
+                connection.Send(SChatMessagePacket.Refusal(
                     $"You can open a new instance in {seconds} {(seconds == 1 ? "second" : "seconds")}.", now.UtcDateTime,
                     PacketEncoder.Shared));
             }

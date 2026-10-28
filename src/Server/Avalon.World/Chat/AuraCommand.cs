@@ -32,19 +32,19 @@ public sealed class AuraCommand(IWorld world, ILogger<AuraCommand> logger) : ICo
         uint? durationMs = null;
         if (!clear && !TryParse(args, out auraId, out durationMs))
         {
-            ctx.Reply(Usage);
+            ctx.Refuse(Usage);
             return;
         }
 
         if (ctx.Connection.Character is not CharacterEntity character)
         {
-            ctx.Reply("No character selected.");
+            ctx.Refuse("No character selected.");
             return;
         }
 
         if (world.InstanceRegistry.GetInstanceById(character.InstanceId) is not IAuraHost host)
         {
-            ctx.Reply("You are not in a map.");
+            ctx.Refuse("You are not in a map.");
             return;
         }
 
@@ -56,14 +56,18 @@ public sealed class AuraCommand(IWorld world, ILogger<AuraCommand> logger) : ICo
 
         if (!host.Auras.Catalog.TryGet(new AuraId(auraId), out AuraTemplate? template))
         {
-            ctx.Reply($"No aura has id {auraId}.");
+            ctx.Refuse($"No aura has id {auraId}.");
             return;
         }
 
         AuraApplyResult result = host.Auras.Apply(null, character, template, AuraSource.None, durationMs);
         logger.LogInformation("Account {AccountId} applied aura {AuraId} ({Aura}, {DurationMs} ms) to character {CharacterId}: {Result}",
             ctx.Connection.AccountId, auraId, template.Name, durationMs, character.Guid, result);
-        ctx.Reply(Answer(character, template, result));
+        string answer = Answer(character, template, result);
+        if (result is AuraApplyResult.Refused or AuraApplyResult.Resisted)
+            ctx.Refuse(answer);
+        else
+            ctx.Reply(answer);
     }
 
     private void Clear(CommandContext ctx, CharacterEntity character, AuraSystem auras)

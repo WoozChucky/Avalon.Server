@@ -124,7 +124,7 @@ public sealed class CommandDispatcher : ICommandDispatcher
         if (SeesCommandFailures.Allows(connection.AccessLevel))
         {
             // Type name only — the message and stack stay in the log.
-            connection.Send(SChatMessagePacket.System($"Command /{command.Name} failed: {ex.GetType().Name}.",
+            connection.Send(SChatMessagePacket.Refusal($"Command /{command.Name} failed: {ex.GetType().Name}.",
                 Time.GetUtcNow().UtcDateTime, PacketEncoder.Shared));
         }
     }
