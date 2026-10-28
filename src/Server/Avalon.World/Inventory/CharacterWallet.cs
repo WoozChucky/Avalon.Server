@@ -48,7 +48,7 @@ public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWal
         return WalletResult.Ok;
     }
 
-    public void GiveBack(ulong gold)
+    void IWallet.GiveBack(ulong gold)
     {
         if (gold == 0)
             return;
