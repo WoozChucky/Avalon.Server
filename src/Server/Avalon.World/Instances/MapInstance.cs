@@ -2061,6 +2061,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private void StartOver(CharacterEntity character)
     {
         IReadOnlyList<ObjectGuid> forgotten = character.CharacterGameState.Reset();
+
+        // Party members it held are gone from its client too: their positions go to it once its view is decided (#1199).
+        if (character.PartyId is not null)
+            _parties?.MemberLeftView(character);
+
         if (forgotten.Count == 0 || !_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
             return;
 
@@ -2263,6 +2268,29 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             profileStart = _tickProfile.Timestamp();
             SendStatePacket(connection, SInstanceStateRemovePacket.Create(
                 character.CharacterGameState.RemovedObjects, _replicationEncoder), profileStart);
+            if (character.PartyId is not null)
+                NotePartyMembersLeftView(character, character.CharacterGameState.RemovedObjects);
+        }
+    }
+
+    /// <summary>
+    /// A viewer in a party was just sent removes (#1199): when one names a member of its party still here (out of its
+    /// view, not gone from the instance), the party service is told, so the member's position goes to it on this tick's
+    /// flush and its client is never left with neither. Only on a tick with removes for a viewer in a party; one lookup
+    /// per removed character.
+    /// </summary>
+    private void NotePartyMembersLeftView(CharacterEntity viewer, IReadOnlyList<ObjectGuid> removed)
+    {
+        uint party = viewer.PartyId!.Value;
+        for (int i = 0; i < removed.Count; i++)
+        {
+            ObjectGuid guid = removed[i];
+            if (guid.Type == ObjectType.Character && _characters.TryGetValue(guid, out ICharacter? member)
+                && member is CharacterEntity { PartyId: { } memberParty } && memberParty.Value == party)
+            {
+                _parties?.MemberLeftView(viewer);
+                return;
+            }
         }
     }
 

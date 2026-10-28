@@ -65,6 +65,13 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// <summary>At most this often per member (four times a second).</summary>
     public static readonly TimeSpan StatusInterval = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>The least time between two position lists to one member, unless its view just let a member go (#1199).</summary>
+    public static readonly TimeSpan PositionsInterval = TimeSpan.FromSeconds(1);
+
+    // Far members' positions for the client map (#1199): told of every change of who shares an instance or a party.
+    private PartyPositions? _positions;
+    private PartyPositions Positions => _positions ??= new PartyPositions(time, PartyOf, OnlineConnection);
+
     // Second marks the countdown is announced at, highest first (spec 2026-09-30 section 2).
     private static readonly int[] s_countdownMarks = [60, 30, 10, 5, 4, 3, 2, 1];
     private readonly Dictionary<uint, PartyCountdown> _countdowns = [];
@@ -104,6 +111,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (connection.Character is { } character && PartyOf(character.Guid.Id) is { } party)
         {
             ResetStatuses(party);
+            Positions.Watch(party);
             SendRoster(party);
         }
     }
@@ -126,6 +134,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (party is not null)
         {
             ResetStatuses(party);
+            Positions.Watch(party);
             SendRoster(party);
         }
     }
@@ -140,6 +149,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         _inviteBudget.Forget(id);
         _statusSent.Remove(id);
+        Positions.Forget(id);
         _lastLevel[id] = character.Level;
 
         EndInvitesOf(id);
@@ -147,6 +157,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         if (PartyOf(id) is not { } party)
             return;
+
+        // The others' lists, without this member, go at once rather than at their next turn (#1199).
+        Positions.Watch(party);
 
         // A handover sends the roster, already without this member online: it is not sent twice (#973).
         if (party.IsLeader(id) && HandOverLeadership(party))
@@ -526,6 +539,31 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         }
     }
 
+    /// <summary>
+    /// Once per tick, from WorldServer.Update right after <see cref="FlushMemberStatus" /> (#1199): each member is sent
+    /// where its party members in its instance stand that its world-state view does not hold, about once a second, and
+    /// at once on the tick its view let go of one (<see cref="MemberLeftView" />). Only parties where that can be so are
+    /// visited; with none, it reads one count.
+    /// </summary>
+    public void FlushPositions()
+    {
+        tickThread?.AssertOnTick("PartyService.FlushPositions");
+        _positions?.Flush();
+    }
+
+    /// <summary>
+    /// The viewer's client was just told a member of its party left its view (a world-state remove, or its view started
+    /// over): MapInstance calls this on the tick, as it sends that, so the viewer is sent the member's position on this
+    /// tick's <see cref="FlushPositions" /> (#1199).
+    /// </summary>
+    public void MemberLeftView(CharacterEntity viewer)
+    {
+        tickThread?.AssertOnTick("PartyService.MemberLeftView");
+        uint id = viewer.Guid.Id;
+        if (PartyOf(id) is { } party)
+            Positions.LeftView(id, party);
+    }
+
     /// <summary>Who shares an instance changed: every member is sent afresh on the next flush.</summary>
     private void ResetStatuses(Party party)
     {
@@ -647,6 +685,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         OnJoined(id, party);
         ResetStatuses(party);
+        Positions.Watch(party);
         SendRoster(party);
         SendLine(party, $"{character.Name} joined the party.");
     }
@@ -668,6 +707,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             Disband(party);
             return;
         }
+
+        // The members left are sent their lists, without the one who went, at once (#1199).
+        Positions.Watch(party);
 
         // A handover sends the roster, already without the member who left: it is not sent twice (#973).
         if (party.Leader.Value == memberId && HandOverLeadership(party))
@@ -699,6 +741,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     private void Detach(uint characterId)
     {
         _statusSent.Remove(characterId);
+        Positions.Forget(characterId);
         if (OnlineConnection(characterId) is not { } connection)
             return;
 

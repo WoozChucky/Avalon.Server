@@ -1001,6 +1001,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_PARTY_POSITIONS",
+      "opcode": 12468,
+      "hex": "0x30B4",
+      "message": "SPartyPositionsPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_QUEST_OFFER",
       "opcode": 12480,
       "hex": "0x30C0",

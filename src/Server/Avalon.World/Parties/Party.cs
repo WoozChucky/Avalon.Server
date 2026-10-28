@@ -30,6 +30,16 @@ public sealed class Party
     /// <summary>Until when the leader may not switch the mode again; null when never switched.</summary>
     public DateTimeOffset? ExperienceModeLockedUntil { get; private set; }
 
+    /// <summary>Whether <see cref="PartyPositions" /> visits it on its flush (#1199).</summary>
+    internal bool PositionsWatched { get; set; }
+
+    /// <summary>
+    /// When <see cref="PartyPositions" /> next has a viewer of it to visit (UTC ticks): the earliest of its viewers' next
+    /// turns, and <see cref="long.MinValue" /> once a change makes one due, so a watched party with nobody due costs one
+    /// compare a tick (#1199).
+    /// </summary>
+    internal long PositionsDueAt { get; set; }
+
     public bool IsLeader(uint characterId) => Leader.Value == characterId;
 
     public PartyMember? Find(uint characterId)

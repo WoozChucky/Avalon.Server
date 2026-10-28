@@ -105,6 +105,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Awakenin
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorkbenchRequestBenchmarks*" "*InventoryFlushBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ManaRegenBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAllocateBenchmarks*" "*ItemStatsBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PartyPositionsBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 
 # Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
@@ -1711,6 +1712,36 @@ setup checks what each event sent. Results: [a social town, quieter](#results--a
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
 ```
+
+### Party positions — `Benchmarks/PartyPositionsBenchmarks.cs` (#1199)
+
+The far party members' positions flush (`PartyService.FlushPositions`, [parties](parties.md)) at its busiest for one
+party: six members in one town instance, 100 m apart on a line, so no member's view holds another and every list
+carries the other five. Each call moves the scenario clock on one `PartyService.PositionsInterval` (1 s), so every
+member is due, flushes (six `SMSG_PARTY_POSITIONS`, encoded from the service's reused entries through the shared scratch
+message) and runs the send pass, which frames and seals the six packets through each connection's real sender, as a
+tick ends. Setup checks that a due flush sent six lists. `Idle` is the same watched party on the 59 ticks of 60 between:
+the clock stays, nobody is due, and the flush reads the clock and makes one compare per watched party
+(`Party.PositionsDueAt`). One run out of process, ten warmups and twenty measured iterations, the process pinned to one
+core (`--affinity 4`; BenchmarkDotNet runs it at high priority): BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK
+10.0.403 / runtime 10.0.14, Release, 2026-10-28, at `763e39da7` with the review round uncommitted.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PartyPositionsBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Benchmark | Mean | Error | StdDev | Allocated |
+|---|---:|---:|---:|---:|
+| `SpreadPartyOfSix` (six lists of five, and their send pass) | 5,260 ns | 475 ns | 547 ns | 0 B |
+| `Idle` (the same party, nobody due) | 34.2 ns | 0.6 ns | 0.7 ns | 0 B |
+
+So a party of six spread out costs about 5 µs once a second, the send pass included, and about 34 ns on each tick
+between, most of it the scenario clock's read. The first run, before the party-level due time, measured the due flush
+at 4,611 ns (± 82 ns); the two runs differ by about their error, noise for the same work. Before the due time an idle
+flush visited every member of a watched party (three dictionary lookups and two compares each); now a tick with no
+watched party reads one count and a watched party with nobody due costs one compare. `PartyPositionsAllocationShould`
+pins both at 0 B, a warm due flush of the same party and a tick with nothing due, and that the wait sends nothing. A
+party whose members all see each other is not watched, and a character in no party is never visited.
 
 ### Trading — `Benchmarks/TradeBenchmarks.cs` (#1175)
 

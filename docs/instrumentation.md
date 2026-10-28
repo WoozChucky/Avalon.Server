@@ -42,7 +42,7 @@ The world update is followed by work no other histogram covers, about two thirds
 | `inventory` | `InventoryUpdateFlusher` over every connection |
 | `sheet` | `CharacterSheetFlusher` over every connection |
 | `ability_amounts` | `TalentFlusher` (#1181: the talent window's state, when owed or the level moved) and then `AbilityAmountsFlusher`, for each connection |
-| `party_status` | `PartyService.FlushMemberStatus` |
+| `party_status` | `PartyService.FlushMemberStatus`, then `PartyService.FlushPositions` (#1199: far party members' positions, only the parties with a member out of another's view) |
 | `presence` | The admin view's presence capture |
 | `pings` | The time-sync pings due this tick |
 | `outbox` | `NetworkSendScheduler.SignalAll`: one wake-up per send thread with work (a thread with nothing queued sleeps on), never more than the thread count whatever the player count; tens of µs, about as much as the wake-ups cost on the host ([the send path](benchmarks.md#the-send-path-875)) (#875) |
