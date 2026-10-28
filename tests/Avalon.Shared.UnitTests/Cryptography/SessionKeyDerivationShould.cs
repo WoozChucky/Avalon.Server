@@ -490,13 +490,19 @@ public class SessionKeyDerivationShould
         for (int i = 0; i < Runs; i++)
             server.Decrypt(client.Encrypt(plaintext), output);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        byte[] reference = NewArray(sealedPacket.Length);
-        long packetBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        // Allocating, the thread holds an allocation buffer, and a background collection counts what is left of it as
+        // allocated (ThreadAllocations): the fewest bytes over three windows, as WaypointRepathAllocationShould takes
+        // them. An allocation per packet is in every window.
+        byte[] reference = [];
+        long packetBytes = long.MaxValue;
+        long before;
+        for (int window = 0; window < 3; window++)
+        {
+            before = GC.GetAllocatedBytesForCurrentThread();
+            reference = NewArray(sealedPacket.Length);
+            packetBytes = Math.Min(packetBytes, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
 
-        // Sealing allocates, so the thread holds an allocation buffer, and a background collection counts what is
-        // left of it as allocated (ThreadAllocations): the fewest bytes over three windows, as
-        // WaypointRepathAllocationShould takes them. An allocation per packet is in every window.
         long sealing = long.MaxValue;
         for (int window = 0; window < 3; window++)
         {
