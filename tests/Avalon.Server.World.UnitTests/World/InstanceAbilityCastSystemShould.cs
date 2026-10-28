@@ -642,8 +642,9 @@ public class InstanceAbilityCastSystemShould
     /// of its last flight: not its hit set, caster, ability, cast id, lane or state. A queued cast that never fired hands
     /// its projectile back at once, since nothing saw it, and fires the shape it was queued with. A projectile that threw
     /// is never reused, the pool keeps at most its cap, and a pooled projectile keeps neither its caster nor its metadata
-    /// alive. Each round casts at a creature 6 m north and flies the projectile to its end, its changes taken as the
-    /// broadcast takes them.
+    /// alive. A fan's lane that ends first goes back alone, leaving the cast's shared set of hit units to the lanes still
+    /// flying. Each round casts at a creature 6 m north and flies the projectile to its end, its changes taken as
+    /// the broadcast takes them.
     /// </summary>
     [Theory]
     [InlineData("after two view rounds")]
@@ -654,6 +655,7 @@ public class InstanceAbilityCastSystemShould
     [InlineData("after its flight threw")]
     [InlineData("past the pool's capacity")]
     [InlineData("keeps nothing alive")]
+    [InlineData("a lane that ends first")]
     public void Reuse_a_projectile_only_once_nothing_can_still_see_its_last_flight(string row)
     {
         var arena = new TestArena();
@@ -791,6 +793,50 @@ public class InstanceAbilityCastSystemShould
                 HashSet<ProjectileAbilityScript> second = Batch();
 
                 Assert.Equal(InstanceAbilityCastSystem.PooledScripts, second.Count(first.Contains));
+                break;
+            }
+
+            case "a lane that ends first":
+            {
+                // A fan of three: the centre lane's creature 2 m out, slim enough that the side lanes pass it, the side
+                // lanes' 8 m out at -10 and +10 degrees.
+                ICreature near = arena.Creature(0f, 2f, body: 0.2f, health: 1000);
+                float side = 8f * MathF.Sin(10f * MathF.PI / 180f);
+                float ahead = 8f * MathF.Cos(10f * MathF.PI / 180f);
+                ICreature left = arena.Creature(-side, ahead, health: 1000);
+                ICreature right = arena.Creature(side, ahead, health: 1000);
+                ICreature east = arena.Creature(6f, 0f, health: 1000);
+                Assert.True(sut.RunInstant(caster, s_north,
+                    AbilityTestData.Shaped(template, (TalentModifierKind.AddedProjectiles, 2, null))));
+
+                // Ten updates: the centre lane has ended and left, the side lanes are a third of the way out.
+                HashSet<ProjectileAbilityScript> fan = [];
+                for (int i = 0; i < 10; i++)
+                {
+                    objects.Clear();
+                    sut.Update(s_tick, objects);
+                    foreach (IWorldObject handed in objects)
+                    {
+                        var lane = (ProjectileAbilityScript)handed;
+                        lane.ConsumeDirtyFields();
+                        fan.Add(lane);
+                    }
+                }
+
+                Assert.Equal(3, fan.Count);
+                ProjectileAbilityScript centre = Assert.Single(fan, lane => lane.State is SpellState.Finished);
+                Assert.Null(sut.GetAbility(centre.Guid));
+                arena.ViewRound += 2;
+
+                Assert.True(sut.RunInstant(caster, new AbilityAim(new Vector3(1f, 0f, 0f), new Vector3(10f, 0f, 0f)),
+                    ability));
+                HashSet<ProjectileAbilityScript> rest = Fly(sut, objects);
+
+                Assert.Equal(3, rest.Count);
+                Assert.Contains(centre, rest);
+                List<IUnit> damaged = arena.Damaged();
+                Assert.Equal(4, damaged.Count);
+                Assert.All(new[] { near, left, right, east }, unit => Assert.Single(damaged, unit));
                 break;
             }
 

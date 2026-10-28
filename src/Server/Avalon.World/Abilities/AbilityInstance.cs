@@ -15,8 +15,17 @@ public class AbilityInstance
     public IUnit Caster { get; private set; } = null!;
     public IAbility Ability { get; private set; } = null!;
 
-    /// <summary>Built when the cast was queued, with the aim sent at cast start; fired as it is once the cast time runs out.</summary>
+    /// <summary>
+    /// Built when the cast was queued, with the aim sent at cast start (a fan's first lane, #1181 Part D); fired as it is
+    /// once the cast time runs out.
+    /// </summary>
     public AbilityScript Script { get; private set; } = null!;
+
+    /// <summary>
+    /// The aim as the cast was queued, its origin stamped (#648): the centre of a fan, whose extra lanes are built from it
+    /// when the cast fires (#1181 Part D).
+    /// </summary>
+    public AbilityAim Aim { get; private set; }
     public Vector3 CastStartPosition { get; private set; }
 
     /// <summary>
@@ -53,12 +62,13 @@ public class AbilityInstance
     internal bool Returned { get; set; }
 
     /// <summary>The entry of a cast just queued: every member as given, neither ended nor fired.</summary>
-    internal void Start(IUnit caster, IAbility ability, AbilityScript script, Vector3 castStartPosition, float cooldownSeconds,
-        uint castId, AbilityFootprint? footprint, bool forItem)
+    internal void Start(IUnit caster, IAbility ability, AbilityScript script, AbilityAim aim, Vector3 castStartPosition,
+        float cooldownSeconds, uint castId, AbilityFootprint? footprint, bool forItem)
     {
         Caster = caster;
         Ability = ability;
         Script = script;
+        Aim = aim;
         CastStartPosition = castStartPosition;
         CooldownSeconds = cooldownSeconds;
         CastId = castId;
@@ -75,6 +85,7 @@ public class AbilityInstance
         Caster = null!;
         Ability = null!;
         Script = null!;
+        Aim = default;
         Footprint = null;
     }
 }

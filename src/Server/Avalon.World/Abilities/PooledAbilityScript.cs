@@ -54,6 +54,12 @@ public abstract class PooledAbilityScript : AbilityScript
     internal bool Returned { get; set; }
 
     /// <summary>
+    /// The cast's own copy of the ability, with the shape the cast was taken with: what a fan's extra lanes are built from
+    /// (#1181 Part D), so a capstone taken or refunded while the cast wound up changes none of its lanes. World-side only.
+    /// </summary>
+    internal IAbility CastCopy => _ability;
+
+    /// <summary>
     /// A pooled script bound to a new cast: its own copy made again from <paramref name="held" />, the caster's ability, as
     /// the cast system copies it (<see cref="GameAbility.CloneForCast" />), and every other field as a new script has it.
     /// Only for a script its pool made, whose copy is a <see cref="GameAbility" />.

@@ -175,8 +175,9 @@ public class InstanceAbilityCastSystem(
         aim = aim with { Origin = caster.Position };
 
         // Built now, with the aim captured at cast start, so a script that is missing or cannot be
-        // built is refused before anything is paid, and a reload that removes it mid-cast costs nothing.
-        if (Build(caster, aim, ability) is not { } script)
+        // built is refused before anything is paid, and a reload that removes it mid-cast costs nothing. A fan's first
+        // lane (#1181 Part D); its other lanes are built when it fires, from the aim kept on the entry.
+        if (Build(caster, FanAim.Lane(aim, 0, LanesOf(ability.Metadata)), ability) is not { } script)
         {
             return false;
         }
@@ -188,7 +189,7 @@ public class InstanceAbilityCastSystem(
         AbilityFootprint? footprint = FootprintOf(caster, aim, ability);
         if (!_freeCasts.TryPop(out AbilityInstance? queued))
             queued = new AbilityInstance();
-        queued.Start(caster, ability, script, caster.Position, CooldownOf(caster, ability, pace), castId, footprint,
+        queued.Start(caster, ability, script, aim, caster.Position, CooldownOf(caster, ability, pace), castId, footprint,
             forItem);
         _abilityQueue.Add(queued);
 
@@ -222,7 +223,7 @@ public class InstanceAbilityCastSystem(
         }
 
         aim = aim with { Origin = caster.Position };
-        if (Build(caster, aim, ability) is not { } script)
+        if (Build(caster, FanAim.Lane(aim, 0, LanesOf(ability.Metadata)), ability) is not { } script)
         {
             return false;
         }
@@ -234,7 +235,7 @@ public class InstanceAbilityCastSystem(
 
         // #1088: a cast taken ends its caster's arrival protection, before it fires, so it lands as any other caster's.
         ArrivalProtection.End(caster);
-        Fire(caster, ability, script, CooldownOf(caster, ability, PaceOf(caster)), TakeCastId(), view, null, null);
+        Fire(caster, ability, script, CooldownOf(caster, ability, PaceOf(caster)), TakeCastId(), view, null, null, aim);
         return true;
     }
 
@@ -387,7 +388,8 @@ public class InstanceAbilityCastSystem(
                 ? footprint
                 : null;
             cast.Fired = true;
-            Fire(cast.Caster, ability, cast.Script, cast.CooldownSeconds, cast.CastId, default, dodge, cast.Footprint);
+            Fire(cast.Caster, ability, cast.Script, cast.CooldownSeconds, cast.CastId, default, dodge, cast.Footprint,
+                cast.Aim);
         }
     }
 
@@ -756,17 +758,80 @@ public class InstanceAbilityCastSystem(
     /// circle or cone fires with its <paramref name="dodge" /> footprint set on the arena (#1082), so the players it hits
     /// wait out their delay; every other cast with none. It is put back after as the rewind is.
     /// </summary>
+    /// <remarks>
+    /// <b>A fan (#1181 Part D, <c>AddedProjectiles</c>).</b> A projectile cast whose shape fires more than one projectile
+    /// fires <paramref name="script" />, built on lane 0 (<see cref="FanAim.Lane" />), then lanes 1 to n − 1 from
+    /// <paramref name="aim" />, the centre, each a projectile of its own taken from the pool as any cast's is, built and
+    /// added in a loop: no list per cast, and a warm fan allocates nothing. The count and every lane's shape are the cast's
+    /// own copy's (<see cref="PooledAbilityScript.CastCopy" />), never the caster's ability, which a capstone may have
+    /// reshaped while the cast wound up: a cast fires the shape it was taken with. Each lane joins the first's set of hit
+    /// units (<see cref="IProjectileFan.ShareHitsWith" />) before it is prepared, is prepared in a containment of its own
+    /// as the first is, under the cast's id and view, and runs beside it. A fan's start footprint, the centre lane, is not
+    /// set on the arena, so every lane resolves and tells its own. A lane that cannot be built is skipped; one that cannot
+    /// join goes back to the pool unprepared, holding no join; one whose <c>Prepare</c> throws is contained as the first's
+    /// is (logged, the cast interrupted) and ends the cast, while the lanes already in flight fly on.
+    /// </remarks>
     private void Fire(IUnit caster, IAbility ability, AbilityScript script, float cooldownSeconds, uint castId, CastView view,
-        AbilityFootprint? dodge, AbilityFootprint? started)
+        AbilityFootprint? dodge, AbilityFootprint? started, AbilityAim aim)
     {
         if (caster is not CharacterEntity { GodMode: true })
             ability.CooldownTimer = cooldownSeconds;
         arena.BroadcastFinishCast(caster, ability, castId);
 
+        // The shape the cast was taken with: its own copy's, which a reshape of the caster's ability never reaches.
+        IAbility shaped = script is PooledAbilityScript pooled ? pooled.CastCopy : ability;
+        int lanes = LanesOf(shaped.Metadata);
+        if (lanes > 1)
+            started = null;
+
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world
         // object, and the cast is interrupted. What it spent stays spent. So is a script whose state cannot be
         // read once it has prepared.
-        bool running;
+        if (!TryPrepare(caster, ability, script, castId, view, dodge, started, out bool running))
+            return;
+
+        if (!running)
+        {
+            // Finished in Prepare, it never runs: a pooled script goes back now (#1181 Part D), any other is let go. A fan
+            // whose first lane ended there fires no other: its set of hit units went back with it.
+            _pool.Retire(script);
+            CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
+            return;
+        }
+
+        Run(caster, ability, script, castId, view);
+        for (int lane = 1; lane < lanes; lane++)
+        {
+            if (Build(caster, FanAim.Lane(aim, lane, lanes), shaped) is not { } next)
+                continue;
+
+            if (next is not IProjectileFan fan || script is not IProjectileFan first)
+            {
+                _pool.Return(next);
+                continue;
+            }
+
+            fan.ShareHitsWith(first);
+            if (!TryPrepare(caster, ability, next, castId, view, dodge, null, out bool flying))
+                return;
+
+            if (flying)
+                Run(caster, ability, next, castId, view);
+            else
+                _pool.Retire(next);
+        }
+
+        CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
+    }
+
+    /// <summary>
+    /// <paramref name="script" />'s <c>Prepare</c>, contained (#530), with the cast's id, start footprint, rewind and dodge
+    /// footprint set on the arena and the values found before put back after. False, the failure logged and the cast
+    /// interrupted, when it threw; else <paramref name="running" /> says whether it is still running.
+    /// </summary>
+    private bool TryPrepare(IUnit caster, IAbility ability, AbilityScript script, uint castId, CastView view,
+        AbilityFootprint? dodge, AbilityFootprint? started, out bool running)
+    {
         int outerRewind = arena.HitRewindTicks;
         IUnit? outerExempt = arena.HitRewindExempt;
         AbilityFootprint? outerDodge = arena.DodgeFootprint;
@@ -780,13 +845,15 @@ public class InstanceAbilityCastSystem(
             arena.DodgeFootprint = dodge;
             script.Prepare();
             running = script.State is not SpellState.Finished;
+            return true;
         }
         catch (Exception e)
         {
             // Interrupted after the finish on purpose: a circle or a cone deals its damage inside
             // Prepare, so the finish has to go out before it, and a throw can only be told after.
             Failed(caster, ability, e, "Prepare", castId);
-            return;
+            running = false;
+            return false;
         }
         finally
         {
@@ -796,22 +863,20 @@ public class InstanceAbilityCastSystem(
             arena.HitRewindExempt = outerExempt;
             arena.DodgeFootprint = outerDodge;
         }
-
-        if (running)
-        {
-            if (!_freeEntries.TryPop(out ActiveScript? entry))
-                entry = new ActiveScript();
-            entry.Start(caster, ability, script, castId, view);
-            _activeAbilities.Add(entry);
-        }
-        else
-        {
-            // Finished in Prepare, it never runs: a pooled script goes back now (#1181 Part D), any other is let go.
-            _pool.Retire(script);
-        }
-
-        CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
     }
+
+    /// <summary>A prepared script still running joins the running list, in a reused entry.</summary>
+    private void Run(IUnit caster, IAbility ability, AbilityScript script, uint castId, CastView view)
+    {
+        if (!_freeEntries.TryPop(out ActiveScript? entry))
+            entry = new ActiveScript();
+        entry.Start(caster, ability, script, castId, view);
+        _activeAbilities.Add(entry);
+    }
+
+    /// <summary>How many projectiles a cast of <paramref name="meta" /> fires (#1181 Part D): its count for a projectile, else 1.</summary>
+    private static int LanesOf(AbilityMetadata meta) =>
+        meta.Shape == AbilityShape.Projectile ? Math.Max(1, meta.ProjectileCount) : 1;
 
     /// <summary>The pool of this instance's scripts, keyed by type: projectiles today (#1181 Part D).</summary>
     private static AbilityScriptPool NewPool(IAbilityArena arena)

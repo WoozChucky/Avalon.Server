@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abilities;
@@ -42,8 +43,24 @@ namespace Avalon.World.Scripts.Abilities;
 /// <b>Its state</b> is one of two boxes every projectile shares (<c>s_executing</c>, <c>s_finished</c>), since
 /// <see cref="State" /> is an object: a flight boxes nothing. <c>State is SpellState.Finished</c> reads them as any box.
 /// </para>
+/// <para>
+/// <b>A fan (#1181 Part D, <c>AddedProjectiles</c>).</b> The cast system fires each extra lane of a fan as a projectile
+/// of its own and joins it to the cast's first (<see cref="IProjectileFan.ShareHitsWith" />) before it is prepared, so
+/// every lane of the cast shares the first's <see cref="ProjectileHits" />, one count more per lane, and makes no set of
+/// its own: a unit is affected at most once per cast, whichever lane reaches it first, and the set goes back to the pool
+/// when the last lane lets go of it. Each lane counts its own hits (<c>_struck</c>) for <c>MaxTargets</c>, so a piercing
+/// lane never ends on another lane's hits.
+/// </para>
+/// <para>
+/// <b>An explosion (#1181 Part D, <c>ImpactExplosion</c>).</b> When the cast's <c>ExplosionRadius</c> is above 0 and the
+/// projectile ends on a unit, a circle of that radius bursts where it met the unit (<see cref="Explode" />), told as a
+/// fired circle, the event clients already draw. It hits every other unit in it the ability may affect and the cast has
+/// not hit yet, each once and added to the cast's set, at <c>ExplosionEffectiveness</c> % of the amount with the
+/// <c>Area</c> tag: damage only, no aura, no second hit, no dodge wait. Never at a wall or at full reach. It runs inside
+/// the flight's rewound view, as the sweep does.
+/// </para>
 /// </remarks>
-public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileIdentity
+public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileIdentity, IProjectileFan
 {
     /// <summary>Where the projectile is drawn above the ground it flies along. Hit tests ignore height.</summary>
     public static readonly Vector3 HeightOffset = new(0f, 0.5f, 0f);
@@ -55,8 +72,12 @@ public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileId
 
     private readonly IAbilityArena _arena;
 
-    // The units this cast has hit: taken in Prepare, from the pool for a pooled projectile, and let go by Clear.
+    // The units this cast has hit, every lane of a fan's: taken in Prepare, from the pool for a pooled projectile, unless
+    // a fan's first lane shared its own (ShareHitsWith), and let go by Clear.
     private ProjectileHits? _hits;
+
+    // The units this lane has hit, for MaxTargets: a fan's lanes share the set, never the count.
+    private int _struck;
 
     // The wrapper this projectile's ids are written into, its own: Guid is set to it, and only it is ever changed here.
     private ObjectGuid? _wrapper;
@@ -85,6 +106,7 @@ public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileId
     private protected override void OnLaunch()
     {
         _hits = null;
+        _struck = 0;
         _ground = Vector3.zero;
         _direction = Vector3.zero;
         _travelled = 0f;
@@ -112,7 +134,8 @@ public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileId
         _wrapper ??= new ObjectGuid();
         _wrapper.Set(ObjectType.SpellProjectile, IObject.GenerateId());
         Guid = _wrapper;
-        _hits ??= Pool?.TakeHits() ?? new ProjectileHits();
+        // A lane of a fan already shares its first lane's set. One built outside a pool counts its own lane, never let go.
+        _hits ??= Pool?.TakeHits() ?? new ProjectileHits { Lanes = 1 };
         CastId = arena.CastInFlight;
         _ground = Origin;
         _direction = Aim.DirectionFrom(_ground);
@@ -160,9 +183,10 @@ public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileId
             }
 
             hit.Add(unit.Guid);
+            _struck++;
 
-            // Without Pierce the first hit is the last; with it, the MaxTargets-th (#1181), told as a Hit.
-            bool last = !meta.Pierce || (meta.MaxTargets > 0 && hit.Count >= meta.MaxTargets);
+            // Without Pierce the first hit is the last; with it, this lane's MaxTargets-th (#1181), told as a Hit.
+            bool last = !meta.Pierce || (meta.MaxTargets > 0 && _struck >= meta.MaxTargets);
 
             // Where it met the unit: the point of its step nearest the unit's centre, where the sweep tested it
             // (rewound for a player's projectile, #1082). Told before the damage, so the damage belongs to it.
@@ -173,6 +197,11 @@ public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileId
 
             if (last)
             {
+                // Ended on a unit: the explosion bursts there. The list it walks is the one this loop read, reused by the
+                // query, so nothing reads `units` after it.
+                if (meta.ExplosionRadius > 0f)
+                    Explode(hitPoint, unit);
+
                 MoveTo(hitPoint, HitShapes.Distance2D(_ground, hitPoint));
                 Finish();
                 return;
@@ -186,6 +215,57 @@ public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileId
             arena.BroadcastProjectileImpact(Guid, Caster, Ability, CastId, Position,
                 blocked ? ProjectileImpactReason.Blocked : ProjectileImpactReason.Expired, null);
             Finish();
+        }
+    }
+
+    void IProjectileFan.ShareHitsWith(IProjectileFan first)
+    {
+        ProjectileHits hits = ((ProjectileAbilityScript)first)._hits
+                              ?? throw new InvalidOperationException("A fan's first lane shares its hits once it is prepared.");
+        hits.Lanes++;
+        _hits = hits;
+    }
+
+    /// <summary>
+    /// The explosion where the projectile ended on <paramref name="struck" /> (#1181 Part D): told as a fired circle of the
+    /// cast's <c>ExplosionRadius</c> at <paramref name="at" />, under the cast's id, then every unit in it but the struck
+    /// one, any the cast already hit and any the ability may not affect is hit once, at <c>ExplosionEffectiveness</c> % with
+    /// the Area tag, and added to the cast's set. By index: the query's list is reused, and a foreach through the
+    /// interface would box its enumerator.
+    /// </summary>
+    private void Explode(Vector3 at, IUnit struck)
+    {
+        IAbilityArena arena = _arena;
+        AbilityMetadata meta = Ability.Metadata;
+        float radius = meta.ExplosionRadius;
+
+        // The fired event names the projectile's cast, as its lane's did, so a client ties the burst to it.
+        uint outerCast = arena.CastInFlight;
+        try
+        {
+            arena.CastInFlight = CastId;
+            arena.BroadcastAbilityFired(Caster, Ability,
+                new AbilityFootprint(AbilityShape.Circle, at, null, at, radius, 0f, 0f));
+        }
+        finally
+        {
+            arena.CastInFlight = outerCast;
+        }
+
+        HashSet<ObjectGuid> hit = _hits!.Units;
+        var shaping = new HitShaping(meta.ExplosionEffectiveness, AbilityTags.Area);
+        IReadOnlyList<IUnit> units = arena.Hits.InCircle(at, radius);
+        for (int i = 0; i < units.Count; i++)
+        {
+            IUnit unit = units[i];
+            if (ReferenceEquals(unit, struck) || hit.Contains(unit.Guid)
+                                              || !AbilityEffect.Qualifies(arena, Caster, Ability, unit))
+            {
+                continue;
+            }
+
+            hit.Add(unit.Guid);
+            arena.HitForAbility(Caster, unit, Ability, shaping);
         }
     }
 
