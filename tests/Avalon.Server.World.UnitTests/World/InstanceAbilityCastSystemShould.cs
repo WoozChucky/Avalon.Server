@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -885,6 +886,144 @@ public class InstanceAbilityCastSystemShould
             GameAbility held = AbilityTestData.Game(AbilityTestData.Projectile(219, reach: 10f, speed: 20f).Dealing(10));
             ProjectileAbilityScript flown = Round(passing, held);
             return (new WeakReference(passing), new WeakReference(held.Metadata), flown);
+        }
+    }
+
+    /// <summary>
+    /// Circles and cones are pooled per instance too (#1238): a script that fired is reused once two whole view rounds have
+    /// passed, its own copy of the ability made again for the new cast, so the reused one fires the new cast's caster,
+    /// origin, ability and shape, and the first fired the capstone shape (Wide Arc and Long Reach, or a wider circle) it was
+    /// queued with. A hit the dodge wait still holds when its script is reused lands with its own cast's ability, not the
+    /// next cast's, nor a cleared one. A script whose <c>Prepare</c> threw is never reused. The fired broadcast names the
+    /// script's own copy, so the same copy fired twice is the same script.
+    /// </summary>
+    [Theory]
+    [InlineData("a cone")]
+    [InlineData("a circle")]
+    [InlineData("a held hit")]
+    [InlineData("after its Prepare threw")]
+    public void Reuse_a_circle_or_cone_with_nothing_of_its_last_cast(string row)
+    {
+        var arena = new TestArena();
+        var ticks = new WorldTicks(1_000);
+        IServiceProvider services = Substitute.For<IServiceProvider>();
+        services.GetService(typeof(WorldTicks)).Returns(ticks);
+        _scripts.GetAbilityScript(nameof(ConeAbilityScript)).Returns(typeof(ConeAbilityScript));
+        _scripts.GetAbilityScript(nameof(CircleAbilityScript)).Returns(typeof(CircleAbilityScript));
+        var sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, services, _scripts, arena);
+        List<IWorldObject> objects = [];
+
+        void Update()
+        {
+            objects.Clear();
+            sut.Update(s_tick, objects);
+            ticks.Advance();
+        }
+
+        void RunToFire(GameAbility queued)
+        {
+            for (int i = 0; i < 30 && queued.Casting; i++)
+                Update();
+            Assert.False(queued.Casting);
+        }
+
+        switch (row)
+        {
+            case "a cone":
+            case "a circle":
+            {
+                bool cone = row == "a cone";
+                AbilityTemplate first = cone ? AbilityTestData.Cone(203).Dealing(10) : AbilityTestData.Circle(201).Dealing(10);
+                first.CastTime = 100u;
+                GameAbility shaped = cone
+                    ? AbilityTestData.Shaped(first, (TalentModifierKind.ConeArcPct, 50, null),
+                        (TalentModifierKind.ConeReachPct, 50, null))
+                    : AbilityTestData.Shaped(first, (TalentModifierKind.AreaPct, 40, null));
+                GameAbility plain = AbilityTestData.Game(cone
+                    ? AbilityTestData.Cone(212).Dealing(10)
+                    : AbilityTestData.Circle(211).Dealing(10));
+                CharacterEntity one = arena.Player(1, 0f, 0f);
+                CharacterEntity two = arena.Player(2, 10f, 0f);
+                ICreature near = arena.Creature(0f, 2f);
+                ICreature far = arena.Creature(10f, 2f);
+
+                Assert.True(sut.QueueAbility(one, s_north, shaped));
+                RunToFire(shaped);
+                arena.ViewRound += 2;
+                Assert.True(sut.RunInstant(two, s_north, plain));
+
+                Assert.Equal(2, arena.FiredAbilities.Count);
+                Assert.Same(arena.FiredAbilities[0], arena.FiredAbilities[1]);
+                AbilityFootprint queued = arena.FiredFootprints[0].Footprint;
+                AbilityFootprint instant = arena.FiredFootprints[1].Footprint;
+                if (cone)
+                {
+                    Assert.Equal((135f, 4.5f), (queued.ArcDegrees, queued.Reach));
+                    Assert.Equal((90f, 3f), (instant.ArcDegrees, instant.Reach));
+                }
+                else
+                {
+                    Assert.Equal(4.2f, queued.Radius, 0.001f);
+                    Assert.Equal(3f, instant.Radius);
+                }
+
+                Assert.Equal(new Vector3(10f, 0f, 0f), instant.Origin);
+                Assert.Equal([(one, near, first.Id), (two, far, plain.AbilityId)],
+                    arena.AurasApplied.Select(a => (a.Caster, a.Target, a.Id)));
+                Assert.Same(shaped.Metadata, arena.AurasApplied[0].Metadata);
+                break;
+            }
+
+            case "a held hit":
+            {
+                // A creature's telegraphed circle holds its hit on a player for four ticks; the circle's script is free
+                // again before it lands, and another circle, of another ability, takes it.
+                arena.Holds = (sut.PendingHits, ticks, 4);
+                ICreature caster = arena.Creature(0f, 0f);
+                CharacterEntity player = arena.Player(1, 0f, 2f);
+                CharacterEntity bystander = arena.Player(2, 20f, 0f);
+                AbilityTemplate novaRow = AbilityTestData.Circle(315).Dealing(10);
+                novaRow.CastTime = 100u;
+                GameAbility nova = AbilityTestData.Game(novaRow);
+                Assert.True(sut.QueueAbility(caster, s_north, nova));
+                RunToFire(nova);
+                Assert.Empty(arena.AurasApplied);
+
+                arena.ViewRound += 2;
+                ICreature other = arena.Creature(20f, 2f);
+                Assert.True(sut.RunInstant(bystander, s_north,
+                    AbilityTestData.Game(AbilityTestData.Circle(211).Dealing(10))));
+                Assert.Same(arena.FiredAbilities[0], arena.FiredAbilities[1]);
+                for (int i = 0; i < 5; i++)
+                    Update();
+
+                Assert.Equal([(bystander, (IUnit)other, new AbilityId(211)), (caster, player, novaRow.Id)],
+                    arena.AurasApplied.Select(a => (a.Caster, a.Target, a.Id)));
+                Assert.Same(nova.Metadata, arena.AurasApplied[1].Metadata);
+                break;
+            }
+
+            case "after its Prepare threw":
+            {
+                CharacterEntity caster = arena.Player(1, 0f, 0f);
+                ICreature creature = arena.Creature(0f, 2f);
+                bool failing = true;
+                creature.Invulnerable.Returns(_ => failing ? throw new InvalidOperationException("The creature failed.") : false);
+                GameAbility cone = AbilityTestData.Game(AbilityTestData.Cone(203).Dealing(10));
+
+                Assert.True(sut.RunInstant(caster, s_north, cone));
+                Assert.Same(caster, Assert.Single(arena.Interrupted).Caster);
+                failing = false;
+                arena.ViewRound += 2;
+                Assert.True(sut.RunInstant(caster, s_north, cone));
+
+                Assert.NotSame(arena.FiredAbilities[0], arena.FiredAbilities[1]);
+                Assert.Equal(creature, Assert.Single(arena.AurasApplied).Target);
+                break;
+            }
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(row), row, null);
         }
     }
 

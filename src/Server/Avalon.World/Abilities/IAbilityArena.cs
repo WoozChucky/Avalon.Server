@@ -81,7 +81,9 @@ public interface IAbilityArena
     /// Holds <paramref name="ability" />'s hit on <paramref name="target" /> for the dodge wait (#1082), answering whether it
     /// did. True only while <see cref="DodgeFootprint" /> is set, for a character target with a one-way delay of at least a
     /// tick (at most <see cref="LagCompensation.MaxDodgeWaitTicks" />): the hit is then applied once the delay has passed,
-    /// if the target is still alive and inside the footprint. False, to be applied now, for any other.
+    /// if the target is still alive and inside the footprint. False, to be applied now, for any other. A held hit keeps a
+    /// copy of <paramref name="ability" /> of its own (<see cref="PendingHits" />, #1238): the one passed is a pooled
+    /// script's, which the pool clears as the script goes back.
     /// </summary>
     bool TryDeferHit(IUnit caster, IAbility ability, IUnit target);
 

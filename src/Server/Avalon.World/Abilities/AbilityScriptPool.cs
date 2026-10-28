@@ -13,10 +13,25 @@ namespace Avalon.World.Abilities;
 /// <remarks>
 /// <para>
 /// <b>What it pools.</b> Scripts of the types registered with <see cref="Pools{T}" />, each type with its own free stack,
-/// keyed by the type the script manager answers for a cast: <c>ProjectileAbilityScript</c> today, each with its own copy
-/// of the ability and its own guid wrapper. And the hit sets those projectiles share (<see cref="ProjectileHits" />). A
-/// script type registers by deriving from <see cref="PooledAbilityScript" />, whose <c>Launch</c> and <c>Clear</c> are
-/// the reset contract every pooled type keeps.
+/// keyed by the type the script manager answers for a cast: <c>ProjectileAbilityScript</c>, <c>CircleAbilityScript</c> and
+/// <c>ConeAbilityScript</c> (#1238), each with its own copy of the ability and its own guid wrapper. And the hit sets those
+/// projectiles share (<see cref="ProjectileHits" />). A script type registers by deriving from
+/// <see cref="PooledAbilityScript" />, whose <c>Launch</c> and <c>Clear</c> are the reset contract every pooled type keeps.
+/// A circle or a cone finishes inside its <c>Prepare</c>, so it never joins the running list: it is retired as it fires.
+/// </para>
+/// <para>
+/// <b>Nothing may hold a script's copy of the ability past its cast.</b> The copy is cleared when the script is handed
+/// back, and made again for its next cast. The holders walked for #1238: the auras a hit places keep the id and the
+/// metadata (<c>AuraSource.Of</c>), never the copy; the fired, impact and damage packets copy what they send when they are
+/// encoded; and the dodge wait's held hits (<see cref="PendingHits" />), which outlive the cast by up to six ticks, keep a
+/// copy of their own.
+/// </para>
+/// <para>
+/// <b>No container services.</b> A pooled type is made by the factory it registered with (<see cref="Make" />), which
+/// passes the four cast arguments and nothing from the container, where the activator binds constructor services. Every
+/// pooled type is a shipped script whose one constructor takes the four alone; one that declared a service would not
+/// compile in its registration (<c>InstanceAbilityCastSystem.NewPool</c>). A seeded script name answering any other type
+/// is built by the activator, unpooled.
 /// </para>
 /// <para>
 /// <b>Where each one goes back.</b> <see cref="Retire" /> when a prepared script leaves the cast system's running list:

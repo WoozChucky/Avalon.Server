@@ -19,7 +19,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// One projectile cast flown to its end on a creature, through the real cast path (#1181 Part D): a god-mode Wizard at the
 /// town instance's entry casts its Spark Bolt (210) through <see cref="MapInstance.RunInstantAbility" /> at a boar 6 m
 /// north, between two more at ±10° it passes, then the world ticks through the flight, the final state's broadcast and
-/// two view rounds, as <c>ProjectileCastAllocationShould</c> pins it. With projectiles pooled per instance it allocates
+/// two view rounds, as <c>AbilityCastAllocationShould</c> pins it. With projectiles pooled per instance it allocates
 /// nothing once warm; before the pool, each cast allocated its projectile, its cast copy, its hit set, its state boxes,
 /// its guid and its running-list entry (docs/benchmarks.md, "Ability script construction").
 /// </summary>

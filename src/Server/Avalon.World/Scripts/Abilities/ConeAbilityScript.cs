@@ -1,12 +1,8 @@
-using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
-using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Enums;
-using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Scripts.Abilities;
@@ -16,22 +12,15 @@ namespace Avalon.World.Scripts.Abilities;
 /// caster's yaw, resolved at cast start, #716) or toward the aim point (Cursor, falling back to facing when the
 /// point is on the caster) (#164). Resolves once, when it fires. Walls do not clip it.
 /// It resolves from where the caster stood when the cast started (#648), through
-/// <c>AbilityFootprint.Resolve</c>, the footprint the cast's start broadcast carried.
+/// <c>AbilityFootprint.Resolve</c>, the footprint the cast's start broadcast carried. Pooled per instance
+/// (<see cref="AreaAbilityScript" />, #1238).
 /// </summary>
 public sealed class ConeAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
-    : AbilityScript(ability, caster, aim)
+    : AreaAbilityScript(ability, caster, aim, arena)
 {
-    public override Vector3 Position { get; set; }
-    public override Vector3 Velocity { get; set; }
-    public override Vector3 Orientation { get; set; }
-    public override ObjectGuid Guid { get; set; }
-    public override object State { get; set; } = SpellState.Executing;
-
-    protected override bool ShouldRun() => true;
-
-    public override void Prepare()
+    private protected override void Resolve()
     {
-        Guid = new ObjectGuid(ObjectType.Spell, IObject.GenerateId());
+        IAbilityArena arena = Arena;
         Vector3 origin = Origin;
         AbilityFootprint footprint = AbilityFootprint.Resolve(AbilityShape.Cone, Ability.Metadata, Aim, origin,
             arena.GetNavigatorForPosition(origin))!.Value;
@@ -41,7 +30,5 @@ public sealed class ConeAbilityScript(IAbility ability, IUnit caster, AbilityAim
         AbilityEffect.ApplyToAll(arena, Caster, Ability,
             arena.Hits.InCone(origin, footprint.Direction!.Value, footprint.Reach, footprint.ArcDegrees),
             Ability.Metadata.MaxTargets);
-
-        State = SpellState.Finished;
     }
 }

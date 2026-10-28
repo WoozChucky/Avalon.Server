@@ -241,7 +241,7 @@ writes a Warning naming the instance it discarded, or its failure, and how long 
 
 | Metric | Prometheus | Measures |
 |---|---|---|
-| `world.ability_scripts.pool_drops` | `world_ability_scripts_pool_drops_total` | Pooled ability scripts (#1181 part D: projectiles, a fan's lanes included) that an instance's `AbilityScriptPool` let go to the collector as they were handed back, because it already held its cap of that type (`InstanceAbilityCastSystem.PooledScripts`, 256 free and retired), [the skill system](spell-system.md#5-the-three-shapes). No tags, so a count allocates nothing on the cast path. On the world's meter (`world-server`) |
+| `world.ability_scripts.pool_drops` | `world_ability_scripts_pool_drops_total` | Pooled ability scripts (#1181 part D: projectiles, a fan's lanes included; #1238: circles and cones) that an instance's `AbilityScriptPool` let go to the collector as they were handed back, because it already held its cap of that type (`InstanceAbilityCastSystem.PooledScripts`, 256 free and retired), [the skill system](spell-system.md#5-the-three-shapes). No tags, so a count allocates nothing on the cast path. On the world's meter (`world-server`) |
 
 Should stay 0: each count is a script the next cast of its type builds anew (some 544 B), so a warm cast allocates
 again. A count is an instance whose busiest moment flew more projectiles of one type than the cap, at once or within

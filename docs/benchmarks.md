@@ -817,8 +817,11 @@ other field reset), so a warm projectile cast builds nothing of the table above:
 its two states are boxes every projectile shares, its guid's wrapper is its own (a new id each flight), and the queue
 and running-list entries are reused. `ProjectileCastBenchmarks` reads 0 B a cast, a fan of three's included, against
 546 B on the base ([Capstones on the hit
-path](#capstones-on-the-hit-path--capstonebenchmarkscs-projectilecastbenchmarkscs-1181-part-d2)). A circle's or a
-cone's script is still built per cast, the 224 B above, until #1238.
+path](#capstones-on-the-hit-path--capstonebenchmarkscs-projectilecastbenchmarkscs-1181-part-d2)). **Circles' and cones'
+builds are pooled too since #1238**, the same way: `AreaCastBenchmarks` reads 0 B a warm cone or circle cast, a held
+dodge-wait hit's included, against 272 B on the base ([Pooled circles and
+cones](#pooled-circles-and-cones--areacastbenchmarkscs-1238)). The activator still builds what no pool keeps: a script
+for an ability that is not a `GameAbility`, or a script name answering another type.
 
 The factory is found in a table held weakly by script type on every cast; that lookup is in the `Cached_factory`
 figure. Making a factory is not: it compiles the constructor call, about 0.5 ms and 10 KB for a script type and about
@@ -2775,6 +2778,69 @@ in flight or queued, creatures' included): at most 10, 19, 8 and 18 in `forest-c
 and 11 in `forest-combat`'s, against `InstanceAbilityCastSystem.PooledScripts`, 256 per type, so no fight comes near the
 cap (`world.ability_scripts.pool_drops` counts a script let go past it, [instrumentation](instrumentation.md)). **The
 committed rows were lowered** with the scenario's first entry ([the allocation gate](#the-allocation-gate)).
+
+### Pooled circles and cones — `AreaCastBenchmarks.cs` (#1238)
+
+What pooling circles and cones saves a cast ([skill system](spell-system.md#5-the-three-shapes), §5): each instance's
+`AbilityScriptPool` now keeps `CircleAbilityScript` and `ConeAbilityScript` beside its projectiles, and the dodge wait's
+held hits keep a copy of the ability of their own, from a free list, instead of the script's copy, which the pool clears.
+The rows, each one cast through the real cast path and ticked through the two view rounds after which the pool frees the
+script, as `AbilityCastAllocationShould` pins them:
+
+- `Fire_cone`: a god-mode Wizard at the town instance's entry casts Frost Fan (212, a 60° cone, 6 m) through
+  `MapInstance.RunInstantAbility` at three boars 6 m north, at 0° and ±10°;
+- `Fire_circle`: the same with Flame Burst (211, a 3 m circle on the aim point, the centre boar);
+- `Hold_circle_hit`: a boar casts its telegraphed Bramble Nova (315, queued, 1.2 s) on a player 2 m off, whose hit the
+  dodge wait holds for the player's one-way delay (2 ticks at the scenario's 60 ms round trip) and lands after the
+  circle's script has gone back to the pool.
+
+Setup fails the run unless every warm-up cast was taken and struck what it aims at (each boar's encounter, or the
+player's health), and cleanup unless the measured casts did too. Run once, pinned, on the branch (`8efa94489` plus this
+change) and then on the base (`origin/main` at `8efa94489`, a temporary worktree with `AreaCastBenchmarks` copied in, since
+it is new with this change, removed after), each out of process, on 2026-10-28 (BenchmarkDotNet 0.15.8, Windows 11,
+i9-12900K, SDK 10.0.403 / runtime 10.0.14, Release):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AreaCastBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Row | Base `8efa94489` | Branch | Allocated, base / branch |
+|---|---:|---:|---:|
+| `Fire_cone` | 12.35 µs (± 0.083 µs) | 11.71 µs (± 0.094 µs) | 272 B / 1 B |
+| `Fire_circle` | 13.06 µs (± 0.190 µs) | 12.73 µs (± 0.097 µs) | 272 B / 0 B |
+| `Hold_circle_hit` | 45.57 µs (± 0.328 µs) | 44.97 µs (± 1.315 µs) | 272 B / 0 B |
+
+**A warm circle or cone cast allocates nothing**, the held hit's included: the 272 B the base builds per cast (in
+Release; 304 B in Debug, which `AbilityCastAllocationShould` reads on the base) are the script, its cast copy of the
+ability, its guid and its two boxed states. `Fire_cone`'s 1 B is BenchmarkDotNet's rounding of a whole run's bytes over
+its operations, not an object per cast (the allocation test reads 0 B across three windows of 20 casts). Each row also
+reads 0.3 to 0.6 µs (2.5 to 5 %) faster: outside both errors for the cone and the circle, inside the branch's wider error
+for the held hit. BenchmarkDotNet removed
+outliers on the base from `Fire_cone` (one), `Fire_circle` (one) and `Hold_circle_hit` (two), and on the branch from
+`Fire_cone` (three) and `Fire_circle` (one). The figures were not tuned by running again.
+
+**What a reused circle or cone could carry, and does not.** `PooledAbilityScript.Launch` makes its copy again from the
+caster's ability (so a cast keeps the shape it was taken with: Wide Arc, Long Reach or a wider circle), and its own
+`AreaAbilityScript` reset puts it at rest, with no guid until it fires (a new id in its own wrapper each cast) and its
+shared executing box; it keeps no hit set, since it hits once, from one query. A script whose `Prepare` threw is handed
+back to neither pool path. `InstanceAbilityCastSystemShould.Reuse_a_circle_or_cone_with_nothing_of_its_last_cast` pins
+each of these, and that a hit the dodge wait still holds when its circle's script is reused lands with its own cast's
+ability, not the next cast's.
+
+**The scenarios** (Release, `dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all`, three runs on the
+branch and one on the base, all at `8efa94489`, every figure the same in each run): `forest-combat` 9,402 to 7,692 B
+per window (−18.2 %), `forest-awakening` 9,468 to 7,759 B (−18.0 %), `forest-resonance` 11,909 to 10,422 B (−12.5 %)
+and `forest-capstones` 11,549 to 10,223 B (−11.5 %); the base reads exactly the committed rows. Each is the same fight:
+the same 164 Resonance effects, 502 Awakening points and 16 shaped Rends in the measured minute on both sides. The drop
+is the circles' and cones' builds: a temporary counter, not committed, read 391, 391, 335 and 300 circle and cone
+scripts built in the measured minute on the base (the warriors' basic attack, Heavy Strike, a cone, and the forests'
+creatures' cones and circles), at up to 272 B each in Release, about 1,773, 1,773, 1,519 and 1,360 B per window; the measured drops,
+1,710, 1,709, 1,487 and 1,326 B, are 32 to 64 B per window under that, the pool's own growth in the measured minute (9,
+9, 6 and 7 circle and cone scripts made as the forests reach a busier moment than their warm-up had, their free stacks
+and the retire queue grown, and 0 to 3 held-hit copies): a run with every instance's pool filled beforehand, also not
+committed, read `forest-combat` at 7,595 B, 97 B under the committed figure. No other row moved (`town-social` 728 B,
+the rest 0); the four rows were regenerated in Release, and Debug passes the gate on them too ([the allocation
+gate](#the-allocation-gate)).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -5143,7 +5209,13 @@ with the committed figure, in every build (Debug and Release, see below) and for
   smallest, 24 B, is 1,440 B per window).
   `town-doodads` reads 0 from its first entry (doodads S1, 2026-10-18), its row added alone, with no other row
   regenerated: a view decision over 40 doodads, half of them gated, allocates nothing.
-  `forest-capstones` reads 11,549 B per window since part D2's final fixes, its row alone regenerated, every other row
+  `forest-combat`, `forest-awakening`, `forest-resonance` and `forest-capstones` read 7,692, 7,759, 10,422 and 10,223 B
+  per window since #1238 pooled circles and cones (at `8efa94489`; 9,402, 9,468, 11,909 and 11,549 B before), those four
+  rows alone regenerated, in Release, every other row unmoved (`town-social` 728 B, the rest 0): each is the same fight,
+  whose circle and cone casts (391, 391, 335 and 300 in the measured minute) no longer build their script, copy, guid
+  and boxes (272 B each in Release), less the pool's growth in that minute, 32 to 64 B per window ([Pooled circles and
+  cones](#pooled-circles-and-cones--areacastbenchmarkscs-1238)). The figures below are the rows' history.
+  `forest-capstones` read 11,549 B per window from part D2's final fixes, its row alone regenerated, every other row
   inside its tolerance unregenerated: the fight gained its warriors' opener, a Rend shaped with both aura factors,
   because the scenario ran no aura factor before; the factors themselves cost 0 B (a run with the same Rend unshaped
   reads the same 11,549 B), and the 414 B is the opener's fight, which picks up, destroys and dies more ([capstones on

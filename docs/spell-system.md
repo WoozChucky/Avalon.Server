@@ -341,7 +341,8 @@ refused: its cost and cooldown are spent all the same.
   (`IAbilityArena.TryDeferHit`, while the cast system sets `DodgeFootprint` around the `Prepare`) for
   that player's one-way delay, `min(LagCompensation.OneWayTicks(RoundTripTime), MaxDodgeWaitTicks)`:
   half the connection's round trip in whole ticks, rounded, at most 6 (about 100 ms). The held hits
-  (`PendingHits`, one list per instance) are resolved at the start of the cast system's update on the
+  (`PendingHits`, one list per instance, each hit with a copy of the cast's ability of its own, #1238) are resolved
+  at the start of the cast system's update on the
   tick they are due, after that tick's inputs, and never on the tick the cast fired. A hit lands, through
   the same `AbilityEffect.Apply` as an immediate one (damage, threat, kill credit), only if the player
   is still alive, still a target of the ability, and still inside the footprint where they stand now;
@@ -439,30 +440,39 @@ damage only, no aura, no second hit, no dodge wait. So it spares the unit it end
 and anything outside its radius. It never fires at a wall or at full reach. It runs inside the flight's rewound view,
 as the sweep does, and walks the hit query's reused list by index, so a burst allocates nothing.
 
-**Pooled projectiles (#1181 part D, the owner's decision of 2026-10-28).** Each instance's cast system keeps an
-`AbilityScriptPool`, used on its tick alone, so a warm projectile cast, a fan's lanes included, allocates nothing
-([benchmarks](benchmarks.md), `ProjectileCastBenchmarks`). `InstanceAbilityCastSystem.Build` asks it first, for a cast
-whose ability is a `GameAbility`, and it answers for the script types registered with it (`ProjectileAbilityScript`
-today, which derives from the World-side `PooledAbilityScript`). `PooledAbilityScript.Launch` binds a pooled script to
+**Pooled scripts (#1181 part D, the owner's decision of 2026-10-28; circles and cones, #1238).** Each instance's cast
+system keeps an `AbilityScriptPool`, used on its tick alone, so a warm projectile, circle or cone cast, a fan's lanes
+included, allocates nothing ([benchmarks](benchmarks.md), `ProjectileCastBenchmarks`, `AreaCastBenchmarks`).
+`InstanceAbilityCastSystem.Build` asks it first, for a cast whose ability is a `GameAbility`, and it answers for the
+script types registered with it (`ProjectileAbilityScript`, `CircleAbilityScript` and `ConeAbilityScript`, which
+derive from the World-side `PooledAbilityScript`, the circle and the cone through `AreaAbilityScript`). `PooledAbilityScript.Launch` binds a pooled script to
 the next cast: its own copy of the ability made again from the caster's (`GameAbility.CopyFrom`), the caster and the
 aim, and every other field as a new script has it (`AbilityScript.ResetForReuse`, then the type's own). `Clear` lets
 go of all of it when the script goes back, so a pooled script keeps nothing alive. A prepared script that leaves the
 running list is retired, and is free again only after two whole view rounds (`IAbilityArena.ViewRound`, which
 `MapInstance` counts up after each broadcast tick's decision of every view completes, never for one client's own
 decision, about 200 ms); one never prepared (a queued cast that ends
-without firing) goes back at once. **A projectile's id is new for every flight**: `Prepare` writes the next id into
+without firing) goes back at once. A circle or a cone finishes inside its `Prepare`, so it is retired as it fires; it
+keeps no hit set, writes a new id into its own guid wrapper each cast, as a projectile does, and fires the shape its
+copy was made with at the cast's start, a capstone's included (Wide Arc, Long Reach, a wider circle).
+**Nothing may hold a script's copy past its cast**, since the pool clears it when the script goes back and makes it
+again for the next: the auras a hit places keep the ability's id and metadata (`AuraSource.Of`), the packets copy what
+they send as they are encoded, and the dodge wait's held hits (§4), which outlive the cast by up to six ticks, keep a
+copy of their own (`PendingHits`: taken from its free copies, `GameAbility.CopyFrom`, and cleared and freed once the hit
+lands, is dodged or is dropped), so a held hit lands with its own cast's ability whatever its script does next.
+**A projectile's id is new for every flight**: `Prepare` writes the next id into
 the projectile's own guid wrapper, so an id is never reused, and the wrapper is reused only once no view, list or
 packet can still hold it for the flight before ([world simulation](world-simulation.md), `EntityTrackingSystem`); a
 pooled projectile has no guid from its launch until its `Prepare`. Each type keeps at most
 `InstanceAbilityCastSystem.PooledScripts` (256) free and retired scripts, and as many hit sets; one handed back past
 the cap is left to the collector and counted (`world.ability_scripts.pool_drops`,
 [instrumentation](instrumentation.md)), since the next cast of its type builds one anew. The queue entries
-(`AbilityInstance`) and the running list's entries (`ActiveScript`) are reused too, for every cast. **Never pooled:** a
-circle's or a cone's script (still built per cast, 224 B, #1238; moving them onto the pool also needs the dodge wait's
-held hit, `PendingHit`, to keep the ability id and metadata it reads rather than the script's own copy, which the pool
-clears when the script goes back, and a factory with the DI services a script declares), a script for an ability that is
-not a `GameAbility` or for a script name that answers another type, one built outside a pool (the activator's, a
-test's), and a script whose `Prepare`, `Update` or `State` threw, which is left to the collector with what it holds. On
+(`AbilityInstance`) and the running list's entries (`ActiveScript`) are reused too, for every cast. **The pool gives no
+container services:** each type is built by the factory it registered with (`InstanceAbilityCastSystem.NewPool`), with
+the four cast arguments alone, so a pooled type declares no constructor service (each pooled type is a shipped script
+whose one constructor takes the four; one that declared a service would not compile in its registration).
+**Never pooled:** a script for an ability that is not a `GameAbility` or for a script name that answers another type,
+one built outside a pool (the activator's, a test's), and a script whose `Prepare`, `Update` or `State` threw, which is left to the collector with what it holds. On
 the modding API, `AbilityScript`'s `Caster`, `Aim` and `Ability` are virtual getters with a protected parameterless
 constructor, so nothing becomes settable, and `PooledAbilityScript`'s constructor and reset hooks are not visible
 outside Avalon.World.
