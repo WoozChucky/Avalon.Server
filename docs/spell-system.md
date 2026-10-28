@@ -106,7 +106,11 @@ silent case.
    `PowerType.Mana` holding at least the cost pays it, and anything else is **NotEnoughPower**: too
    little mana, or a caster not on Mana (none is today: creatures cast free, since
    `InstanceAbilityCastSystem` skips the rule for them and they never send a cast request, so a cost
-   a live template edit puts on a creature ability is never charged).
+   a live template edit puts on a creature ability is never charged). A character holding Blood Price (#1181 part D,
+   `KeystoneRule.LifeCost`) pays every cost from current life instead: payable only when its life is above the cost,
+   so a payment leaves at least 1, and refused **NotEnoughPower** otherwise. The payment is not damage (no ward,
+   armour or evasion, no hit told, no encounter, no combat tag) and leaves mana alone; the accepted cast still enters
+   combat as every cast does ([talents](talents.md#keystones)).
 11. **The instance**: the caster's instance must exist, and the cast system must accept the cast (its
    script found and built, and the caster's crowd control asked again, #770); otherwise **InternalError**.
 
@@ -205,6 +209,19 @@ refused: its cost and cooldown are spent all the same.
   keeps what it has, #548), never heals a dead unit, and adds heal threat from
   `HealThreatPerHp` when the healed unit is in an encounter. Heal threat counts the health actually
   restored, so overheal adds none (#531).
+- **The second hit (#1181 part D, a capstone's `SecondHit`).** When the cast's `SecondHitEffectiveness` is above 0,
+  `AbilityEffect.Apply` affects each unit twice at once. An Ally ability heals at 100 %, then again at that share, then
+  applies its aura once. A Hostile ability hits with the whole amount, applies its aura if that hit landed (or the
+  ability is `Unavoidable`), then hits again at that share (a `HitShaping`, through `IAbilityArena.HitForAbility`),
+  with its own evasion, crit and block rolls, and threat, Resonance and Awakening as for any hit; when the first applied
+  no aura and the second lands, the second applies it. So only the first landed hit applies the aura. No second hit
+  follows a first the unit passed over (`HitOutcome.Ignored`) or one that left it dead, so a corpse draws no roll, no
+  number and no second kill. A held hit (the dodge wait, below) resolves through the same `Apply`, so it lands both
+  when it falls due.
+- **The explosion's hit (#1181 part D, a capstone's `ImpactExplosion`)** is the ability's amount at
+  `ExplosionEffectiveness` % (`HitShaping(pct, AbilityTags.Area)`): every part of the base is multiplied by the share,
+  and its scale reads the ability's own tags plus `Area`, so increased area damage boosts it. It rolls evasion, crit
+  and block as any hit does, applies no aura, draws no second hit and waits for no dodge (§5).
 - **The base (#1178, the offence model; `OffenceMath`, `Avalon.Combat`, shared with the API's amounts and the
   simulator).** The tags decide it (`OffenceMath.DirectBase`, `HealBase`):
   - **An Attack** rolls its caster's weapon: the main hand's damage range, the one its copy rolled (#1179, its
@@ -249,7 +266,8 @@ refused: its cost and cooldown are spent all the same.
   - **Crit.** A crit multiplies by `HitResolver.CritMultiplier`, `max(0, CritMultiplier + bonus / 100)`: the formula's
     `CritMultiplier` (1.5) plus the attacker's crit multiplier bonus in points (gear `StatType.CritMultiplier`, auras
     `AuraStat.CritMultiplier`; 50 makes a 1.5 crit a 2.0 one). A character's crit chance is the formula's
-    `BaseCritPct` (5) plus its gear's, the same for every class; a creature's is its rarity row's.
+    `BaseCritPct` (5) plus its gear's, the same for every class, and 0 under Steady Hand (#1181 part D,
+    [talents](talents.md#keystones)); a creature's is its rarity row's.
   - **A damage-over-time aura's** total is rolled once, at application, from its source's base without the source's
     conversion or any added damage (an Attack's source roll is the weapon's two ranges, after its local increased
     physical damage), and scaled with the source's tags plus DamageOverTime ([Auras](auras.md)).
@@ -390,10 +408,57 @@ tick it sweeps its whole step as a segment:
 It ends at `Reach`, at a wall (a caster off the navmesh ends it on its first tick), or on a first hit.
 It never homes and has no target.
 
+**A fan (#1181 part D, a capstone's `AddedProjectiles`).** A projectile ability whose cast's `ProjectileCount` is
+above 1 fires that many projectiles, at most 9, 10° apart and centred on the aim (`FanAim.Lane`: lane k turned about
+the vertical by `(k - (count - 1) / 2) x 10°`). The cast system builds the first on lane 0 when it takes the cast, and
+the others when the cast fires, from the aim kept on the queue entry, each taken from the pool (below) as any cast's
+projectile is. Each lane is a projectile of its own, with its own guid, flight and impacts, and every lane carries the
+cast's id. The lanes share one set of the units the cast has hit (`IProjectileFan.ShareHitsWith`, joined before each
+lane is prepared), so a unit is affected at most once per cast, by whichever lane reaches it first, and a lane flies
+through a unit another lane hit. Each lane counts its own hits for `MaxTargets`, so a piercing lane never ends on
+another lane's. The telegraph and a cast-time fan's start broadcast keep the centre lane's footprint, and the client
+draws the fan from `ProjectileCount`; the arena's started footprint is left unset for a fan, so every lane resolves
+and tells its own fired event. The count and every lane's shape are the cast's own copy's, never the caster's
+ability, so a capstone taken or refunded while a cast winds up changes none of its lanes. A lane that cannot be built
+is skipped; one whose `Prepare` throws is contained as the first's is (logged, the cast interrupted) and ends the
+cast, while the lanes already in flight fly on. A first lane that finished inside its `Prepare` fires no other.
+
+**An explosion (#1181 part D, a capstone's `ImpactExplosion`).** When the cast's `ExplosionRadius` is above 0 and the
+projectile ends on a unit (its first hit without `Pierce`, its `MaxTargets`-th with it), a circle of that radius bursts
+where it met the unit, after that unit's impact and hit (`ProjectileAbilityScript.Explode`). It is told as a fired
+circle (§6), then it hits every other unit in the circle the ability may affect (`AbilityEffect.Qualifies`) that the
+cast has not hit yet, each once and added to the cast's set, at `ExplosionEffectiveness` % with the `Area` tag (§4):
+damage only, no aura, no second hit, no dodge wait. So it spares the unit it ended on, an ally or an unflagged player,
+and anything outside its radius. It never fires at a wall or at full reach. It runs inside the flight's rewound view,
+as the sweep does, and walks the hit query's reused list by index, so a burst allocates nothing.
+
+**Pooled projectiles (#1181 part D, the owner's decision of 2026-10-28).** Each instance's cast system keeps an
+`AbilityScriptPool`, used on its tick alone, so a warm projectile cast, a fan's lanes included, allocates nothing
+([benchmarks](benchmarks.md), `ProjectileCastBenchmarks`). `InstanceAbilityCastSystem.Build` asks it first, for a cast
+whose ability is a `GameAbility`, and it answers for the script types registered with it (`ProjectileAbilityScript`
+today, which derives from the World-side `PooledAbilityScript`). `PooledAbilityScript.Launch` binds a pooled script to
+the next cast: its own copy of the ability made again from the caster's (`GameAbility.CopyFrom`), the caster and the
+aim, and every other field as a new script has it (`AbilityScript.ResetForReuse`, then the type's own). `Clear` lets
+go of all of it when the script goes back, so a pooled script keeps nothing alive. A prepared script that leaves the
+running list is retired, and is free again only after two whole view rounds (`IAbilityArena.ViewRound`, which
+`MapInstance` counts up after each completed view decision, about 200 ms); one never prepared (a queued cast that ends
+without firing) goes back at once. **A projectile's id is new for every flight**: `Prepare` writes the next id into
+the projectile's own guid wrapper, so an id is never reused, and the wrapper is reused only once no view, list or
+packet can still hold it for the flight before ([world simulation](world-simulation.md), `EntityTrackingSystem`). Each
+type keeps at most `InstanceAbilityCastSystem.PooledScripts` (256) free and retired scripts, and as many hit sets; one
+handed back past the cap is left to the collector. The queue entries (`AbilityInstance`) and the running list's
+entries (`ActiveScript`) are reused too, for every cast. **Never pooled:** a circle's or a cone's script (still built
+per cast, 224 B, #1238), a script for an ability that is not a `GameAbility` or for a script name that answers another
+type, one built outside a pool (the activator's, a test's), and a script whose `Prepare`, `Update` or `State` threw,
+which is left to the collector with what it holds. On the modding API, `AbilityScript`'s `Caster`, `Aim` and
+`Ability` are virtual getters with a protected parameterless constructor, so nothing becomes settable, and
+`PooledAbilityScript`'s constructor and reset hooks are not visible outside Avalon.World.
+
 **Shaped per character (#1181 part D).** A character's `Reach`, `Radius` and `ArcDegrees` are its own: the capstones
 it holds on the talent tree scale a cone's reach and arc (the arc at most 360°) and a circle's radius, summed per
 ability ([talents](talents.md#shaped-abilities)). The shapes above read them from the cast's metadata, and so does the
-telegraph, so a shaped cone or circle hits and shows as shaped. The metadata is swapped on the character's ability
+telegraph, so a shaped cone or circle hits and shows as shaped; a fan, an explosion and a second hit read the cast's
+metadata as well. The metadata is swapped on the character's ability
 only at a talent change, never on a cast already taken: a cast keeps the shape it was queued with. A creature's
 ability is never shaped.
 
@@ -409,7 +474,10 @@ ability is never shaped.
   never sees one frozen where it stopped.
 - **Circles and cones** broadcast `SMSG_ABILITY_FIRED` (`SAbilityFiredPacket { CasterGuid, AbilityId,
   Origin, Direction?, Centre?, CastId, Footprint }`) to the instance: a circle carries its centre, a cone its
-  direction, and both the cast id and the whole footprint, dimensions included (#648).
+  direction, and both the cast id and the whole footprint, dimensions included (#648). Each lane of a fan sends its
+  own, with its projectile footprint, under the cast's one id (#1181 part D). **An explosion** sends one more when it
+  bursts, under the projectile's cast id: a `Circle` footprint of the explosion's radius, its origin and centre where
+  the projectile met the unit, after that unit's impact and damage and before the burst's own damage packets.
 - **Footprints (#648).** `AbilityFootprint.Resolve` decides where a cast lands, from its row, its aim and the
   caster's position when the cast started (`AbilityAim.Origin`, stamped by the cast system). The shape scripts
   fire with it and the start broadcast carries it, so a telegraph is never corrected: a creature pushed during
@@ -499,9 +567,9 @@ holding it ([talents](talents.md#shaped-abilities)). `AbilityMetadata` carries t
 `AuraDurationPct` (%). `AbilityInfo` sends them as fields 25-30
 ([talent protocol](talent-protocol.md#8-capstones-and-keystones)), beside the shaped fields 11-13. Its copy
 constructor, `AbilityMetadata(AbilityMetadata)`, copies every member and is what `Clone()` and the shaping use;
-nothing on it is settable, so it grants no mod a way to shape an ability. Until part D2, only the cone and circle values
-act: no cast reads the six new fields, so a projectile ability fires one
-projectile, and no hit lands a second time or explodes.
+nothing on it is settable, so it grants no mod a way to shape an ability. Every field acts in play: the shapes and the
+telegraph read the reach, radius and arc; a fan, an explosion and a second hit their own fields (§4, §5); and the aura
+system the stack bonus and the duration factor ([auras](auras.md#capstone-factors)).
 
 Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twenty-one abilities of the old class
 kits (this table's twelve and the nine aura and crowd-control abilities, [auras](auras.md)), what the design fixes of

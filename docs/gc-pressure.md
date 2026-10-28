@@ -393,6 +393,32 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 
 ---
 
+## GC-015 — An ability script, and its cast's objects, built for every cast
+
+**Status:** Resolved for projectiles (#1181 part D, the owner's decision of 2026-10-28); circles and cones open (#1238).  
+**Severity:** Medium  
+**File:** `src/Server/Avalon.World/Abilities/AbilityScriptPool.cs`, `InstanceAbilityCastSystem.cs`
+
+### Problem
+
+Every cast built its script: a projectile's was its cast copy of the ability, the script, its hit set, its two boxed
+states, its guid and its running-list entry, about 544 B for an instant cast and 672 B for a queued one (the queue
+entry besides). A fan of three, which capstones bring, would have built three.
+
+### Outcome
+
+Each instance's cast system keeps an `AbilityScriptPool`, as each aura system keeps a pool of `ActiveAura`s (#1180
+part A2): a projectile is taken from it, bound to the cast (`PooledAbilityScript.Launch`), cleared when it goes back
+(`Clear`), and free again two whole view rounds after it left the running list, so no view can still hold its guid's
+wrapper for the flight before (its id is new every flight). Its hit set comes from the same pool, a fan's lanes share
+one, its two states are boxes every projectile shares, and the queue and running-list entries are reused. Each type
+keeps at most `InstanceAbilityCastSystem.PooledScripts` (256) scripts. A warm projectile cast, a fan's included,
+allocates nothing (`ProjectileCastAllocationShould`, `ProjectileCastBenchmarks`), and `forest-combat`'s committed
+figure fell by a third ([benchmarks](benchmarks.md)). A circle's or a cone's script is still built per cast (224 B),
+until #1238 moves it onto the same pool.
+
+---
+
 ## Priority Order for Resolution
 
 | # | ID | Description | Impact |
@@ -411,3 +437,4 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 12 | ~~GC-010~~ | ~~`Activator.CreateInstance` per packet dispatch~~ | ~~Medium~~ |
 | 13 | ~~GC-011~~ | ~~`ServerBase.CallListener` reflection `new[]` per call~~ | ~~Medium~~ |
 | 14 | GC-014 | LINQ `ToList()` in remove packet | Low |
+| 15 | GC-015 | Ability script built per cast (projectiles pooled; circles and cones open, #1238) | Medium |

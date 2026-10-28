@@ -368,7 +368,7 @@ reads the derived stats").
 | `HealthRegenOutOfCombatPerStamina`  | float | `0.5`   | Health a second per point of Stamina, out of combat only. Range `0`–`1000` |
 | `ManaRegenPctInCombat`              | float | `1`     | Percent of maximum mana regenerated a second in combat (#1181), scaled by the gear's increased mana regeneration; a cast does not pause it. `0` turns it off. Range `0`–`100` |
 | `ManaRegenPctOutOfCombat`           | float | `4`     | The same, out of combat. Range `0`–`100` |
-| `WardRechargeDelaySeconds`          | float | `4`     | Seconds without any damage taken before a ward starts to recharge (#1178), for characters and creatures. Any damage restarts it, damage the ward did not take included. Range `0`–`60` |
+| `WardRechargeDelaySeconds`          | float | `4`     | Seconds without any damage taken before a ward starts to recharge (#1178), for characters and creatures. Any damage restarts it, damage the ward did not take included. Doubled for a character holding the Unbroken keystone (#1181 part D). Range `0`–`60` |
 | `WardRechargeSeconds`               | float | `2`     | Seconds a recharging ward takes from empty to full (#1178); it refills linearly from where it stood. `0` fills it at once when the delay ends. Range `0`–`60` |
 
 ```json

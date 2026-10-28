@@ -225,6 +225,13 @@ Silenced never, Crippled and Hexed 0 % / 0.5 %.
 | 224 Binding Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 15 s | 20 Mana | Damage: an attack at 168 % of the weapon, plus 2-4 blight | 13 Bound |
 | 235 Hush | Cleric | Projectile, 17 m/s | Cursor | reach 18 | 20 s | 20 Mana | none | 15 Silenced |
 
+**Longer and deeper under a capstone (#1181 part D).** A caster holding a capstone that shapes the ability may place
+its aura for longer than the row's duration (Wildfire's Burn 13.5 s, Enduring Renewal's Renew 18 s, Steadfast's
+Fortified 45 s), with the extra ticks that time holds, each the same size; and may stack it above the row's
+`MaxStacks` (Haemorrhage: Bleed to 5). Draw the timer from the entry's `DurationMs` and the count from its `Stacks`,
+never from this table. A stack count above the row's cap comes only from the shaped caster's applications; another
+caster's refresh keeps the count the copy holds.
+
 All are instant. Every cost is mana, for every class (#1181). Every character of a class holds its class's new
 abilities. An Ally circle affects the caster too when the circle covers it.
 
@@ -264,6 +271,8 @@ holds (the union of their bits), never from the catalog:
   (`Game:CrowdControlDiminishWindow`). The entry's `DurationMs` is the shortened duration, so draw the timer from the
   entry. A refresh never shortens what is left: its `DurationMs` may then be the time left rather than the row's
   duration.
+- **Never lengthened.** No capstone lengthens or deepens crowd control: a crowd-control aura's `DurationMs` is
+  never above its row's, and its stacks never above its `MaxStacks`.
 - **Breaking early.** A crowd-control aura can end before its time, by chance, when its holder takes damage or once
   per second held (the catalog's break chances). It arrives as an ordinary `Removed` entry.
 
