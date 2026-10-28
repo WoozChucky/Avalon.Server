@@ -115,8 +115,8 @@ It arrives:
   the whole tree as a lowered level does), so the first state is already the corrected one. A character that lost
   nodes this way gets its points back and no other message. Only a refused tree keeps every saved node (it drops
   nothing); refused quests do not.
-- **After an accepted allocation**: the request's `SMSG_TALENT_RESULT` (`Ok`) first, then the state at the end of the
-  same tick.
+- **After an accepted allocation**: the request's `SMSG_TALENT_RESULT` (`Ok`) first, then at the end of the same tick
+  the ability list when the abilities held changed (below), then the state.
 - **After a level-up**, whatever gave it (anything that grants experience: a kill, a quest, an item), at the end of
   that tick: one more point.
 - **After a turn-in of a quest that pays talent points**: the system line "You gained 1 talent point." (or "You gained
@@ -126,9 +126,10 @@ It arrives:
 A tick that changes the state several times (an allocation and a level-up together) sends it once.
 
 **The abilities after an allocation.** When an allocation changes the abilities the character holds (it allocated an
-ability node), `SMSG_CHARACTER_ABILITIES` (`0x3027`, `SCharacterAbilitiesPacket`) arrives again, whole, before the
-request's result: the starter first, then each held ability node's ability by ascending node id. An ability already
-held keeps its running cooldown; a new one arrives ready. An allocation of small or notable nodes sends no ability
+ability node), `SMSG_CHARACTER_ABILITIES` (`0x3027`, `SCharacterAbilitiesPacket`) arrives again, whole, at the end of
+the tick, after the request's result and just before the state: the starter first, then each held ability node's
+ability by ascending node id. A tick of several such requests sends one list, the last one's. An ability already held
+keeps its running cooldown; a new one arrives ready. An allocation of small or notable nodes sends no ability
 list: the stats it changes reach the client as usual, through `SMSG_CHARACTER_STATS` (`0x302A`) and, when an ability's
 amount or pace moved, `SMSG_CHARACTER_ABILITY_AMOUNTS` (`0x302C`), at the end of the tick
 ([inventory and saves](inventory-and-saves.md)). The ability list has no fixed length: an action bar takes any number

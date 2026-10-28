@@ -10,6 +10,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Talents;
 using Avalon.World;
 using Avalon.World.Abilities;
+using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -28,10 +29,10 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 /// CMSG_TALENT_ALLOCATE (#1181) through the real handler, over the seeded tree, for a level-10 Warrior in a real
 /// instance holding the spoke's first five nodes (57-61, Hurled Axe at 61), so 5 of its 10 points are left, with Hurled
 /// Axe cooling down: every request gets one SMSG_TALENT_RESULT; an accepted one holds its nodes, marks each for the
-/// save, refreshes the stats, sends the ability list only when the abilities held changed (a held ability keeps its
-/// running cooldown, a new one arrives ready) and owes the talent state; a refusal changes nothing. A stats refresh
-/// that throws after the abilities were rebuilt answers InternalError, and the new ability list and the owed state
-/// still follow. A starter the ability catalog does not hold is left out of the rebuilt list, and the held nodes'
+/// save, refreshes the stats and owes the talent state, and the ability list only when the abilities held changed (a held
+/// ability keeps its running cooldown, a new one arrives ready); the result is the request's only packet, and the tick's
+/// TalentFlusher sends what is owed; a refusal changes nothing and owes nothing. A stats refresh that throws after the
+/// abilities were rebuilt answers InternalError, and the new ability list and the state still follow. A starter the ability catalog does not hold is left out of the rebuilt list, and the held nodes'
 /// abilities are not. Character id 118_101 is this class's.
 /// </summary>
 public class TalentAllocateHandlerShould
@@ -87,7 +88,11 @@ public class TalentAllocateHandlerShould
         };
         handler.Execute(client.Connection, Request(request));
 
+        // The result is the only packet the request sends: the ability list follows at the tick's flush.
         STalentResultPacket result = Assert.Single(client.Read<STalentResultPacket>(NetworkPacketType.SMSG_TALENT_RESULT));
+        Assert.Single(client.Sent);
+        client.Sent.Clear();
+        TalentFlusher.Flush(client.Connection, s_data.Quests);
         List<SCharacterAbilitiesPacket> abilityLists =
             client.Read<SCharacterAbilitiesPacket>(NetworkPacketType.SMSG_CHARACTER_ABILITIES);
         SaveMarks saved = character.SaveState.TakeMarks();
@@ -102,8 +107,7 @@ public class TalentAllocateHandlerShould
             Assert.Null(saved.StatsVersion);
             Assert.Equal(statsBefore.Strength, character.Stats!.Value.Strength);
             Assert.Equal(abilitiesBefore, character.Spells.All);
-            Assert.False(character.Talents.StateOwed);
-            Assert.Single(client.Sent);
+            Assert.Empty(client.Sent);
             return;
         }
 
@@ -111,7 +115,7 @@ public class TalentAllocateHandlerShould
             (result.Result, result.NodeId));
         Assert.Equal([.. request.Select(n => (int)n).Order()], marks!.Keys.Order());
         Assert.Equal([.. request.Select(n => (int)n).Concat(s_spoke).Order()], character.Talents.Held);
-        Assert.True(character.Talents.StateOwed);
+        Assert.Single(client.Read<STalentStatePacket>(NetworkPacketType.SMSG_TALENT_STATE));
 
         if (row == "small nodes")
         {

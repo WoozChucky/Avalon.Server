@@ -36,8 +36,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// Neither the rules nor the change read an instance or the handler's packet, so the rows call them directly, as the
 /// handler does, with a <see cref="QuietConnection" /> counting the ability lists sent. Setup fails the run unless each
 /// decision row's first call gives its intended result (and names the node it should), unless
-/// <see cref="Apply_small_nodes" /> sends nothing, and unless <see cref="Apply_ability_change" /> sends two ability
-/// lists and ends holding Cleave again.
+/// <see cref="Apply_small_nodes" /> sends nothing, and unless <see cref="Apply_ability_change" /> sends nothing (the
+/// ability list waits for the tick's TalentFlusher) and ends holding Cleave again.
 /// </remarks>
 [MemoryDiagnoser]
 public class TalentAllocateBenchmarks
@@ -82,10 +82,10 @@ public class TalentAllocateBenchmarks
             throw new InvalidOperationException($"A change of small nodes sent {_connection.Sent} ability lists, not none.");
 
         Apply_ability_change();
-        if (_connection.Sent != 2 || _holder.Spells[s_cleaveAbility] is null || _holder.Talents.Spent != s_eighteen.Length)
+        if (_connection.Sent != 0 || _holder.Spells[s_cleaveAbility] is null || _holder.Talents.Spent != s_eighteen.Length)
         {
             throw new InvalidOperationException(
-                $"Dropping and allocating Cleave sent {_connection.Sent} ability lists, not 2, or left it unheld.");
+                $"Dropping and allocating Cleave sent {_connection.Sent} ability lists, not none, or left it unheld.");
         }
     }
 

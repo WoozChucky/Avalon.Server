@@ -5,52 +5,42 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Abilities;
 
+/// <summary>
+/// The abilities a character holds. Every list is the container's own and walked by index, so the per-tick
+/// <see cref="Update" />, the cast handler's lookup and <see cref="IsCasting" /> allocate no boxed enumerator, closure or
+/// delegate (#880).
+/// </summary>
+/// <remarks>
+/// A talent change (#1181) rebuilds what is held in place: <see cref="StartRebuild" /> hands out a spare list,
+/// <see cref="FinishRebuild" /> swaps it with the held one and parks every ability that left, and a later rebuild takes a
+/// parked ability back through <see cref="Unpark" />. Once warm, a change allocates nothing, however often a character
+/// allocates and refunds. Parking is safe because a cast never holds the character's ability, only its own copy
+/// (<see cref="GameAbility.CloneForCast" />). The parked list holds at most the abilities the tree grants, and is cleared
+/// when the ability catalog generation changes, so a parked ability never outlives the generation it was parked under.
+/// </remarks>
 public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacterAbilities
 {
     private readonly ILogger<CharacterAbilityContainer> _logger = loggerFactory.CreateLogger<CharacterAbilityContainer>();
-    private IReadOnlyCollection<IAbility> _abilities = Array.Empty<IAbility>();
+    private readonly List<IAbility> _parked = [];
+    private List<IAbility> _held = [];
+    private List<IAbility> _spare = [];
 
-    // The loaded collection as a list, when it is one (an array, a List, a collection expression): walked by index,
-    // so the per-tick Update, the cast handler's lookup and IsCasting allocate no boxed enumerator, closure or
-    // delegate (#880). Null for any other collection, which is walked as before.
-    private IReadOnlyList<IAbility>? _list = Array.Empty<IAbility>();
+    // The ability catalog the parked abilities were parked under; null when nothing is parked yet.
+    private AbilityCatalog? _parkedGeneration;
 
-    /// <summary>Every ability loaded, in load order; empty before the first load. World-side (#669).</summary>
-    public IReadOnlyCollection<IAbility> All => _abilities;
+    /// <summary>Every ability held, in load order; empty before the first load. World-side (#669).</summary>
+    public IReadOnlyList<IAbility> All => _held;
 
-    public IAbility? this[AbilityId abilityId]
-    {
-        get
-        {
-            if (_list is not { } list)
-                return Find(_abilities, abilityId);
-
-            for (int i = 0; i < list.Count; i++)
-            {
-                IAbility ability = list[i];
-                if (ability.AbilityId == abilityId)
-                    return ability;
-            }
-
-            return null;
-        }
-    }
-
-    // Apart from the indexer: a lambda over its parameter there would allocate its closure on every call, the list's
-    // included.
-    private static IAbility? Find(IReadOnlyCollection<IAbility> abilities, AbilityId abilityId) =>
-        abilities.FirstOrDefault(x => x.AbilityId == abilityId);
+    public IAbility? this[AbilityId abilityId] => Find(_held, abilityId);
 
     public bool IsCasting
     {
         get
         {
-            if (_list is not { } list)
-                return _abilities.Any(x => x.Casting);
-
-            for (int i = 0; i < list.Count; i++)
+            List<IAbility> held = _held;
+            for (int i = 0; i < held.Count; i++)
             {
-                if (list[i].Casting)
+                if (held[i].Casting)
                     return true;
             }
 
@@ -59,27 +49,115 @@ public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : I
     }
 
     /// <summary>
-    /// Replaces what the character holds. World-side only (#1181): the talent tree decides what a character holds
+    /// Replaces what the character holds with a copy of <paramref name="abilities" />, and forgets every parked ability.
+    /// World-side only (#1181): the talent tree decides what a character holds
     /// (<see cref="Talents.TalentAbilities.Rebuild" />), so <see cref="ICharacterAbilities" /> has no way in.
     /// </summary>
     public void Load(IReadOnlyCollection<IAbility> abilities)
     {
-        _abilities = abilities;
-        _list = abilities as IReadOnlyList<IAbility>;
-        LogLoading(_logger, _abilities.Count);
+        _held.Clear();
+        _held.AddRange(abilities);
+        _parked.Clear();
+        _parkedGeneration = null;
+        LogLoading(_logger, _held.Count);
+    }
+
+    /// <summary>
+    /// The list a rebuild fills, empty, in place of the held one until <see cref="FinishRebuild" />; the indexer still
+    /// reads what is held meanwhile.
+    /// </summary>
+    public List<IAbility> StartRebuild()
+    {
+        _spare.Clear();
+        return _spare;
+    }
+
+    /// <summary>
+    /// The ability parked under <paramref name="generation" /> for <paramref name="abilityId" />, taken off the parked
+    /// list and reset as a new one arrives: ready (cooldown 0), its cast timer its metadata's cast time, not casting. Null
+    /// when none is parked under this generation.
+    /// </summary>
+    public IAbility? Unpark(AbilityId abilityId, AbilityCatalog generation)
+    {
+        if (!ReferenceEquals(generation, _parkedGeneration))
+            return null;
+
+        List<IAbility> parked = _parked;
+        for (int i = 0; i < parked.Count; i++)
+        {
+            IAbility ability = parked[i];
+            if (ability.AbilityId != abilityId)
+                continue;
+
+            // The last into the hole: nothing shifts.
+            int last = parked.Count - 1;
+            parked[i] = parked[last];
+            parked.RemoveAt(last);
+
+            ability.CooldownTimer = 0f;
+            ability.CastTimeTimer = ability.Metadata.CastTime;
+            ability.Casting = false;
+            return ability;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The list <see cref="StartRebuild" /> handed out becomes what is held, and every ability no longer held is parked
+    /// under <paramref name="generation" />; the parked list is cleared first when the generation changed.
+    /// </summary>
+    public void FinishRebuild(AbilityCatalog generation)
+    {
+        if (!ReferenceEquals(generation, _parkedGeneration))
+        {
+            _parked.Clear();
+            _parkedGeneration = generation;
+        }
+
+        List<IAbility> rebuilt = _spare;
+        List<IAbility> previous = _held;
+        for (int i = 0; i < previous.Count; i++)
+        {
+            if (!Holds(rebuilt, previous[i]))
+                _parked.Add(previous[i]);
+        }
+
+        _held = rebuilt;
+        _spare = previous;
+        // The spare keeps no ability alive between rebuilds.
+        previous.Clear();
+        LogLoading(_logger, rebuilt.Count);
     }
 
     public void Update(TimeSpan deltaTime)
     {
-        if (_list is { } list)
+        List<IAbility> held = _held;
+        for (int i = 0; i < held.Count; i++)
+            CountDown(held[i], deltaTime);
+    }
+
+    private static IAbility? Find(List<IAbility> abilities, AbilityId abilityId)
+    {
+        for (int i = 0; i < abilities.Count; i++)
         {
-            for (int i = 0; i < list.Count; i++)
-                CountDown(list[i], deltaTime);
-            return;
+            IAbility ability = abilities[i];
+            if (ability.AbilityId == abilityId)
+                return ability;
         }
 
-        foreach (IAbility ability in _abilities)
-            CountDown(ability, deltaTime);
+        return null;
+    }
+
+    private static bool Holds(List<IAbility> abilities, IAbility ability)
+    {
+        for (int i = 0; i < abilities.Count; i++)
+        {
+            if (ReferenceEquals(abilities[i], ability))
+                return true;
+        }
+
+        return false;
     }
 
     private static void CountDown(IAbility ability, TimeSpan deltaTime)

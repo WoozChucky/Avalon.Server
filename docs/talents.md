@@ -224,9 +224,14 @@ ability, and `CharacterCreateInfos.StartingSpells`, `AbilityTemplates.AllowedCla
 table are gone ([spell system](spell-system.md), §8). An ability already held keeps its `IAbility`, and with it its
 cooldown and cast timers; a new one is a `GameAbility` that arrives ready. An ability the catalog does not hold (it
 refused it, or a reload removed it) is left out with a Warning. When the ids held are the same, in the same order,
-nothing is built and nothing is allocated, and `Rebuild` returns false. The list goes through the World-side
-`CharacterAbilityContainer.Load`; the modding API's `ICharacterAbilities` has no `Load`, so no mod can grant an
-ability.
+nothing is built and nothing is allocated, and `Rebuild` returns false. Otherwise the list is rebuilt in place on the
+World-side `CharacterAbilityContainer`: `StartRebuild` hands out its spare list, `FinishRebuild` swaps it with the
+held one and parks every ability that left, and a later rebuild takes a parked ability back with `Unpark`, reset as a
+new one (cooldown 0, its cast time, not casting), so a change allocates nothing once warm, however often a character
+allocates and refunds. Parking is safe because a cast holds its own copy (`GameAbility.CloneForCast`), never the
+character's ability. The parked list holds at most the abilities the tree grants and is cleared when the ability
+catalog generation changes (`/reload abilities`). The modding API's `ICharacterAbilities` has none of these, so no mod
+can grant an ability.
 
 **Creation** writes no ability: a new character holds no node, so it enters with its starter alone. Its starting items
 are `CharacterCreateItems` rows (class, Bag slot, template), which replaced the packed
@@ -256,11 +261,13 @@ client's view):
   `Ok` and changes nothing.
 - **On `Ok`.** `TalentAllocation.Allocate` checks every id before it changes anything, holds each node and marks it for
   the save; then `TalentChange.Apply` (World/Talents): the totals rebuilt, `TalentAbilities.Rebuild`, the stats
-  refreshed with `KeepShare` (a Warning when there is no class row), the ability list sent only when the abilities
-  held changed (after the refresh, so its amounts are the new stats'), and the talent state marked owed. Both follow
-  in a `finally`: when the refresh throws after the abilities were rebuilt, the new list still reaches the client (its
-  amounts from the stats as they stand), so it never lacks an ability the server lets it cast, and the window still
-  learns what is held.
+  refreshed with `KeepShare` (a Warning when there is no class row), the ability list marked owed
+  (`TalentAllocation.AbilitiesOwed`) only when the abilities held changed, and the talent state marked owed. The tick's
+  `TalentFlusher` sends the list (`CharacterAbilitiesSender`, its amounts the stats as they stand then), then the
+  state, once per tick however many changes the tick made, after every request's result; the amounts the list records
+  keep `AbilityAmountsFlusher`, next, from sending them again. Both are marked in a `finally`: when the refresh throws
+  after the abilities were rebuilt, the new list still reaches the client, so it never lacks an ability the server lets
+  it cast, and the window still learns what is held.
 - **The reply.** Every request is answered with exactly one `SMSG_TALENT_RESULT` (`0x30F0`, `STalentResultPacket`
   over the encoder's scratch packet); a connection with no character gets nothing. An exception is logged at Error and
   answered `InternalError`. `TalentResult` (`Ok` 0, `Dead` 1, `TooMany` 2, `UnknownNode` 3, `AlreadyAllocated` 4,
@@ -273,7 +280,9 @@ whole every time. `Create` refills one id list per thread, so a send allocates n
 
 `TalentFlusher.Flush(connection, quests)` (World/Characters) runs once per tick for each connection, in the post-update
 `ability_amounts` stage, after `CharacterSheetFlusher` and before `AbilityAmountsFlusher`
-([instrumentation](instrumentation.md)). It reads one flag and one level: it sends when the state is owed (an accepted
+([instrumentation](instrumentation.md)). It reads two flags and one level. First, when the ability list is owed (a
+talent change changed the abilities held), it sends `SMSG_CHARACTER_ABILITIES` and clears that flag. Then it sends the
+state when the state is owed (an accepted
 allocation, or a turn-in of a quest that pays talent points, which also says "You gained 1 talent point.",
 [quests](quests.md)) or when the character's level differs from the one the last state was sent at, which catches
 every level-up (anything that grants experience: a kill, a quest, an item) without touching the experience award. It

@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Talents;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Seeding;
+using Avalon.Server.World.UnitTests.Talents;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
@@ -16,6 +17,7 @@ using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
 using Avalon.World.Loot;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
@@ -287,6 +289,47 @@ public class InventoryAllocationShould
             () => Assert.Equal(0, refusals),
             () => Assert.Equal(0, flushes));
         Assert.Equal(2 * 4 * Rounds, _connection.Sent);
+    }
+
+    /// <summary>
+    /// #1181 Part C: a level-10 Warrior holding the first four nodes of its lane (2-5) allocates Cleave's node (6) through
+    /// the real handler and drops it again, as a refund will, over and over: a change of the abilities held allocates
+    /// nothing once warm, since the held list is rebuilt in place and Cleave's ability, parked when it leaves, is taken
+    /// back, ready, when it returns; and each request sends only its result, the ability list waiting for the tick's
+    /// flush.
+    /// </summary>
+    [Fact]
+    public void Allocate_and_drop_an_ability_node_again_and_again_allocating_nothing()
+    {
+        StaticData data = ScenarioReferenceData.Shared.Data;
+        var cleaveId = new AbilityId(200);
+        _character.Level = 10;
+        TalentTestCharacters.Enter(_character, data, 2, 3, 4, 5);
+        var handler = new TalentAllocateHandler(NullLogger<TalentAllocateHandler>.Instance, new QuietWorld(data));
+        var allocate = new CTalentAllocatePacket { RequestId = 1, NodeIds = [6] };
+
+        handler.Execute(_connection, allocate);
+        IAbility cleave = _character.Spells[cleaveId]!;
+        cleave.CooldownTimer = 3f;
+        Drop();
+
+        long rounds = Allocated(() =>
+        {
+            handler.Execute(_connection, allocate);
+            Drop();
+        });
+
+        handler.Execute(_connection, allocate);
+        Assert.Equal(0, rounds);
+        Assert.Same(cleave, _character.Spells[cleaveId]);
+        Assert.Equal((0f, false), (cleave.CooldownTimer, cleave.Casting));
+        Assert.Equal(2 + 4 * Rounds, _connection.Sent);
+
+        void Drop()
+        {
+            _character.Talents.Drop(6);
+            TalentChange.Apply(_connection, _character, data, NullLogger.Instance);
+        }
     }
 
     /// <summary>

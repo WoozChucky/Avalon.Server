@@ -1013,8 +1013,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             CharacterSheetFlusher.Flush(conns[i], combat);
         stageStart = StageDone(stageStart, s_sheetStage);
 
-        // The talent window's state (#1181), when an allocation or a paying turn-in marked it owed or the level moved;
-        // then each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it. The quest
+        // The ability list a talent change owes (#1181), once however many changes the tick made, and the talent
+        // window's state, when an allocation or a paying turn-in marked it owed or the level moved; then each ability's
+        // per-hit amount (#669), in the same flush as the sheet whose stats moved it. The quest
         // catalog the points are priced by is read once, so every connection is priced by the same one.
         QuestCatalog questCatalog = _world.Data.Quests;
         for (int i = 0; i < conns.Length; i++)

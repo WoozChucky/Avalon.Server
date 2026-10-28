@@ -39,6 +39,12 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
     /// <summary>The character's level when the talent window's state was last sent.</summary>
     public ushort StateSentLevel { get; private set; }
 
+    /// <summary>
+    /// The abilities held changed since their list was last sent: the flusher sends it, once per tick however many
+    /// changes the tick made (Part C).
+    /// </summary>
+    public bool AbilitiesOwed { get; private set; }
+
     public bool Holds(int nodeId) => _held.BinarySearch(nodeId) >= 0;
 
     /// <summary>Replaces what is held with the stored rows, each node once. Marks nothing.</summary>
@@ -112,6 +118,11 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
     }
 
     public void MarkStateOwed() => StateOwed = true;
+
+    public void MarkAbilitiesOwed() => AbilitiesOwed = true;
+
+    /// <summary>The ability list was sent: nothing is owed until the abilities held change again.</summary>
+    public void AbilitiesSent() => AbilitiesOwed = false;
 
     /// <summary>The state was sent at <paramref name="level" />: nothing is owed until it changes again.</summary>
     public void StateSent(ushort level)

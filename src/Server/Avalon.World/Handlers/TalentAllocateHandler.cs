@@ -12,8 +12,9 @@ namespace Avalon.World.Handlers;
 /// Allocates talent nodes (#1181), all or nothing, on the tick, in the map pass. Every request gets exactly one
 /// SMSG_TALENT_RESULT; a connection with no character gets nothing. TalentRules decides against every id before anything
 /// changes, so a refusal changes nothing, marks no save and allocates nothing beyond its pooled reply. An accepted
-/// request holds every node, then TalentChange refreshes the stats and the abilities and marks the talent state owed,
-/// which the tick's TalentFlusher sends.
+/// request holds every node, then TalentChange refreshes the stats and the abilities and marks the talent state owed, and
+/// the ability list when the abilities held changed; the result is the request's only packet, and the tick's
+/// TalentFlusher sends both after it, once per tick however many requests the tick ran.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_TALENT_ALLOCATE)]
 public sealed class TalentAllocateHandler(ILogger<TalentAllocateHandler> logger, IWorld world)
