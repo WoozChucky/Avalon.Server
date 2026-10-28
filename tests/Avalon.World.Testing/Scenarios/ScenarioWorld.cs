@@ -671,6 +671,86 @@ public sealed class ScenarioWorld : IDisposable
         return character.ItemModifiers.Of(id).Single(row => row.Sealed);
     }
 
+    /// <summary>
+    /// <paramref name="character" /> fighting shaped (#1181 part D): each ability of its class's in
+    /// <see cref="s_shapedKit" /> replaced in place by a plain <see cref="GameAbility" /> whose metadata is the template's
+    /// shaped by those capstone rows (<see cref="AbilityShaping.Apply" />), as a held capstone shapes it on the tree; then
+    /// its class's keystone (<see cref="s_keystones" />) held, its totals rebuilt and its stats refreshed as it enters the
+    /// world. Scenario input only: the keystone is held with no path to it and no points spent, and no talent change runs.
+    /// Setup only: before the character's fighter is made (it reads its basic ability once) and before it joins.
+    /// </summary>
+    public static void ShapeKit(CharacterEntity character, StaticData data)
+    {
+        ArgumentNullException.ThrowIfNull(character);
+        ArgumentNullException.ThrowIfNull(data);
+
+        var abilities = new List<IAbility>(character.Spells.All);
+        foreach ((uint abilityId, (TalentModifierKind Kind, int Value, int? Value2)[] rows) in s_shapedKit[character.Class])
+        {
+            int at = abilities.FindIndex(a => a.AbilityId.Value == abilityId);
+            if (at < 0 || !data.Abilities.TryGet(new AbilityId(abilityId), out AbilityTemplate? template))
+                throw new InvalidOperationException($"{character.Class}'s shaped ability {abilityId} is not in its kit");
+
+            AbilityShaping shaping = default;
+            foreach ((TalentModifierKind kind, int value, int? value2) in rows)
+                shaping.Add(kind, value, value2);
+
+            abilities[at] = new GameAbility
+            {
+                AbilityId = template.Id,
+                Metadata = shaping.Apply(AbilityMetadataMapper.From(template)),
+                CastTimeTimer = (float)template.CastTime / 1000,
+                CooldownTimer = 0f,
+            };
+        }
+
+        character.Spells.Load(abilities);
+
+        int keystone = s_keystones[character.Class];
+        character.Talents.Load([new CharacterTalent { CharacterId = character.Data!.Id, NodeId = keystone }]);
+        character.Talents.RebuildTotals(data.Talents);
+        if (character.Talents.Totals.IsEmpty)
+            throw new InvalidOperationException($"The tree has no keystone {keystone}");
+
+        if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
+            throw new InvalidOperationException($"The seed has no stats for {character.Class}");
+    }
+
+    // The shaped fight's abilities, by class: each ability and the capstone rows it is shaped by.
+    private static readonly Dictionary<CharacterClass, (uint Ability, (TalentModifierKind, int, int?)[] Rows)[]> s_shapedKit =
+        new()
+        {
+            [CharacterClass.Warrior] =
+            [
+                (200, [(TalentModifierKind.ConeArcPct, 50, null), (TalentModifierKind.SecondHit, 50, null)]),
+                (203, [(TalentModifierKind.AuraStacks, 2, null), (TalentModifierKind.AuraDurationPct, 50, null)]),
+            ],
+            [CharacterClass.Wizard] = [(210, [(TalentModifierKind.AddedProjectiles, 2, null)])],
+            [CharacterClass.Hunter] = [(220, [(TalentModifierKind.ImpactExplosion, 25, 50)])],
+            [CharacterClass.Cleric] =
+            [
+                (230, [(TalentModifierKind.SecondHit, 50, null)]),
+                (232, [(TalentModifierKind.AreaPct, 40, null), (TalentModifierKind.SecondHit, 50, null)]),
+            ],
+        };
+
+    /// <summary>
+    /// The ability a shaped fighter of <paramref name="characterClass" /> opens with whenever it is ready (#1181 part
+    /// D, <c>LoopFighter</c>'s opener), 0 for none: the warrior's Rend (203), shaped by <see cref="ShapeKit" /> to
+    /// stack its Bleed 2 deeper and hold it 50 % longer, so the fight places auras with capstone factors.
+    /// </summary>
+    public static uint ShapedOpener(CharacterClass characterClass) =>
+        characterClass == CharacterClass.Warrior ? 203u : 0u;
+
+    // The shaped fight's keystones, by class: Blood Price, Steady Hand, Glass Edge and Unbroken.
+    private static readonly Dictionary<CharacterClass, int> s_keystones = new()
+    {
+        [CharacterClass.Warrior] = 332,
+        [CharacterClass.Hunter] = 333,
+        [CharacterClass.Wizard] = 334,
+        [CharacterClass.Cleric] = 335,
+    };
+
     // The sealed kit's item level: a threshold of 10,040 points, never reached.
     private const ushort SealedKitItemLevel = 1000;
 

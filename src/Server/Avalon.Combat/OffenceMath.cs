@@ -74,7 +74,15 @@ public static class OffenceMath
     /// the attacker's added damage to attacks, the conversion of the physical part, the built-in added damage, each part
     /// times its scale and the ability's damage effectiveness.
     /// </summary>
-    public static DamageParts AttackBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng)
+    public static DamageParts AttackBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng) =>
+        AttackBase(a, ability, ability.Tags, rng);
+
+    /// <summary>
+    /// <see cref="AttackBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />, scaled as if tagged
+    /// <paramref name="tags" />.
+    /// </summary>
+    private static DamageParts AttackBase(in AttackerCombat a, AbilityMetadata ability, AbilityTags tags,
+        ICombatRandom rng)
     {
         DamageType hitType = HitResolver.TypeOf(ability.DamageType, a);
         WeaponDamage weapon = a.Weapon;
@@ -90,7 +98,6 @@ public static class OffenceMath
         Convert(ref parts, ability);
         if (builtIn > 0) Add(ref parts, ability.AddedType ?? hitType, builtIn);
 
-        AbilityTags tags = ability.Tags;
         ScaleTerms terms = TermsOf(tags, o);
         double effectiveness = NonNegative(ability.DamageEffectiveness);
         for (int i = 0; i < DamageTypes.Count; i++)
@@ -110,11 +117,18 @@ public static class OffenceMath
     /// attacker's added damage to spells by type and the built-in added damage, each times its scale and the ability's
     /// damage effectiveness. No conversion.
     /// </summary>
-    public static DamageParts SpellBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng)
+    public static DamageParts SpellBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng) =>
+        SpellBase(a, ability, ability.Tags, rng);
+
+    /// <summary>
+    /// <see cref="SpellBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />, scaled as if tagged
+    /// <paramref name="tags" />.
+    /// </summary>
+    private static DamageParts SpellBase(in AttackerCombat a, AbilityMetadata ability, AbilityTags tags,
+        ICombatRandom rng)
     {
         DamageType hitType = HitResolver.TypeOf(ability.DamageType, a);
         OffenceStats o = a.Offence;
-        AbilityTags tags = ability.Tags;
         ScaleTerms terms = TermsOf(tags, o);
         double effectiveness = NonNegative(ability.DamageEffectiveness);
         DamageParts parts = default;
@@ -136,18 +150,54 @@ public static class OffenceMath
     }
 
     /// <summary>A Heal's amount: its spell base grown by the caster's level, times <see cref="HealScale" />.</summary>
-    public static double HealBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng)
+    public static double HealBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng) =>
+        HealBase(a, ability, rng, 100f);
+
+    /// <summary>
+    /// <see cref="HealBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" /> at <paramref name="amountPct" /> % of
+    /// its amount (#1181 Part D: a second heal), the share applied only when it is not 100.
+    /// </summary>
+    public static double HealBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng, float amountPct)
     {
         double heal = SpellRoll(a.Level, ability, rng);
-        return heal > 0d ? heal * HealScale(a.Offence) : 0d;
+        if (!(heal > 0d)) return 0d;
+
+        heal *= HealScale(a.Offence);
+        return amountPct == 100f ? heal : heal * NonNegative(amountPct) / 100d;
     }
 
     /// <summary>
-    /// An ability's direct damage: <see cref="AttackBase" /> for an Attack, <see cref="SpellBase" /> for a Spell. Only a
-    /// damaging ability's: a heal goes through <see cref="HealBase" />.
+    /// An ability's direct damage: <see cref="AttackBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" /> for an
+    /// Attack, <see cref="SpellBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" /> for a Spell. Only a damaging
+    /// ability's: a heal goes through <see cref="HealBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />.
     /// </summary>
     public static DamageParts DirectBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng) =>
-        (ability.Tags & AbilityTags.Attack) != 0 ? AttackBase(a, ability, rng) : SpellBase(a, ability, rng);
+        DirectBase(a, ability, rng, HitShaping.Whole);
+
+    /// <summary>
+    /// <see cref="DirectBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" /> shaped (#1181 Part D): every scale
+    /// term reads the ability's tags plus <see cref="HitShaping.ExtraTags" />, and every part is multiplied by
+    /// <see cref="HitShaping.AmountPct" /> / 100 when that share is not 100. The rolls are drawn as the whole hit's.
+    /// </summary>
+    public static DamageParts DirectBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng,
+        in HitShaping shaping)
+    {
+        AbilityTags tags = ability.Tags | shaping.ExtraTags;
+        DamageParts parts = (ability.Tags & AbilityTags.Attack) != 0
+            ? AttackBase(a, ability, tags, rng)
+            : SpellBase(a, ability, tags, rng);
+        if (shaping.AmountPct == 100f) return parts;
+
+        double share = NonNegative(shaping.AmountPct) / 100d;
+        for (int i = 0; i < DamageTypes.Count; i++)
+        {
+            var type = (DamageType)i;
+            double part = parts.Get(type);
+            if (part != 0d) parts.Set(type, part * share);
+        }
+
+        return parts;
+    }
 
     /// <summary>
     /// The whole amount a periodic aura deals or heals over its ticks, rolled once, at application:

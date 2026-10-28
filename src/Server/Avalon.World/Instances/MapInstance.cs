@@ -1154,6 +1154,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     AbilityFootprint? IAbilityArena.FootprintInFlight { get; set; }
 
+    // The whole view rounds completed (#1181 Part D), moved on by DecideViews; see IAbilityArena.ViewRound.
+    private uint _viewRound;
+
+    uint IAbilityArena.ViewRound => _viewRound;
+
     public void BroadcastProjectileImpact(ObjectGuid projectile, IUnit caster, IAbility ability, uint castId,
         Vector3 position, ProjectileImpactReason reason, IUnit? target)
     {
@@ -2097,6 +2102,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         _viewsOwed = false;
 
+        // A whole round (#1181 Part D): every view here was decided, so each one dropped every world object that has left.
+        // Not reached when a decision threw, so a round that did not finish never counts.
+        if (decideAll)
+            _viewRound = unchecked(_viewRound + 1);
+
         if (_departedCharacters.Count > 0)
             TellCharactersLeft();
     }
@@ -3014,11 +3024,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    HitOutcome IAbilityArena.HitForAbility(IUnit caster, IUnit target, IAbility ability) =>
-        _combatService.ApplyAbilityHit(caster, target, ability);
+    HitOutcome IAbilityArena.HitForAbility(IUnit caster, IUnit target, IAbility ability, in HitShaping shaping) =>
+        _combatService.ApplyAbilityHit(caster, target, ability, shaping);
 
-    void IAbilityArena.HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
-        _combatService.ApplyHeal(caster, target, ability);
+    void IAbilityArena.HealForAbility(IUnit caster, IUnit target, IAbility ability, float amountPct) =>
+        _combatService.ApplyHeal(caster, target, ability, amountPct);
 
     /// <summary>
     /// The aura the ability's live row names, on <paramref name="target" />; who may receive it the shape and Hostility

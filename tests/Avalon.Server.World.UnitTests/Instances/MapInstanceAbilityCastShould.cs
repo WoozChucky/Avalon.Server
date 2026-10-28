@@ -8,6 +8,9 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Combat;
+using Avalon.Server.World.UnitTests.Talents;
+using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -17,6 +20,9 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
+using Avalon.World.Talents;
+using Avalon.World.Testing.Scenarios;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
@@ -25,7 +31,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// Casting through a real MapInstance, the real cast handler, the shape scripts and CombatService.
-/// Character ids (164_101 to 164_252) and creature ids (164_9xx) are unique to this class.
+/// Character ids (164_101 to 164_262) and creature ids (164_9xx) are unique to this class.
 /// </summary>
 public class MapInstanceAbilityCastShould
 {
@@ -43,8 +49,12 @@ public class MapInstanceAbilityCastShould
     private static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal) =>
         TestMapInstances.BuildCasting(out handler, mapType);
 
-    /// <summary>A real creature at <paramref name="position" /> whose script takes each hit off its health.</summary>
-    private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint health, uint currentHealth = 0)
+    /// <summary>
+    /// A real creature at <paramref name="position" /> whose script takes each hit off its health, and, when
+    /// <paramref name="sendHits" />, sends each one through the instance.
+    /// </summary>
+    private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint health,
+        uint currentHealth = 0, bool sendHits = false)
     {
         var creature = new Creature
         {
@@ -54,13 +64,17 @@ public class MapInstanceAbilityCastShould
             Health = health,
             CurrentHealth = currentHealth == 0 ? health : currentHealth,
         };
-        creature.Script = new WoundScript(creature);
+        creature.Script = new WoundScript(creature, sendHits ? instance : null);
         instance.AddCreature(creature);
         return creature;
     }
 
-    /// <summary>A creature takes its damage through its script; this one only loses the health it is hit for.</summary>
-    internal sealed class WoundScript(ICreature creature) : AiScript(creature, Substitute.For<ISimulationContext>())
+    /// <summary>
+    /// A creature takes its damage through its script; this one loses the health it is hit for and, given an instance
+    /// to send to, sends the hit for the health it took, the killing one included, as the combat script does.
+    /// </summary>
+    internal sealed class WoundScript(ICreature creature, ISimulationContext? sendTo = null)
+        : AiScript(creature, sendTo ?? Substitute.For<ISimulationContext>())
     {
         public override object State { get; set; } = 0;
 
@@ -68,8 +82,13 @@ public class MapInstanceAbilityCastShould
 
         protected override bool ShouldRun() => false;
 
-        public override void OnHit(IUnit attacker, uint damage) =>
-            Creature.CurrentHealth = damage >= Creature.CurrentHealth ? 0u : Creature.CurrentHealth - damage;
+        public override void OnHit(IUnit attacker, uint damage)
+        {
+            uint taken = Math.Min(damage, Creature.CurrentHealth);
+            Creature.CurrentHealth -= taken;
+            if (sendTo is not null)
+                Context.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, taken);
+        }
     }
 
     private static AbilityTemplate Timed(AbilityTemplate template, uint castTimeMs)
@@ -277,6 +296,246 @@ public class MapInstanceAbilityCastShould
                 caster.Read<SProjectileImpactPacket>(NetworkPacketType.SMSG_PROJECTILE_IMPACT));
             Assert.Equal(ProjectileImpactReason.Hit, impact.Reason);
         }
+    }
+
+    /// <summary>
+    /// #1181 Part D: a capstone-shaped ability through the real handler, cast system and combat service. A second hit
+    /// (<c>SecondHit</c> 50) hits each unit again at once at half the amount, its own number sent; a first hit that
+    /// kills draws no second (one death, one kill credited, no number on the corpse), a flagged player's corpse
+    /// included, which only the dead check before the second hit spares; a heal heals again. A fan
+    /// (<c>AddedProjectiles</c> 2) fires three lanes 10° apart, each telling its own lane, and affects a unit once
+    /// however many lanes cross it; an explosion (<c>ImpactExplosion</c> 30, 50) bursts where the
+    /// projectile ended on a unit, a 3 m circle told as a second fired event, hitting the other hostiles in it at half
+    /// the amount and sparing the struck unit, the unflagged player beside it and anything outside it, and never bursts
+    /// at full reach.
+    /// </summary>
+    [Theory]
+    [InlineData("second hit")]
+    [InlineData("second hit on a killing blow")]
+    [InlineData("second hit on a killing blow to a player")]
+    [InlineData("second heal")]
+    [InlineData("fan of three")]
+    [InlineData("fan through one body")]
+    [InlineData("explosion")]
+    [InlineData("explosion at full reach")]
+    public async Task Shape_a_cast_by_its_capstones(string row)
+    {
+        StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(levels: () =>
+        [
+            new CharacterLevelExperience { Level = 1, Experience = 1000 },
+            new CharacterLevelExperience { Level = 2, Experience = 2000 },
+        ]));
+        // Enough rolls for two whole hits, so whether a second hit drew any is read off what is left.
+        ScriptedCombatRandom? random = row.EndsWith("to a player", StringComparison.Ordinal)
+            ? new ScriptedCombatRandom(0.99, 0.99, 0.99, 0.99, 0.99, 0.99).Longs(10, 10)
+            : null;
+        using MapInstance instance =
+            TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: NewWorld(data), random: random);
+        MapInstanceClient caster = Join(instance, 164_261);
+
+        if (row.StartsWith("fan", StringComparison.Ordinal) || row.StartsWith("explosion", StringComparison.Ordinal))
+        {
+            ShapeAProjectile(instance, handler, caster, row);
+            return;
+        }
+
+        if (row == "second heal")
+        {
+            MapInstanceClient ally = Join(instance, 164_262);
+            ally.Character.Position = new Vector3(0f, 0f, 8f);
+            ally.Character.Health = 100;
+            ally.Character.CurrentHealth = 20;
+            caster.Character.Spells.Load([
+                AbilityTestData.Shaped(AbilityTestData.HealCircle(232), (TalentModifierKind.SecondHit, 50, null)),
+            ]);
+
+            handler.Execute(caster.Connection,
+                new CCastAbilityPacket { AbilityId = 232, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 8f } });
+
+            Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+            Assert.Equal(80u, ally.Character.CurrentHealth);
+            Assert.Equal([40u, 20u],
+                ally.Read<SUnitHealedPacket>(NetworkPacketType.SMSG_UNIT_HEALED).Select(p => p.Amount));
+            return;
+        }
+
+        if (row == "second hit on a killing blow to a player")
+        {
+            MapInstanceClient flagged = Join(instance, 164_263);
+            caster.Character.Data!.PvpEnabled = true;
+            flagged.Character.Data!.PvpEnabled = true;
+            flagged.Character.Position = new Vector3(0f, 0f, 1.2f);
+            flagged.Character.Health = 100;
+            flagged.Character.CurrentHealth = 10;
+            caster.Character.Spells.Load([
+                AbilityTestData.Shaped(AbilityTestData.Cone(203, reach: 2.5f, arc: 90f).Dealing(10),
+                    (TalentModifierKind.SecondHit, 50, null)),
+            ]);
+
+            handler.Execute(caster.Connection, new CCastAbilityPacket { AbilityId = 203 });
+
+            Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+            Assert.True(flagged.Character.IsDead);
+            Assert.Equal([10u],
+                flagged.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED).Select(p => p.Damage));
+            Assert.Equal((3, 1), (random!.DoublesLeft, random.LongsLeft));   // one hit's rolls left undrawn
+            return;
+        }
+
+        bool killing = row == "second hit on a killing blow";
+        Creature boar = AddCreature(instance, killing ? 164_902u : 164_901u, new Vector3(0f, 0f, 1.2f), health: 50,
+            currentHealth: killing ? 10u : 50u, sendHits: true);
+        boar.Experience = 7;
+        caster.Character.Spells.Load([
+            AbilityTestData.Shaped(AbilityTestData.Cone(203, reach: 2.5f, arc: 90f).Dealing(10),
+                (TalentModifierKind.SecondHit, 50, null)),
+        ]);
+
+        handler.Execute(caster.Connection,
+            new CCastAbilityPacket { AbilityId = 203, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
+
+        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        Assert.Equal(killing ? 0u : 35u, boar.CurrentHealth);
+        Assert.Equal(killing ? [10u] : [10u, 5u],
+            caster.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED).Select(p => p.Damage));
+        Assert.Equal(killing ? 1 : 0, caster.Read<SUnitDeathPacket>(NetworkPacketType.SMSG_UNIT_DEATH).Count);
+        Assert.Equal(killing ? 7ul : 0ul, caster.Character.Experience);   // the one kill, credited once
+    }
+
+    /// <summary>
+    /// <see cref="Shape_a_cast_by_its_capstones" />'s projectile rows: a 10 m projectile at 20 m/s dealing 10, shaped as a
+    /// fan or with an explosion, cast from the origin at (0, 0, 6) and flown to its end.
+    /// </summary>
+    private static void ShapeAProjectile(MapInstance instance, CastAbilityHandler handler, MapInstanceClient caster,
+        string row)
+    {
+        AbilityTemplate bolt = AbilityTestData.Projectile(219, reach: 10f, speed: 20f).Dealing(10);
+        caster.Character.Spells.Load([
+            row.StartsWith("fan", StringComparison.Ordinal)
+                ? AbilityTestData.Shaped(bolt, (TalentModifierKind.AddedProjectiles, 2, null))
+                : AbilityTestData.Shaped(bolt, (TalentModifierKind.ImpactExplosion, 30, 50)),
+        ]);
+
+        Creature AtAngle(uint id, float degrees) => AddCreature(instance, id,
+            new Vector3(6f * MathF.Sin(degrees * MathF.PI / 180f), 0f, 6f * MathF.Cos(degrees * MathF.PI / 180f)), 50);
+
+        Creature[] boars = row switch
+        {
+            "fan of three" => [AtAngle(164_903, -10f), AtAngle(164_904, 0f), AtAngle(164_905, 10f)],
+            "fan through one body" => [AddCreature(instance, 164_906, new Vector3(0f, 0f, 1.2f), 50)],
+            "explosion" =>
+            [
+                AddCreature(instance, 164_907, new Vector3(0f, 0f, 4f), 50),     // struck
+                AddCreature(instance, 164_908, new Vector3(1.5f, 0f, 4.5f), 50), // inside the burst
+                AddCreature(instance, 164_909, new Vector3(4f, 0f, 4f), 50),     // outside it
+            ],
+            _ => [AddCreature(instance, 164_910, new Vector3(0f, 0f, 11f), 50)], // a metre past the lane's end
+        };
+        MapInstanceClient? bystander = null;
+        if (row == "explosion")
+        {
+            bystander = Join(instance, 164_262);
+            bystander.Character.Position = new Vector3(-1f, 0f, 4f);
+            bystander.Character.Health = 100;
+            bystander.Character.CurrentHealth = 100;
+        }
+
+        handler.Execute(caster.Connection,
+            new CCastAbilityPacket { AbilityId = 219, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 6f } });
+        for (int i = 0; i < 40; i++)
+        {
+            instance.Update(s_tick);
+        }
+
+        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        var fired = caster.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED)
+            .Select(f => f.Footprint!).ToList();
+        var impacts = caster.Read<SProjectileImpactPacket>(NetworkPacketType.SMSG_PROJECTILE_IMPACT)
+            .Select(i => i.Reason).ToList();
+        uint[] health = [.. boars.Select(b => b.CurrentHealth)];
+        switch (row)
+        {
+            case "fan of three":
+                Assert.Equal([40u, 40u, 40u], health);
+                Assert.All(fired, f => Assert.Equal(AbilityShape.Projectile, f.Shape));
+                float[] yaws = [.. fired.Select(f => MathF.Atan2(f.Direction!.X, f.Direction.Z) * 180f / MathF.PI)];
+                Assert.Equal(3, yaws.Length);
+                Assert.Equal(-10f, yaws[0], 0.1f);
+                Assert.Equal(0f, yaws[1], 0.1f);
+                Assert.Equal(10f, yaws[2], 0.1f);
+                Assert.Equal([ProjectileImpactReason.Hit, ProjectileImpactReason.Hit, ProjectileImpactReason.Hit], impacts);
+                break;
+            case "fan through one body":
+                Assert.Equal([40u], health);
+                Assert.Equal(3, fired.Count);
+                Assert.Equal(1, impacts.Count(r => r == ProjectileImpactReason.Hit));
+                Assert.Equal(2, impacts.Count(r => r == ProjectileImpactReason.Expired));
+                break;
+            case "explosion":
+                Assert.Equal([40u, 45u, 50u], health);
+                Assert.Equal(100u, bystander!.Character.CurrentHealth);
+                Assert.Equal([AbilityShape.Projectile, AbilityShape.Circle], fired.Select(f => f.Shape));
+                Assert.Equal(3f, fired[1].Radius, 0.001f);
+                Assert.True(MathF.Abs(fired[1].Centre!.X) < 0.5f && MathF.Abs(fired[1].Centre!.Z - 4f) < 0.5f,
+                    $"The burst is centred at ({fired[1].Centre!.X}, {fired[1].Centre!.Z}).");
+                break;
+            default:
+                Assert.Equal([50u], health);
+                Assert.Equal([AbilityShape.Projectile], fired.Select(f => f.Shape));
+                Assert.Equal([ProjectileImpactReason.Expired], impacts);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// #1181 Part D: a capstone taken while a cast winds up changes nothing of that cast. A Hunter holding
+    /// Frostbolt (320, 0.5 s) and its branch queues it, then takes Shatterbolt (330, <c>AddedProjectiles</c> 2) before it
+    /// fires: that cast fires the one bolt its telegraph showed, and the next fires three. Each start footprint names
+    /// the lanes its own cast fires (<c>Lanes</c>), so a watcher who knows none of the Hunter's abilities draws one,
+    /// then the fan of three.
+    /// </summary>
+    [Fact]
+    public void Fire_a_queued_cast_with_the_shape_it_started_with()
+    {
+        StaticData data = ScenarioReferenceData.Shared.Data;
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: NewWorld(data));
+        CharacterEntity hunter = Inventory.TestCharacters.New(164_261);
+        hunter.Data!.Class = CharacterClass.Hunter;
+        MapInstanceClient caster = Join(instance, hunter);
+        MapInstanceClient watcher = Join(instance, 164_262);
+        TalentTestCharacters.Enter(hunter, data, [105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 294, 297, 298, 299, 300, 301]);
+        hunter.PowerType = PowerType.Mana;   // as select sets it: every class casts from mana
+        AddCreature(instance, 164_911, new Vector3(0f, 0f, 10f), health: 100_000);
+        var frostbolt = new AbilityId(320);
+        var cast = new CCastAbilityPacket { AbilityId = 320, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 10f } };
+
+        int FiredLanes() => caster.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED)
+            .Count(f => f.Footprint?.Shape == AbilityShape.Projectile);
+
+        void Tick()
+        {
+            for (int i = 0; i < 40; i++)
+                instance.Update(s_tick);
+        }
+
+        handler.Execute(caster.Connection, cast);
+        Assert.True(hunter.Spells.IsCasting);
+        hunter.Talents.Allocate([330]);
+        TalentChange.Apply(hunter, data, NullLogger.Instance);
+        Assert.Equal(3, hunter.Spells[frostbolt]!.Metadata.ProjectileCount);
+        Tick();
+
+        Assert.Equal(1, FiredLanes());
+
+        hunter.Spells[frostbolt]!.CooldownTimer = 0f;
+        hunter.LastCastStartTime = DateTime.UtcNow.AddSeconds(-1);   // past the global cooldown
+        handler.Execute(caster.Connection, cast);
+        Tick();
+
+        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        Assert.Equal(4, FiredLanes());
+        Assert.Equal([1u, 3u],
+            watcher.Read<SUnitStartCastPacket>(NetworkPacketType.SMSG_UNIT_START_CAST).Select(s => s.Footprint!.Lanes));
     }
 
     /// <summary>

@@ -1,0 +1,200 @@
+using System.Diagnostics;
+using Avalon.Common.Telemetry;
+using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Scripts;
+using Avalon.World.Public.Units;
+
+namespace Avalon.World.Abilities;
+
+/// <summary>
+/// One instance's reusable ability scripts (#1181 Part D, the owner's decision of 2026-10-28), kept by its
+/// <see cref="InstanceAbilityCastSystem" /> and used on its tick alone, so a warm cast of a pooled type allocates nothing.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>What it pools.</b> Scripts of the types registered with <see cref="Pools{T}" />, each type with its own free stack,
+/// keyed by the type the script manager answers for a cast: <c>ProjectileAbilityScript</c> today, each with its own copy
+/// of the ability and its own guid wrapper. And the hit sets those projectiles share (<see cref="ProjectileHits" />). A
+/// script type registers by deriving from <see cref="PooledAbilityScript" />, whose <c>Launch</c> and <c>Clear</c> are
+/// the reset contract every pooled type keeps.
+/// </para>
+/// <para>
+/// <b>Where each one goes back.</b> <see cref="Retire" /> when a prepared script leaves the cast system's running list:
+/// finished with its last state taken (the sweep, or <c>DropFinished</c>), its caster gone (<c>CancelScriptsOf</c>), or
+/// its creature caster dead or walking home. It is free again only after two whole view rounds. <see cref="Return" />
+/// for one never prepared, free at once: a queued cast that ends without firing (moved, dead, a creature gone, crowd
+/// control, <c>CancelCasts</c>). A script whose <c>Prepare</c>, <c>Update</c> or <c>State</c> threw is handed to
+/// neither, and left to the collector with what it holds.
+/// </para>
+/// <para>
+/// <b>Ownership</b>, as an aura system's pool of auras: a script this pool made names it (<see cref="PooledAbilityScript.Pool" />),
+/// and only this pool takes it back. One built anywhere else, by the activator (a cast whose ability is not a
+/// <see cref="GameAbility" />, a script name that answers another type) or by a test through the public constructor, is
+/// left to the collector. Every script handed back is cleared at once (<see cref="PooledAbilityScript.Clear" />), so a
+/// pooled script keeps nothing alive: no caster, no metadata (none from before a reload), no unit's guid.
+/// </para>
+/// <para>
+/// <b>The cap.</b> Each type keeps at most <see cref="InstanceAbilityCastSystem.PooledScripts" /> free and retired scripts,
+/// and the hit sets as many: one handed back past it is left to the collector, its hit set released, and counted
+/// (<c>world.ability_scripts.pool_drops</c>, <see cref="DiagnosticsConfig.World.AbilityScriptPoolDrops" />), since the
+/// next cast of its type builds one anew. So an instance keeps what its own busiest moment had in flight, up to some
+/// 110 KB of projectiles.
+/// </para>
+/// <para>
+/// <b>The guid.</b> A projectile's id is new for every flight (<c>Prepare</c> writes the next id into its own wrapper,
+/// <c>ObjectGuid.Set</c>), so an id is never reused (#981). Its wrapper is, so it must not change while anything still
+/// holds it for the flight before. Every holder of a world object's guid wrapper, walked for #1181 Part D:
+/// </para>
+/// <list type="bullet">
+///   <item>each view's <c>EntityTrackingSystem</c> keeps the wrapper it was handed (<c>TrackedEntity.Guid</c>, keyed by its
+///   raw id) until it tells the removal, at the first view round after the projectile left the world objects, and its
+///   <c>_pendingRemovals</c> only within that update;</item>
+///   <item>each view's new, updated and removed lists (<c>CharacterCharacterGameState</c>) until that view's next decision
+///   or hold, on the next tick; its <c>_forgotten</c> list after a start over, whose removal is encoded at once
+///   (<c>SInstanceStateRemovePacket.Create</c>) and never read again;</item>
+///   <item>the instance's <c>_frameDirtyFields</c>, keyed by the wrapper, emptied at the next tick's snapshot;</item>
+///   <item>a view started over (a client entering another instance, <c>AddCharacter</c>'s reset, which a move makes on the
+///   tick with the removal; a broadcast that threw, <c>StartOver</c>) encodes its removal at once;</item>
+///   <item>the packets (impact, state add, update and remove) copy the raw id when they are encoded, at once; the state
+///   assembler and the running list's index are keyed by the raw id and emptied when the broadcast or the list changes.</item>
+/// </list>
+/// <para>
+/// So a retired script waits for two whole rounds (<see cref="IAbilityArena.ViewRound" />): the first after it left
+/// tells every view here its removal, and the second outlasts every list that round filled, each emptied by the next
+/// tick's decision or hold. Some 200 ms of pool life per projectile.
+/// </para>
+/// </remarks>
+internal sealed class AbilityScriptPool(IAbilityArena arena)
+{
+    /// <summary>A new script of a pooled type, naming <paramref name="pool" /> as its pool, over its own cast copy.</summary>
+    public delegate PooledAbilityScript Make(AbilityScriptPool pool, GameAbility own, IUnit caster, AbilityAim aim,
+        IAbilityArena arena);
+
+    private readonly Dictionary<Type, Kind> _kinds = [];
+
+    // Retired in the order they left, each with the round it left in: the rounds only grow, so the oldest is first.
+    private readonly Queue<Retired> _retired = new();
+    private readonly Stack<ProjectileHits> _freeHits = new();
+
+    /// <summary>Pools scripts of type <typeparamref name="T" />, each new one made by <paramref name="make" />.</summary>
+    public void Pools<T>(Make make) where T : PooledAbilityScript => _kinds.Add(typeof(T), new Kind(make));
+
+    /// <summary>
+    /// A script of <paramref name="scriptType" /> for a new cast: a free one launched (<see cref="PooledAbilityScript.Launch" />),
+    /// the retired ones whose rounds have passed freed first, else a new one over a cast copy of <paramref name="held" />.
+    /// Null for a type this pool does not pool.
+    /// </summary>
+    public PooledAbilityScript? Take(Type scriptType, GameAbility held, IUnit caster, AbilityAim aim)
+    {
+        if (!_kinds.TryGetValue(scriptType, out Kind? kind))
+            return null;
+
+        Recycle();
+        if (kind.Free.TryPop(out PooledAbilityScript? script))
+        {
+            script.Returned = false;
+            script.Launch(held, caster, aim);
+            return script;
+        }
+
+        PooledAbilityScript made = kind.Make(this, held.CloneForCast(), caster, aim, arena);
+        Debug.Assert(ReferenceEquals(made.Pool, this), "A pooled script must name the pool that made it");
+        return made;
+    }
+
+    /// <summary>A script of this pool's, never prepared, free again at once. Any other script is left as it is.</summary>
+    public void Return(AbilityScript script)
+    {
+        if (HandBack(script) is not { } back)
+            return;
+
+        if (back.Kind.Held < InstanceAbilityCastSystem.PooledScripts)
+            back.Kind.Free.Push(back.Script);
+        else
+            DiagnosticsConfig.World.AbilityScriptPoolDrops.Add(1);
+    }
+
+    /// <summary>
+    /// A script of this pool's that ran and has left the running list, free again once two whole view rounds have passed.
+    /// Any other script is left as it is.
+    /// </summary>
+    public void Retire(AbilityScript script)
+    {
+        if (HandBack(script) is not { } back)
+            return;
+
+        if (back.Kind.Held >= InstanceAbilityCastSystem.PooledScripts)
+        {
+            DiagnosticsConfig.World.AbilityScriptPoolDrops.Add(1);
+            return;
+        }
+
+        back.Kind.Retired++;
+        _retired.Enqueue(new Retired(back.Script, back.Kind, arena.ViewRound));
+    }
+
+    /// <summary>Frees every retired script whose two view rounds have passed: the cast system's update, first, and every take.</summary>
+    public void Recycle()
+    {
+        uint round = arena.ViewRound;
+        while (_retired.TryPeek(out Retired next) && unchecked(round - next.Round) >= 2)
+        {
+            _retired.Dequeue();
+            next.Kind.Retired--;
+            next.Kind.Free.Push(next.Script);
+        }
+    }
+
+    /// <summary>An empty hit set for a new projectile cast, with one lane flying with it.</summary>
+    public ProjectileHits TakeHits()
+    {
+        if (!_freeHits.TryPop(out ProjectileHits? hits))
+            hits = new ProjectileHits();
+
+        hits.Lanes = 1;
+        return hits;
+    }
+
+    /// <summary>One lane fewer flying with <paramref name="hits" />: at none, emptied and free again.</summary>
+    public void Release(ProjectileHits hits)
+    {
+        Debug.Assert(hits.Lanes > 0, "A hit set was released more often than lanes took it");
+        if (--hits.Lanes > 0)
+            return;
+
+        hits.Units.Clear();
+        if (_freeHits.Count < InstanceAbilityCastSystem.PooledScripts)
+            _freeHits.Push(hits);
+    }
+
+    /// <summary>The script cleared and marked returned, with its type's stacks, when it is this pool's; else nothing.</summary>
+    private (PooledAbilityScript Script, Kind Kind)? HandBack(AbilityScript script)
+    {
+        if (script is not PooledAbilityScript pooled || !ReferenceEquals(pooled.Pool, this)
+            || !_kinds.TryGetValue(pooled.GetType(), out Kind? kind))
+        {
+            return null;
+        }
+
+        Debug.Assert(!pooled.Returned, "A script handed back to its pool was already handed back");
+        if (pooled.Returned)
+            return null;
+
+        pooled.Returned = true;
+        pooled.Clear();
+        return (pooled, kind);
+    }
+
+    /// <summary>One pooled type: how a new one is made, its free scripts, and how many of its scripts are retired.</summary>
+    private sealed class Kind(Make make)
+    {
+        public Make Make { get; } = make;
+        public Stack<PooledAbilityScript> Free { get; } = new();
+        public int Retired { get; set; }
+
+        /// <summary>Free and retired: what the cap bounds.</summary>
+        public int Held => Free.Count + Retired;
+    }
+
+    private readonly record struct Retired(PooledAbilityScript Script, Kind Kind, uint Round);
+}

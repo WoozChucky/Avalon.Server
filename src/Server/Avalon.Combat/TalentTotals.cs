@@ -5,9 +5,9 @@ namespace Avalon.Combat;
 /// <summary>
 /// The summed stat lines of the talent nodes a character holds (#1181), which the stats calculation folds exactly as it
 /// folds gear's (<see cref="CharacterStatsCalculator.Calculate" />, <see cref="CharacterOffence.Of" />). A reusable buffer
-/// rebuilt in place (<see cref="Clear" />, then <see cref="Add" /> per line) only when the allocation changes, never per
-/// refresh or per tick; neither it nor a fold that reads it allocates. Not thread-safe: a character's totals are the
-/// tick's.
+/// rebuilt in place (<see cref="Clear" />, then <see cref="Add" /> per line and <see cref="AddKeystone" /> per keystone rule)
+/// only when the allocation changes, never per refresh or per tick; neither it nor a fold that reads it allocates. The three
+/// keystone flags (#1181 Part D) are read where their rules act. Not thread-safe: a character's totals are the tick's.
 /// </summary>
 public sealed class TalentTotals
 {
@@ -15,8 +15,25 @@ public sealed class TalentTotals
     private DamageRanges _addedToAttacks;
     private DamageRanges _addedToSpells;
 
-    /// <summary>No line has been added since the last <see cref="Clear" />: a fold reads nothing from it.</summary>
+    /// <summary>
+    /// No line or keystone rule has been added since the last <see cref="Clear" />: a fold reads nothing from it.
+    /// </summary>
     public bool IsEmpty { get; private set; } = true;
+
+    /// <summary>Blood Price (#1181 Part D): the holder pays ability costs from current life (<see cref="AbilityCost" />).</summary>
+    public bool LifeCost { get; private set; }
+
+    /// <summary>
+    /// Steady Hand (#1181 Part D): the holder's crit chance is 0 after every fold
+    /// (<see cref="CharacterStatsCalculator.Calculate" />), so no hit, heal or aura tick of its own crits.
+    /// </summary>
+    public bool NoCrits { get; private set; }
+
+    /// <summary>
+    /// Unbroken (#1181 Part D): the holder's ward takes blight and bleeds too (<see cref="HitResolver.WardAbsorbs" />), and
+    /// waits twice as long to recharge (<see cref="WardPool.Advance" />).
+    /// </summary>
+    public bool WardTakesAll { get; private set; }
 
     internal long Stamina { get; private set; }
 
@@ -75,7 +92,7 @@ public sealed class TalentTotals
     /// <summary>The product of every More on maximum mana: 1 with none.</summary>
     internal double MoreMana { get; private set; } = 1d;
 
-    /// <summary>Every sum back to nothing and both More factors back to 1, for a rebuild.</summary>
+    /// <summary>Every sum back to nothing, both More factors back to 1 and no keystone rule, for a rebuild.</summary>
     public void Clear()
     {
         Stamina = Strength = Agility = Intellect = 0;
@@ -87,6 +104,7 @@ public sealed class TalentTotals
         _addedToAttacks = default;
         _addedToSpells = default;
         MoreLife = MoreMana = 1d;
+        LifeCost = NoCrits = WardTakesAll = false;
         IsEmpty = true;
     }
 
@@ -138,6 +156,21 @@ public sealed class TalentTotals
                 CharacterOffence.Add(ref _offence, ref _addedToAttacks, ref _addedToSpells,
                     new ItemLine(stat, value, valueMax ?? value));
                 break;
+        }
+    }
+
+    /// <summary>
+    /// A held keystone's rule. It counts as something added, since Blood Price and Unbroken carry no stat line; an unknown
+    /// rule bends nothing.
+    /// </summary>
+    public void AddKeystone(KeystoneRule rule)
+    {
+        IsEmpty = false;
+        switch (rule)
+        {
+            case KeystoneRule.LifeCost: LifeCost = true; break;
+            case KeystoneRule.NoCrits: NoCrits = true; break;
+            case KeystoneRule.WardTakesAll: WardTakesAll = true; break;
         }
     }
 

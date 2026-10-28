@@ -1,7 +1,7 @@
 # Talent Protocol
 
 > **Audience:** client developers and LLMs handed the client codebase.
-> **Status:** the talent tree, Parts B, C and D1 (#1181). Amended in place when the talent protocol changes.
+> **Status:** the talent tree, Parts B, C and D (#1181). Amended in place when the talent protocol changes.
 
 This is the client contract for the talent tree. The wire schema is `schema/avalon.proto` (re-exported with
 `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]` numbers in it. Server-side rules are described in
@@ -208,8 +208,8 @@ do not re-run it, nor the world catalogs' refusals.
 
 ## 8. Capstones and keystones
 
-Part D1 seeds 26 capstones (nodes 306-331) and 4 keystones (332-335), in the catalog export (section 1) and the public
-tree alike. Both are allocated and refunded as any other node.
+Part D seeds 26 capstones (nodes 306-331) and 4 keystones (332-335), in the catalog export (section 1) and the public
+tree alike. Both are allocated and refunded as any other node, and every one acts in play.
 
 **Capstones.** A capstone hangs from the last node of a branch, and its `modifiers` reshape the ability that branch
 hangs from (`abilityId`, the same on each of a capstone's rows). Nine branches end in a fork of two capstones, the two
@@ -245,9 +245,32 @@ and 0 for each of the others.
 | 30 | `AuraDurationPct` | float | Percent longer the caster's aura lasts |
 
 A cast keeps the shape it was started with: one queued before a capstone is allocated fires as its telegraph showed,
-and the next cast takes the new shape. **Until Part D2 ships, only the cone and circle values act in play** (fields
-11-13); the server already sends fields 25-30, but fires one projectile, lands no second hit or explosion and leaves
-auras as they are. Both parts ship in one release.
+and the next cast takes the new shape.
+
+**What the client sees of each modifier.** No packet is new; each effect arrives in packets the client already
+handles:
+
+- **A fan** (`ProjectileCount` above 1). Each lane is a projectile of its own, a `SpellProjectile` world object added,
+  moved and removed as any, each lane 10° from its neighbour, centred on the aim. Each lane sends its own
+  `SMSG_ABILITY_FIRED` with its own projectile footprint, all under the cast's one `CastId`, so a fan of three is three
+  fired events. A cast-time fan's `SUnitStartCastPacket` footprint is resolved along the aim, and its `Lanes` (field 8
+  of `AbilityFootprintDto`) is the cast's projectile count, read from the cast's own shape: draw the telegraph as that
+  many lanes 10° apart, placed symmetrically about the footprint's `Direction` (an odd count has one lane along it and
+  the rest at ±10°, ±20°, ...; an even count has none along it, its lanes at ±5°, ±15°, ...), each for its `Reach`,
+  which every client can, the caster's abilities unknown. A single projectile's footprint says 1, a circle's and a
+  cone's 0. Each lane tells its own `SMSG_PROJECTILE_IMPACT`; a unit is hit by one lane at most, so a lane that meets a
+  unit another lane already hit flies through it.
+- **An explosion** (`ExplosionRadius` above 0). When a projectile ends on a unit, after that unit's impact and damage,
+  one more `SMSG_ABILITY_FIRED` arrives under the projectile's `CastId` with a `Circle` footprint of the explosion's
+  radius centred where the projectile met the unit; draw the burst from it. Each other unit it hits takes an ordinary
+  damage packet. Nothing explodes at a wall or at the end of the projectile's reach.
+- **A second hit** (`SecondHitEffectiveness` above 0). Each unit is hit, or healed, twice at once: two damage packets
+  (or two `SMSG_UNIT_HEALED`), the second for its share, each with its own `Result`, so the second may crit, be blocked
+  or be evaded on its own. A first hit that kills sends no second number on the corpse.
+- **Longer and deeper auras** (`AuraDurationPct`, `AuraStacksBonus`). An aura entry's `DurationMs` is the placed,
+  lengthened duration, so a shaped aura may last longer than its catalog row, and a periodic one ticks more times,
+  each tick the same size; draw the timer from the entry. A shaped caster's stacking aura may hold more stacks than the
+  row's `MaxStacks` ([aura protocol](aura-protocol.md#9-seeded-auras)). Crowd control is never lengthened or deepened.
 
 **Keystones.** A keystone sits inside the hub ring between two hub junctions. It bends a rule (`keystone`), trades a
 gain for a loss with `More` stat lines, or both:
@@ -256,9 +279,19 @@ gain for a loss with `More` stat lines, or both:
 |---:|---|---|---|
 | 332 | Blood Price | 1, life cost: an ability's cost is paid from current life, never leaving less than 1 | – |
 | 333 | Glass Edge | null | 30 % more damage, 25 % less maximum life |
-| 334 | Steady Hand | 2, no crits: no hit, heal or aura tick of the holder's is critical | 20 % more damage, 20 % more healing |
+| 334 | Steady Hand | 2, no crits: no hit, heal or aura tick of the holder's is critical (an aura placed before it was taken keeps its chance) | 20 % more damage, 20 % more healing |
 | 335 | Unbroken | 3, ward takes all: the ward also absorbs blight and bleeding, and waits twice as long to recharge | – |
 
-A keystone's stat lines reach the client as any node's do, through the character sheet. **Until Part D2 ships, no
-keystone rule acts**: Glass Edge and Steady Hand's stat lines apply, Blood Price and Unbroken change nothing, and
-Steady Hand's holder still crits.
+A keystone's stat lines reach the client as any node's do, through the character sheet. What the client sees of each
+rule:
+
+- **Blood Price.** Every cost shown in mana (`AbilityInfo` `Cost`) is paid from life instead: show it as life. A cast
+  takes the cost off current health, which arrives through state replication as any health change, with no damage
+  packet; mana does not move. A cast whose cost would leave less than 1 life is refused `NotEnoughPower` (the same
+  `SAbilityNotReadyPacket` as too little mana): show it as not enough life. The accepted cast enters combat as any
+  cast does.
+- **Steady Hand.** The character sheet's crit chance is 0, and no hit or heal of the holder's carries `Crit`, nor any
+  tick of an aura placed while holding it. An aura placed before Steady Hand was taken keeps the crit chance it
+  snapshotted, so its ticks may still carry `Crit` until it ends.
+- **Unbroken.** The holder's ward also takes blight hits, blight ticks and bleed ticks (their `WardAbsorbed` is set
+  where it was 0), and starts recharging after twice the usual delay.

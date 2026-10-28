@@ -340,8 +340,11 @@ public class AuraApplyShould
     /// the same work has warmed them, a round of it allocates nothing for auras with no script and no stat modifier:
     /// placing new copies on units that held some, the owner's cancel, the removal on death and the removal on a
     /// creature's reset. Nor does an application that is refused: an ability's aura on a corpse costs nothing before its
-    /// refusal. Every copy the round placed is one the round before ended, never one still held. Copies made elsewhere and
-    /// ended here never join the pool, which stays at this system's own ten, each holding no template.
+    /// refusal. The creatures' auras come from an ability shaped by capstones (#1181 Part D: 50 % longer, 2 stacks more),
+    /// each applied four times, so Bleed stacks to 4, past its row's cap of 3: the lengthened placement and the stack
+    /// the raised cap allows cost nothing either. Every copy the round placed is one the round before ended, never one
+    /// still held. Copies made elsewhere and ended here never join the pool, which stays at this system's own ten, each
+    /// holding no template.
     /// </summary>
     [Fact]
     public void Place_refuse_and_end_auras_without_allocating()
@@ -354,6 +357,9 @@ public class AuraApplyShould
         corpse.CurrentHealth = 0;
         AuraTemplate bleed = AuraTestData.Bleed();
         var fromAnAbility = new AuraSource(new AbilityId(203), 1f, 0f, AbilityAffects.Hostile);
+        // A weaponless caster's Attack draws no roll for the aura's total, so the shaped source draws nothing either.
+        var shaped = AuraSource.Of(Abilities.AbilityTestData.Shaped(Abilities.AbilityTestData.Cone(203),
+            (TalentModifierKind.AuraStacks, 2, null), (TalentModifierKind.AuraDurationPct, 50, null)));
         var renew = new AuraId(904);
         AuraId[] harmful = [new AuraId(901), new AuraId(902)];
         Creature[] creatures = [.. dying, .. resetting];
@@ -387,10 +393,15 @@ public class AuraApplyShould
             for (int i = 0; i < creatures.Length; i++)
             {
                 for (int a = 0; a < harmful.Length; a++)
-                    _h.Auras.Apply(healer, creatures[i], harmful[a], AuraSource.None);
+                {
+                    for (int times = 0; times < 4; times++)
+                        _h.Auras.Apply(healer, creatures[i], harmful[a], shaped);
+                }
             }
 
             long placing = GC.GetAllocatedBytesForCurrentThread() - before;
+            ActiveAura shapedBleed = creatures[0].Auras.All[0];
+            Assert.Equal((901u, 4u, 18_000u), (shapedBleed.Id.Value, shapedBleed.Stacks, shapedBleed.DurationMs));
 
             // Outside the measure: the round's copies against the last round's.
             if (round == 1)

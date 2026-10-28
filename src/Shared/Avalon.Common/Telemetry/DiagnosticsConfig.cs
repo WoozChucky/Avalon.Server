@@ -102,6 +102,17 @@ public static class DiagnosticsConfig
             "world.instance.build_timeouts", "{builds}",
             "Instance builds abandoned after their deadline, their requesters answered with a failure");
 
+        /// <summary>
+        /// Pooled ability scripts (#1181 Part D: projectiles) an instance's <c>AbilityScriptPool</c> let go to the
+        /// collector because it already held its cap of that type (<c>InstanceAbilityCastSystem.PooledScripts</c>),
+        /// counted as each is handed back: every one is a script the next cast of that type builds anew. Should stay 0;
+        /// a count is an instance whose busiest moment flew more than the cap. No tags, so a count allocates nothing.
+        /// docs/instrumentation.md.
+        /// </summary>
+        public static readonly Counter<long> AbilityScriptPoolDrops = Meter.CreateCounter<long>(
+            "world.ability_scripts.pool_drops", "{scripts}",
+            "Pooled ability scripts let go past their instance's cap, each one the next cast of its type builds anew");
+
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
         public static ActivitySource Source = new(ServiceName);

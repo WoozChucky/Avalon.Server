@@ -149,9 +149,33 @@ public static class AuraRules
         return whole;
     }
 
-    /// <summary>The stacks after the aura is applied again: one more for a Stack aura, up to its cap; 1 otherwise.</summary>
-    public static uint NextStacks(AuraStacking stacking, uint current, uint maxStacks) =>
-        stacking == AuraStacking.Stack ? Math.Min(current + 1, Math.Max(1u, maxStacks)) : 1u;
+    /// <summary>
+    /// The stacks after the aura is applied again: for a Stack aura one more, up to its cap raised by the caster's
+    /// <paramref name="bonus" /> (#1181 Part D: a capstone's <c>AuraStacks</c>), never fewer than it holds, so a caster
+    /// with a lower cap never takes away what another stacked (and a reload that lowered the cap trims nothing held); 1
+    /// otherwise.
+    /// </summary>
+    public static uint NextStacks(AuraStacking stacking, uint current, uint maxStacks, uint bonus = 0) =>
+        stacking == AuraStacking.Stack
+            ? Math.Max(current, Math.Min(current + 1, Math.Max(1u, SaturatingAdd(maxStacks, bonus))))
+            : 1u;
+
+    /// <summary>
+    /// <paramref name="durationMs" /> lengthened by <paramref name="pct" /> % (#1181 Part D: a capstone's
+    /// <c>AuraDurationPct</c>), rounded to the nearest millisecond and saturating at uint.MaxValue; 0 stays 0, and a
+    /// percentage that is not a finite value above 0 lengthens nothing. A periodic aura placed for longer holds more ticks,
+    /// each unchanged: its snapshot divides its total by the row's own tick count (<see cref="Snapshot" />).
+    /// </summary>
+    public static uint Lengthen(uint durationMs, float pct)
+    {
+        if (durationMs == 0 || !float.IsFinite(pct) || pct <= 0f)
+            return durationMs;
+
+        double lengthened = Math.Round(durationMs * (1d + pct / 100d), MidpointRounding.AwayFromZero);
+        return lengthened >= uint.MaxValue ? uint.MaxValue : (uint)lengthened;
+    }
+
+    private static uint SaturatingAdd(uint a, uint b) => a > uint.MaxValue - b ? uint.MaxValue : a + b;
 
     /// <summary>An Independent aura keeps one copy per caster; every other kind keeps one copy per unit.</summary>
     public static bool KeysByCaster(AuraStacking stacking) => stacking == AuraStacking.Independent;

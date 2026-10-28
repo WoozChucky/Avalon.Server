@@ -76,13 +76,18 @@ public struct WardPool
         Damaged(now);
     }
 
-    /// <summary>Recharges to what <paramref name="now" /> allows. True when <see cref="Current" /> changed.</summary>
-    public bool Advance(DateTime now, RegenConfiguration config)
+    /// <summary>
+    /// Recharges to what <paramref name="now" /> allows. True when <see cref="Current" /> changed.
+    /// <paramref name="slowRecharge" /> doubles the delay: a character holding Unbroken (#1181 Part D,
+    /// <c>KeystoneRule.WardTakesAll</c>) waits twice as long before the recharge starts; the recharge itself is unchanged.
+    /// </summary>
+    public bool Advance(DateTime now, RegenConfiguration config, bool slowRecharge = false)
     {
         if (_current >= _max)
             return false;
 
-        double since = (now - _lastDamage).TotalSeconds - config.WardRechargeDelaySeconds;
+        double delay = slowRecharge ? 2d * config.WardRechargeDelaySeconds : config.WardRechargeDelaySeconds;
+        double since = (now - _lastDamage).TotalSeconds - delay;
         if (!(since >= 0))
             return false;
 

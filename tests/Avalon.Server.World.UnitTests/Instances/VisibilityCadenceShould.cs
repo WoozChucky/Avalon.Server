@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Auras;
 using Avalon.World;
+using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -101,6 +102,8 @@ public class VisibilityCadenceShould
     /// <summary>
     /// A client entering mid-period is listed itself and everything in view on its own first tick, its own aura list and
     /// the boar's after the add, as it was on every tick before #981; the client already there lists it on the broadcast.
+    /// A whole view round (#1181 Part D, <c>IAbilityArena.ViewRound</c>, which a pooled projectile's guid waits two of)
+    /// counts only on the broadcast ticks, when every view is decided, never for the arriving client's own decision.
     /// </summary>
     [Fact]
     public async Task List_an_arriving_client_its_view_at_once_and_list_it_to_the_others_on_the_broadcast()
@@ -115,10 +118,14 @@ public class VisibilityCadenceShould
         MapInstanceClient arriving = Player(instance, 981_012, 5f);
         var arrivingTold = new List<string>();
         var watcherTold = new List<string>();
+        var rounds = new List<int>();
         for (int tick = ChangeBefore; tick <= LastTick; tick++)
         {
             int arrivingFrom = arriving.Sent.Count, watcherFrom = watcher.Sent.Count;
+            uint round = ((IAbilityArena)instance).ViewRound;
             instance.Update(s_tick);
+            if (((IAbilityArena)instance).ViewRound != round)
+                rounds.Add(tick);
             foreach (ulong guid in new[] { arriving.Character.Guid.RawValue, watcher.Character.Guid.RawValue, boar.Guid.RawValue })
                 arrivingTold.AddRange(ToldOf(arriving.Sent.Skip(arrivingFrom), guid).Select(kind => $"{tick} {Name(guid)} {kind}"));
             watcherTold.AddRange(ToldOf(watcher.Sent.Skip(watcherFrom), arriving.Character.Guid.RawValue).Select(kind => $"{tick} {kind}"));
@@ -127,6 +134,7 @@ public class VisibilityCadenceShould
         Assert.Equal("8 self add, 8 self aura list, 8 watcher add, 8 boar add, 8 boar aura list",
             string.Join(", ", arrivingTold));
         Assert.Equal("13 add", string.Join(", ", watcherTold));
+        Assert.Equal([13, 19, 25], rounds);
 
         string Name(ulong guid) => guid == boar.Guid.RawValue ? "boar"
             : guid == watcher.Character.Guid.RawValue ? "watcher" : "self";
@@ -137,7 +145,8 @@ public class VisibilityCadenceShould
     /// its add: each client's broadcast is contained. The one that threw is started over: told to drop all it was told of,
     /// and listed itself and its view in full on the next tick. Later, a tick that throws before the views are decided (a
     /// client's packets throwing, on the broadcast tick that would remove the boar) leaves the decision owed to the next
-    /// tick, rather than to the next broadcast.
+    /// tick, rather than to the next broadcast; that tick counts no view round (#1181 Part D), the next, which decides
+    /// every view, does, and the started-over client's own decision on the tick after its broadcast threw counts none.
     /// </summary>
     [Fact]
     public async Task Tell_the_others_and_start_over_a_client_whose_broadcast_throws_and_decide_after_a_tick_that_throws()
@@ -170,8 +179,10 @@ public class VisibilityCadenceShould
         ulong[] watched = [boar.Guid.RawValue, failing.Character.Guid.RawValue];
         var failingTold = new List<string>();
         var afterTold = new List<string>();
+        var rounds = new List<int>();
         for (int tick = 1; tick <= 26; tick++)
         {
+            uint round = ((IAbilityArena)instance).ViewRound;
             if (tick == ChangeBefore)
                 boar.Position = new Vector3(0f, 0f, 10f);       // listed on the broadcast, tick 13
             if (tick == 13)
@@ -186,6 +197,8 @@ public class VisibilityCadenceShould
                 Assert.Throws<InvalidOperationException>(() => instance.Update(s_tick));
             else
                 instance.Update(s_tick);
+            if (((IAbilityArena)instance).ViewRound != round)
+                rounds.Add(tick);
 
             if (tick < ChangeBefore)
                 continue;
@@ -200,6 +213,7 @@ public class VisibilityCadenceShould
         Assert.Equal("13 boar add, 13 boar aura list, 26 boar remove", string.Join(", ", afterTold));
         Assert.Equal("13 boar remove, 13 first remove, 14 boar add, 14 boar aura list, 14 first add, 14 first aura list, "
                      + "26 boar remove", string.Join(", ", failingTold));
+        Assert.Equal([7, 13, 19, 26], rounds);
     }
 
     private static void Make(Change change, MapInstance instance, MapInstanceClient other, Creature boar)

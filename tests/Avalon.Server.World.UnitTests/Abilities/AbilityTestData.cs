@@ -24,6 +24,25 @@ internal static class AbilityTestData
     };
 
     /// <summary>
+    /// <see cref="Game" />, its metadata shaped by capstone modifier <paramref name="rows" /> as a held capstone shapes
+    /// it (#1181 Part D: <see cref="AbilityShaping.Apply" />).
+    /// </summary>
+    public static GameAbility Shaped(AbilityTemplate row,
+        params (TalentModifierKind Kind, int Value, int? Value2)[] rows)
+    {
+        AbilityShaping shaping = default;
+        foreach ((TalentModifierKind kind, int value, int? value2) in rows) shaping.Add(kind, value, value2);
+
+        return new GameAbility
+        {
+            AbilityId = row.Id,
+            Metadata = shaping.Apply(AbilityMetadataMapper.From(row)),
+            CastTimeTimer = (float)row.CastTime / 1000,
+            CooldownTimer = 0f,
+        };
+    }
+
+    /// <summary>
     /// <paramref name="template" /> as a Spell that deals exactly <paramref name="amount" /> for a caster with no offence
     /// (#1178): a spell base of <paramref name="amount" />..<paramref name="amount" />, growing with no level. Its hit draws
     /// that one roll before the hit's chances.

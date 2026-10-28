@@ -1544,11 +1544,13 @@ public class SeedIntegrityShould
     /// seeded row and the balance tool's starter profile (the class's starter weapon and five armour pieces, as they stood
     /// before #1179: <see cref="RetiredGearProfiles" />). The average of
     /// the ability's base with every roll at its low and at its high end (<see cref="RollEnds" />): an Attack's or a Spell's
-    /// <see cref="OffenceMath.DirectBase" />, a Heal's <see cref="OffenceMath.HealBase" />, or, through its aura, the
-    /// whole of <see cref="OffenceMath.PeriodicTotal" /> (Rend's Bleed, Ignite's Burn, Renew). Today's average is the old
-    /// <c>EffectValue + coefficient × damage stat + weapon coefficient × roll</c>, the tolerance its table's. The re-expressed
-    /// weapons (owner decision D2) carry their tiers over too: the balance tool's forest profile (the Bramblesteel Sword
-    /// and the Briarstring Bow, 7-11 then, 5-7 now) and the starter Warrior with the Rusted Sword (1-3 then, 4-6 now).
+    /// <see cref="OffenceMath.DirectBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />, a Heal's
+    /// <see cref="OffenceMath.HealBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />, or, through its aura,
+    /// the whole of <see cref="OffenceMath.PeriodicTotal" /> (Rend's Bleed, Ignite's Burn, Renew). Today's average is
+    /// the old <c>EffectValue + coefficient × damage stat + weapon coefficient × roll</c>, the tolerance its table's.
+    /// The re-expressed weapons (owner decision D2) carry their tiers over too: the balance tool's forest profile (the
+    /// Bramblesteel Sword and the Briarstring Bow, 7-11 then, 5-7 now) and the starter Warrior with the Rusted Sword
+    /// (1-3 then, 4-6 now).
     /// </summary>
     [Theory]
     [InlineData(200u, (ushort)1, 34.9, 1.0)]       // Cleave

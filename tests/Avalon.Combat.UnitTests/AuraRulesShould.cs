@@ -280,14 +280,22 @@ public class AuraRulesShould
         Assert.Equal(0.25, carry);
     }
 
+    /// <summary>
+    /// #1181 Part D: a capstone's stack <c>bonus</c> raises the cap for its caster alone, and a caster never lowers what
+    /// another stacked past its own cap (nor what a reload's lower cap would now allow).
+    /// </summary>
     [Theory]
-    [InlineData(AuraStacking.Stack, 1u, 3u, 2u)]
-    [InlineData(AuraStacking.Stack, 3u, 3u, 3u)]
-    [InlineData(AuraStacking.Stack, 1u, 0u, 1u)]   // a cap of 0 is refused by Problem, and counts as 1 here
-    [InlineData(AuraStacking.Refresh, 1u, 3u, 1u)]
-    [InlineData(AuraStacking.Independent, 1u, 3u, 1u)]
+    [InlineData(AuraStacking.Stack, 1u, 3u, 0u, 2u)]
+    [InlineData(AuraStacking.Stack, 3u, 3u, 0u, 3u)]
+    [InlineData(AuraStacking.Stack, 1u, 0u, 0u, 1u)]   // a cap of 0 is refused by Problem, and counts as 1 here
+    [InlineData(AuraStacking.Refresh, 1u, 3u, 0u, 1u)]
+    [InlineData(AuraStacking.Independent, 1u, 3u, 0u, 1u)]
+    [InlineData(AuraStacking.Stack, 3u, 3u, 2u, 4u)]
+    [InlineData(AuraStacking.Stack, 5u, 3u, 2u, 5u)]
+    [InlineData(AuraStacking.Stack, 5u, 3u, 0u, 5u)]   // another caster never lowers it
+    [InlineData(AuraStacking.Refresh, 1u, 3u, 2u, 1u)]
     public void Add_a_stack_only_to_a_stacking_aura_and_stop_at_its_cap(AuraStacking stacking, uint current, uint max,
-        uint expected) => Assert.Equal(expected, AuraRules.NextStacks(stacking, current, max));
+        uint bonus, uint expected) => Assert.Equal(expected, AuraRules.NextStacks(stacking, current, max, bonus));
 
     [Fact]
     public void Key_only_independent_auras_by_caster()

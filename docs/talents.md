@@ -5,21 +5,16 @@ which grants its single-target starter ability, and every other class ability is
 page covers the tree as data (Part B1): its tables, the seeded first region, the world's catalog, the client export and
 the public read; and characters on the tree (Part B2): saved talents, points, the select check, abilities from the
 tree, allocation, the talent state, the stats fold and the REST reads; respec at the Lectern of Paths (Part C):
-refunds, their price, and how a change of the abilities held is bounded; and capstones and keystones (Part D1): their
-rows, the catalog's checks on them, and the held abilities their capstones shape. The client's view is the
-[talent protocol](talent-protocol.md).
+refunds, their price, and how a change of the abilities held is bounded; and capstones and keystones (Part D): their
+rows, the catalog's checks on them, the held abilities their capstones shape (D1), and the rules the keystones bend
+(D2). The client's view is the [talent protocol](talent-protocol.md).
 
-**Part D1 adds no hit, cast or aura code.** A cone's reach and arc and a circle's radius are read from the shaped
-metadata, so the capstones that widen or lengthen a cone or a circle act in play now. Every other modifier (more
-projectiles, an explosion, a second hit, more stacks, a longer aura) is carried on the ability and sent to the client,
-but nothing in the cast, hit or aura code reads it yet. Keystones fold their stat lines (all of Glass Edge, and Steady
-Hand's two `More` lines), but no keystone rule is read: Blood Price, Steady Hand's crit rule and Unbroken do nothing
-yet. Part D2 brings the rest ("What Part D2 adds", below).
-
-**No release is cut between the D1 and D2 merges** (owner decision). Between them, fourteen capstones and two keystones
-(Blood Price and Unbroken) do nothing, and Steady Hand gives its 20 % more damage and healing without its crit rule.
-There is no catalog gate for that state: no flag marks a capstone or a keystone as not yet live, since such a gate would
-be added by one migration and dropped by the next. Dev builds carry the state until D2 merges.
+**Every capstone and keystone acts in play (Part D2).** A capstone's shape is read where it acts: a cone's reach and
+arc and a circle's radius by the shape scripts and the telegraph; a fan, an explosion and a second hit by the cast
+system, the projectile script and `AbilityEffect` ([skill system](spell-system.md#4-hit-resolution), §4 and §5); the
+stack bonus and the duration factor by the aura system ([auras](auras.md#capstone-factors)). A keystone's rule is
+read where it bends one ("Keystones", below). D1 and D2 ship in one release (owner decision), so no released build has
+a capstone or a keystone that does nothing.
 
 ## The tables
 
@@ -511,9 +506,11 @@ Part D1: the capstones a character holds shape the abilities it holds, on every 
   list as a change of the abilities held does; the tick's `TalentFlusher` sends it once, after the request's result.
   `CharacterAbilitiesSender.Describe` sets the shape on every entry, reused ones included: fields 11-13 carry the shaped
   reach, radius and arc, and fields 25-30 the rest ([talent protocol](talent-protocol.md#8-capstones-and-keystones)).
-- **What reads the shape.** The cone and circle scripts and the telegraph read `Reach`, `Radius` and `ArcDegrees`
-  from the cast's metadata, so cone and circle capstones act in play. The six new fields are read by nothing but the
-  sender until Part D2.
+- **What reads the shape.** Every reader takes it from the cast's own copy, never from the character's ability. The
+  cone and circle scripts and the telegraph read `Reach`, `Radius` and `ArcDegrees`; the cast system reads
+  `ProjectileCount` for a fan's lanes; the projectile script reads `ExplosionRadius` and `ExplosionEffectiveness`;
+  `AbilityEffect` reads `SecondHitEffectiveness`; and the aura system reads `AuraStacksBonus` and `AuraDurationPct`
+  from the aura's source ([skill system](spell-system.md#5-the-three-shapes), [auras](auras.md#capstone-factors)).
 
 ## The talent state
 
@@ -551,8 +548,9 @@ key, or the maximum life or mana, by `1 + value / 100`. In `Calculate`:
 
 Auras fold after all of it. Gear's global `IncreasedArmor`, `IncreasedEvasion` and `IncreasedWard` lines count the
 same way (none is seeded). A keystone's `More` lines fold as any node's (Glass Edge's 30 % more damage and 25 % less
-maximum life, Steady Hand's 20 % more damage and healing); `RebuildTotals` sums lines only, so no keystone rule
-reaches the fold or anything else until Part D2. The world folds at select and after every talent change; the saved
+maximum life, Steady Hand's 20 % more damage and healing). `RebuildTotals` also adds each held node's keystone rule
+(`TalentCatalog.KeystoneAt`) as a flag on the totals ("Keystones", below); the fold reads one of them, `NoCrits`, last
+of all. The world folds at select and after every talent change; the saved
 `CharacterStats` row is what the world wrote after folding, so the REST character sheet reads it as it is
 ([inventory and saves](inventory-and-saves.md)).
 
@@ -581,18 +579,45 @@ class's start), never the whole tree.
   only in the world's ability list.
 - The character sheet (`/stats`) reads the saved `CharacterStats` row, which already folds the tree.
 
-## What Part D2 adds
+## Keystones
 
-Part D1 leaves the rows, the catalog's checks and the shaped metadata in place. Part D2, shipped in the same release,
-makes the rest act:
+Part D2: the rules the keystones bend. `TalentTotals` carries one flag per rule, `LifeCost`, `NoCrits` and
+`WardTakesAll` (`AddKeystone`, which also clears `IsEmpty`, since Blood Price and Unbroken carry no stat lines; `Clear`
+resets them), set by `TalentAllocation.RebuildTotals` from each held node's `KeystoneAt` at select and after every
+talent change. Each flag is read where its rule acts: a cast reads one, a hit or a tick on a warded character reads
+one, the stats fold reads one, and each update of a character whose ward is below its maximum (waiting out its delay
+or recharging) reads Unbroken's, which sets that delay; a full ward, or none, reads nothing. A creature holds no
+keystone, and the REST character reads carry no keystone rule: keystones act only in the world, and the REST sheet is
+the saved one the world folded.
 
-- **The hit path.** A second hit at `SecondHitEffectiveness` on each unit affected, with its own rolls, only the first
-  landed hit applying the aura; a fan of `ProjectileCount` projectiles 10° apart, a unit affected at most once per
-  cast; and an explosion of `ExplosionRadius` where a projectile ends on a unit, at `ExplosionEffectiveness`, damage
-  only.
-- **Aura factors.** The caster's aura reaching `MaxStacks` plus `AuraStacksBonus`, and lasting × (1 +
-  `AuraDurationPct` / 100), never on crowd control.
-- **The keystone rules.** `KeystoneAt` read into the totals: Blood Price paying costs from life, Steady Hand's crit
-  chance of 0, and Unbroken's ward taking blight and bleeding and recharging half as fast.
+- **Blood Price (`LifeCost`).** Every ability cost is paid from current life instead of mana
+  (`AbilityCost.Check` and `Pay` with `fromLife`, which `CharacterEntity.PaysWithLife` answers). A cost is payable
+  only when current life is above it, so a payment leaves at least 1; life equal to the cost is refused
+  `NotEnoughPower`, the same refusal as too little mana, and a cost of 0 is always payable. The handler checks, and the
+  cast system checks again and pays, on the instant and the queued path, as for mana; god mode stays free. Paying
+  sets `CurrentHealth`, which replicates as any health change. **The payment is not damage**: it meets no ward,
+  armour or evasion, tells no hit, fires no "when struck" effect, starts no encounter and tags no combat, and mana is
+  untouched, so mana still fills, potions still work and Intellect still converts. The cast itself still enters combat
+  as every accepted cast does (`CastAbilityHandler` tags its caster): the design's "paying life starts no combat" is
+  read as the payment, never the cast.
+- **Steady Hand (`NoCrits`).** `CharacterStatsCalculator.Calculate` sets the crit chance to 0 after the aura
+  fold, so no aura gives it back. Hits, heals (`HitResolver.ResolveHeal`) and the snapshots of the holder's auras
+  (`AuraRules.Snapshot`, from `CombatService.AttackerFor`) all read that chance, so none needs a check of its own and
+  nothing is read per hit; the character sheet shows 0. An aura placed before Steady Hand was taken keeps the crit
+  chance it snapshotted at apply, as every aura does, so its ticks may still crit until it ends. Its two `More` lines
+  (20 % more damage, 20 % more healing) fold as any node's.
+- **Unbroken (`WardTakesAll`).** The holder's ward also absorbs blight hits, blight ticks and bleed ticks
+  (`HitResolver.WardAbsorbs(type, periodic, takesAll)`): a hit's whole damage is absorbable instead of all but its
+  blight share, and every tick is. Its recharge delay is doubled (`WardPool.Advance` with `slowRecharge`, from
+  `CharacterEntity.AdvanceWard`): 8 s at the default `Regen:WardRechargeDelaySeconds` of 4 s, the recharge itself
+  unchanged. `CombatService` reads the flag once per hit or tick, and only for a target with a ward; the ward's
+  advance reads it on each update while the ward is below its maximum.
+- **Glass Edge** has no rule: its `IncreasedDamage` `More` 30 and `IncreasedMaximumLife` `More` −25 fold as
+  any node's lines (a factor of 0.75 on maximum life).
+
+## What later parts add
+
+Part D completes the first region of the wheel: its starts, branches, abilities, capstones and keystones. Later parts
+add the paragon tree (#1220) and the wheel's outer rings, each with its own seed migration and its own checks.
 
 The next free numbers stay `TalentResult` 15 and field 5 of the state packet; `AbilityInfo`'s next is 31.

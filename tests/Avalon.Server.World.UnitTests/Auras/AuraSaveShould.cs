@@ -313,18 +313,22 @@ public class AuraSaveShould
             Arg.Any<AuraId>(), Arg.Any<HitReport>(), Arg.Any<bool>());
     }
 
+    /// <summary>
+    /// #1181 Part D: a copy comes back with the stacks it was saved with, above what its row allows now too: a
+    /// capstone's stack bonus may have raised them past it, and a reload that lowered the cap keeps the copies held.
+    /// </summary>
     [Fact]
-    public async Task Cap_restored_stacks_at_what_the_template_allows_now()
+    public async Task Restore_the_saved_stacks_above_what_the_template_allows_now()
     {
         AuraTemplate bleed = AuraTestData.Bleed();
         bleed.MaxStacks = 2;
         CharacterEntity character = Character(913_108);
         CharacterAura row = Saved(901, 7500, 3);
-        row.Stacks = 3;
+        row.Stacks = 5;
 
         Restore(character, await DataAsync(bleed), row);
 
-        Assert.Equal(2u, Assert.Single(character.Auras.All).Stacks);
+        Assert.Equal(5u, Assert.Single(character.Auras.All).Stacks);
     }
 
     [Fact]

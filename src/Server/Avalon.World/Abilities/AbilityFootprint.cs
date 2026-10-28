@@ -18,6 +18,10 @@ namespace Avalon.World.Abilities;
 /// </param>
 /// <param name="Centre">A circle's centre; null for a cone and a projectile.</param>
 /// <param name="Reach">A cone's length, or a projectile lane's up to where the walkable ray stops; 0 for a circle.</param>
+/// <remarks>
+/// <see cref="Lanes" /> is how many projectiles the cast fires (#1181 Part D): 1 for a resolved lane, set to a fan's
+/// count by the cast system for a fan's start broadcast (from the cast's own shape), 0 for a circle and a cone.
+/// </remarks>
 public readonly record struct AbilityFootprint(
     AbilityShape Shape,
     Vector3 Origin,
@@ -27,6 +31,10 @@ public readonly record struct AbilityFootprint(
     float Reach,
     float ArcDegrees)
 {
+    /// <summary>How many projectiles the cast fires: 1 or a fan's count for a projectile, 0 for a circle and a
+    /// cone.</summary>
+    public uint Lanes { get; init; }
+
     /// <summary>
     /// The footprint of <paramref name="meta" /> cast from <paramref name="origin" /> at <paramref name="aim" />,
     /// by the row's shape. Null for a shape this does not know. The navmesh is fixed for an instance's life, so
@@ -53,7 +61,8 @@ public readonly record struct AbilityFootprint(
             _ => null,
         };
 
-    public AbilityFootprintDto ToDto() => AbilityFootprintDto.Create(Shape, Origin, Direction, Centre, Radius, Reach, ArcDegrees);
+    public AbilityFootprintDto ToDto() =>
+        AbilityFootprintDto.Create(Shape, Origin, Direction, Centre, Radius, Reach, ArcDegrees, Lanes);
 
     /// <summary>
     /// This footprint written into DTOs the caller keeps and reuses (#479), as <see cref="ToDto" /> writes it into new
@@ -68,6 +77,7 @@ public readonly record struct AbilityFootprint(
         dto.Radius = Radius;
         dto.Reach = Reach;
         dto.ArcDegrees = ArcDegrees;
+        dto.Lanes = Lanes;
         return dto;
 
         static Vector3Dto Set(Vector3Dto into, Vector3 v)
@@ -107,6 +117,6 @@ public readonly record struct AbilityFootprint(
         Vector3 direction = aim.DirectionFrom(origin);
         var far = new Vector3(origin.x + direction.x * meta.Reach, origin.y, origin.z + direction.z * meta.Reach);
         float reach = meta.Reach > 0f ? HitShapes.Distance2D(origin, navigator.RaycastWalkable(origin, far)) : 0f;
-        return new AbilityFootprint(AbilityShape.Projectile, origin, direction, null, 0f, reach, 0f);
+        return new AbilityFootprint(AbilityShape.Projectile, origin, direction, null, 0f, reach, 0f) { Lanes = 1 };
     }
 }

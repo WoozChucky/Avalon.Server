@@ -5,9 +5,14 @@ namespace Avalon.World.Abilities;
 
 public class GameAbility : IAbility
 {
+    private AbilityId _abilityId = null!;
     private AbilityMetadata _metadata = null!;
 
-    public required AbilityId AbilityId { get; init; }
+    public required AbilityId AbilityId
+    {
+        get => _abilityId;
+        init => _abilityId = value;
+    }
 
     public required AbilityMetadata Metadata
     {
@@ -48,6 +53,33 @@ public class GameAbility : IAbility
             CooldownTimer = CooldownTimer,
             CastTimeTimer = CastTimeTimer,
         };
+
+    /// <summary>
+    /// This copy made again as <paramref name="source" />'s cast copy, as <see cref="CloneForCast" /> makes one: its id and
+    /// metadata, both timers, and <c>Casting</c> clear. For a pooled script's own copy (#1181 Part D), so a reused script
+    /// fires the shape its cast was taken with.
+    /// </summary>
+    internal void CopyFrom(GameAbility source)
+    {
+        _abilityId = source._abilityId;
+        _metadata = source._metadata;
+        CooldownTimer = source.CooldownTimer;
+        CastTimeTimer = source.CastTimeTimer;
+        Casting = false;
+    }
+
+    /// <summary>
+    /// A pooled script's copy put away (#1181 Part D): no id and no metadata, so it keeps no template alive, one from before
+    /// a reload included. Nothing reads it until <see cref="CopyFrom" />.
+    /// </summary>
+    internal void Clear()
+    {
+        _abilityId = null!;
+        _metadata = null!;
+        CooldownTimer = 0f;
+        CastTimeTimer = 0f;
+        Casting = false;
+    }
 
     /// <summary>
     /// Swaps the metadata in place: only <see cref="TreeAbility" />, when a capstone taken or refunded reshapes it.

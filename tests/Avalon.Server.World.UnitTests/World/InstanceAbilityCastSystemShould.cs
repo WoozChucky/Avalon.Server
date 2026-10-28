@@ -1,7 +1,10 @@
+using System.Runtime.CompilerServices;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Auras;
@@ -14,6 +17,7 @@ using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
@@ -77,9 +81,12 @@ public class InstanceAbilityCastSystemShould
         Assert.Equal(!accepted, ArrivalProtection.IsProtected(caster));
     }
 
-    /// <summary>An ability whose cost, if any, is spent from mana (#1181).</summary>
+    /// <summary>
+    /// An ability whose cost, if any, is spent from mana (#1181); with <paramref name="projectiles" />, a projectile's
+    /// shape firing that many (#1181 Part D, a fan).
+    /// </summary>
     private static GameAbility Ability(uint cost = 0, float castTime = 0f, string script = "Recording",
-        AbilityFlags flags = AbilityFlags.None) => new()
+        AbilityFlags flags = AbilityFlags.None, int projectiles = 0) => new()
         {
             AbilityId = new AbilityId(1),
             Metadata = new AbilityMetadata
@@ -90,6 +97,8 @@ public class InstanceAbilityCastSystemShould
                 CastTime = castTime,
                 Cooldown = 2f,
                 Flags = flags,
+                Shape = projectiles > 0 ? AbilityShape.Projectile : AbilityShape.Circle,
+                ProjectileCount = Math.Max(1, projectiles),
             },
             CastTimeTimer = castTime,
             CooldownTimer = 0f,
@@ -340,7 +349,8 @@ public class InstanceAbilityCastSystemShould
     /// <summary>
     /// Every cast's aim is handed to its script's constructor out of one box the cast system keeps and overwrites
     /// (#925). A script must keep the aim it was built with: the first cast here is still winding up, its script
-    /// already built, when the second cast's aim goes into the box.
+    /// already built, when the second cast's aim goes into the box. The second has a fan's shape (#1181 Part D, three
+    /// projectiles) on a script that flies no fans, so it fires its one lane along its own aim, never turned.
     /// </summary>
     [Fact]
     public void Fire_each_script_with_the_aim_of_its_own_cast()
@@ -349,7 +359,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter first = Caster();
         ICharacter second = Caster();
         Assert.True(_sut.QueueAbility(first, s_aim, Ability(castTime: 0.01f)));
-        Assert.True(_sut.RunInstant(second, other, Ability()));
+        Assert.True(_sut.RunInstant(second, other, Ability(projectiles: 3)));
 
         _sut.Update(s_tick, []);
 
@@ -628,6 +638,277 @@ public class InstanceAbilityCastSystemShould
         Assert.Empty(objects);
         Assert.Null(sut.GetAbility(projectile.Guid));
         Assert.Single(arena.Damaged());
+    }
+
+    private static readonly AbilityAim s_north = new(new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, 10f));
+
+    /// <summary>
+    /// Projectiles are pooled per instance (#1181 Part D): one that left the world is reused only once two whole view
+    /// rounds have passed, when no view can still hold its guid's wrapper, with a new id in the same wrapper, and nothing
+    /// of its last flight: not its hit set, caster, ability, cast id, lane or state. A queued cast that never fired hands
+    /// its projectile back at once, since nothing saw it. A projectile that threw is never reused, the pool keeps at
+    /// most its cap, and a pooled projectile keeps neither its caster nor its metadata alive. A piercing fan's lane
+    /// that ends first goes back alone, leaving the cast's shared set of hit units to the lanes still flying, each
+    /// counting its own hits for MaxTargets. Each round casts at a creature 6 m north and flies the projectile to its
+    /// end, its changes taken as the broadcast takes them.
+    /// </summary>
+    [Theory]
+    [InlineData("after two view rounds")]
+    [InlineData("after one view round")]
+    [InlineData("nothing of its last flight")]
+    [InlineData("a queued cast that never fired")]
+    [InlineData("after its flight threw")]
+    [InlineData("past the pool's capacity")]
+    [InlineData("keeps nothing alive")]
+    [InlineData("a piercing lane that ends first")]
+    public void Reuse_a_projectile_only_once_nothing_can_still_see_its_last_flight(string row)
+    {
+        var arena = new TestArena();
+        _scripts.GetAbilityScript(nameof(ProjectileAbilityScript)).Returns(typeof(ProjectileAbilityScript));
+        var sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, arena);
+        CharacterEntity caster = arena.Player(1, 0f, 0f);
+        ICreature creature = arena.Creature(0f, 6f, health: 1000);
+        AbilityTemplate template = AbilityTestData.Projectile(219, reach: 10f, speed: 20f).Dealing(10);
+        GameAbility ability = AbilityTestData.Game(template);
+        List<IWorldObject> objects = [];
+
+        ProjectileAbilityScript Round(IUnit by, GameAbility cast)
+        {
+            Assert.True(sut.RunInstant(by, s_north, cast));
+            return Assert.Single(Fly(sut, objects));
+        }
+
+        switch (row)
+        {
+            case "after two view rounds":
+            case "after one view round":
+            {
+                ProjectileAbilityScript first = Round(caster, ability);
+                ObjectGuid wrapper = first.Guid;
+                ulong firstId = wrapper.RawValue;
+                arena.ViewRound += row == "after two view rounds" ? 2u : 1u;
+
+                ProjectileAbilityScript second = Round(caster, ability);
+
+                if (row == "after one view round")
+                {
+                    Assert.NotSame(first, second);
+                    Assert.Equal(firstId, first.Guid.RawValue);
+                    break;
+                }
+
+                Assert.Same(first, second);
+                Assert.Same(wrapper, second.Guid);
+                Assert.NotEqual(firstId, second.Guid.RawValue);
+                Assert.Equal(ObjectType.SpellProjectile, second.Guid.Type);
+                Assert.Equal([creature, creature], arena.Damaged());
+                break;
+            }
+
+            case "nothing of its last flight":
+            {
+                ProjectileAbilityScript first = Round(caster, ability);
+                arena.ViewRound += 2;
+                CharacterEntity other = arena.Player(2, 3f, 0f);
+                int fired = arena.FiredFootprints.Count;
+
+                Assert.True(sut.RunInstant(other, s_north,
+                    AbilityTestData.Game(AbilityTestData.Projectile(221, reach: 10f, speed: 20f, pierce: true))));
+
+                var identity = (IProjectileIdentity)first;
+                Assert.Equal(other.Guid.RawValue, identity.CasterGuid);
+                Assert.Equal(221u, identity.AbilityId);
+                Assert.Equal(arena.FinishedIds[^1], identity.CastId);
+                Assert.Equal(new Vector3(3f, 0f, 0f), arena.FiredFootprints[fired].Footprint.Origin);
+                Assert.Equal(SpellState.Executing, first.State);
+                Assert.Same(first, Assert.Single(Fly(sut, objects)));
+                break;
+            }
+
+            case "a queued cast that never fired":
+            {
+                ProjectileAbilityScript first = Round(caster, ability);
+                arena.ViewRound += 2;
+                sut.Update(s_tick, objects);
+                AbilityTemplate slow = AbilityTestData.Projectile(219, reach: 10f, speed: 20f).Dealing(10);
+                slow.CastTime = 500u;
+                GameAbility queued = AbilityTestData.Game(slow);
+                Assert.True(sut.QueueAbility(caster, s_north, queued));
+
+                // Moved: the cast is interrupted, as Complete_one_cast_and_interrupt_another_in_the_same_update does.
+                caster.Position = new Vector3(1f, 0f, 0f);
+                sut.Update(s_tick, objects);
+                Assert.False(queued.Casting);
+
+                Assert.True(sut.RunInstant(caster, s_north, ability));
+                objects.Clear();
+                sut.Update(s_tick, objects);
+                Assert.Same(first, Assert.Single(objects));
+                break;
+            }
+
+            case "after its flight threw":
+            {
+                Assert.True(sut.RunInstant(caster, s_north, ability));
+                int steps = 0;
+                arena.Navigator.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(call =>
+                    ++steps == 2 ? throw new InvalidOperationException("The navmesh failed.") : call.ArgAt<Vector3>(1));
+
+                ProjectileAbilityScript first = Assert.Single(Fly(sut, objects));
+                Assert.Null(sut.GetAbility(first.Guid));
+                Assert.Same(caster, Assert.Single(arena.Interrupted).Caster);
+                arena.ViewRound += 2;
+
+                Assert.NotSame(first, Round(caster, ability));
+                break;
+            }
+
+            case "past the pool's capacity":
+            {
+                HashSet<ProjectileAbilityScript> Batch()
+                {
+                    for (int i = 0; i <= InstanceAbilityCastSystem.PooledScripts; i++)
+                    {
+                        ability.CooldownTimer = 0f;
+                        Assert.True(sut.RunInstant(caster, s_north, ability));
+                    }
+
+                    HashSet<ProjectileAbilityScript> flown = Fly(sut, objects);
+                    Assert.Equal(InstanceAbilityCastSystem.PooledScripts + 1, flown.Count);
+                    return flown;
+                }
+
+                HashSet<ProjectileAbilityScript> first = Batch();
+                arena.ViewRound += 2;
+                HashSet<ProjectileAbilityScript> second = Batch();
+
+                Assert.Equal(InstanceAbilityCastSystem.PooledScripts, second.Count(first.Contains));
+                break;
+            }
+
+            case "a piercing lane that ends first":
+            {
+                // A piercing fan of three (Twin Arrows on Piercing Arrow, here at most two hits a lane). The centre
+                // lane ends on its second hit, 8.5 m out, its first 2 m out, both slim enough that the side lanes pass
+                // them. Each side lane strikes a wide body 9 m out at -10 or +10 degrees, flies on through it for its
+                // own count of one, and is still inside it when the centre lane ends and goes back: a set emptied then
+                // would let it strike that body again. The creature 6 m north stands aside, out of every lane.
+                creature.Position.Returns(new Vector3(-20f, 0f, 0f));
+                ICreature near = arena.Creature(0f, 2f, body: 0.2f, health: 1000);
+                ICreature far = arena.Creature(0f, 8.5f, body: 0.2f, health: 1000);
+                float side = 9f * MathF.Sin(10f * MathF.PI / 180f);
+                float ahead = 9f * MathF.Cos(10f * MathF.PI / 180f);
+                ICreature left = arena.Creature(-side, ahead, body: 1.2f, health: 1000);
+                ICreature right = arena.Creature(side, ahead, body: 1.2f, health: 1000);
+                ICreature east = arena.Creature(6f, 0f, health: 1000);
+                AbilityTemplate piercing =
+                    AbilityTestData.Projectile(221, reach: 10f, speed: 20f, pierce: true).Dealing(10);
+                piercing.MaxTargets = 2;
+                Assert.True(sut.RunInstant(caster, s_north,
+                    AbilityTestData.Shaped(piercing, (TalentModifierKind.AddedProjectiles, 2, null))));
+
+                // 27 updates: the centre lane has ended and left, the side lanes are still inside their bodies.
+                HashSet<ProjectileAbilityScript> fan = [];
+                for (int i = 0; i < 27; i++)
+                {
+                    objects.Clear();
+                    sut.Update(s_tick, objects);
+                    foreach (IWorldObject handed in objects)
+                    {
+                        var lane = (ProjectileAbilityScript)handed;
+                        lane.ConsumeDirtyFields();
+                        fan.Add(lane);
+                    }
+                }
+
+                Assert.Equal(3, fan.Count);
+                ProjectileAbilityScript centre = Assert.Single(fan, lane => lane.State is SpellState.Finished);
+                Assert.Null(sut.GetAbility(centre.Guid));
+                arena.ViewRound += 2;
+
+                Assert.True(sut.RunInstant(caster, new AbilityAim(new Vector3(1f, 0f, 0f), new Vector3(10f, 0f, 0f)),
+                    ability));
+                HashSet<ProjectileAbilityScript> rest = Fly(sut, objects);
+
+                Assert.Equal(3, rest.Count);
+                Assert.Contains(centre, rest);
+                List<IUnit> damaged = arena.Damaged();
+                Assert.Equal(5, damaged.Count);
+                Assert.All(new[] { near, far, left, right, east }, unit => Assert.Single(damaged, unit));
+                // Each side lane's one hit was not its last, the centre lane's second was.
+                Assert.Equal([ProjectileImpactReason.Pierced, ProjectileImpactReason.Pierced],
+                    arena.Impacts.Where(i => i.Target == left || i.Target == right).Select(i => i.Reason));
+                Assert.Equal([ProjectileImpactReason.Pierced, ProjectileImpactReason.Hit],
+                    arena.Impacts.Where(i => i.Target == near || i.Target == far).Select(i => i.Reason));
+                break;
+            }
+
+            case "keeps nothing alive":
+            {
+                (WeakReference castBy, WeakReference metadata, ProjectileAbilityScript pooled) = CastAway();
+
+                arena.Fired.Clear();
+                arena.FiredFootprints.Clear();
+                arena.Impacts.Clear();
+                arena.Started.Clear();
+                arena.Finished.Clear();
+                arena.FinishedIds.Clear();
+                arena.AurasApplied.Clear();
+                arena.DamageDealt.Clear();
+                arena.Shapings.Clear();
+                arena.CombatService.ClearReceivedCalls();
+                objects.Clear();
+
+                // The substitutes keep the last call they routed, its arguments included, for a Returns that may follow
+                // it: one more call, which names neither, lets the flight's last one go.
+                _ = creature.Guid;
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+
+                Assert.False(castBy.IsAlive);
+                Assert.False(metadata.IsAlive);
+                GC.KeepAlive(pooled);
+                break;
+            }
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(row), row, null);
+        }
+
+        // Cast by a caster and with an ability nothing else holds, flown to its end and retired.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        (WeakReference, WeakReference, ProjectileAbilityScript) CastAway()
+        {
+            CharacterEntity passing = TestCharacters.New(3);
+            passing.Position = Vector3.zero;
+            GameAbility held = AbilityTestData.Game(AbilityTestData.Projectile(219, reach: 10f, speed: 20f).Dealing(10));
+            ProjectileAbilityScript flown = Round(passing, held);
+            return (new WeakReference(passing), new WeakReference(held.Metadata), flown);
+        }
+    }
+
+    /// <summary>
+    /// Forty updates, each handing out the running projectiles and taking their changes as the broadcast does, so every
+    /// flight ends and leaves; answers every projectile handed out.
+    /// </summary>
+    private static HashSet<ProjectileAbilityScript> Fly(InstanceAbilityCastSystem sut, List<IWorldObject> objects)
+    {
+        HashSet<ProjectileAbilityScript> flown = [];
+        for (int i = 0; i < 40; i++)
+        {
+            objects.Clear();
+            sut.Update(s_tick, objects);
+            foreach (IWorldObject handed in objects)
+            {
+                var projectile = (ProjectileAbilityScript)handed;
+                projectile.ConsumeDirtyFields();
+                flown.Add(projectile);
+            }
+        }
+
+        objects.Clear();
+        return flown;
     }
 
     /// <summary>

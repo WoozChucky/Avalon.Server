@@ -1,11 +1,12 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Auras;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
-using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
@@ -17,14 +18,18 @@ namespace Avalon.Server.World.UnitTests.Abilities;
 /// <summary>What an ability does to one unit its shape affects: the direct amount its Effects carries, then its aura.</summary>
 public class AbilityEffectShould
 {
-    private static IAbility Blessing(SpellEffect effects)
+    private static IAbility Blessing(SpellEffect effects, params (TalentModifierKind, int, int?)[] shape)
     {
         AbilityTemplate row = AbilityTestData.HealCircle(233);
         row.Effects = effects;
         row.AuraId = new AuraId(904);
-        return AbilityTestData.Game(row);
+        return AbilityTestData.Shaped(row, shape);
     }
 
+    /// <summary>
+    /// The heal, then the aura; shaped with a second heal (#1181 Part D, <c>SecondHit</c> 50), the heal again at half
+    /// the amount before the aura, which is applied once.
+    /// </summary>
     [Fact]
     public void Heal_then_apply_the_aura_of_an_ally_ability_with_the_heal_flag()
     {
@@ -32,9 +37,10 @@ public class AbilityEffectShould
         CharacterEntity caster = arena.Player(1, 0f, 0f);
         CharacterEntity ally = arena.Player(2, 0f, 2f);
 
-        AbilityEffect.Apply(arena, caster, Blessing(SpellEffect.Heal | SpellEffect.Buff), ally);
+        AbilityEffect.Apply(arena, caster,
+            Blessing(SpellEffect.Heal | SpellEffect.Buff, (TalentModifierKind.SecondHit, 50, null)), ally);
 
-        Assert.Equal([ally], arena.Healed());
+        Assert.Equal<(IUnit, float)>([(ally, 100f), (ally, 50f)], arena.HealsDone);
         Assert.Single(arena.AurasApplied);
     }
 
@@ -62,27 +68,37 @@ public class AbilityEffectShould
     }
 
     /// <summary>
-    /// #1181: the capped path allocates nothing on the hit, the unit every hit ignores in front included (the counts first
-    /// prove the window runs the capped break; the cap itself is pinned end to end in MapInstanceAbilityCastShould).
+    /// #1181: the capped path allocates nothing on the hit, the unit every hit ignores in front included, and neither
+    /// does a second hit (Part D: shaped <c>SecondHit</c> 50, each unit hit whole and then at 50 %). The counts first
+    /// prove the window runs the capped break and both hits; the cap itself is pinned end to end in
+    /// MapInstanceAbilityCastShould.
     /// </summary>
     [Fact]
     public void Affect_at_most_the_cap_without_allocating()
     {
-        var arena = new TestArena { NextOutcome = HitOutcome.Dodged };   // nothing lands, so nothing is recorded
+        var arena = new TestArena();
         CharacterEntity caster = arena.Player(1, 0f, 0f);
         Creature homeward = Boar(5, 1f);
         homeward.Script = HomewardScript.Walking(homeward, caster);
         IUnit[] candidates = [arena.Player(2, 0f, 0.8f), homeward, Boar(3, 1.2f), Boar(4, 2f)];
         AbilityTemplate row = AbilityTestData.Cone(219);
-        row.Effects = SpellEffect.Debuff;   // no direct amount: the arena records no damage
-        IAbility ability = AbilityTestData.Game(row);
+        row.Effects = SpellEffect.Debuff;   // no direct amount: the arena records no damage on its substitute
+        IAbility ability = AbilityTestData.Shaped(row, (TalentModifierKind.SecondHit, 50, null));
+        var second = new HitShaping(50f, AbilityTags.None);
 
         Assert.Equal(1, AbilityEffect.ApplyToAll(arena, caster, ability, candidates, maxTargets: 1));
         Assert.Equal(2, AbilityEffect.ApplyToAll(arena, caster, ability, candidates, maxTargets: 0));
+        Assert.Equal([HitShaping.Whole, second, HitShaping.Whole, second, HitShaping.Whole, second], arena.Shapings);
+        Assert.Equal(3, arena.AurasApplied.Count);   // once per unit: only the first landed hit applies it
 
         long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 1000; i++)
+        {
+            // The recordings keep their capacity, so clearing them leaves only the hits in the window.
+            arena.Shapings.Clear();
+            arena.AurasApplied.Clear();
             AbilityEffect.ApplyToAll(arena, caster, ability, candidates, maxTargets: 1);
+        }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
     }
