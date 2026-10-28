@@ -329,30 +329,39 @@ public class InventoryAllocationShould
     /// over and over: a change of the abilities held allocates nothing once warm, since the held list is rebuilt in
     /// place and Cleave's ability, parked when it leaves, is taken back, ready, when it returns; and each request sends
     /// only its result, the ability list waiting for the tick's flush. Both requests land in one tick, so its flush
-    /// sends the list (as many abilities as the last one) and the state, reusing the last list's entries.
+    /// sends the list (as many abilities as the last one) and the state, reusing the last list's entries. Part D: so does
+    /// a capstone, Wide Arc (306), taken and refunded by a level-12 Warrior holding Cleave and its branch (2-6, 22-26),
+    /// paying 125 g a refund: Cleave stays held, its timers kept, and swaps between its unshaped metadata and the shaped
+    /// copy it keeps, the same one after the first round and the last.
     /// </summary>
-    [Fact]
-    public void Allocate_and_refund_an_ability_node_again_and_again_allocating_nothing()
+    [Theory]
+    [InlineData(6)]
+    [InlineData(306)]
+    public void Allocate_and_refund_a_node_again_and_again_allocating_nothing(int node)
     {
         StaticData data = ScenarioReferenceData.Shared.Data;
         var cleaveId = new AbilityId(200);
+        bool capstone = node == 306;
         using MapInstance instance = TestMapInstances.Build(new QuietWorld(data));
         Doodad lectern = PlaceLectern(instance, data);
         var world = new QuietWorld(data, instance);
-        _character.Level = 10;
-        TalentTestCharacters.Enter(_character, data, 2, 3, 4, 5);
+        _character.Level = capstone ? (ushort)12 : (ushort)10;
+        _character.Data!.Gold = 10_000_000;
+        int[] held = capstone ? [2, 3, 4, 5, 6, 22, 23, 24, 25, 26] : [2, 3, 4, 5];
+        TalentTestCharacters.Enter(_character, data, held);
         var handler = new TalentAllocateHandler(NullLogger<TalentAllocateHandler>.Instance, world);
         var refunder = new TalentRefundHandler(NullLogger<TalentRefundHandler>.Instance, world, TestEconomy.Over(world));
-        var allocate = new CTalentAllocatePacket { RequestId = 1, NodeIds = [6] };
-        var refund = new CTalentRefundPacket { RequestId = 2, LecternGuid = lectern.Guid.RawValue, NodeIds = [6] };
+        var allocate = new CTalentAllocatePacket { RequestId = 1, NodeIds = [(uint)node] };
+        var refund = new CTalentRefundPacket { RequestId = 2, LecternGuid = lectern.Guid.RawValue, NodeIds = [(uint)node] };
 
         handler.Execute(_connection, allocate);
         IAbility cleave = _character.Spells[cleaveId]!;
+        AbilityMetadata shaped = cleave.Metadata;
         cleave.CooldownTimer = 3f;
         refunder.Execute(_connection, refund);
         TalentConfiguration config = world.Configuration.Talents;
         TalentFlusher.Flush(_connection, data.Quests, config);
-        Assert.Equal([2, 3, 4, 5], _character.Talents.Held);
+        Assert.Equal(held, _character.Talents.Held);
 
         long rounds = Allocated(() =>
         {
@@ -364,7 +373,14 @@ public class InventoryAllocationShould
         handler.Execute(_connection, allocate);
         Assert.Equal(0, rounds);
         Assert.Same(cleave, _character.Spells[cleaveId]);
-        Assert.Equal((0f, false), (cleave.CooldownTimer, cleave.Casting));
+        // A capstone leaves Cleave held, cooling down; Cleave's own node takes it back ready.
+        Assert.Equal((capstone ? 3f : 0f, false), (cleave.CooldownTimer, cleave.Casting));
+        if (capstone)
+        {
+            Assert.Same(shaped, cleave.Metadata);
+            Assert.Equal(150f, cleave.Metadata.ArcDegrees);
+        }
+
         Assert.Equal(5 + 4 * 4 * Rounds, _connection.Sent);
     }
 

@@ -39,7 +39,7 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 /// after the abilities were rebuilt answers InternalError, and the new ability list and the state still follow. A
 /// starter the ability catalog does not hold is left out of the rebuilt list, and the held nodes' abilities are not.
 /// Cleave refunded after an ability reload that changed it comes back built from the reloaded catalog, never the
-/// ability it was before (Part C). Character id 118_101 is this class's.
+/// ability it was before (Part C). Character ids 118_101 and 118_301 are this class's.
 /// </summary>
 public class TalentAllocateHandlerShould
 {
@@ -48,6 +48,10 @@ public class TalentAllocateHandlerShould
     private static readonly int[] s_spoke = [57, 58, 59, 60, 61];
 
     private const uint Me = 118_101, RequestId = 23, ReloadedCleaveCost = 17;
+
+    // Part D: Cleave's fork (Wide Arc, Long Reach) and Hurled Axe's lone capstone.
+    private const uint Shaper = 118_301, WideArc = 306, LongReach = 307, TwinAxes = 311;
+    private const float Tolerance = 1e-3f;
 
     [Theory]
     [InlineData("small nodes")]
@@ -167,6 +171,124 @@ public class TalentAllocateHandlerShould
             Assert.Equal(ReloadedCleaveCost, character.Spells[s_cleave]!.Metadata.Cost);
             Assert.Equal(ReloadedCleaveCost, sent.Abilities.Single(a => a.AbilityId == s_cleave.Value).Cost);
         }
+    }
+
+    /// <summary>
+    /// Part D: a level-15 Warrior (118_301) in a real instance holding Cleave and its branch (2-6, 22-26), or the spoke
+    /// and Hurled Axe's branch (57-61, 69-73). A capstone taken or refunded reshapes its own ability in place, and only
+    /// it: the same object, its timers kept, its metadata the shape the capstones held give, never a stale one after a
+    /// fork switch, a refund, a parked ability taken back or a reload; the last shapes are kept, so a toggle builds
+    /// nothing; and the ability list is owed when a shape changed, and only then. A refund is
+    /// <see cref="TalentAllocation.Refund" /> then <see cref="TalentChange.Apply" />, the path the refund handler shares.
+    /// </summary>
+    [Theory]
+    [InlineData("capstone")]
+    [InlineData("fork switched")]
+    [InlineData("capstone refunded and taken again")]
+    [InlineData("ability refunded and taken again")]
+    [InlineData("re-taken after a reload")]
+    [InlineData("twin axes")]
+    [InlineData("small node")]
+    public void Shape_a_held_ability_by_its_capstones(string row)
+    {
+        uint[] cleaveBranch = [2, 3, 4, 5, 6, 22, 23, 24, 25, 26];
+        var world = new QuietWorld(s_data);
+        using MapInstance instance = TestMapInstances.Build(world);
+        CharacterEntity character = TestCharacters.New(Shaper);
+        character.Level = 15;
+        MapInstanceClient client = Join(instance, character);
+        uint[] entered = row switch
+        {
+            "twin axes" => [57, 58, 59, 60, 61, 69, 70, 71, 72, 73],
+            "capstone" or "capstone refunded and taken again" => cleaveBranch,
+            _ => [.. cleaveBranch, WideArc],
+        };
+        TalentTestCharacters.Enter(character, s_data, [.. entered.Select(n => (int)n)]);
+        // The ability the capstone shapes: Cleave, or Hurled Axe for Twin Axes.
+        IAbility ability = character.Spells[row == "twin axes" ? s_hurledAxe : s_cleave]!;
+        AbilityMetadata before = ability.Metadata;
+        AbilityMetadata heavyStrike = character.Spells[s_heavyStrike]!.Metadata;
+        client.Sent.Clear();
+
+        void Allocate(QuietWorld over, params uint[] nodes)
+        {
+            new TalentAllocateHandler(NullLogger<TalentAllocateHandler>.Instance, over)
+                .Execute(client.Connection, Request(nodes));
+            Assert.Equal(TalentResult.Ok,
+                client.Read<STalentResultPacket>(NetworkPacketType.SMSG_TALENT_RESULT).Last().Result);
+        }
+
+        void Refund(StaticData data, params uint[] nodes)
+        {
+            character.Talents.Refund(nodes);
+            TalentChange.Apply(character, data, NullLogger.Instance);
+        }
+
+        switch (row)
+        {
+            case "capstone":
+                ability.CooldownTimer = 1.5f;
+                Allocate(world, WideArc);
+                Assert.Same(ability, character.Spells[s_cleave]);
+                Assert.Equal(1.5f, ability.CooldownTimer);
+                Assert.Equal((150f, 2.5f), (ability.Metadata.ArcDegrees, ability.Metadata.Reach));
+                Assert.Same(heavyStrike, character.Spells[s_heavyStrike]!.Metadata);
+                break;
+            case "fork switched":
+                Refund(s_data, WideArc);
+                Allocate(world, LongReach);
+                Assert.Equal(3.5f, ability.Metadata.Reach, Tolerance);
+                Assert.Equal(100f, ability.Metadata.ArcDegrees);
+                break;
+            case "capstone refunded and taken again":
+                Allocate(world, WideArc);
+                AbilityMetadata shaped = ability.Metadata;
+                Refund(s_data, WideArc);
+                Assert.Same(before, ability.Metadata);
+                Allocate(world, WideArc);
+                Assert.Same(shaped, ability.Metadata);
+                break;
+            case "ability refunded and taken again":
+                Refund(s_data, [.. cleaveBranch, WideArc]);
+                Assert.Null(character.Spells[s_cleave]);
+                Allocate(world, 2, 3, 4, 5, 6);
+                Assert.Same(ability, character.Spells[s_cleave]);
+                Assert.Equal(100f, ability.Metadata.ArcDegrees);
+                break;
+            case "re-taken after a reload":
+                StaticData reloaded = Areas(stats: true, cleaveCost: ReloadedCleaveCost);
+                Refund(reloaded, [.. cleaveBranch, WideArc]);
+                Allocate(new QuietWorld(reloaded), [.. cleaveBranch, WideArc]);
+                IAbility retaken = character.Spells[s_cleave]!;
+                Assert.NotSame(ability, retaken);
+                Assert.Equal((ReloadedCleaveCost, 150f), (retaken.Metadata.Cost, retaken.Metadata.ArcDegrees));
+                break;
+            case "twin axes":
+                Allocate(world, TwinAxes);
+                Assert.Same(ability, character.Spells[s_hurledAxe]);
+                Assert.Equal(2, ability.Metadata.ProjectileCount);
+                break;
+            case "small node":
+                Allocate(world, 7);
+                Assert.Same(before, ability.Metadata);
+                break;
+        }
+
+        client.Sent.Clear();
+        TalentFlusher.Flush(client.Connection, s_data.Quests, new TalentConfiguration());
+        List<SCharacterAbilitiesPacket> lists =
+            client.Read<SCharacterAbilitiesPacket>(NetworkPacketType.SMSG_CHARACTER_ABILITIES);
+        if (row == "small node")
+        {
+            Assert.Empty(lists);
+            return;
+        }
+
+        AbilityInfo[] sent = Assert.Single(lists).Abilities;
+        if (row == "capstone")
+            Assert.Equal(150f, sent.Single(a => a.AbilityId == s_cleave.Value).ArcDegrees);
+        if (row == "twin axes")
+            Assert.Equal(2u, sent.Single(a => a.AbilityId == s_hurledAxe.Value).ProjectileCount);
     }
 
     private static CTalentAllocatePacket Request(params uint[] nodeIds) =>

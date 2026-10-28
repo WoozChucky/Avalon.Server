@@ -267,26 +267,26 @@ variant float-specials
   field 3 Agility : uint = 65535
   field 4 Intellect : uint = 42
   field 5 Armor : uint = 1000000
-  field 8 CritPct : float = 3.40282347E+38 (0x7f7fffff)
-  field 10 BlockPct : float = Infinity (0x7f800000)
+  field 8 CritPct : float = -Infinity (0xff800000)
+  field 10 BlockPct : float = 1.17549421E-38 (0x007fffff)
   field 11 WeaponMin : uint = 1000000
   field 12 WeaponMax : uint = 4000000000
-  field 14 MovementSpeed : float = 1.17549421E-38 (0x007fffff)
+  field 14 MovementSpeed : float = Infinity (0x7f800000)
   field 15 Evasion : uint = 300
-  field 16 EvasionPct : float = NaN (0xffc00000)
+  field 16 EvasionPct : float = -0 (0x80000000)
   field 17 MaxWard : uint = 65535
-  field 18 FireResistance : float = NaN (0x7fc00001)
-  field 19 ColdResistance : float = -0 (0x80000000)
-  field 20 LightningResistance : float = -Infinity (0xff800000)
-  field 21 BlightResistance : float = NaN (0x7fc00001)
-  field 22 CritMultiplier : float = 1.17549421E-38 (0x007fffff)
-  field 23 AttackSpeedPct : float = NaN (0xffc00000)
-  field 24 CastSpeedPct : float = -Infinity (0xff800000)
-  field 25 CooldownRecoveryPct : float = 1.40129846E-45 (0x00000001)
+  field 18 FireResistance : float = 1.40129846E-45 (0x00000001)
+  field 19 ColdResistance : float = NaN (0xffc00000)
+  field 20 LightningResistance : float = 3.40282347E+38 (0x7f7fffff)
+  field 21 BlightResistance : float = 1.40129846E-45 (0x00000001)
+  field 22 CritMultiplier : float = Infinity (0x7f800000)
+  field 23 AttackSpeedPct : float = -0 (0x80000000)
+  field 24 CastSpeedPct : float = 3.40282347E+38 (0x7f7fffff)
+  field 25 CooldownRecoveryPct : float = NaN (0x7fc00001)
   field 26 AttackTimeMs : uint = 7
   field 27 IncreasedPct : float[] = 2 elements
-    element 0 = Infinity (0x7f800000)
-    element 1 = -Infinity (0xff800000)
+    element 0 = 1.17549421E-38 (0x007fffff)
+    element 1 = 3.40282347E+38 (0x7f7fffff)
   field 28 Resonance : List<ResonanceDto> = 2 elements
     element 0
       field 1 ThemeId : uint = 4000000000
@@ -294,15 +294,15 @@ variant float-specials
     element 1
       field 1 ThemeId : uint = 300
       field 2 Count : uint = 7
-  field 29 ManaRegenInCombat : float = -0 (0x80000000)
-  field 30 ManaRegenOutOfCombat : float = 1.40129846E-45 (0x00000001)
+  field 29 ManaRegenInCombat : float = NaN (0xffc00000)
+  field 30 ManaRegenOutOfCombat : float = NaN (0x7fc00001)
   bytes 138
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 45
-    ff ff 7f 7f 55 00 00 80 7f 58 c0 84 3d 60 80 d0
-    ac f3 0e 75 ff ff 7f 00 78 ac 02 85 01 00 00 c0
-    ff 88 01 ff ff 03 95 01 01 00 c0 7f a5 01 00 00
-    80 ff ad 01 01 00 c0 7f b5 01 ff ff 7f 00 bd 01
-    00 00 c0 ff c5 01 00 00 80 ff cd 01 01 00 00 00
-    d0 01 07 dd 01 00 00 80 7f dd 01 00 00 80 ff e2
-    01 0a 08 80 d0 ac f3 0e 10 c0 84 3d e2 01 05 08
-    ac 02 10 07 f5 01 01 00 00 00
+    00 00 80 ff 55 ff ff 7f 00 58 c0 84 3d 60 80 d0
+    ac f3 0e 75 00 00 80 7f 78 ac 02 88 01 ff ff 03
+    95 01 01 00 00 00 9d 01 00 00 c0 ff a5 01 ff ff
+    7f 7f ad 01 01 00 00 00 b5 01 00 00 80 7f c5 01
+    ff ff 7f 7f cd 01 01 00 c0 7f d0 01 07 dd 01 ff
+    ff 7f 00 dd 01 ff ff 7f 7f e2 01 0a 08 80 d0 ac
+    f3 0e 10 c0 84 3d e2 01 05 08 ac 02 10 07 ed 01
+    00 00 c0 ff f5 01 01 00 c0 7f

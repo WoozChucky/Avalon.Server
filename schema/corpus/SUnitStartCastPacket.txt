@@ -184,34 +184,33 @@ variant varint-edges
 
 variant float-specials
   field 1 Caster : ulong = 4000000000
-  field 2 CastTime : float = Infinity (0x7f800000)
+  field 2 CastTime : float = 1.17549421E-38 (0x007fffff)
   field 3 AbilityId : uint = 4000000000
   field 4 CastId : uint = 7
   field 5 Footprint : AbilityFootprintDto
     field 1 Shape : AbilityShape = Cone (1)
     field 2 Origin : Vector3Dto
-      field 1 X : float = 3.40282347E+38 (0x7f7fffff)
-      field 2 Y : float = NaN (0xffc00000)
-      field 3 Z : float = NaN (0x7fc00001)
+      field 1 X : float = -Infinity (0xff800000)
+      field 2 Y : float = -0 (0x80000000)
+      field 3 Z : float = 1.40129846E-45 (0x00000001)
     field 3 Direction : Vector3Dto
-      field 1 X : float = 3.40282347E+38 (0x7f7fffff)
-      field 2 Y : float = NaN (0xffc00000)
-      field 3 Z : float = NaN (0x7fc00001)
+      field 1 X : float = -Infinity (0xff800000)
+      field 2 Y : float = -0 (0x80000000)
+      field 3 Z : float = 1.40129846E-45 (0x00000001)
     field 4 Centre : Vector3Dto
-      field 1 X : float = 3.40282347E+38 (0x7f7fffff)
-      field 2 Y : float = NaN (0xffc00000)
-      field 3 Z : float = NaN (0x7fc00001)
+      field 1 X : float = -Infinity (0xff800000)
+      field 2 Y : float = -0 (0x80000000)
+      field 3 Z : float = 1.40129846E-45 (0x00000001)
     field 5 Radius : float = NaN (0x7fc00001)
     field 6 Reach : float = Infinity (0x7f800000)
     field 7 ArcDegrees : float = NaN (0xffc00000)
   field 6 ItemTemplateId : ulong = 300
   field 7 WorldTick : long = 70000
   field 8 DoodadTemplateId : ulong = 7
-  bytes 98
-    08 80 d0 ac f3 0e 15 00 00 80 7f 18 80 d0 ac f3
-    0e 20 07 2a 44 08 01 12 0f 0d ff ff 7f 7f 15 00
-    00 c0 ff 1d 01 00 c0 7f 1a 0f 0d ff ff 7f 7f 15
-    00 00 c0 ff 1d 01 00 c0 7f 22 0f 0d ff ff 7f 7f
-    15 00 00 c0 ff 1d 01 00 c0 7f 2d 01 00 c0 7f 35
-    00 00 80 7f 3d 00 00 c0 ff 30 ac 02 38 f0 a2 04
-    40 07
+  bytes 83
+    08 80 d0 ac f3 0e 15 ff ff 7f 00 18 80 d0 ac f3
+    0e 20 07 2a 35 08 01 12 0a 0d 00 00 80 ff 1d 01
+    00 00 00 1a 0a 0d 00 00 80 ff 1d 01 00 00 00 22
+    0a 0d 00 00 80 ff 1d 01 00 00 00 2d 01 00 c0 7f
+    35 00 00 80 7f 3d 00 00 c0 ff 30 ac 02 38 f0 a2
+    04 40 07

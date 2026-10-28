@@ -110,6 +110,12 @@ message AbilityInfo {
    DamageTypeMask AmountTypes = 22;
    uint32 CooldownMs = 23;
    uint32 CastTimeMs = 24;
+   uint32 ProjectileCount = 25;
+   float ExplosionRadius = 26;
+   float ExplosionEffectiveness = 27;
+   float SecondHitEffectiveness = 28;
+   uint32 AuraStacksBonus = 29;
+   float AuraDurationPct = 30;
 }
 enum AbilityShape {
    AbilityShape_Circle = 0;
