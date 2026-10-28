@@ -16,7 +16,8 @@ namespace Avalon.World.Handlers;
 /// pays Game:Items:ImprintCost for the glyph's tier through the wallet (nothing when it is 0), then imprints through the
 /// inventory service, which may brick the item (answered Bricked, a success: the gold and the glyph are spent). An
 /// imprint the service refuses or throws on after the rules allowed it has written nothing (TryImprint throws only before
-/// its first write), so it gets its gold back and is answered InternalError, logged at Error. The item, the emptied glyph
+/// its first write), so it gets its gold back through IWalletRestore.GiveBack, which neither the gold cap nor a trade's
+/// incoming gold can refuse (#1233), and is answered InternalError, logged at Error. The item, the emptied glyph
 /// slot and the gold reach the client in the tick's SMSG_INVENTORY_UPDATE. Nothing is held open between requests: each
 /// one re-checks the Workbench and its range. The item's instability is never logged.
 /// </summary>
@@ -69,7 +70,7 @@ public sealed partial class ItemImprintHandler(ILogger<ItemImprintHandler> logge
             throw new InvalidOperationException($"Spending {cost} gold to imprint failed after ImprintRules allowed it.");
 
         // A null or a throw has written nothing (TryImprint throws only before its first write), so either gives the gold
-        // back: a failed imprint neither loses value nor makes it.
+        // back: a failed imprint neither loses value nor makes it. Only then: an imprint that wrote anything keeps its price.
         ItemImprintResult? imprinted;
         try
         {
@@ -77,18 +78,37 @@ public sealed partial class ItemImprintHandler(ILogger<ItemImprintHandler> logge
         }
         catch (Exception e)
         {
-            Log.ImprintThrew(logger, e, packet.RequestId, cost, Refund(wallet, cost));
+            Log.ImprintThrew(logger, e, packet.RequestId, cost, Refund(wallet, cost, character));
             return ItemImprintResult.InternalError;
         }
 
         if (imprinted is { } done)
             return done;
 
-        Log.RefusedAfterAllowed(logger, packet.RequestId, cost, Refund(wallet, cost));
+        Log.RefusedAfterAllowed(logger, packet.RequestId, cost, Refund(wallet, cost, character));
         return ItemImprintResult.InternalError;
     }
 
-    private static WalletResult Refund(IWallet wallet, ulong cost) => cost > 0 ? wallet.TryAddGold(cost) : WalletResult.Ok;
+    /// <summary>
+    /// Gives back the gold spent above. GiveBack, not TryAddGold (#1233): it restores the balance the character held before
+    /// the spend, on this tick, so the cap or a trade's incoming gold can never refuse it. A wallet that cannot restore
+    /// (not the economy's own) gets the gold back only within the cap, so no gold is made past it, logged at Error.
+    /// </summary>
+    private WalletResult Refund(IWallet wallet, ulong cost, CharacterEntity character)
+    {
+        if (cost == 0)
+            return WalletResult.Ok;
+
+        if (wallet is IWalletRestore restore)
+        {
+            restore.GiveBack(cost);
+            return WalletResult.Ok;
+        }
+
+        WalletResult added = wallet.TryAddGold(cost);
+        Log.GaveBackWithinTheCap(logger, cost, character.Guid.Id, added);
+        return added;
+    }
 
     private static partial class Log
     {
@@ -108,5 +128,10 @@ public sealed partial class ItemImprintHandler(ILogger<ItemImprintHandler> logge
                       "answering InternalError, its {Cost} gold given back: {Refund}")]
         public static partial void ImprintThrew(ILogger logger, Exception exception, uint requestId, ulong cost,
             WalletResult refund);
+
+        [LoggerMessage(Level = LogLevel.Error,
+            Message = "Giving back {Cost} gold after a failed imprint to character {CharacterId}: the wallet cannot " +
+                      "restore past the cap, so it was added within it ({Result})")]
+        public static partial void GaveBackWithinTheCap(ILogger logger, ulong cost, uint characterId, WalletResult result);
     }
 }
