@@ -15,6 +15,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// so every member is out of every other's view: each due flush sends each member its five far members, one
 /// <c>SMSG_PARTY_POSITIONS</c> each, framed and sealed by the send pass as a tick ends. Each call moves the clock on one
 /// <see cref="PartyService.PositionsInterval" />, so every member is due, the most a flush of this party does.
+/// <see cref="Idle" /> is the same party on the 59 ticks of 60 between: the clock stays, nobody is due, nothing is sent.
 /// </summary>
 [MemoryDiagnoser]
 public class PartyPositionsBenchmarks
@@ -69,6 +70,10 @@ public class PartyPositionsBenchmarks
             NetworkSendScheduler.ResumeSignalsOnCurrentThread();
         }
     }
+
+    /// <summary>A flush of the same watched party with nobody due, as on most ticks.</summary>
+    [Benchmark]
+    public void Idle() => _parties.FlushPositions();
 
     private int Sent()
     {

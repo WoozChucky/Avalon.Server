@@ -74,10 +74,12 @@ public class PartyPositionsAllocationShould
         });
         int sent = connections.Sum(c => c.Sent) - sentBefore;
 
+        int sentBeforeWaiting = connections.Sum(c => c.Sent);
         long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < Rounds; i++)
             parties.FlushPositions();
         long waiting = GC.GetAllocatedBytesForCurrentThread() - before;
+        int sentWaiting = connections.Sum(c => c.Sent) - sentBeforeWaiting;
 
         // The windows sent what they should: each member, each second, its five far members, and nothing while waiting.
         connections[0].KeepLastPayload = true;
@@ -89,6 +91,7 @@ public class PartyPositionsAllocationShould
             () => Assert.Equal(0, sending),
             () => Assert.Equal(0, waiting),
             () => Assert.Equal(4 * Rounds * Members, sent),
+            () => Assert.Equal(0, sentWaiting),
             () => Assert.Equal(Members - 1, last.Positions.Count));
     }
 

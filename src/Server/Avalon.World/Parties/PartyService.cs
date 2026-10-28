@@ -158,6 +158,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (PartyOf(id) is not { } party)
             return;
 
+        // The others' lists, without this member, go at once rather than at their next turn (#1199).
+        Positions.Watch(party);
+
         // A handover sends the roster, already without this member online: it is not sent twice (#973).
         if (party.IsLeader(id) && HandOverLeadership(party))
             return;
@@ -704,6 +707,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             Disband(party);
             return;
         }
+
+        // The members left are sent their lists, without the one who went, at once (#1199).
+        Positions.Watch(party);
 
         // A handover sends the roster, already without the member who left: it is not sent twice (#973).
         if (party.Leader.Value == memberId && HandOverLeadership(party))

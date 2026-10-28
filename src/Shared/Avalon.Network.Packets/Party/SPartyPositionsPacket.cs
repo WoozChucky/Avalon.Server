@@ -31,8 +31,9 @@ public class SPartyPositionsPacket : Packet
     [ProtoMember(1)] public List<PartyMemberPositionDto> Positions { get; set; } = [];
 
     /// <remarks>
-    /// The list is the caller's, filled from entries it reuses, and is encoded before this returns, keeping nothing of
-    /// it, so a warm send allocates nothing. An empty list is written as nothing, as a client reads an empty one.
+    /// The list is the caller's, filled from entries it reuses, and is encoded before this returns, so a warm send
+    /// allocates nothing. The thread's scratch message keeps a reference to it until the next send of this packet, and
+    /// never reads it again. An empty list is written as nothing, as a client reads an empty one.
     /// </remarks>
     public static OutboundPacket Create(List<PartyMemberPositionDto> positions, PacketEncoder encoder)
     {

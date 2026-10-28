@@ -26,9 +26,11 @@ namespace Avalon.World.Parties;
 /// <para>
 /// <b>What is visited.</b> Only the watched parties: a party is watched from a change that can leave a member out of
 /// another's view (a join, a member's instance change or coming online, a view letting go of a member) until a flush
-/// finds every online member quiet, its last list empty and nothing due. A tick with no watched party reads one count. A
-/// watched party is still checked for membership and instance on every flush, so a leave, a kick, a disband or an
-/// instance change stops its positions on the tick it happens.
+/// finds every online member quiet, its last list empty and nothing due. A tick with no watched party reads one count,
+/// and a watched party with nothing due one compare (<see cref="Party.PositionsDueAt" />: the earliest of its viewers'
+/// next turns, set to now by anything that makes one due). Nothing is sent but on a viewer's turn, and every turn checks
+/// membership and instance afresh; a leave, a kick, a disband, a logout or an instance change makes the members left
+/// due at once (<see cref="Watch" />), so they are sent their lists without the one who went on the tick it happens.
 /// </para>
 /// </remarks>
 internal sealed class PartyPositions(TimeProvider time, Func<uint, Party?> partyOf, Func<uint, IWorldConnection?> online)
@@ -51,6 +53,7 @@ internal sealed class PartyPositions(TimeProvider time, Func<uint, Party?> party
                 CollectionsMarshal.GetValueRefOrAddDefault(_viewers, id, out _).Due = true;
         }
 
+        party.PositionsDueAt = long.MinValue;
         Track(party);
     }
 
@@ -58,6 +61,7 @@ internal sealed class PartyPositions(TimeProvider time, Func<uint, Party?> party
     public void LeftView(uint viewerId, Party party)
     {
         CollectionsMarshal.GetValueRefOrAddDefault(_viewers, viewerId, out _).Due = true;
+        party.PositionsDueAt = long.MinValue;
         Track(party);
     }
 
@@ -91,7 +95,12 @@ internal sealed class PartyPositions(TimeProvider time, Func<uint, Party?> party
     /// <returns>Whether the party is still watched.</returns>
     private bool FlushParty(Party party, long now)
     {
+        // Nobody's turn yet: the one compare a watched party costs on most ticks.
+        if (now < party.PositionsDueAt)
+            return true;
+
         bool watched = false;
+        long dueAt = long.MaxValue;
         IReadOnlyList<PartyMember> members = party.Members;
         for (int v = 0; v < members.Count; v++)
         {
@@ -109,12 +118,18 @@ internal sealed class PartyPositions(TimeProvider time, Func<uint, Party?> party
                 // Its view is decided on its instance's next tick, before the next flush: listed then.
                 state.Due = true;
                 watched = true;
+                dueAt = long.MinValue;
                 continue;
             }
 
             if (!state.Due && now < state.NextAt)
             {
-                watched |= state.Holding;
+                if (state.Holding)
+                {
+                    watched = true;
+                    dueAt = Math.Min(dueAt, state.NextAt);
+                }
+
                 continue;
             }
 
@@ -127,9 +142,16 @@ internal sealed class PartyPositions(TimeProvider time, Func<uint, Party?> party
 
             state.Holding = _list.Count > 0;
             state.Due = false;
-            watched |= state.Holding;
+            if (state.Holding)
+            {
+                watched = true;
+                dueAt = Math.Min(dueAt, state.NextAt);
+            }
         }
 
+        // A viewer that is not holding has no turn of its own: only a change that makes it due (Watch, LeftView) gives it
+        // one, and that sets the party's due time back to now.
+        party.PositionsDueAt = dueAt;
         return watched;
     }
 

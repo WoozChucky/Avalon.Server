@@ -42,12 +42,16 @@ public class PartyPositionsShould
         WalksOutOfView,
         ViewerLeavesTheParty,
         MemberLeavesTheInstance,
+        MemberLeavesTheParty,
+        MemberLogsOut,
+        PartyDisbands,
     }
 
     /// <summary>
     /// What V is told of member M, tick by tick: M's world-state add and remove, and every positions list V is sent with
-    /// who is in it (M at its X,Z, or a non-member N). Nobody outside the party is ever sent a list, and after V leaves,
-    /// neither V nor anyone left in the party is sent one that lists the other.
+    /// who is in it (M at its X,Z, or a non-member N). On every tick, a list goes only to a member of a party and names only
+    /// members of that party: nobody outside it is ever sent one, and nobody who left is sent or listed from that tick on.
+    /// A member leaving the party or logging out empties V's list on that tick, not at V's next turn.
     /// </summary>
     [Theory]
     [InlineData(Case.FarAway, "1 [M@0,200], 62 [M@0,200], 123 [M@0,200]")]
@@ -58,6 +62,9 @@ public class PartyPositionsShould
     [InlineData(Case.WalksOutOfView, "1 add, 31 remove, 31 [M@0,200], 92 [M@0,200]")]
     [InlineData(Case.ViewerLeavesTheParty, "1 [M@0,200]")]
     [InlineData(Case.MemberLeavesTheInstance, "1 [M@0,200], 62 []")]
+    [InlineData(Case.MemberLeavesTheParty, "1 [M@0,200], 30 []")]
+    [InlineData(Case.MemberLogsOut, "1 [M@0,200], 30 []")]
+    [InlineData(Case.PartyDisbands, "1 [M@0,200]")]
     public void Send_each_member_its_far_members_once_a_second_handing_over_with_the_world_state(Case @case, string expected)
     {
         var clock = new ManualTimerClock();
@@ -75,7 +82,7 @@ public class PartyPositionsShould
         Form(parties, v, m, w);
 
         var told = new List<string>();
-        var leftOver = new List<string>();
+        var strays = new List<string>();
         for (int tick = 1; tick <= LastTick; tick++)
         {
             if (tick == ChangeAt && @case == Case.WalksIntoView)
@@ -86,24 +93,40 @@ public class PartyPositionsShould
                 Assert.Equal(PartyResult.Ok, parties.Leave(v.Id()));
             if (tick == LeaveAt && @case == Case.MemberLeavesTheInstance)
                 Move(parties, m, here, elsewhere);
+            if (tick == ChangeAt && @case == Case.MemberLeavesTheParty)
+                Assert.Equal(PartyResult.Ok, parties.Leave(m.Id()));
+            if (tick == ChangeAt && @case == Case.MemberLogsOut)
+            {
+                parties.CharacterOffline(m.Connection, m.Character);
+                here.RemoveCharacter(m.Connection);
+            }
+            if (tick == ChangeAt && @case == Case.PartyDisbands)
+            {
+                Assert.Equal(PartyResult.Ok, parties.Leave(w.Id()));
+                Assert.Equal(PartyResult.Ok, parties.Leave(m.Id()));   // V alone: the party disbands
+            }
 
-            int vFrom = v.Sent.Count, mFrom = m.Sent.Count, wFrom = w.Sent.Count;
+            MapInstanceClient[] everyone = [v, m, n, w];
+            int[] from = everyone.Select(c => c.Sent.Count).ToArray();
             here.Update(s_tick);
             elsewhere.Update(s_tick);
             parties.FlushPositions();
             clock.Advance(s_tick);
 
-            told.AddRange(ToldOf(v.Sent.Skip(vFrom), m, n).Select(entry => $"{tick} {entry}"));
-            if (@case == Case.ViewerLeavesTheParty && tick >= LeaveAt)
+            told.AddRange(ToldOf(v.Sent.Skip(from[0]), m, n).Select(entry => $"{tick} {entry}"));
+            for (int c = 0; c < everyone.Length; c++)
             {
-                leftOver.AddRange(Lists(m.Sent.Skip(mFrom)).Concat(Lists(w.Sent.Skip(wFrom)))
-                    .Where(list => list.Any(p => p.CharacterId == v.Id())).Select(_ => $"{tick} V listed"));
+                Party? party = parties.PartyOf(everyone[c].Id());
+                foreach (List<PartyMemberPositionDto> list in Lists(everyone[c].Sent.Skip(from[c])))
+                {
+                    if (party is null || list.Any(p => party.Find(p.CharacterId) is null))
+                        strays.Add($"{tick} to {everyone[c].Id()}");
+                }
             }
         }
 
         Assert.Equal(expected, string.Join(", ", told));
-        Assert.Empty(Lists(n.Sent));
-        Assert.Empty(leftOver);
+        Assert.Empty(strays);
     }
 
     private static MapInstanceClient Player(PartyService parties, MapInstance instance, uint id, float z)
