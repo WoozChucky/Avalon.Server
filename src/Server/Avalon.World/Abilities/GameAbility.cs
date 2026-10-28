@@ -5,9 +5,16 @@ namespace Avalon.World.Abilities;
 
 public class GameAbility : IAbility
 {
+    private AbilityMetadata _metadata = null!;
+
     public required AbilityId AbilityId { get; init; }
 
-    public required AbilityMetadata Metadata { get; init; }
+    public required AbilityMetadata Metadata
+    {
+        get => _metadata;
+        init => _metadata = value;
+    }
+
     public required float CooldownTimer { get; set; }
     public required float CastTimeTimer { get; set; }
     public bool Casting { get; set; }
@@ -29,7 +36,9 @@ public class GameAbility : IAbility
     /// The metadata is shared, where <see cref="Clone" /> copies it, because it cannot change once built: every member
     /// is an init-only number, flag, enum or string (<c>AbilityMetadataShould</c>), and a reload or a template edit
     /// makes new metadata for the abilities loaded after it and never rewrites one in use, so a cast in flight keeps
-    /// the row it started with.
+    /// the row it started with. The character's ability may swap its metadata for another when a capstone reshapes it
+    /// (<see cref="SetMetadata" />, #1181 Part D), but the copy keeps the reference it was made with, so a cast never
+    /// sees the swap and fires the shape it was queued with.
     /// </summary>
     public GameAbility CloneForCast() =>
         new()
@@ -39,4 +48,9 @@ public class GameAbility : IAbility
             CooldownTimer = CooldownTimer,
             CastTimeTimer = CastTimeTimer,
         };
+
+    /// <summary>
+    /// Swaps the metadata in place: only <see cref="TreeAbility" />, when a capstone taken or refunded reshapes it.
+    /// </summary>
+    private protected void SetMetadata(AbilityMetadata metadata) => _metadata = metadata;
 }

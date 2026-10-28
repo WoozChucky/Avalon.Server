@@ -71,10 +71,9 @@ variant varint-edges
 
 variant float-specials
   field 1 Seq : uint = 4000000000
-  field 2 DirX : float = NaN (0xffc00000)
-  field 3 DirZ : float = NaN (0x7fc00001)
+  field 2 DirX : float = -0 (0x80000000)
+  field 3 DirZ : float = 1.40129846E-45 (0x00000001)
   field 4 YawDeg : ushort = 7
   field 5 InputFlags : byte = 42
-  bytes 20
-    08 80 d0 ac f3 0e 15 00 00 c0 ff 1d 01 00 c0 7f
-    20 07 28 2a
+  bytes 15
+    08 80 d0 ac f3 0e 1d 01 00 00 00 20 07 28 2a

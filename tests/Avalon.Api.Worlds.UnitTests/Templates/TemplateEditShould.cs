@@ -366,18 +366,32 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "damageType", null, "damageType" },                       // on the starter sword: a weapon names its damage type (#1179)
     };
 
-    /// <summary>Refusals on a seeded row <see cref="RefusalTargetAsync"/> would not pick for the field, which each names.</summary>
-    public static TheoryData<string, string, object?, string, ulong?> NamedRefusals => new()
+    /// <summary>
+    /// Refusals on a seeded row <see cref="RefusalTargetAsync"/> would not pick for the field, which each names, with a
+    /// part of the field's error when the key alone would not tell the refusal apart.
+    /// </summary>
+    public static TheoryData<string, string, object?, string, ulong?, string?> NamedRefusals => new()
     {
         // granted ability loses its damage type: Cleave, a class ability because the talent tree grants it (#1181)
-        { "ability", "damageType", null, "damageType", 200UL },
+        { "ability", "damageType", null, "damageType", 200UL, null },
+        // the capstones (#1181 Part D), which the world would refuse with the whole tree: Wildfire's duration on Ignite
+        // once Ignite roots (Bound), Double Tap's second hit on Crippling Shot once it deals no damage (Debuff only), and
+        // Haemorrhage's stacks on Rend's Bleed once it refreshes, and Wildfire's duration on Burn once a movement modifier
+        // makes it a slow
+        { "ability", "auraId", 13, "auraId", 213UL, "node 322's AuraDurationPct modifier: lengthens or deepens crowd control" },
+        { "ability", "effects", 8, "effects", 223UL, "node 315's SecondHit modifier" },
+        { "aura", "stacking", "Refresh", "stacking", 1UL, "node 308's AuraStacks modifier: its aura 1 does not stack" },
+        {
+            "aura", "modifiers", new[] { new { stat = "MovementSpeed", value = -20f, kind = "Increased" } }, "modifiers", 2UL,
+            "node 322's AuraDurationPct modifier: lengthens or deepens crowd control"
+        },
     };
 
     [Theory]
     [MemberData(nameof(Refusals))]
     [MemberData(nameof(NamedRefusals))]
     public async Task Answer_400_with_the_field_key_and_write_nothing(string kind, string field, object? value, string key,
-        ulong? target = null)
+        ulong? target = null, string? reason = null)
     {
         ulong id = target ?? await RefusalTargetAsync(kind, field, value);
         (JsonObject json, string version) = await ReadAsync(kind, id);
@@ -388,6 +402,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         JsonObject problem = await BodyAsync(response);
         Assert.Contains(key, problem["errors"]!.AsObject().Select(e => e.Key));
+        if (reason is not null)
+            Assert.Contains(problem["errors"]![key]!.AsArray(), e => e!.GetValue<string>().Contains(reason, StringComparison.Ordinal));
         Assert.Equal(version, (await ReadAsync(kind, id)).Version);
         Assert.Empty(_signal.Requests);
     }
@@ -923,18 +939,35 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(TestWard, (await ReadAsync("ability", 232)).Json["auraId"]!.GetValue<uint>());
     }
 
+    /// <summary>
+    /// Renew (233), an Ally ability, applying the test ward, which also slows: made Harmful, the ward fits no Ally ability,
+    /// and it becomes a slow that Enduring Renewal (327) would lengthen (#1181 Part D). Both refusals are keyed by the
+    /// field that changed, <c>kind</c>.
+    /// </summary>
     [Fact]
     public async Task Refuse_an_aura_kind_an_ability_applying_it_cannot_apply()
     {
-        Seed(db => db.AbilityTemplates.Find(new Avalon.Common.ValueObjects.AbilityId(232))!.AuraId =
-            new Avalon.Common.ValueObjects.AuraId(TestWard));
+        Seed(db =>
+        {
+            db.AbilityTemplates.Find(new Avalon.Common.ValueObjects.AbilityId(233))!.AuraId =
+                new Avalon.Common.ValueObjects.AuraId(TestWard);
+            db.AuraStatModifiers.Add(new Avalon.Domain.World.AuraStatModifier
+            {
+                AuraId = new Avalon.Common.ValueObjects.AuraId(TestWard),
+                Stat = Avalon.Domain.World.AuraStat.MovementSpeed,
+                Kind = Avalon.Domain.World.AuraModifierKind.Increased,
+                Value = -10f,
+            });
+        });
         (JsonObject json, string version) = await ReadAsync("aura", TestWard);
         json["kind"] = "Harmful";
 
         HttpResponseMessage response = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("ability 232", (await BodyAsync(response))["errors"]!["kind"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+        string[] kind = [.. (await BodyAsync(response))["errors"]!["kind"]!.AsArray().Select(e => e!.GetValue<string>())];
+        Assert.Contains(kind, e => e.Contains("ability 233", StringComparison.Ordinal));
+        Assert.Contains(kind, e => e.Contains("node 327's AuraDurationPct modifier: lengthens", StringComparison.Ordinal));
     }
 
     [Fact]

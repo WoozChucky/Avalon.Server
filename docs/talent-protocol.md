@@ -1,7 +1,7 @@
 # Talent Protocol
 
 > **Audience:** client developers and LLMs handed the client codebase.
-> **Status:** the talent tree, Parts B and C (#1181). Amended in place when the talent protocol changes.
+> **Status:** the talent tree, Parts B, C and D1 (#1181). Amended in place when the talent protocol changes.
 
 This is the client contract for the talent tree. The wire schema is `schema/avalon.proto` (re-exported with
 `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]` numbers in it. Server-side rules are described in
@@ -14,11 +14,15 @@ The tree itself never travels in a packet: it is `schema/talents/talent-catalog-
 
 - `nodes`, in id order: `id`, `kind` (1 start, 2 small, 3 notable, 4 ability, 5 capstone, 6 keystone, 7 junction),
   `name` (null on a small node and a junction), `angle` (degrees, in (-180, 180]) and `radius` (layout units) for
-  drawing the wheel, `forkGroupId`, `abilityId` (the ability a start or an ability node grants, an id of
-  `schema/abilities/ability-catalog-v1.json`) and `stats` (`stat`, a `StatType` number of `item-schema-v1.json`;
-  `kind`, 1 added or 2 more; `value`; `valueMax`, the high end of an "adds X to Y" line);
+  drawing the wheel, `forkGroupId` (the capstone fork, of which a character holds one node at most; null on every
+  other node), `abilityId` (the ability a start or an ability node grants, an id of
+  `schema/abilities/ability-catalog-v1.json`), `keystone` (the rule a keystone bends, section 8; null on every other
+  node and on a keystone of stat lines only), `stats` (`stat`, a `StatType` number of `item-schema-v1.json`; `kind`,
+  1 added or 2 more; `value`; `valueMax`, the high end of an "adds X to Y" line) and `modifiers` (how a capstone
+  reshapes its ability, by kind: `kind`, `abilityId`, `value`, `value2`; empty on every node but a capstone,
+  section 8);
 - `edges`, undirected, each once with the smaller id first;
-- `forkGroups`, empty until capstones are seeded;
+- `forkGroups`: the nine capstone forks, by id;
 - `classStarts`: the node each class starts on (`class` 1 Warrior, 2 Wizard, 3 Hunter, 4 Cleric).
 
 Every enumeration is a number, listed in the file's `$comment`. A node id means nothing and never changes: it is what
@@ -101,8 +105,7 @@ first one broken:
    - `AlreadyAllocated` (4): already held, named earlier in the same request, or a class start (never allocated);
    - `NotConnected` (5): none of its neighbours is the character's class start, a node it holds, or a node named
      earlier in the request;
-   - `ForkLocked` (6): its fork partner is held or named earlier. No fork group is seeded yet, so this is not sent
-     until capstones are.
+   - `ForkLocked` (6): its fork partner is held or named earlier: the other capstone of its fork (section 8).
 
 For a refund, in this order:
 
@@ -161,7 +164,7 @@ It arrives:
   nodes this way gets its points back and no other message. Only a refused tree keeps every saved node (it drops
   nothing); refused quests do not.
 - **After an accepted allocation or refund**: the request's `SMSG_TALENT_RESULT` (`Ok`) first, then at the end of the
-  same tick the ability list when the abilities held changed (below), then the state.
+  same tick the ability list when the abilities held, or a capstone's shape of one, changed (below), then the state.
 - **After a level-up**, whatever gave it (anything that grants experience: a kill, a quest, an item), at the end of
   that tick: one more point, and the refund price at the new level (from level 11 it changes with every level; the
   level-up from 10 to 11 shows 100 at once).
@@ -174,14 +177,16 @@ A tick that changes the state several times (an allocation and a level-up togeth
 **The abilities after a change.** When an allocation or a refund changes the abilities the character holds (it
 allocated or refunded an ability node), `SMSG_CHARACTER_ABILITIES` (`0x3027`, `SCharacterAbilitiesPacket`) arrives
 again, whole, **at the end of the tick, after the request's result** and just before the state: the starter first,
-then each held ability node's ability by ascending node id. Since Part C it never arrives before the result, for
-allocations and refunds alike. A tick of several such requests sends one list, as things stand after the last of them.
+then each held ability node's ability by ascending node id. It also arrives when a change keeps the same abilities but
+changes how a capstone shapes one of them (a capstone allocated or refunded, a fork switched), carrying the new shape
+(section 8). Since Part C it never arrives before the result, for allocations and refunds alike. A tick of several
+such requests sends one list, as things stand after the last of them.
 An ability already held keeps its running cooldown; a new one arrives ready, and so does one refunded and taken again,
-even one refunded on cooldown. A change of small or notable nodes sends no ability
-list: the stats it changes reach the client as usual, through `SMSG_CHARACTER_STATS` (`0x302A`) and, when an ability's
-amount or pace moved, `SMSG_CHARACTER_ABILITY_AMOUNTS` (`0x302C`), at the end of the tick
-([inventory and saves](inventory-and-saves.md)). The ability list has no fixed length: an action bar takes any number
-of abilities.
+even one refunded on cooldown. An ability a capstone reshapes keeps its running cooldown too. A change of small,
+notable, junction or keystone nodes sends no ability list: the stats it changes reach the client as usual, through
+`SMSG_CHARACTER_STATS` (`0x302A`) and, when an ability's amount or pace moved, `SMSG_CHARACTER_ABILITY_AMOUNTS`
+(`0x302C`), at the end of the tick ([inventory and saves](inventory-and-saves.md)). The ability list has no fixed
+length: an action bar takes any number of abilities.
 
 ## 6. Quest talent points
 
@@ -200,3 +205,60 @@ The REST API reads the same figures from the saved rows ([multi-world API](api-w
 starter, then each held ability node's. Both read the rows as last saved: the world applies its login check at the
 character's next select (a node cut off from the start, or more held than earned, is dropped then), and the REST reads
 do not re-run it, nor the world catalogs' refusals.
+
+## 8. Capstones and keystones
+
+Part D1 seeds 26 capstones (nodes 306-331) and 4 keystones (332-335), in the catalog export (section 1) and the public
+tree alike. Both are allocated and refunded as any other node.
+
+**Capstones.** A capstone hangs from the last node of a branch, and its `modifiers` reshape the ability that branch
+hangs from (`abilityId`, the same on each of a capstone's rows). Nine branches end in a fork of two capstones, the two
+nodes sharing a `forkGroupId`: a character holds one, the other answering `ForkLocked`, until the held one is
+refunded. A character's shape of an ability is the sum, per kind, of the held capstones' rows. The kinds:
+
+| `kind` | Name | What `value` (and `value2`) mean |
+|---:|---|---|
+| 1 | Added projectiles | `value` more projectiles, in a fan 10° apart centred on the aim; a unit is hit at most once per cast |
+| 2 | Impact explosion | where the projectile ends on a unit, a circle of `value` / 10 metres hits every other hostile unit in it at `value2` % of the amount, damage only |
+| 3 | Area | a circle's radius, and an explosion's, × (1 + `value` / 100) |
+| 4 | Cone reach | a cone's reach × (1 + `value` / 100) |
+| 5 | Cone arc | a cone's arc × (1 + `value` / 100), at most 360° |
+| 6 | Aura stacks | the ability's aura may stack `value` more times from this caster |
+| 7 | Aura duration | the ability's aura lasts × (1 + `value` / 100) |
+| 8 | Second hit | each unit affected is hit, or healed, again at once at `value` % of the amount |
+
+`value2` is set on an impact explosion only. No capstone lengthens or deepens crowd control: the server refuses a tree
+with a stack or duration modifier on an aura that stuns, roots, silences or slows.
+
+**The shaped ability on the wire.** `AbilityInfo` in `SCharacterAbilitiesPacket` carries the character's shape of
+each ability: fields 11 `Reach`, 12 `Radius` and 13 `ArcDegrees` hold the shaped values (what a client draws a cone,
+a circle or the telegraph from), and six more fields the rest. An ability no held capstone shapes sends 1 projectile
+and 0 for each of the others.
+
+| Field | Name | Type | Meaning |
+|---:|---|---|---|
+| 25 | `ProjectileCount` | uint32 | Projectiles one cast fires, in a fan 10° apart centred on the aim, at most 9; 1 for any shape but a projectile |
+| 26 | `ExplosionRadius` | float | Metres: the explosion where the projectile ends on a unit, already widened by any area modifier; 0 for none |
+| 27 | `ExplosionEffectiveness` | float | Percent of the amount the explosion hits for |
+| 28 | `SecondHitEffectiveness` | float | Percent of the amount each affected unit is hit, or healed, again at once; 0 for none |
+| 29 | `AuraStacksBonus` | uint32 | Stacks the caster's aura may reach above its own cap |
+| 30 | `AuraDurationPct` | float | Percent longer the caster's aura lasts |
+
+A cast keeps the shape it was started with: one queued before a capstone is allocated fires as its telegraph showed,
+and the next cast takes the new shape. **Until Part D2 ships, only the cone and circle values act in play** (fields
+11-13); the server already sends fields 25-30, but fires one projectile, lands no second hit or explosion and leaves
+auras as they are. Both parts ship in one release.
+
+**Keystones.** A keystone sits inside the hub ring between two hub junctions. It bends a rule (`keystone`), trades a
+gain for a loss with `More` stat lines, or both:
+
+| Node | Name | `keystone` | Stat lines |
+|---:|---|---|---|
+| 332 | Blood Price | 1, life cost: an ability's cost is paid from current life, never leaving less than 1 | – |
+| 333 | Glass Edge | null | 30 % more damage, 25 % less maximum life |
+| 334 | Steady Hand | 2, no crits: no hit, heal or aura tick of the holder's is critical | 20 % more damage, 20 % more healing |
+| 335 | Unbroken | 3, ward takes all: the ward also absorbs blight and bleeding, and waits twice as long to recharge | – |
+
+A keystone's stat lines reach the client as any node's do, through the character sheet. **Until Part D2 ships, no
+keystone rule acts**: Glass Edge and Steady Hand's stat lines apply, Blood Price and Unbroken change nothing, and
+Steady Hand's holder still crits.

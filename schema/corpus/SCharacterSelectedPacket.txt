@@ -286,13 +286,13 @@ variant float-specials
     field 2 Name : string = "héllo wörld" (11 chars, 13 bytes utf-8)
     field 3 Level : int = 19
     field 4 Class : CharacterClass = Hunter (3)
-    field 5 X : float = -0 (0x80000000)
-    field 6 Y : float = 1.40129846E-45 (0x00000001)
-    field 7 Z : float = 1.17549421E-38 (0x007fffff)
-    field 8 Orientation : float = -Infinity (0xff800000)
+    field 5 X : float = NaN (0xffc00000)
+    field 6 Y : float = NaN (0x7fc00001)
+    field 7 Z : float = Infinity (0x7f800000)
+    field 8 Orientation : float = 3.40282347E+38 (0x7f7fffff)
     field 10 Experience : ulong = 1000000
     field 11 RequiredExperience : ulong = 1000000
-    field 12 MovementSpeed : float = Infinity (0x7f800000)
+    field 12 MovementSpeed : float = 1.17549421E-38 (0x007fffff)
   field 2 Map : MapInfo
     field 1 MapId : int = 1000
     field 2 InstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
@@ -315,14 +315,14 @@ variant float-specials
       element 1
         field 1 Rarity : ItemRarity = Rare (2)
         field 2 Factor : uint = 300
-  bytes 151
-    0a 31 08 2a 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6
-    72 6c 64 18 13 20 03 35 01 00 00 00 3d ff ff 7f
-    00 45 00 00 80 ff 50 c0 84 3d 58 c0 84 3d 65 00
-    00 80 7f 12 35 08 e8 07 12 12 09 04 03 02 01 06
-    05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 1a 05 61 6c
-    70 68 61 22 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0
-    9f 9a 80 20 61 73 74 72 61 6c 1a 2b 08 c0 84 3d
-    12 06 08 c0 84 3d 10 2a 12 08 08 80 d0 ac f3 0e
-    10 13 18 c0 84 3d 22 08 08 03 10 80 d0 ac f3 0e
-    22 05 08 02 10 ac 02
+  bytes 156
+    0a 36 08 2a 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6
+    72 6c 64 18 13 20 03 2d 00 00 c0 ff 35 01 00 c0
+    7f 3d 00 00 80 7f 45 ff ff 7f 7f 50 c0 84 3d 58
+    c0 84 3d 65 ff ff 7f 00 12 35 08 e8 07 12 12 09
+    04 03 02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f
+    10 1a 05 61 6c 70 68 61 22 15 65 6d 6f 6a 69 20
+    f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72 61 6c 1a
+    2b 08 c0 84 3d 12 06 08 c0 84 3d 10 2a 12 08 08
+    80 d0 ac f3 0e 10 13 18 c0 84 3d 22 08 08 03 10
+    80 d0 ac f3 0e 22 05 08 02 10 ac 02

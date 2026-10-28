@@ -143,6 +143,14 @@ lowers the speed through the stat fold as before. A unit holding several is in e
   with a `BreakOnDamagePct` walks none of its auras: `UnitAuras.BreaksOnDamage` caches whether any held aura has one,
   worked out again by the same rule as `Control` (in `Record` when the changed aura or the current state has one, and in
   `Load`). Any aura row may carry the two chances; the seed gives them only to the crowd-control auras and the two slows.
+- **No capstone lengthens or deepens it (#1181 part D).** `AuraRules.IsCrowdControl` (a stun, a root or a silence in
+  `Control`, or a slow by `IsSlow`) is the one test, read from the row and never from a list of ids. The talent
+  catalog refuses the whole tree when a capstone's `AuraDurationPct` or `AuraStacks` modifier shapes an ability whose
+  aura it holds is crowd control ("lengthens or deepens crowd control: its aura N stuns, roots, silences or slows",
+  `TalentModifierRules`, [talents](talents.md#the-catalog)), checked against the aura catalog of the same generation
+  at every `/reload abilities`. The seed has none: Crippling Shot's, Binding Shot's and Frost Bind's capstones add a
+  second hit, a projectile, an explosion or area, never stacks or duration. No aura code reads a capstone's stack or
+  duration share yet (#1181 part D2). `AuraSystem.Apply` still inlines the same test for its own landing rules.
 - **Data.** World migration `SeedCrowdControl`: the aura columns above; on `CreatureRarityModifiers` four duration
   percentages, `StunDurationPct`, `RootDurationPct`, `SilenceDurationPct` and `SlowDurationPct` (0 immune to 100 the
   full duration, default 100; seeded Normal and Elite 100 each, Rare 50 each, Boss 0 stun, 50 root, 0 silence, 50 slow);

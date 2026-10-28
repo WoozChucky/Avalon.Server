@@ -437,6 +437,26 @@ singletons as in every host. Only their context factories differ in the API, whi
   `dotnet ef database update AbilitiesFromTheTree` against its World database, which deletes spawn row 3 and template
   row 8 before it narrows the check back to `"Service" IS NULL OR "Service" = 1`. No world or API does that by
   itself.
+  **Migration order, #1181 (part D1).** Capstones and keystones are additive. A world's World database migrates through
+  `AddCapstonesAndKeystones`: it adds `TalentNodes.Keystone` (`smallint`, null) with `CK_TalentNodes_Keystone`, creates
+  `TalentAbilityModifiers` (`NodeId`, `Kind`, `AbilityId`, `Value`, `Value2`; key `(NodeId, Kind)`, `Cascade` from
+  `TalentNodes`, `Restrict` to `AbilityTemplates`, with `CK_TalentAbilityModifiers_Kind`, `_Value` and `_Value2`), then
+  inserts the rows: nine fork groups, nodes 306-335 (26 capstones and 4 keystones), 34 edges, 4 stat lines and 26
+  modifier rows, each table before the rows that name it. There is no Character migration: a character holds a
+  capstone or a keystone as a `CharacterTalents` row like any node. Each world applies it at its start, before it
+  serves (`WorldStartup`). The order is: the worlds go first, each migrating at its next start (start any stopped world
+  once, so it migrates too), and then the API release with the change is cut. An older API reading a migrated world
+  ignores the new table and column. An API with the change reading a world that has not migrated fails with Postgres
+  42703 on `Keystone` at every read of `TalentNodes`: the public talent tree (which reads the nodes first, so it never
+  reaches the 42P01 the missing `TalentAbilityModifiers` would raise next), and a character's talents and abilities;
+  which is why the worlds go first. No release is cut between the part D1 and part D2 merges (owner decision): D1's
+  inert capstones and keystones ([talents](talents.md)) reach only dev builds, and the release that carries D1 carries
+  D2 with it. To roll a world back
+  to a build without the change, run `dotnet ef database update AddLecternOfPaths` against its World database: it drops
+  `TalentAbilityModifiers` and `CK_TalentNodes_Keystone`, deletes the 34 edges, the 4 stat lines, nodes 306-335 and the
+  nine fork groups, then drops the column. `CharacterTalents` rows naming 306-335 stay, and a character holding them
+  loses them, free, at its next select (`TalentSelectCheck`: a node the tree no longer holds), its points back to
+  spend. No world or API does that by itself.
 
 ## How a request reaches its world
 

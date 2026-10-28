@@ -9,11 +9,12 @@ namespace Avalon.World.Characters;
 
 /// <summary>
 /// Tells a character's own client every ability it holds (SMSG_CHARACTER_ABILITIES): at select, and after a talent
-/// change changes what it holds (#1181). Each ability travels with its per-hit amount, tags and pace (#669, #1178),
-/// worked out from the stats the character's last refresh derived, and the entity records them, so
-/// <see cref="AbilityAmountsFlusher" /> sends no update on top until one of them moves. A list of the same length as
-/// the last one overwrites that one's entries and amounts (<see cref="CharacterEntity.AbilityInfosSent" />), so a
-/// resend after a talent change that kept the count allocates nothing.
+/// change changes what it holds or how its capstones shape it (#1181). Each ability travels with its shape, and its
+/// per-hit amount, tags and pace (#669, #1178), worked out from the stats the character's last refresh derived, and the
+/// entity records them, so <see cref="AbilityAmountsFlusher" /> sends no update on top until one of them moves. A list
+/// of the same length as the last one overwrites that one's entries and amounts
+/// (<see cref="CharacterEntity.AbilityInfosSent" />), so a resend after a talent change that kept the count allocates
+/// nothing.
 /// </summary>
 public static class CharacterAbilitiesSender
 {
@@ -80,5 +81,11 @@ public static class CharacterAbilitiesSender
         info.AmountTypes = amount.Types;
         info.CooldownMs = amount.CooldownMs;
         info.CastTimeMs = amount.CastTimeMs;
+        info.ProjectileCount = (uint)metadata.ProjectileCount;
+        info.ExplosionRadius = metadata.ExplosionRadius;
+        info.ExplosionEffectiveness = metadata.ExplosionEffectiveness;
+        info.SecondHitEffectiveness = metadata.SecondHitEffectiveness;
+        info.AuraStacksBonus = metadata.AuraStacksBonus;
+        info.AuraDurationPct = metadata.AuraDurationPct;
     }
 }

@@ -81,7 +81,9 @@ public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : I
     /// <summary>
     /// The ability built from <paramref name="generation" /> parked for <paramref name="abilityId" />, taken off the
     /// parked list and reset as a new one arrives: ready (cooldown 0), its cast timer its metadata's cast time, not
-    /// casting. Null when none from this generation is parked.
+    /// casting. Null when none from this generation is parked. It keeps the shape it left with until the rebuild that
+    /// took it back reshapes it, from its own unshaped metadata, to the shape the capstones held now give
+    /// (<see cref="TreeAbility.Reshape" />, #1181 Part D), so it never returns with a stale shape.
     /// </summary>
     public IAbility? Unpark(AbilityId abilityId, AbilityCatalog generation)
     {

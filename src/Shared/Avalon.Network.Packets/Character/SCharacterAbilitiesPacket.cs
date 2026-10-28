@@ -80,4 +80,25 @@ public class AbilityInfo
 
     /// <summary>Milliseconds, rounded to the nearest (#1178): the cast time over the caster's cast speed.</summary>
     [ProtoMember(24)] public uint CastTimeMs { get; set; }
+
+    // The shape the capstones a character holds give the ability (#1181 Part D); Reach, Radius and ArcDegrees above are
+    // already shaped. An unshaped ability sends 1 projectile and 0 for the rest.
+
+    /// <summary>Projectile only: how many fly, in a fan 10 degrees apart, centred on the aim; 1 otherwise.</summary>
+    [ProtoMember(25)] public uint ProjectileCount { get; set; }
+
+    /// <summary>Metres: the circle a projectile's explosion hits where it ends on a unit; 0 for none.</summary>
+    [ProtoMember(26)] public float ExplosionRadius { get; set; }
+
+    /// <summary>Percent of the amount the explosion hits for.</summary>
+    [ProtoMember(27)] public float ExplosionEffectiveness { get; set; }
+
+    /// <summary>Percent of the amount each affected unit is hit, or healed, again at once; 0 for no second hit.</summary>
+    [ProtoMember(28)] public float SecondHitEffectiveness { get; set; }
+
+    /// <summary>How many stacks above its own cap the caster's aura may reach.</summary>
+    [ProtoMember(29)] public uint AuraStacksBonus { get; set; }
+
+    /// <summary>Percent the caster's aura lasts longer.</summary>
+    [ProtoMember(30)] public float AuraDurationPct { get; set; }
 }

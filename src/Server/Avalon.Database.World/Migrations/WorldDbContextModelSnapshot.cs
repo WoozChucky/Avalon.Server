@@ -22036,6 +22036,223 @@ namespace Avalon.Database.World.Migrations
                     b.ToTable("SpawnTables");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.TalentAbilityModifier", b =>
+                {
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<long>("AbilityId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Value2")
+                        .HasColumnType("integer");
+
+                    b.HasKey("NodeId", "Kind");
+
+                    b.HasIndex("AbilityId");
+
+                    b.ToTable("TalentAbilityModifiers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TalentAbilityModifiers_Kind", "\"Kind\" BETWEEN 1 AND 8");
+
+                            t.HasCheckConstraint("CK_TalentAbilityModifiers_Value", "\"Value\" > 0");
+
+                            t.HasCheckConstraint("CK_TalentAbilityModifiers_Value2", "(\"Kind\" = 2) = (\"Value2\" IS NOT NULL) AND (\"Value2\" IS NULL OR \"Value2\" > 0)");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            NodeId = 306,
+                            Kind = (byte)5,
+                            AbilityId = 200L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 307,
+                            Kind = (byte)4,
+                            AbilityId = 200L,
+                            Value = 40
+                        },
+                        new
+                        {
+                            NodeId = 308,
+                            Kind = (byte)6,
+                            AbilityId = 203L,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 309,
+                            Kind = (byte)3,
+                            AbilityId = 201L,
+                            Value = 40
+                        },
+                        new
+                        {
+                            NodeId = 310,
+                            Kind = (byte)8,
+                            AbilityId = 201L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 311,
+                            Kind = (byte)1,
+                            AbilityId = 202L,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 312,
+                            Kind = (byte)5,
+                            AbilityId = 222L,
+                            Value = 40
+                        },
+                        new
+                        {
+                            NodeId = 313,
+                            Kind = (byte)4,
+                            AbilityId = 222L,
+                            Value = 40
+                        },
+                        new
+                        {
+                            NodeId = 314,
+                            Kind = (byte)1,
+                            AbilityId = 221L,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 315,
+                            Kind = (byte)8,
+                            AbilityId = 223L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 316,
+                            Kind = (byte)2,
+                            AbilityId = 224L,
+                            Value = 25,
+                            Value2 = 50
+                        },
+                        new
+                        {
+                            NodeId = 317,
+                            Kind = (byte)1,
+                            AbilityId = 224L,
+                            Value = 1
+                        },
+                        new
+                        {
+                            NodeId = 318,
+                            Kind = (byte)4,
+                            AbilityId = 212L,
+                            Value = 40
+                        },
+                        new
+                        {
+                            NodeId = 319,
+                            Kind = (byte)5,
+                            AbilityId = 212L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 320,
+                            Kind = (byte)3,
+                            AbilityId = 214L,
+                            Value = 40
+                        },
+                        new
+                        {
+                            NodeId = 321,
+                            Kind = (byte)3,
+                            AbilityId = 211L,
+                            Value = 40
+                        },
+                        new
+                        {
+                            NodeId = 322,
+                            Kind = (byte)7,
+                            AbilityId = 213L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 323,
+                            Kind = (byte)3,
+                            AbilityId = 213L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 324,
+                            Kind = (byte)8,
+                            AbilityId = 231L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 325,
+                            Kind = (byte)3,
+                            AbilityId = 232L,
+                            Value = 40
+                        },
+                        new
+                        {
+                            NodeId = 326,
+                            Kind = (byte)8,
+                            AbilityId = 232L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 327,
+                            Kind = (byte)7,
+                            AbilityId = 233L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 328,
+                            Kind = (byte)3,
+                            AbilityId = 234L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 329,
+                            Kind = (byte)7,
+                            AbilityId = 234L,
+                            Value = 50
+                        },
+                        new
+                        {
+                            NodeId = 330,
+                            Kind = (byte)1,
+                            AbilityId = 320L,
+                            Value = 2
+                        },
+                        new
+                        {
+                            NodeId = 331,
+                            Kind = (byte)2,
+                            AbilityId = 320L,
+                            Value = 30,
+                            Value2 = 60
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.TalentClassStart", b =>
                 {
                     b.Property<byte>("Class")
@@ -22267,6 +22484,16 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 26,
+                            NodeB = 306
+                        },
+                        new
+                        {
+                            NodeA = 26,
+                            NodeB = 307
+                        },
+                        new
+                        {
                             NodeA = 27,
                             NodeB = 28
                         },
@@ -22284,6 +22511,11 @@ namespace Avalon.Database.World.Migrations
                         {
                             NodeA = 30,
                             NodeB = 31
+                        },
+                        new
+                        {
+                            NodeA = 31,
+                            NodeB = 308
                         },
                         new
                         {
@@ -22427,6 +22659,16 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 56,
+                            NodeB = 309
+                        },
+                        new
+                        {
+                            NodeA = 56,
+                            NodeB = 310
+                        },
+                        new
+                        {
                             NodeA = 57,
                             NodeB = 58
                         },
@@ -22514,6 +22756,11 @@ namespace Avalon.Database.World.Migrations
                         {
                             NodeA = 72,
                             NodeB = 73
+                        },
+                        new
+                        {
+                            NodeA = 73,
+                            NodeB = 311
                         },
                         new
                         {
@@ -22687,6 +22934,16 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 99,
+                            NodeB = 312
+                        },
+                        new
+                        {
+                            NodeA = 99,
+                            NodeB = 313
+                        },
+                        new
+                        {
                             NodeA = 100,
                             NodeB = 101
                         },
@@ -22704,6 +22961,11 @@ namespace Avalon.Database.World.Migrations
                         {
                             NodeA = 103,
                             NodeB = 104
+                        },
+                        new
+                        {
+                            NodeA = 104,
+                            NodeB = 314
                         },
                         new
                         {
@@ -22852,6 +23114,11 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 129,
+                            NodeB = 315
+                        },
+                        new
+                        {
                             NodeA = 130,
                             NodeB = 131
                         },
@@ -22869,6 +23136,16 @@ namespace Avalon.Database.World.Migrations
                         {
                             NodeA = 133,
                             NodeB = 134
+                        },
+                        new
+                        {
+                            NodeA = 134,
+                            NodeB = 316
+                        },
+                        new
+                        {
+                            NodeA = 134,
+                            NodeB = 317
                         },
                         new
                         {
@@ -23107,6 +23384,16 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 172,
+                            NodeB = 318
+                        },
+                        new
+                        {
+                            NodeA = 172,
+                            NodeB = 319
+                        },
+                        new
+                        {
                             NodeA = 173,
                             NodeB = 174
                         },
@@ -23124,6 +23411,11 @@ namespace Avalon.Database.World.Migrations
                         {
                             NodeA = 176,
                             NodeB = 177
+                        },
+                        new
+                        {
+                            NodeA = 177,
+                            NodeB = 320
                         },
                         new
                         {
@@ -23272,6 +23564,11 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 202,
+                            NodeB = 321
+                        },
+                        new
+                        {
                             NodeA = 203,
                             NodeB = 204
                         },
@@ -23289,6 +23586,16 @@ namespace Avalon.Database.World.Migrations
                         {
                             NodeA = 206,
                             NodeB = 207
+                        },
+                        new
+                        {
+                            NodeA = 207,
+                            NodeB = 322
+                        },
+                        new
+                        {
+                            NodeA = 207,
+                            NodeB = 323
                         },
                         new
                         {
@@ -23522,6 +23829,11 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 245,
+                            NodeB = 324
+                        },
+                        new
+                        {
                             NodeA = 246,
                             NodeB = 247
                         },
@@ -23667,6 +23979,16 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 270,
+                            NodeB = 325
+                        },
+                        new
+                        {
+                            NodeA = 270,
+                            NodeB = 326
+                        },
+                        new
+                        {
                             NodeA = 271,
                             NodeB = 272
                         },
@@ -23684,6 +24006,11 @@ namespace Avalon.Database.World.Migrations
                         {
                             NodeA = 274,
                             NodeB = 275
+                        },
+                        new
+                        {
+                            NodeA = 275,
+                            NodeB = 327
                         },
                         new
                         {
@@ -23777,6 +24104,16 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 292,
+                            NodeB = 328
+                        },
+                        new
+                        {
+                            NodeA = 292,
+                            NodeB = 329
+                        },
+                        new
+                        {
                             NodeA = 294,
                             NodeB = 297
                         },
@@ -23802,6 +24139,16 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 301,
+                            NodeB = 330
+                        },
+                        new
+                        {
+                            NodeA = 301,
+                            NodeB = 331
+                        },
+                        new
+                        {
                             NodeA = 302,
                             NodeB = 303
                         },
@@ -23812,13 +24159,53 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            NodeA = 302,
+                            NodeB = 332
+                        },
+                        new
+                        {
+                            NodeA = 302,
+                            NodeB = 335
+                        },
+                        new
+                        {
                             NodeA = 303,
                             NodeB = 304
                         },
                         new
                         {
+                            NodeA = 303,
+                            NodeB = 332
+                        },
+                        new
+                        {
+                            NodeA = 303,
+                            NodeB = 333
+                        },
+                        new
+                        {
                             NodeA = 304,
                             NodeB = 305
+                        },
+                        new
+                        {
+                            NodeA = 304,
+                            NodeB = 333
+                        },
+                        new
+                        {
+                            NodeA = 304,
+                            NodeB = 334
+                        },
+                        new
+                        {
+                            NodeA = 305,
+                            NodeB = 334
+                        },
+                        new
+                        {
+                            NodeA = 305,
+                            NodeB = 335
                         });
                 });
 
@@ -23830,6 +24217,44 @@ namespace Avalon.Database.World.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("TalentForkGroups", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1
+                        },
+                        new
+                        {
+                            Id = 2
+                        },
+                        new
+                        {
+                            Id = 3
+                        },
+                        new
+                        {
+                            Id = 4
+                        },
+                        new
+                        {
+                            Id = 5
+                        },
+                        new
+                        {
+                            Id = 6
+                        },
+                        new
+                        {
+                            Id = 7
+                        },
+                        new
+                        {
+                            Id = 8
+                        },
+                        new
+                        {
+                            Id = 9
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.TalentNode", b =>
@@ -23842,6 +24267,9 @@ namespace Avalon.Database.World.Migrations
 
                     b.Property<int?>("ForkGroupId")
                         .HasColumnType("integer");
+
+                    b.Property<byte?>("Keystone")
+                        .HasColumnType("smallint");
 
                     b.Property<byte>("Kind")
                         .HasColumnType("smallint");
@@ -23862,6 +24290,8 @@ namespace Avalon.Database.World.Migrations
                             t.HasCheckConstraint("CK_TalentNodes_Angle", "\"Angle\" > -180 AND \"Angle\" <= 180");
 
                             t.HasCheckConstraint("CK_TalentNodes_ForkGroup", "\"ForkGroupId\" IS NULL OR \"Kind\" = 5");
+
+                            t.HasCheckConstraint("CK_TalentNodes_Keystone", "\"Keystone\" IS NULL OR (\"Kind\" = 6 AND \"Keystone\" BETWEEN 1 AND 3)");
 
                             t.HasCheckConstraint("CK_TalentNodes_Kind", "\"Kind\" BETWEEN 1 AND 7");
 
@@ -26053,6 +26483,267 @@ namespace Avalon.Database.World.Migrations
                             Angle = 180f,
                             Kind = (byte)7,
                             Radius = 160f
+                        },
+                        new
+                        {
+                            Id = 306,
+                            Angle = -72f,
+                            ForkGroupId = 1,
+                            Kind = (byte)5,
+                            Name = "Wide Arc",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 307,
+                            Angle = -68f,
+                            ForkGroupId = 1,
+                            Kind = (byte)5,
+                            Name = "Long Reach",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 308,
+                            Angle = -50f,
+                            Kind = (byte)5,
+                            Name = "Haemorrhage",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 309,
+                            Angle = -132f,
+                            ForkGroupId = 2,
+                            Kind = (byte)5,
+                            Name = "Earthshaker",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 310,
+                            Angle = -128f,
+                            ForkGroupId = 2,
+                            Kind = (byte)5,
+                            Name = "Aftershock",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 311,
+                            Angle = -118f,
+                            Kind = (byte)5,
+                            Name = "Twin Axes",
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 312,
+                            Angle = -22f,
+                            ForkGroupId = 3,
+                            Kind = (byte)5,
+                            Name = "Broad Volley",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 313,
+                            Angle = -18f,
+                            ForkGroupId = 3,
+                            Kind = (byte)5,
+                            Name = "Long Volley",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 314,
+                            Angle = -40f,
+                            Kind = (byte)5,
+                            Name = "Twin Arrows",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 315,
+                            Angle = 20f,
+                            Kind = (byte)5,
+                            Name = "Double Tap",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 316,
+                            Angle = 38f,
+                            ForkGroupId = 4,
+                            Kind = (byte)5,
+                            Name = "Blight Burst",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 317,
+                            Angle = 42f,
+                            ForkGroupId = 4,
+                            Kind = (byte)5,
+                            Name = "Twin Binding",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 318,
+                            Angle = 68f,
+                            ForkGroupId = 5,
+                            Kind = (byte)5,
+                            Name = "Glacial Reach",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 319,
+                            Angle = 72f,
+                            ForkGroupId = 5,
+                            Kind = (byte)5,
+                            Name = "Wide Fan",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 320,
+                            Angle = 50f,
+                            Kind = (byte)5,
+                            Name = "Frost Field",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 321,
+                            Angle = 110f,
+                            Kind = (byte)5,
+                            Name = "Conflagration",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 322,
+                            Angle = 128f,
+                            ForkGroupId = 6,
+                            Kind = (byte)5,
+                            Name = "Wildfire",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 323,
+                            Angle = 132f,
+                            ForkGroupId = 6,
+                            Kind = (byte)5,
+                            Name = "Firestorm",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 324,
+                            Angle = 160f,
+                            Kind = (byte)5,
+                            Name = "Thunderclap",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 325,
+                            Angle = -162f,
+                            ForkGroupId = 7,
+                            Kind = (byte)5,
+                            Name = "Sanctuary",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 326,
+                            Angle = -158f,
+                            ForkGroupId = 7,
+                            Kind = (byte)5,
+                            Name = "Twice Blessed",
+                            Radius = 880f
+                        },
+                        new
+                        {
+                            Id = 327,
+                            Angle = -140f,
+                            Kind = (byte)5,
+                            Name = "Enduring Renewal",
+                            Radius = 320f
+                        },
+                        new
+                        {
+                            Id = 328,
+                            Angle = 150f,
+                            ForkGroupId = 8,
+                            Kind = (byte)5,
+                            Name = "Bastion",
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 329,
+                            Angle = 154f,
+                            ForkGroupId = 8,
+                            Kind = (byte)5,
+                            Name = "Steadfast",
+                            Radius = 400f
+                        },
+                        new
+                        {
+                            Id = 330,
+                            Angle = 43f,
+                            ForkGroupId = 9,
+                            Kind = (byte)5,
+                            Name = "Shatterbolt",
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 331,
+                            Angle = 47f,
+                            ForkGroupId = 9,
+                            Kind = (byte)5,
+                            Name = "Rimeburst",
+                            Radius = 840f
+                        },
+                        new
+                        {
+                            Id = 332,
+                            Angle = -45f,
+                            Keystone = (byte)1,
+                            Kind = (byte)6,
+                            Name = "Blood Price",
+                            Radius = 120f
+                        },
+                        new
+                        {
+                            Id = 333,
+                            Angle = 45f,
+                            Kind = (byte)6,
+                            Name = "Glass Edge",
+                            Radius = 120f
+                        },
+                        new
+                        {
+                            Id = 334,
+                            Angle = 135f,
+                            Keystone = (byte)2,
+                            Kind = (byte)6,
+                            Name = "Steady Hand",
+                            Radius = 120f
+                        },
+                        new
+                        {
+                            Id = 335,
+                            Angle = -135f,
+                            Keystone = (byte)3,
+                            Kind = (byte)6,
+                            Name = "Unbroken",
+                            Radius = 120f
                         });
                 });
 
@@ -28218,6 +28909,34 @@ namespace Avalon.Database.World.Migrations
                             Stat = (short)53,
                             Kind = (byte)1,
                             Value = 3
+                        },
+                        new
+                        {
+                            NodeId = 333,
+                            Stat = (short)19,
+                            Kind = (byte)2,
+                            Value = 30
+                        },
+                        new
+                        {
+                            NodeId = 333,
+                            Stat = (short)53,
+                            Kind = (byte)2,
+                            Value = -25
+                        },
+                        new
+                        {
+                            NodeId = 334,
+                            Stat = (short)19,
+                            Kind = (byte)2,
+                            Value = 20
+                        },
+                        new
+                        {
+                            NodeId = 334,
+                            Stat = (short)31,
+                            Kind = (byte)2,
+                            Value = 20
                         });
                 });
 
@@ -29125,6 +29844,21 @@ namespace Avalon.Database.World.Migrations
                         });
 
                     b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.TalentAbilityModifier", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.AbilityTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("AbilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.TalentNode", null)
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.TalentClassStart", b =>

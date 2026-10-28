@@ -121,7 +121,10 @@ public sealed class PublicRouteShould : IAsyncLifetime
         Assert.Equal("Cleave", (await response.Content.ReadFromJsonAsync<PublicAbilityDto>())!.Name);
     }
 
-    /// <summary>The seeded tree (#1181), node 6 (Cleave) and node 2 (the Warrior's first small node) as samples.</summary>
+    /// <summary>
+    /// The seeded tree (#1181), node 6 (Cleave), node 2 (the Warrior's first small node), node 306 (Wide Arc, a capstone in
+    /// fork 1) and node 332 (Blood Price, a keystone) as samples.
+    /// </summary>
     [Fact]
     public async Task Serve_the_talent_tree_to_anyone()
     {
@@ -133,6 +136,13 @@ public sealed class PublicRouteShould : IAsyncLifetime
         Assert.Equal(("Cleave", (uint?)200), (cleave.Name, cleave.AbilityId));
         Assert.Equal([(Contract.StatType.Strength, Contract.TalentStatKind.Added, 5, (int?)null)],
             tree.Nodes.Single(n => n.Id == 2).Stats.Select(s => (s.Stat, s.Kind, s.Value, s.ValueMax)));
+        TalentNodeDto wideArc = tree.Nodes.Single(n => n.Id == 306);
+        Assert.Equal((Contract.TalentNodeKind.Capstone, (int?)1), (wideArc.Kind, wideArc.ForkGroupId));
+        Assert.Equal([(Contract.TalentModifierKind.ConeArcPct, 200u, 50, (int?)null)],
+            wideArc.Modifiers.Select(m => (m.Kind, m.AbilityId, m.Value, m.Value2)));
+        TalentNodeDto bloodPrice = tree.Nodes.Single(n => n.Id == 332);
+        Assert.Equal(Contract.KeystoneRule.LifeCost, bloodPrice.Keystone);
+        Assert.Empty(bloodPrice.Modifiers);
         Assert.Equal(4, tree.ClassStarts.Count);
         Assert.True(response.Headers.CacheControl!.Public);
     }

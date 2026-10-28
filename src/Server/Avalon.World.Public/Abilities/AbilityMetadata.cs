@@ -102,41 +102,77 @@ public sealed class AbilityMetadata
     /// <summary>The highest built-in added damage, inclusive; 0 adds none.</summary>
     public uint AddedMax { get; init; }
 
-    public AbilityMetadata Clone() =>
-        new()
-        {
-            Name = Name,
-            CastTime = CastTime,
-            Cooldown = Cooldown,
-            Cost = Cost,
-            ScriptName = ScriptName,
-            Range = Range,
-            Effects = Effects,
-            ThreatMultiplier = ThreatMultiplier,
-            HealThreatPerHp = HealThreatPerHp,
-            TauntDurationMs = TauntDurationMs,
-            Flags = Flags,
-            AnimationId = AnimationId,
-            AimMode = AimMode,
-            Shape = Shape,
-            Anchor = Anchor,
-            Reach = Reach,
-            Radius = Radius,
-            ArcDegrees = ArcDegrees,
-            ProjectileSpeed = ProjectileSpeed,
-            Pierce = Pierce,
-            MaxTargets = MaxTargets,
-            Affects = Affects,
-            DamageType = DamageType,
-            Tags = Tags,
-            DamageEffectiveness = DamageEffectiveness,
-            SpellBaseMin = SpellBaseMin,
-            SpellBaseMax = SpellBaseMax,
-            SpellBasePerLevelPct = SpellBasePerLevelPct,
-            ConvertToType = ConvertToType,
-            ConvertPct = ConvertPct,
-            AddedType = AddedType,
-            AddedMin = AddedMin,
-            AddedMax = AddedMax,
-        };
+    // Shaped by the capstones a character holds (#1181 Part D), never by the template: an unshaped ability carries the
+    // defaults. Reach, Radius and ArcDegrees above carry a capstone's cone and circle changes.
+
+    /// <summary>Projectile only: how many fly, in a fan 10 degrees apart; 1 otherwise.</summary>
+    public int ProjectileCount { get; init; } = 1;
+
+    /// <summary>Metres. Projectile only: the circle hit where it ends on a unit; 0 for none.</summary>
+    public float ExplosionRadius { get; init; }
+
+    /// <summary>Percent of the ability's amount the explosion hits for.</summary>
+    public float ExplosionEffectiveness { get; init; }
+
+    /// <summary>Percent of the amount each affected unit is hit, or healed, again at once; 0 for no second hit.</summary>
+    public float SecondHitEffectiveness { get; init; }
+
+    /// <summary>How many stacks above its own cap the caster's aura may reach.</summary>
+    public uint AuraStacksBonus { get; init; }
+
+    /// <summary>Percent the caster's aura lasts longer.</summary>
+    public float AuraDurationPct { get; init; }
+
+    public AbilityMetadata()
+    {
+    }
+
+    /// <summary>
+    /// A copy of every member of <paramref name="source" />: the one copy list (<c>AbilityMetadataShould</c>), which a
+    /// shaped copy starts from and overrides with an initializer.
+    /// </summary>
+    public AbilityMetadata(AbilityMetadata source)
+    {
+        Name = source.Name;
+        CastTime = source.CastTime;
+        Cooldown = source.Cooldown;
+        Cost = source.Cost;
+        ScriptName = source.ScriptName;
+        Range = source.Range;
+        Effects = source.Effects;
+        ThreatMultiplier = source.ThreatMultiplier;
+        HealThreatPerHp = source.HealThreatPerHp;
+        TauntDurationMs = source.TauntDurationMs;
+        Flags = source.Flags;
+        AnimationId = source.AnimationId;
+        AimMode = source.AimMode;
+        Shape = source.Shape;
+        Anchor = source.Anchor;
+        Reach = source.Reach;
+        Radius = source.Radius;
+        ArcDegrees = source.ArcDegrees;
+        ProjectileSpeed = source.ProjectileSpeed;
+        Pierce = source.Pierce;
+        MaxTargets = source.MaxTargets;
+        Affects = source.Affects;
+        DamageType = source.DamageType;
+        Tags = source.Tags;
+        DamageEffectiveness = source.DamageEffectiveness;
+        SpellBaseMin = source.SpellBaseMin;
+        SpellBaseMax = source.SpellBaseMax;
+        SpellBasePerLevelPct = source.SpellBasePerLevelPct;
+        ConvertToType = source.ConvertToType;
+        ConvertPct = source.ConvertPct;
+        AddedType = source.AddedType;
+        AddedMin = source.AddedMin;
+        AddedMax = source.AddedMax;
+        ProjectileCount = source.ProjectileCount;
+        ExplosionRadius = source.ExplosionRadius;
+        ExplosionEffectiveness = source.ExplosionEffectiveness;
+        SecondHitEffectiveness = source.SecondHitEffectiveness;
+        AuraStacksBonus = source.AuraStacksBonus;
+        AuraDurationPct = source.AuraDurationPct;
+    }
+
+    public AbilityMetadata Clone() => new(this);
 }

@@ -2537,6 +2537,71 @@ arrival-rate budget and none per opcode, only the cap per pass ([packet handlers
 refund each tick, so each flush sends a list as long as the last), and every refund refusal through the real refund
 handler, in Debug and Release.
 
+### A capstone change — `TalentAllocateBenchmarks.cs` (#1181 part D1)
+
+What a talent change costs when a capstone reshapes an ability the character keeps
+([talents](talents.md#shaped-abilities)). Like part C's rows, it is one request, never on the tick. The new row joins
+the class, over the same reference data and `QuietConnection`:
+
+- `Apply_capstone_change`: a fourth Warrior, level 15, holding Cleave and its branch (`WH-A1` to `WH-A5`, nodes 2-6,
+  and `WH-A5.c1` to `WH-A5.c5`, nodes 22-26), takes Wide Arc (306, `ConeArcPct` 50) and drops it again, each followed
+  by `TalentChange.Apply`, with the owed flag cleared before each change as a flush would. Cleave stays held, and its
+  metadata swaps between its unshaped `Base` (arc 100) and the shaped copy it keeps (arc 150). The row returns the
+  changes that owed the ability list.
+
+Setup fails the run unless the row's first call owes one ability list after each change (2 in all), ends with Cleave's
+arc back at 100, and leaves Wide Arc unheld. The seeded forks also broke part B's `Decide_refused_long` setup: its
+breadth-first walk from the Warrior's start took both of Cleave's fork capstones (306 and 307), so its request was
+refused `ForkLocked` at 307 instead of `NotConnected` at its last id. The walk now skips a capstone whose fork partner
+it already took. Its request, and `Refund_refused_long`'s holder, changed, so both rows were run again once, in the
+branch's final fix wave (`e9b4c8d5b` plus that wave), on 2026-10-28, same machine and settings:
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAllocateBenchmarks.Decide_refused_long*" "*TalentAllocateBenchmarks.Refund_refused_long*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Operation | Part C | Part D1 | Allocated |
+|---|---:|---:|---:|
+| `Decide_refused_long` | 2,228.14 ns (± 15.22 ns) | 2,202 ns (± 11 ns) | 0 B |
+| `Refund_refused_long` | 2,035.04 ns (± 41.14 ns) | 2,147 ns (± 35 ns) | 0 B |
+
+Both stay at 0 B and near part C's times. The request is refused `NotConnected` at its last id again, as long as
+before, but it skips each fork capstone whose partner it took (Long Reach, 307, among them) for the next node the
+walk reaches, so the two parts scan slightly different requests, and one run of each does not tell the 1 % and 5 %
+moves apart from the variation between runs. BenchmarkDotNet removed two outliers from `Decide_refused_long` and one
+from `Refund_refused_long`. The figures were not tuned by running again.
+
+The first run stopped in that setup and measured nothing. One run after the fix, on the branch (`ee8bf7879` plus the
+benchmark), on 2026-10-28 (out of process, ten warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8,
+Windows 11, i9-12900K, SDK 10.0.403 / runtime 10.0.14, Release):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAllocateBenchmarks.Apply_*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Operation | Mean (± StdDev) | Allocated |
+|---|---:|---:|
+| `Apply_small_nodes` | 594.5 ns (± 5.12 ns) | 0 B |
+| `Apply_ability_change` | 1,920.5 ns (± 86.64 ns) | 0 B |
+| `Apply_capstone_change` | 1,465.2 ns (± 191.11 ns) | 0 B |
+
+**A capstone change allocates nothing once warm.** Each change sums the held capstones' rows for each held ability
+(`TalentCatalog.ShapersAt`, `ModifiersAt`, a struct with no allocation), finds Cleave's shape moved, and swaps its
+metadata for `Base` or for the shaped copy `TreeAbility` keeps, so a toggle builds nothing after the first time. That
+first time builds one `AbilityMetadata` per new shape, once per ability, and `TreeAbility` keeps the last two, so a
+switch between a fork's two sides is also 0 B once both have been seen. The ability list is owed after each change,
+as it must be for the client to learn the new shape, and it is sent by the tick's flush as part C's is: 0 B when the
+list has as many abilities as the last one, which a capstone change always leaves. `InventoryAllocationShould` pins
+the same 0 B through both real handlers and the flush, with node 306.
+
+The two changes of this row take 1.5 µs, against `Apply_ability_change`'s 1.9 µs for a drop and an allocation of
+Cleave's own node, which also parks and takes back the ability. `Apply_small_nodes` and `Apply_ability_change` stay at
+0 B. Their times are above part C's (595 ns against 506 ns, 1.9 µs against 1.6 µs): every rebuild now also walks the
+capstones that shape each held ability, but one run of each, with part C's `Apply_ability_change` spreading by
+± 345 ns, does not tell that cost apart from the variation between runs. `Apply_capstone_change` spread by ± 191 ns,
+with two outliers removed (2.08 and 2.87 µs), and BenchmarkDotNet warned that its shortest iteration was under 100 ms.
+The figures are one run's and were not tuned by running again.
+
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
 Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation

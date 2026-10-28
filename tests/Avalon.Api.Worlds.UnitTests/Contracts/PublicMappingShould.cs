@@ -178,6 +178,8 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.AuraModifierKind), typeof(Avalon.Api.Contract.AuraModifierKind))]
     [InlineData(typeof(Avalon.Domain.World.TalentNodeKind), typeof(Avalon.Api.Contract.TalentNodeKind))]
     [InlineData(typeof(Avalon.Domain.World.TalentStatKind), typeof(Avalon.Api.Contract.TalentStatKind))]
+    [InlineData(typeof(Avalon.Domain.World.KeystoneRule), typeof(Avalon.Api.Contract.KeystoneRule))]
+    [InlineData(typeof(Avalon.Domain.World.TalentModifierKind), typeof(Avalon.Api.Contract.TalentModifierKind))]
     public void Keep_enum_members_in_step_with_the_contract(Type source, Type target)
     {
         Assert.Equal(Enum.GetValues(source).Length, Enum.GetValues(target).Length);
