@@ -518,6 +518,29 @@ Item names (#1179) then added one reference to `ItemSlotDto`, its `Name` (80 B o
 entry in the rows above, not re-measured. The name stays null for a common or unique copy, and a magic copy's entry
 builds its one name string as it is described; a rare copy's is the string it already holds.
 
+**The item requests ran again at #1198.** From #1179 part B on, setup threw before any row ran: the handlers read the
+item templates from `world.Data.Items` for the reply's entries, and the benchmark built them over a world with no
+data. Setup now builds them as a server does, over the seeded reference data (`ScenarioReferenceData`) and
+production's `CharacterEconomy`; the stack is the seeded consumable of lowest id that stacks past 5. It fails the run
+unless each row's first call is answered once with its intended result and slot count (Ok with none, TargetFull with
+two, NotFound with one), read back from the reply. One run out of process, ten warmups and twenty measured
+iterations, the process pinned to one core: BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.403 / runtime
+10.0.14, Release, 2026-10-28:
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRequestBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Row | Allocated | Mean |
+|---|---:|---:|
+| `Accepted_move` | 0 B | 192.3 ns (± 1.5 ns) |
+| `Refused_move` (two slots holding items) | 280 B | 506.7 ns (± 8.5 ns) |
+| `Refused_destroy` (one empty slot) | 64 B | 170.0 ns (± 4.4 ns) |
+
+An accepted request still allocates nothing. A refusal allocates its entries and nothing else: the 248 B above plus
+two references on each of its two item entries since then, its name and its base stats (#1179 part B2), 8 B each. The
+means are not comparable with the 2026-10-23 row, a short job run on a loaded machine.
+
 `InventoryAllocationShould` pins both paths in the World suite: a gold-only flush and an accepted reply at 0 B, and
 a flush of changed slots and a refusal at exactly what building their entries costs, measured in the test rather
 than written down. It runs in the collection that runs alone in the assembly, and reads the fewest of three windows:
