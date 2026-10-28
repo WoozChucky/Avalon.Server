@@ -101,7 +101,7 @@ public class TalentAllocateBenchmarks
     [Benchmark]
     public int Apply_small_nodes()
     {
-        TalentChange.Apply(_connection, _holder, _data, NullLogger.Instance);
+        TalentChange.Apply(_holder, _data, NullLogger.Instance);
         return _connection.Sent;
     }
 
@@ -109,9 +109,9 @@ public class TalentAllocateBenchmarks
     public int Apply_ability_change()
     {
         _holder.Talents.Drop((int)s_cleave[0]);
-        TalentChange.Apply(_connection, _holder, _data, NullLogger.Instance);
+        TalentChange.Apply(_holder, _data, NullLogger.Instance);
         _holder.Talents.Allocate(s_cleave);
-        TalentChange.Apply(_connection, _holder, _data, NullLogger.Instance);
+        TalentChange.Apply(_holder, _data, NullLogger.Instance);
         return _connection.Sent;
     }
 

@@ -1,6 +1,5 @@
 using Avalon.World.Characters;
 using Avalon.World.Entities;
-using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Talents;
@@ -20,7 +19,7 @@ public static class TalentChange
     /// they stand at the flush) though the refresh failed, so the client never lacks an ability the server lets it cast,
     /// and the window still learns what is held.
     /// </summary>
-    public static void Apply(IWorldConnection connection, CharacterEntity character, StaticData data, ILogger logger)
+    public static void Apply(CharacterEntity character, StaticData data, ILogger logger)
     {
         bool abilitiesChanged = false;
         try

@@ -15,8 +15,10 @@ namespace Avalon.World.Abilities;
 /// <see cref="FinishRebuild" /> swaps it with the held one and parks every ability that left, and a later rebuild takes a
 /// parked ability back through <see cref="Unpark" />. Once warm, a change allocates nothing, however often a character
 /// allocates and refunds. Parking is safe because a cast never holds the character's ability, only its own copy
-/// (<see cref="GameAbility.CloneForCast" />). The parked list holds at most the abilities the tree grants, and is cleared
-/// when the ability catalog generation changes, so a parked ability never outlives the generation it was parked under.
+/// (<see cref="GameAbility.CloneForCast" />). Only an ability built from the generation a rebuild reads
+/// (<see cref="TreeAbility.BuiltFrom" />) is parked or taken back, and the parked list is cleared when the ability catalog
+/// generation changes, so it holds at most the abilities the tree grants and a re-allocation after a reload or a live
+/// edit never brings back an older generation's details.
 /// </remarks>
 public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacterAbilities
 {
@@ -73,9 +75,9 @@ public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : I
     }
 
     /// <summary>
-    /// The ability parked under <paramref name="generation" /> for <paramref name="abilityId" />, taken off the parked
-    /// list and reset as a new one arrives: ready (cooldown 0), its cast timer its metadata's cast time, not casting. Null
-    /// when none is parked under this generation.
+    /// The ability built from <paramref name="generation" /> parked for <paramref name="abilityId" />, taken off the
+    /// parked list and reset as a new one arrives: ready (cooldown 0), its cast timer its metadata's cast time, not
+    /// casting. Null when none from this generation is parked.
     /// </summary>
     public IAbility? Unpark(AbilityId abilityId, AbilityCatalog generation)
     {
@@ -86,7 +88,7 @@ public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : I
         for (int i = 0; i < parked.Count; i++)
         {
             IAbility ability = parked[i];
-            if (ability.AbilityId != abilityId)
+            if (ability.AbilityId != abilityId || !BuiltFrom(ability, generation))
                 continue;
 
             // The last into the hole: nothing shifts.
@@ -104,8 +106,9 @@ public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : I
     }
 
     /// <summary>
-    /// The list <see cref="StartRebuild" /> handed out becomes what is held, and every ability no longer held is parked
-    /// under <paramref name="generation" />; the parked list is cleared first when the generation changed.
+    /// The list <see cref="StartRebuild" /> handed out becomes what is held, and every ability no longer held that was
+    /// built from <paramref name="generation" /> is parked; the parked list is cleared first when the generation changed.
+    /// An ability built from an older generation (one held across a reload) is let go, and is built afresh if it returns.
     /// </summary>
     public void FinishRebuild(AbilityCatalog generation)
     {
@@ -119,8 +122,9 @@ public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : I
         List<IAbility> previous = _held;
         for (int i = 0; i < previous.Count; i++)
         {
-            if (!Holds(rebuilt, previous[i]))
-                _parked.Add(previous[i]);
+            IAbility ability = previous[i];
+            if (BuiltFrom(ability, generation) && !Holds(rebuilt, ability))
+                _parked.Add(ability);
         }
 
         _held = rebuilt;
@@ -148,6 +152,9 @@ public partial class CharacterAbilityContainer(ILoggerFactory loggerFactory) : I
 
         return null;
     }
+
+    private static bool BuiltFrom(IAbility ability, AbilityCatalog generation) =>
+        ability is TreeAbility tree && ReferenceEquals(tree.BuiltFrom, generation);
 
     private static bool Holds(List<IAbility> abilities, IAbility ability)
     {

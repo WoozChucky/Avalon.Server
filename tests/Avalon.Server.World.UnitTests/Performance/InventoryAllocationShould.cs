@@ -328,7 +328,7 @@ public class InventoryAllocationShould
         void Drop()
         {
             _character.Talents.Drop(6);
-            TalentChange.Apply(_connection, _character, data, NullLogger.Instance);
+            TalentChange.Apply(_character, data, NullLogger.Instance);
         }
     }
 

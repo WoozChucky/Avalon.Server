@@ -17,28 +17,15 @@ public static class CharacterAbilitiesSender
 {
     public static void Send(IWorldConnection connection, CharacterEntity character)
     {
-        IReadOnlyCollection<IAbility> held = character.Spells.All;
+        IReadOnlyList<IAbility> held = character.Spells.All;
         AttackerCombat combat = character.Combat;
         CasterPace pace = character.Pace;
 
         var infos = new AbilityInfo[held.Count];
         var amounts = new AbilityAmount[held.Count];
-        if (held is IReadOnlyList<IAbility> list)
-        {
-            // By index: the talent tree loads a List (TalentAbilities), and a foreach over the interface boxes an
-            // enumerator.
-            for (int i = 0; i < list.Count; i++)
-                Describe(list[i], in combat, in pace, out infos[i], out amounts[i]);
-        }
-        else
-        {
-            int i = 0;
-            foreach (IAbility ability in held)
-            {
-                Describe(ability, in combat, in pace, out infos[i], out amounts[i]);
-                i++;
-            }
-        }
+        // By index: a foreach over the interface boxes an enumerator.
+        for (int i = 0; i < held.Count; i++)
+            Describe(held[i], in combat, in pace, out infos[i], out amounts[i]);
 
         character.AbilityAmountsSentFor = (combat, pace);
         character.AbilityAmountsInputs = (character.StatsVersion, character.Level);

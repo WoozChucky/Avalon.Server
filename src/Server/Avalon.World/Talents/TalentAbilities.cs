@@ -18,7 +18,7 @@ public static class TalentAbilities
     /// Rebuilds <paramref name="character" />'s abilities from <paramref name="tree" /> and its held nodes, each ability
     /// built from <paramref name="abilities" />. An ability already held keeps its <see cref="IAbility" />, and with it its
     /// cooldown and cast timers; a new one arrives ready (cooldown 0, its cast time), the one parked when it last left
-    /// when there is one (Part C), so once warm a rebuild allocates nothing, the list included: it is rebuilt in place
+    /// when there is one built from <paramref name="abilities" /> (Part C), so once warm a rebuild allocates nothing, the list included: it is rebuilt in place
     /// (<see cref="CharacterAbilityContainer.StartRebuild" />). An ability the catalog does not hold (it refused it, or a
     /// reload removed it) is left out with a Warning. When the held ability ids are the same, in the same order, nothing
     /// is built.
@@ -92,12 +92,13 @@ public static class TalentAbilities
             return;
         }
 
-        held.Add(spells[id] ?? spells.Unpark(id, abilities) ?? new GameAbility
+        held.Add(spells[id] ?? spells.Unpark(id, abilities) ?? new TreeAbility
         {
             AbilityId = id,
             Metadata = AbilityMetadataMapper.From(template),
             CastTimeTimer = (float)template.CastTime / 1000,
             CooldownTimer = 0f,
+            BuiltFrom = abilities,
         });
     }
 }

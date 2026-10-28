@@ -229,8 +229,11 @@ World-side `CharacterAbilityContainer`: `StartRebuild` hands out its spare list,
 held one and parks every ability that left, and a later rebuild takes a parked ability back with `Unpark`, reset as a
 new one (cooldown 0, its cast time, not casting), so a change allocates nothing once warm, however often a character
 allocates and refunds. Parking is safe because a cast holds its own copy (`GameAbility.CloneForCast`), never the
-character's ability. The parked list holds at most the abilities the tree grants and is cleared when the ability
-catalog generation changes (`/reload abilities`). The modding API's `ICharacterAbilities` has none of these, so no mod
+character's ability. Each ability the tree builds is a `TreeAbility` tagged with the ability catalog it was built
+from, and only one built from the catalog the rebuild reads is parked or taken back; the parked list is cleared when
+the generation changes (`/reload abilities`, a live edit). So it holds at most the abilities the tree grants, and an
+ability refunded and taken again after a reload is built afresh from the new catalog, never brought back with its old
+details. The modding API's `ICharacterAbilities` has none of these, so no mod
 can grant an ability.
 
 **Creation** writes no ability: a new character holds no node, so it enters with its starter alone. Its starting items

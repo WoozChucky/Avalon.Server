@@ -32,7 +32,7 @@ public sealed class TalentAllocateHandler(ILogger<TalentAllocateHandler> logger,
         uint refusedNode;
         try
         {
-            result = Allocate(connection, character, packet, out refusedNode);
+            result = Allocate(character, packet, out refusedNode);
         }
         catch (Exception e)
         {
@@ -48,8 +48,7 @@ public sealed class TalentAllocateHandler(ILogger<TalentAllocateHandler> logger,
         connection.Send(STalentResultPacket.Create(packet.RequestId, result, refusedNode, PacketEncoder.Shared));
     }
 
-    private TalentResult Allocate(IWorldConnection connection, CharacterEntity character, CTalentAllocatePacket packet,
-        out uint refusedNode)
+    private TalentResult Allocate(CharacterEntity character, CTalentAllocatePacket packet, out uint refusedNode)
     {
         // One read: the tree, the abilities and the quests the points are priced by are one generation.
         StaticData data = world.Data;
@@ -62,7 +61,7 @@ public sealed class TalentAllocateHandler(ILogger<TalentAllocateHandler> logger,
             return result;
 
         talents.Allocate(packet.NodeIds);
-        TalentChange.Apply(connection, character, data, logger);
+        TalentChange.Apply(character, data, logger);
         return TalentResult.Ok;
     }
 }

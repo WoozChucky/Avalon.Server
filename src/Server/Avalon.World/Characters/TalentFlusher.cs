@@ -36,18 +36,20 @@ public static class TalentFlusher
         if (!stateOwed && !talents.AbilitiesOwed)
             return;
 
+        // Each flag is cleared before its send, as the sheet records what it sends first: a send that throws is not tried
+        // again on every tick, stalling the flush of every connection after it each time.
         if (talents.AbilitiesOwed)
         {
-            CharacterAbilitiesSender.Send(connection, character);
             talents.AbilitiesSent();
+            CharacterAbilitiesSender.Send(connection, character);
         }
 
         if (!stateOwed)
             return;
 
+        talents.StateSent(level);
         int earned = TalentPoints.Earned(level, character.Quests, quests);
         connection.Send(STalentStatePacket.Create(talents.Held, checked((uint)earned), (uint)talents.Spent,
             PacketEncoder.Shared));
-        talents.StateSent(level);
     }
 }
