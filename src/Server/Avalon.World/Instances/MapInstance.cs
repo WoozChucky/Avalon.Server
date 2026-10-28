@@ -3014,11 +3014,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    HitOutcome IAbilityArena.HitForAbility(IUnit caster, IUnit target, IAbility ability) =>
-        _combatService.ApplyAbilityHit(caster, target, ability);
+    HitOutcome IAbilityArena.HitForAbility(IUnit caster, IUnit target, IAbility ability, in HitShaping shaping) =>
+        _combatService.ApplyAbilityHit(caster, target, ability, shaping);
 
-    void IAbilityArena.HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
-        _combatService.ApplyHeal(caster, target, ability);
+    void IAbilityArena.HealForAbility(IUnit caster, IUnit target, IAbility ability, float amountPct) =>
+        _combatService.ApplyHeal(caster, target, ability, amountPct);
 
     /// <summary>
     /// The aura the ability's live row names, on <paramref name="target" />; who may receive it the shape and Hostility

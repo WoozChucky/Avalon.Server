@@ -112,13 +112,16 @@ public class AbilityAuraShould
         return (instance, handler);
     }
 
-    private static MapInstanceClient Caster(MapInstance instance, uint id, AbilityTemplate ability)
+    private static MapInstanceClient Caster(MapInstance instance, uint id, AbilityTemplate ability) =>
+        Caster(instance, id, AbilityTestData.Game(ability));
+
+    private static MapInstanceClient Caster(MapInstance instance, uint id, IAbility ability)
     {
         MapInstanceClient client = Join(instance, Inventory.TestCharacters.New(id));
         client.Character.Health = 500;
         client.Character.CurrentHealth = 400;
         client.Character.Orientation = new Vector3(0f, 0f, 0f);
-        client.Character.Spells.Load([AbilityTestData.Game(ability)]);
+        client.Character.Spells.Load([ability]);
         return client;
     }
 
@@ -208,6 +211,39 @@ public class AbilityAuraShould
             .Select(p => (p.Damage, p.Result, p.Types)));
         Assert.NotNull(instance.CombatService.GetEncounterFor(boar));
         Assert.True(wizard.Character.IsInCombat, "the caster is not in combat");
+    }
+
+    /// <summary>
+    /// #1181 Part D: a second hit (Rend shaped <c>SecondHit</c> 50) rolls its own evasion, crit and block, and only the
+    /// first hit that lands applies Bleed, once: both landing deal 10 and 5 and stack it once; a dodged first leaves
+    /// the second to deal 5 and apply it; both dodged apply none. A scripted roll under the boar's capped 30 % is an
+    /// evasion, and every roll scripted is drawn.
+    /// </summary>
+    [Theory]
+    [InlineData("both land", new[] { 0.99, 0.99, 0.99, 0.99, 0.99, 0.99 }, 85u, 1)]
+    [InlineData("first dodged, second lands", new[] { 0.0, 0.99, 0.99, 0.99 }, 95u, 1)]
+    [InlineData("both dodged", new[] { 0.0, 0.0 }, 100u, 0)]
+    public async Task Land_a_second_hit_with_its_own_rolls_and_one_aura(string row, double[] rolls, uint health,
+        int stacks)
+    {
+        ScriptedCombatRandom random = new ScriptedCombatRandom(rolls).Longs(10, 10);
+        (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync(random);
+        MapInstanceClient warrior = Caster(instance, 912_120,
+            AbilityTestData.Shaped(Rend(), (TalentModifierKind.SecondHit, 50, null)));
+        Creature boar = Boar(instance, 912_920, evasion: 10000);
+
+        handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 203 });
+
+        Assert.True(random.DoublesLeft == 0, row);
+        Assert.Equal((0, health), (random.LongsLeft, boar.CurrentHealth));
+        if (stacks == 0)
+        {
+            Assert.Equal(0, boar.Auras.Count);
+            return;
+        }
+
+        ActiveAuraIs(boar, 901, warrior.Character.Guid);
+        Assert.Equal((uint)stacks, Assert.Single(Avalon.World.Auras.AuraHolders.Of(boar)!.All).Stacks);
     }
 
     [Fact]

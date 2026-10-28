@@ -162,6 +162,33 @@ public class OffenceMathShould
         Assert.Equal(lightning, parts.Total, precision: 9);
     }
 
+    /// <summary>
+    /// #1181 Part D: a shaped hit deals its share of every part, and its extra tags join the ability's own for the
+    /// scale (a Spell of 10..10, Increased(Area) 20): a second hit at 50 %, an explosion with Area at 60 %.
+    /// </summary>
+    [Theory]
+    [InlineData(100f, false, 10d)]
+    [InlineData(50f, false, 5d)]
+    [InlineData(100f, true, 12d)]
+    [InlineData(60f, true, 7.2)]
+    public void Shape_a_hits_parts_by_its_share_and_extra_tags(float amountPct, bool area, double expected)
+    {
+        var spell = new AbilityMetadata
+        {
+            Tags = AbilityTags.Spell,
+            DamageType = DamageType.Fire,
+            SpellBaseMin = 10,
+            SpellBaseMax = 10,
+        };
+        var shaping = new HitShaping(amountPct, area ? AbilityTags.Area : AbilityTags.None);
+
+        DamageParts parts = OffenceMath.DirectBase(Attacker(Offence((OffenceStat.Area, 20f))), spell,
+            new ScriptedCombatRandom().Longs(10), shaping);
+
+        Assert.Equal(expected, parts.Get(DamageType.Fire), precision: 9);
+        Assert.Equal(expected, parts.Total, precision: 9);
+    }
+
     [Theory]
     [InlineData("attack", 34d)]   // weapon 10..10, PeriodicBase 12, PE 50, PhysicalAttack 100: (12 + 5) x 2
     [InlineData("spell", 60d)]    // spell base 30..30, PE 100, Spell 50, DamageOverTime 50: 30 x 2

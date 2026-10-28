@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Combat;
@@ -26,11 +27,17 @@ public interface IAbilityArena
     /// A Hostile ability's hit on one unit, through this instance's combat service, answering how it went (#1164): whether
     /// it lands (the target's dodge chance, unless the ability is Unavoidable), then its direct damage (#1178: its own
     /// base, scaled by the caster's offence) when its Effects has Damage. Only a hit that landed applies the ability's aura.
+    /// <paramref name="shaping" /> is the hit's share of that damage and the tags it adds (#1181 Part D): the first hit
+    /// is <see cref="HitShaping.Whole" />, a second hit or an explosion its own share. There is no default, since
+    /// <c>default(HitShaping)</c> is a share of 0 %.
     /// </summary>
-    HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability);
+    HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability, in HitShaping shaping);
 
-    /// <summary>An ability's direct heal on one unit, through this instance's combat service (auras).</summary>
-    void HealForAbility(IUnit caster, IUnit target, IAbility ability);
+    /// <summary>
+    /// An ability's direct heal on one unit, through this instance's combat service (auras), at
+    /// <paramref name="amountPct" /> % of its amount (#1181 Part D: 100, or a second heal's share).
+    /// </summary>
+    void HealForAbility(IUnit caster, IUnit target, IAbility ability, float amountPct);
 
     /// <summary>
     /// The aura the ability's row names, if any, on one unit, from <paramref name="caster" /> (auras). Read from the live

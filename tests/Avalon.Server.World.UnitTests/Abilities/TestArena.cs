@@ -55,16 +55,29 @@ internal sealed class TestArena : IAbilityArena
     /// <summary>Every aura application asked for, in order.</summary>
     public List<(IUnit Caster, IUnit Target, IAbility Ability)> AurasApplied { get; } = [];
 
-    /// <summary>Records the damage of an ability whose Effects has Damage, and answers <see cref="NextOutcome" />.</summary>
-    public HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability)
+    /// <summary>Every hostile hit's shaping, in order (#1181 Part D).</summary>
+    public List<HitShaping> Shapings { get; } = [];
+
+    /// <summary>Every heal's share of the amount, in percent, in order (#1181 Part D).</summary>
+    public List<float> HealShares { get; } = [];
+
+    /// <summary>
+    /// Records the hit's shaping and the damage of an ability whose Effects has Damage, and answers
+    /// <see cref="NextOutcome" />.
+    /// </summary>
+    public HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability, in HitShaping shaping)
     {
+        Shapings.Add(shaping);
         if (AbilityRules.HasDirectEffect(ability.Metadata.Effects, ability.Metadata.Affects))
             CombatService.ApplyDamage(caster, target, ability);
         return NextOutcome;
     }
 
-    public void HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
+    public void HealForAbility(IUnit caster, IUnit target, IAbility ability, float amountPct)
+    {
+        HealShares.Add(amountPct);
         CombatService.ApplyHeal(caster, target, ability);
+    }
 
     public void ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability) => AurasApplied.Add((caster, target, ability));
 

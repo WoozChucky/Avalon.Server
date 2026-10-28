@@ -62,11 +62,12 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     }
 
     /// <summary>
-    /// An ability's hit (#506, #1178): its base is the ability's own (<see cref="OffenceMath.DirectBase" />: an Attack's
-    /// weapon roll, a Spell's spell base) scaled by the caster's offence, then the target's defences are rolled.
+    /// An ability's hit (#506, #1178): its base is the ability's own
+    /// (<see cref="OffenceMath.DirectBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />: an Attack's weapon
+    /// roll, a Spell's spell base) scaled by the caster's offence, then the target's defences are rolled.
     /// </summary>
     public void ApplyDamage(IUnit attacker, IUnit target, IAbility ability)
-        => ApplyAbilityDamage(attacker, target, ability, unavoidable: false);
+        => ApplyAbilityDamage(attacker, target, ability, HitShaping.Whole, unavoidable: false);
 
     /// <summary>
     /// A Hostile ability's hit on one unit (#1164), answering how it went: only a hit that landed applies the ability's aura.
@@ -79,12 +80,21 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// finds all of that already done; dodged, it is sent as a dodge. A target every hit passes over is Ignored and draws
     /// nothing.
     /// </summary>
-    public HitOutcome ApplyAbilityHit(IUnit attacker, IUnit target, IAbility ability)
+    public HitOutcome ApplyAbilityHit(IUnit attacker, IUnit target, IAbility ability) =>
+        ApplyAbilityHit(attacker, target, ability, HitShaping.Whole);
+
+    /// <summary>
+    /// <see cref="ApplyAbilityHit(IUnit, IUnit, IAbility)" /> shaped (#1181 Part D): its direct damage is
+    /// <paramref name="shaping" />'s share of the ability's, scaled with its extra tags (a second hit, an explosion).
+    /// Its evasion, crit and block are rolled afresh, and threat, Resonance and Awakening read it as any other hit.
+    /// World-side only: the modding API's <see cref="ICombatService" /> has no shaped hit.
+    /// </summary>
+    public HitOutcome ApplyAbilityHit(IUnit attacker, IUnit target, IAbility ability, in HitShaping shaping)
     {
         AbilityMetadata metadata = ability.Metadata;
         bool unavoidable = (metadata.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
         if (AbilityRules.HasDirectEffect(metadata.Effects, metadata.Affects))
-            return ApplyAbilityDamage(attacker, target, ability, unavoidable);
+            return ApplyAbilityDamage(attacker, target, ability, shaping, unavoidable);
 
         // The same targets every hit passes over, before any draw.
         if (IgnoresHits(target)) return HitOutcome.Ignored;
@@ -116,16 +126,19 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     }
 
     /// <summary>
-    /// An ability's hit (#1178): its own base, split by type (<see cref="OffenceMath.DirectBase" />), drawn only past every
-    /// target a hit passes over, so nothing refused draws a roll.
+    /// An ability's hit (#1178): its own base, split by type
+    /// (<see cref="OffenceMath.DirectBase(in AttackerCombat, AbilityMetadata, ICombatRandom, in HitShaping)" />), drawn
+    /// only past every target a hit passes over, so nothing refused draws a roll.
     /// </summary>
+    /// <param name="shaping">The hit's share of the ability's amount and its extra tags (#1181 Part D).</param>
     /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no evasion roll.</param>
-    private HitOutcome ApplyAbilityDamage(IUnit attacker, IUnit target, IAbility ability, bool unavoidable)
+    private HitOutcome ApplyAbilityDamage(IUnit attacker, IUnit target, IAbility ability, in HitShaping shaping,
+        bool unavoidable)
     {
         if (IgnoresHits(target)) return HitOutcome.Ignored;
 
         AttackerCombat attackerCombat = AttackerOf(attacker);
-        DamageParts parts = OffenceMath.DirectBase(attackerCombat, ability.Metadata, _random);
+        DamageParts parts = OffenceMath.DirectBase(attackerCombat, ability.Metadata, _random, shaping);
         return ResolveHit(attacker, target, attackerCombat, parts, ability, unavoidable);
     }
 
@@ -537,17 +550,24 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <summary>
     /// Restores the resolved heal, capped at the target's maximum (#164): the ability's heal base (#1178,
-    /// <see cref="OffenceMath.HealBase" />: its spell base grown by the healer's level, scaled by its increased healing
-    /// alone), then the one crit roll (#506). A heal is never dodged, blocked or reduced by armour. A heal never
-    /// lowers health: a unit already at or above its maximum keeps what it has, and the heal restores 0
-    /// (#548). A dead unit is never healed. The health change reaches clients through entity replication, as regeneration's
+    /// <see cref="OffenceMath.HealBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />: its spell base grown by
+    /// the healer's level, scaled by its increased healing alone), then the one crit roll (#506). A heal is never
+    /// dodged, blocked or reduced by armour. A heal never lowers health: a unit already at or above its maximum keeps
+    /// what it has, and the heal restores 0 (#548). A dead unit is never healed. The health change reaches clients
+    /// through entity replication, as regeneration's
     /// does; a heal that restored more than 0 is also reported to this service's instance, which sends it as
     /// SMSG_UNIT_HEALED with the restored amount and its crit (#506). Heal threat counts only the health actually restored (#531):
     /// <c>restored × HealThreatPerHp × class modifier</c>, split across the hostiles in the target's
     /// encounter. Overheal adds none, so a heal that restores nothing leaves the encounter untouched and
     /// does not even add the healer to it.
     /// </summary>
-    public void ApplyHeal(IUnit healer, IUnit target, IAbility ability)
+    public void ApplyHeal(IUnit healer, IUnit target, IAbility ability) => ApplyHeal(healer, target, ability, 100f);
+
+    /// <summary>
+    /// <see cref="ApplyHeal(IUnit, IUnit, IAbility)" /> at <paramref name="amountPct" /> % of the ability's heal base
+    /// (#1181 Part D: a second heal), with its own crit roll. World-side only, as the shaped hit.
+    /// </summary>
+    public void ApplyHeal(IUnit healer, IUnit target, IAbility ability, float amountPct)
     {
         bool dead = target is ICharacter { IsDead: true } || target.CurrentHealth == 0;
         if (dead) return;
@@ -555,7 +575,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // #506: resolved past the early return, so a dead target draws no roll; the formula is read once.
         CombatFormula formula = _formula();
         AttackerCombat healerCombat = AttackerOf(healer);
-        double baseHeal = OffenceMath.HealBase(healerCombat, ability.Metadata, _random);
+        double baseHeal = OffenceMath.HealBase(healerCombat, ability.Metadata, _random, amountPct);
         (uint amount, HitResult result) = HitResolver.ResolveHeal(healerCombat, baseHeal, formula, _random);
 
         uint before = target.CurrentHealth;

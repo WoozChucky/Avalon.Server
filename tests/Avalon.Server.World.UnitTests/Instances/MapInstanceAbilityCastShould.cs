@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -25,7 +26,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// Casting through a real MapInstance, the real cast handler, the shape scripts and CombatService.
-/// Character ids (164_101 to 164_252) and creature ids (164_9xx) are unique to this class.
+/// Character ids (164_101 to 164_262) and creature ids (164_9xx) are unique to this class.
 /// </summary>
 public class MapInstanceAbilityCastShould
 {
@@ -43,8 +44,12 @@ public class MapInstanceAbilityCastShould
     private static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal) =>
         TestMapInstances.BuildCasting(out handler, mapType);
 
-    /// <summary>A real creature at <paramref name="position" /> whose script takes each hit off its health.</summary>
-    private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint health, uint currentHealth = 0)
+    /// <summary>
+    /// A real creature at <paramref name="position" /> whose script takes each hit off its health, and, when
+    /// <paramref name="sendHits" />, sends each one through the instance.
+    /// </summary>
+    private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint health,
+        uint currentHealth = 0, bool sendHits = false)
     {
         var creature = new Creature
         {
@@ -54,13 +59,17 @@ public class MapInstanceAbilityCastShould
             Health = health,
             CurrentHealth = currentHealth == 0 ? health : currentHealth,
         };
-        creature.Script = new WoundScript(creature);
+        creature.Script = new WoundScript(creature, sendHits ? instance : null);
         instance.AddCreature(creature);
         return creature;
     }
 
-    /// <summary>A creature takes its damage through its script; this one only loses the health it is hit for.</summary>
-    internal sealed class WoundScript(ICreature creature) : AiScript(creature, Substitute.For<ISimulationContext>())
+    /// <summary>
+    /// A creature takes its damage through its script; this one loses the health it is hit for and, given an instance
+    /// to send to, sends the hit for the health it took, the killing one included, as the combat script does.
+    /// </summary>
+    internal sealed class WoundScript(ICreature creature, ISimulationContext? sendTo = null)
+        : AiScript(creature, sendTo ?? Substitute.For<ISimulationContext>())
     {
         public override object State { get; set; } = 0;
 
@@ -68,8 +77,13 @@ public class MapInstanceAbilityCastShould
 
         protected override bool ShouldRun() => false;
 
-        public override void OnHit(IUnit attacker, uint damage) =>
-            Creature.CurrentHealth = damage >= Creature.CurrentHealth ? 0u : Creature.CurrentHealth - damage;
+        public override void OnHit(IUnit attacker, uint damage)
+        {
+            uint taken = Math.Min(damage, Creature.CurrentHealth);
+            Creature.CurrentHealth -= taken;
+            if (sendTo is not null)
+                Context.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, taken);
+        }
     }
 
     private static AbilityTemplate Timed(AbilityTemplate template, uint castTimeMs)
@@ -277,6 +291,67 @@ public class MapInstanceAbilityCastShould
                 caster.Read<SProjectileImpactPacket>(NetworkPacketType.SMSG_PROJECTILE_IMPACT));
             Assert.Equal(ProjectileImpactReason.Hit, impact.Reason);
         }
+    }
+
+    /// <summary>
+    /// #1181 Part D: a capstone-shaped ability through the real handler, cast system and combat service. A second hit
+    /// (<c>SecondHit</c> 50) hits each unit again at once at half the amount, its own number sent; a first hit that
+    /// kills draws no second (review focus 3: one death, one kill credited, no number on the corpse); a heal heals
+    /// again.
+    /// </summary>
+    [Theory]
+    [InlineData("second hit")]
+    [InlineData("second hit on a killing blow")]
+    [InlineData("second heal")]
+    public async Task Shape_a_cast_by_its_capstones(string row)
+    {
+        StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(levels: () =>
+        [
+            new CharacterLevelExperience { Level = 1, Experience = 1000 },
+            new CharacterLevelExperience { Level = 2, Experience = 2000 },
+        ]));
+        using MapInstance instance =
+            TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: NewWorld(data));
+        MapInstanceClient caster = Join(instance, 164_261);
+
+        if (row == "second heal")
+        {
+            MapInstanceClient ally = Join(instance, 164_262);
+            ally.Character.Position = new Vector3(0f, 0f, 8f);
+            ally.Character.Health = 100;
+            ally.Character.CurrentHealth = 20;
+            caster.Character.Spells.Load([
+                AbilityTestData.Shaped(AbilityTestData.HealCircle(232), (TalentModifierKind.SecondHit, 50, null)),
+            ]);
+
+            handler.Execute(caster.Connection,
+                new CCastAbilityPacket { AbilityId = 232, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 8f } });
+
+            Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+            Assert.Equal(80u, ally.Character.CurrentHealth);
+            Assert.Equal([40u, 20u],
+                ally.Read<SUnitHealedPacket>(NetworkPacketType.SMSG_UNIT_HEALED).Select(p => p.Amount));
+            return;
+        }
+
+        bool killing = row == "second hit on a killing blow";
+        Creature boar = AddCreature(instance, killing ? 164_902u : 164_901u, new Vector3(0f, 0f, 1.2f), health: 50,
+            currentHealth: killing ? 10u : 50u, sendHits: true);
+        boar.Experience = 7;
+        caster.Character.Spells.Load([
+            AbilityTestData.Shaped(AbilityTestData.Cone(203, reach: 2.5f, arc: 90f).Dealing(10),
+                (TalentModifierKind.SecondHit, 50, null)),
+        ]);
+
+        handler.Execute(caster.Connection,
+            new CCastAbilityPacket { AbilityId = 203, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
+
+        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        Assert.Equal(killing ? 0u : 35u, boar.CurrentHealth);
+        Assert.Equal(killing ? [10u] : [10u, 5u],
+            caster.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED).Select(p => p.Damage));
+        Assert.Equal(killing ? 1 : 0, caster.Read<SUnitDeathPacket>(NetworkPacketType.SMSG_UNIT_DEATH).Count);
+        Assert.Equal(killing ? 7ul : 0ul, caster.Character.Experience);   // the one kill, credited once
     }
 
     /// <summary>

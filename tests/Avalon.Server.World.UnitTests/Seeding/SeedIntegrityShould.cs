@@ -1544,7 +1544,8 @@ public class SeedIntegrityShould
     /// seeded row and the balance tool's starter profile (the class's starter weapon and five armour pieces, as they stood
     /// before #1179: <see cref="RetiredGearProfiles" />). The average of
     /// the ability's base with every roll at its low and at its high end (<see cref="RollEnds" />): an Attack's or a Spell's
-    /// <see cref="OffenceMath.DirectBase" />, a Heal's <see cref="OffenceMath.HealBase" />, or, through its aura, the
+    /// <see cref="OffenceMath.DirectBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />, a Heal's
+    /// <see cref="OffenceMath.HealBase(in AttackerCombat, AbilityMetadata, ICombatRandom)" />, or, through its aura, the
     /// whole of <see cref="OffenceMath.PeriodicTotal" /> (Rend's Bleed, Ignite's Burn, Renew). Today's average is the old
     /// <c>EffectValue + coefficient × damage stat + weapon coefficient × roll</c>, the tolerance its table's. The re-expressed
     /// weapons (owner decision D2) carry their tiers over too: the balance tool's forest profile (the Bramblesteel Sword
