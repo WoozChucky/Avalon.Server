@@ -121,6 +121,15 @@ public interface IAbilityArena
     /// </summary>
     AbilityFootprint? FootprintInFlight { get; set; }
 
+    /// <summary>
+    /// How many whole view rounds this instance has completed (#1181 Part D): one more each time every client's view here
+    /// was decided on a broadcast tick and the decision finished, never on a tick that threw before it did. A view decided
+    /// alone off the cadence (a client entering, one started over) counts for nothing. The script pool reads it: a
+    /// projectile that left the world is reused only once two rounds have passed, when no view still holds its guid
+    /// (<see cref="AbilityScriptPool" />). Wraps after <see cref="uint.MaxValue" /> rounds, and is compared by difference.
+    /// </summary>
+    uint ViewRound { get; }
+
     /// <summary>The finish-cast broadcast, as <c>ISimulationContext.BroadcastFinishCast</c> (#546), with its cast id (#648).</summary>
     void BroadcastFinishCast(IUnit caster, IAbility ability, uint castId);
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
@@ -15,6 +16,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
+using Avalon.World.Scripts.Abilities;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -114,8 +116,23 @@ public class InstanceAbilityCastSystem(
     /// </summary>
     public const int WalkedUpTo = 8;
 
+    /// <summary>
+    /// How many free and retired scripts of each pooled type this instance keeps (<see cref="AbilityScriptPool" />, #1181
+    /// Part D), and so how many hit sets, free queued-cast entries and free running-list entries: past it, one handed back
+    /// is left to the collector. Public for the tests, which fire past it.
+    /// </summary>
+    public const int PooledScripts = 256;
+
     private readonly ActiveScripts _activeAbilities = new();
     private readonly List<ActiveScript> _failed = [];
+
+    // The entries that left the running list in one removal, handed back once the list is whole again (#1181 Part D).
+    private readonly List<ActiveScript> _released = [];
+
+    // This instance's pooled scripts, and the free entries of its queue and of its running list (#1181 Part D).
+    private readonly AbilityScriptPool _pool = NewPool(arena);
+    private readonly Stack<AbilityInstance> _freeCasts = new();
+    private readonly Stack<ActiveScript> _freeEntries = new();
     private readonly List<(IUnit Caster, IAbility Ability, uint CastId)> _interrupts = [];
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
@@ -169,17 +186,11 @@ public class InstanceAbilityCastSystem(
         CasterPace pace = PaceOf(caster);
         uint castId = TakeCastId();
         AbilityFootprint? footprint = FootprintOf(caster, aim, ability);
-        _abilityQueue.Add(new AbilityInstance
-        {
-            Caster = caster,
-            Ability = ability,
-            Script = script,
-            CastStartPosition = caster.Position,
-            CooldownSeconds = CooldownOf(caster, ability, pace),
-            CastId = castId,
-            Footprint = footprint,
-            ForItem = forItem,
-        });
+        if (!_freeCasts.TryPop(out AbilityInstance? queued))
+            queued = new AbilityInstance();
+        queued.Start(caster, ability, script, caster.Position, CooldownOf(caster, ability, pace), castId, footprint,
+            forItem);
+        _abilityQueue.Add(queued);
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
         ability.Casting = true;
@@ -233,7 +244,8 @@ public class InstanceAbilityCastSystem(
         // projectile stays a world object until its final state (where it stopped, zero velocity) has
         // been taken for a broadcast, so every client sees it spawn, stop and despawn, even one that
         // ended on the tick it was first seen. Updates go out only on broadcast ticks, so that can be
-        // a few ticks later.
+        // a few ticks later. First the pool frees the projectiles whose view rounds have passed (#1181 Part D).
+        _pool.Recycle();
         SweepFinished(keepUnsent: true);
 
         // #1082: the dodge wait's hits due now, first, so each is judged after the inputs its target sent this tick (step
@@ -278,7 +290,36 @@ public class InstanceAbilityCastSystem(
             _abilityQueue.Remove(cast);
         }
 
+        // Out of the queue, every entry goes back (#1181 Part D); their interrupts hold what they need.
+        ReleaseCasts(_dequeued);
+        ReleaseCasts(_controlled);
+        _dequeued.Clear();
         _controlled.Clear();
+    }
+
+    /// <summary>
+    /// Entries that have left the queue go back to the free stack, each cleared: the script of a cast that never fired goes
+    /// back to its pool at once, since it was never prepared; one that fired is the running list's (#1181 Part D).
+    /// </summary>
+    private void ReleaseCasts(List<AbilityInstance> casts)
+    {
+        foreach (AbilityInstance cast in casts)
+            ReleaseCast(cast);
+    }
+
+    private void ReleaseCast(AbilityInstance cast)
+    {
+        Debug.Assert(!cast.Returned, "A queued cast's entry was handed back twice");
+        if (cast.Returned)
+            return;
+
+        if (!cast.Fired)
+            _pool.Return(cast.Script);
+
+        cast.Returned = true;
+        cast.Clear();
+        if (_freeCasts.Count < PooledScripts)
+            _freeCasts.Push(cast);
     }
 
     private void AdvanceEach(TimeSpan deltaTime)
@@ -345,6 +386,7 @@ public class InstanceAbilityCastSystem(
                                       && cast.Footprint is { Shape: AbilityShape.Circle or AbilityShape.Cone } footprint
                 ? footprint
                 : null;
+            cast.Fired = true;
             Fire(cast.Caster, ability, cast.Script, cast.CooldownSeconds, cast.CastId, default, dodge, cast.Footprint);
         }
     }
@@ -400,6 +442,7 @@ public class InstanceAbilityCastSystem(
             }
             catch (Exception e)
             {
+                active.Threw = true;
                 _failed.Add(active);
                 Failed(active.Caster, active.Ability, e, "Update", active.CastId);
                 continue;
@@ -414,6 +457,7 @@ public class InstanceAbilityCastSystem(
             // away) is contained like one that threw: read unchecked here, it would throw out of every tick.
             if (script.Guid is not { } guid)
             {
+                active.Threw = true;
                 _failed.Add(active);
                 Failed(active.Caster, active.Ability,
                     new InvalidOperationException($"{script.GetType().Name} is running without a guid."), "Update",
@@ -428,11 +472,13 @@ public class InstanceAbilityCastSystem(
         }
 
         // Left out of this tick's world objects, a dropped projectile is removed from every client's
-        // view like one that finished.
+        // view like one that finished. Each entry goes back, and its script to the pool unless it threw (#1181 Part D).
         foreach (ActiveScript failed in _failed)
         {
             _activeAbilities.Remove(failed);
         }
+
+        ReleaseEntries(_failed);
     }
 
     public void CancelCasts(IUnit caster)
@@ -468,7 +514,9 @@ public class InstanceAbilityCastSystem(
         }
         finally
         {
-            // Emptied now: until the next leave it would hold the casts of a caster who is gone, and the caster.
+            // Every one is out of the queue: its entry goes back, and its unfired script (#1181 Part D). Emptied now: until
+            // the next leave it would hold the casts of a caster who is gone, and the caster.
+            ReleaseCasts(_cancelled);
             _cancelled.Clear();
         }
     }
@@ -517,6 +565,10 @@ public class InstanceAbilityCastSystem(
                 AbilityInstance cast = _controlled[i];
                 TryInterrupt(cast.Caster, cast.Ability, cast.CastId);
             }
+
+            // Out of the queue and told: each entry goes back, and its unfired script (#1181 Part D).
+            for (int i = first; i < _controlled.Count; i++)
+                ReleaseCast(_controlled[i]);
         }
         finally
         {
@@ -526,7 +578,8 @@ public class InstanceAbilityCastSystem(
 
     public void CancelScriptsOf(IUnit caster)
     {
-        int dropped = _activeAbilities.RemoveCastBy(caster);
+        int dropped = _activeAbilities.RemoveCastBy(caster, _released);
+        ReleaseEntries(_released);
         if (dropped > 0)
         {
             CombatLog.ScriptsDroppedCasterLeft(_logger, dropped, caster.Guid);
@@ -556,6 +609,7 @@ public class InstanceAbilityCastSystem(
             catch (Exception e)
             {
                 active.Leaving = true;
+                active.Threw = true;
                 Failed(active.Caster, active.Ability, e, "State", active.CastId);
             }
 
@@ -564,7 +618,33 @@ public class InstanceAbilityCastSystem(
 
         if (leaving)
         {
-            _activeAbilities.RemoveAll(static a => a.Leaving);
+            _activeAbilities.RemoveLeaving(_released);
+            ReleaseEntries(_released);
+        }
+    }
+
+    /// <summary>
+    /// Running-list entries that have left the list go back to the free stack, each cleared, and the script of each that did
+    /// not throw is retired to its pool (#1181 Part D), which takes back only its own. Called once the list is whole again,
+    /// and empties <paramref name="entries" />.
+    /// </summary>
+    private void ReleaseEntries(List<ActiveScript> entries)
+    {
+        try
+        {
+            foreach (ActiveScript entry in entries)
+            {
+                if (!entry.Threw)
+                    _pool.Retire(entry.Script);
+
+                entry.Clear();
+                if (_freeEntries.Count < PooledScripts)
+                    _freeEntries.Push(entry);
+            }
+        }
+        finally
+        {
+            entries.Clear();
         }
     }
 
@@ -593,6 +673,11 @@ public class InstanceAbilityCastSystem(
 
         try
         {
+            // A type the pool keeps, for a World-side ability, comes from the pool (#1181 Part D): a free one bound to this
+            // cast, or a new one. Any other answer is built through the activator, unpooled, as before.
+            if (ability is GameAbility pooledFrom && _pool.Take(scriptType, pooledFrom, caster, aim) is { } pooled)
+                return pooled;
+
             // The script's own copy: its timers and casting flag are not its caster's. A World-side ability shares
             // its metadata with the copy, which cannot change; any other ability is copied whole, as before.
             IAbility own = ability is GameAbility held ? held.CloneForCast() : ability.Clone();
@@ -714,10 +799,27 @@ public class InstanceAbilityCastSystem(
 
         if (running)
         {
-            _activeAbilities.Add(new ActiveScript(caster, ability, script, castId, view));
+            if (!_freeEntries.TryPop(out ActiveScript? entry))
+                entry = new ActiveScript();
+            entry.Start(caster, ability, script, castId, view);
+            _activeAbilities.Add(entry);
+        }
+        else
+        {
+            // Finished in Prepare, it never runs: a pooled script goes back now (#1181 Part D), any other is let go.
+            _pool.Retire(script);
         }
 
         CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
+    }
+
+    /// <summary>The pool of this instance's scripts, keyed by type: projectiles today (#1181 Part D).</summary>
+    private static AbilityScriptPool NewPool(IAbilityArena arena)
+    {
+        var pool = new AbilityScriptPool(arena);
+        pool.Pools<ProjectileAbilityScript>(static (owner, own, caster, aim, at) =>
+            new ProjectileAbilityScript(own, caster, aim, at) { Pool = owner });
+        return pool;
     }
 
     /// <summary>
@@ -776,18 +878,41 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>
     /// A running script and who cast it, with the caster's own ability and the cast's id for the interrupt, and how far
-    /// the cast's hits are rewound (#1082), fixed when it was taken.
+    /// the cast's hits are rewound (#1082), fixed when it was taken. Reused (#1181 Part D): started for each script that
+    /// runs, cleared when it leaves the list.
     /// </summary>
-    private sealed class ActiveScript(IUnit caster, IAbility ability, AbilityScript script, uint castId, CastView view)
+    private sealed class ActiveScript
     {
-        public IUnit Caster { get; } = caster;
-        public IAbility Ability { get; } = ability;
-        public AbilityScript Script { get; } = script;
-        public uint CastId { get; } = castId;
-        public CastView View { get; } = view;
+        public IUnit Caster { get; private set; } = null!;
+        public IAbility Ability { get; private set; } = null!;
+        public AbilityScript Script { get; private set; } = null!;
+        public uint CastId { get; private set; }
+        public CastView View { get; private set; }
 
         /// <summary>Set by the sweep for finished scripts, for the removal that follows it in the same call.</summary>
         public bool Leaving { get; set; }
+
+        /// <summary>Its script threw, or ran without a guid: never pooled again (#1181 Part D).</summary>
+        public bool Threw { get; set; }
+
+        public void Start(IUnit caster, IAbility ability, AbilityScript script, uint castId, CastView view)
+        {
+            Caster = caster;
+            Ability = ability;
+            Script = script;
+            CastId = castId;
+            View = view;
+            Leaving = false;
+            Threw = false;
+        }
+
+        /// <summary>No caster, ability or script kept alive by a free entry.</summary>
+        public void Clear()
+        {
+            Caster = null!;
+            Ability = null!;
+            Script = null!;
+        }
     }
 
     /// <summary>
@@ -815,46 +940,50 @@ public class InstanceAbilityCastSystem(
                 Changed();
         }
 
-        public int RemoveAll(Predicate<ActiveScript> match)
+        /// <summary>
+        /// Removes every entry the sweep marked <see cref="ActiveScript.Leaving" />, keeping the others in order, and adds
+        /// each removed one to <paramref name="removed" />, for the caller to hand back once the list is whole. A loop over
+        /// a flag the sweep set, never a predicate: nothing it reads can throw, and none closes over the pool (#1181 Part D).
+        /// </summary>
+        public void RemoveLeaving(List<ActiveScript> removed)
         {
-            int removed;
-            try
+            int kept = 0;
+            for (int i = 0; i < _scripts.Count; i++)
             {
-                removed = _scripts.RemoveAll(match);
-            }
-            catch
-            {
-                // The list compacts as it goes and sets its size last: a predicate that throws part-way has already
-                // overwritten scripts it matched, and the index would still name them. No predicate here reads a
-                // script's own code any more; this stays for one that would.
-                Changed();
-                throw;
+                ActiveScript entry = _scripts[i];
+                if (entry.Leaving)
+                    removed.Add(entry);
+                else
+                    _scripts[kept++] = entry;
             }
 
-            if (removed > 0)
-                Changed();
-            return removed;
+            if (kept == _scripts.Count)
+                return;
+
+            _scripts.RemoveRange(kept, _scripts.Count - kept);
+            Changed();
         }
 
         /// <summary>
-        /// Removes every script <paramref name="caster" /> cast and answers how many. A loop, not
-        /// <see cref="RemoveAll" />: its predicate would close over the caster, a closure and a delegate per call (#883).
+        /// Removes every script <paramref name="caster" /> cast, adding each entry to <paramref name="removed" />, and
+        /// answers how many. A loop: a predicate would close over the caster, a closure and a delegate per call (#883).
         /// </summary>
-        public int RemoveCastBy(IUnit caster)
+        public int RemoveCastBy(IUnit caster, List<ActiveScript> removed)
         {
-            int removed = 0;
+            int count = 0;
             for (int i = _scripts.Count - 1; i >= 0; i--)
             {
                 if (ReferenceEquals(_scripts[i].Caster, caster))
                 {
+                    removed.Add(_scripts[i]);
                     _scripts.RemoveAt(i);
-                    removed++;
+                    count++;
                 }
             }
 
-            if (removed > 0)
+            if (count > 0)
                 Changed();
-            return removed;
+            return count;
         }
 
         /// <summary>
