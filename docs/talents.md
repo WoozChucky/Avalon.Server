@@ -251,10 +251,10 @@ afterwards.
     object of its own), 1-100 for `ImpactExplosion` (0.1-10 m) and `AuraStacks`, 1-1000 for the rest; `Value2` 1-1000;
   - the fit: `AddedProjectiles` needs a `Projectile`; `ImpactExplosion` a `Projectile` that does not pierce and deals
     direct damage to hostiles; `AreaPct` a `Circle`, or a `Projectile` its own capstone explodes; `ConeReachPct` and
-    `ConeArcPct` a `Cone`; `SecondHit` a direct amount (`AbilityRules.HasDirectEffect`); `AuraStacks` and `AuraDurationPct` an aura
-    that is **not crowd control** (`AuraRules.IsCrowdControl`: a stun, a root or a silence in its `Control`, or a slow),
-    refused first as "lengthens or deepens crowd control: its aura N stuns, roots, silences or slows", and then, for
-    `AuraStacks`, an aura that stacks (`AuraStacking.Stack`).
+    `ConeArcPct` a `Cone`; `SecondHit` a direct amount (`AbilityRules.HasDirectEffect`); `AuraStacks` and
+    `AuraDurationPct` an aura that is **not crowd control** (`AuraRules.IsCrowdControl`: a stun, a root or a silence
+    in its `Control`, or a slow), refused first as "lengthens or deepens crowd control: its aura N stuns, roots,
+    silences or slows", and then, for `AuraStacks`, an aura that stacks (`AuraStacking.Stack`).
 
 ## The export and the public read
 
@@ -528,9 +528,9 @@ talent change changed the abilities held, or the shape of one), it sends `SMSG_C
 flag. Then it sends the state when the state is owed (an accepted allocation or refund, or a turn-in of a quest that
 pays talent points, which also says "You gained 1 talent point.", [quests](quests.md)) or when the character's level
 differs from the one the last state was sent at, which catches every level-up (anything that grants experience: a
-kill, a quest, an item) without touching the experience award, and with it every change of the refund price. Each flag is cleared, and the level recorded, before its send, so a send
-that throws is not tried again on every tick. The quest catalog the points are priced by and `Game:Talents` are read
-once per tick by `WorldServer`.
+kill, a quest, an item) without touching the experience award, and with it every change of the refund price. Each
+flag is cleared, and the level recorded, before its send, so a send that throws is not tried again on every tick. The
+quest catalog the points are priced by and `Game:Talents` are read once per tick by `WorldServer`.
 
 ## The stats fold
 

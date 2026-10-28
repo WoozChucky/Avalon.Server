@@ -185,8 +185,8 @@ An ability already held keeps its running cooldown; a new one arrives ready, and
 even one refunded on cooldown. An ability a capstone reshapes keeps its running cooldown too. A change of small,
 notable, junction or keystone nodes sends no ability list: the stats it changes reach the client as usual, through
 `SMSG_CHARACTER_STATS` (`0x302A`) and, when an ability's amount or pace moved, `SMSG_CHARACTER_ABILITY_AMOUNTS`
-(`0x302C`), at the end of the tick ([inventory and saves](inventory-and-saves.md)). The ability list has no fixed length: an action bar takes any number
-of abilities.
+(`0x302C`), at the end of the tick ([inventory and saves](inventory-and-saves.md)). The ability list has no fixed
+length: an action bar takes any number of abilities.
 
 ## 6. Quest talent points
 

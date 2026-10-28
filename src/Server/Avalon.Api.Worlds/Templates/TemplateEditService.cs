@@ -138,6 +138,7 @@ public sealed class TemplateEditService(
         TemplateEditCaller caller, uint id, string ifMatch, UpdateAuraTemplateRequest request, CancellationToken ct)
     {
         string? stored = null; // the script name as the row held it, before the request is applied
+        Domain.World.AuraKind? storedKind = null; // and its kind
         return RunAsync(new Kind<AuraTemplate, UpdateAuraTemplateRequest>(
             "Aura", TemplateReloadArea.Auras, TemplateFields.Aura,
             async (db, ct2) =>
@@ -145,6 +146,7 @@ public sealed class TemplateEditService(
                 AuraTemplate? found = await db.AuraTemplates.Include(a => a.Modifiers)
                     .FirstOrDefaultAsync(a => a.Id == new AuraId(id), ct2);
                 stored = found?.ScriptName;
+                storedKind = found?.Kind;
                 return found;
             },
             TemplateVersion.Of, TemplateValidation.Aura,
@@ -171,11 +173,13 @@ public sealed class TemplateEditService(
                     }
 
                     // The capstones that shape the ability (#1181 Part D) must still fit the aura: never on crowd control,
-                    // and a stack modifier only on an aura that stacks, or the world would refuse the whole talent tree.
+                    // and a stack modifier only on an aura that stacks, or the world would refuse the whole talent tree. Keyed
+                    // by the field that made it so: a slow comes from a harmful kind and a negative movement modifier.
                     if (await CapstoneProblemAsync(db, ability, row, ct2) is (_, { } capstoneProblem))
                     {
                         string key = row.Control != Domain.World.CrowdControl.None ? "control"
-                            : AuraRules.IsCrowdControl(row) ? "modifiers" : "stacking";
+                            : !AuraRules.IsCrowdControl(row) ? "stacking"
+                            : row.Kind != storedKind ? "kind" : "modifiers";
                         errors.Add(key, $"The world would refuse the talent tree: {capstoneProblem}.");
                     }
                 }
