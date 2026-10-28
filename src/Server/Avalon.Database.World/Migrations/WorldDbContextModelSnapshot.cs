@@ -26487,20 +26487,20 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 306,
-                            Angle = -72f,
+                            Angle = -71.494675f,
                             ForkGroupId = 1,
                             Kind = (byte)5,
                             Name = "Wide Arc",
-                            Radius = 880f
+                            Radius = 920f
                         },
                         new
                         {
                             Id = 307,
-                            Angle = -68f,
+                            Angle = -68.505325f,
                             ForkGroupId = 1,
                             Kind = (byte)5,
                             Name = "Long Reach",
-                            Radius = 880f
+                            Radius = 920f
                         },
                         new
                         {
@@ -26513,20 +26513,20 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 309,
-                            Angle = -132f,
+                            Angle = -134.91107f,
                             ForkGroupId = 2,
                             Kind = (byte)5,
                             Name = "Earthshaker",
-                            Radius = 320f
+                            Radius = 280f
                         },
                         new
                         {
                             Id = 310,
-                            Angle = -128f,
+                            Angle = -125.088936f,
                             ForkGroupId = 2,
                             Kind = (byte)5,
                             Name = "Aftershock",
-                            Radius = 320f
+                            Radius = 280f
                         },
                         new
                         {
@@ -26539,20 +26539,20 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 312,
-                            Angle = -22f,
+                            Angle = -21.494673f,
                             ForkGroupId = 3,
                             Kind = (byte)5,
                             Name = "Broad Volley",
-                            Radius = 880f
+                            Radius = 920f
                         },
                         new
                         {
                             Id = 313,
-                            Angle = -18f,
+                            Angle = -18.505327f,
                             ForkGroupId = 3,
                             Kind = (byte)5,
                             Name = "Long Volley",
-                            Radius = 880f
+                            Radius = 920f
                         },
                         new
                         {
@@ -26573,38 +26573,38 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 316,
-                            Angle = 38f,
+                            Angle = 35.088932f,
                             ForkGroupId = 4,
                             Kind = (byte)5,
                             Name = "Blight Burst",
-                            Radius = 320f
+                            Radius = 280f
                         },
                         new
                         {
                             Id = 317,
-                            Angle = 42f,
+                            Angle = 44.911068f,
                             ForkGroupId = 4,
                             Kind = (byte)5,
                             Name = "Twin Binding",
-                            Radius = 320f
+                            Radius = 280f
                         },
                         new
                         {
                             Id = 318,
-                            Angle = 68f,
+                            Angle = 68.505325f,
                             ForkGroupId = 5,
                             Kind = (byte)5,
                             Name = "Glacial Reach",
-                            Radius = 880f
+                            Radius = 920f
                         },
                         new
                         {
                             Id = 319,
-                            Angle = 72f,
+                            Angle = 71.494675f,
                             ForkGroupId = 5,
                             Kind = (byte)5,
                             Name = "Wide Fan",
-                            Radius = 880f
+                            Radius = 920f
                         },
                         new
                         {
@@ -26625,20 +26625,20 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 322,
-                            Angle = 128f,
+                            Angle = 125.088936f,
                             ForkGroupId = 6,
                             Kind = (byte)5,
                             Name = "Wildfire",
-                            Radius = 320f
+                            Radius = 280f
                         },
                         new
                         {
                             Id = 323,
-                            Angle = 132f,
+                            Angle = 134.91107f,
                             ForkGroupId = 6,
                             Kind = (byte)5,
                             Name = "Firestorm",
-                            Radius = 320f
+                            Radius = 280f
                         },
                         new
                         {
@@ -26651,20 +26651,20 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 325,
-                            Angle = -162f,
+                            Angle = -161.49467f,
                             ForkGroupId = 7,
                             Kind = (byte)5,
                             Name = "Sanctuary",
-                            Radius = 880f
+                            Radius = 920f
                         },
                         new
                         {
                             Id = 326,
-                            Angle = -158f,
+                            Angle = -158.50533f,
                             ForkGroupId = 7,
                             Kind = (byte)5,
                             Name = "Twice Blessed",
-                            Radius = 880f
+                            Radius = 920f
                         },
                         new
                         {
@@ -26677,38 +26677,38 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 328,
-                            Angle = 150f,
+                            Angle = 148f,
                             ForkGroupId = 8,
                             Kind = (byte)5,
                             Name = "Bastion",
-                            Radius = 400f
+                            Radius = 376f
                         },
                         new
                         {
                             Id = 329,
-                            Angle = 154f,
+                            Angle = 148f,
                             ForkGroupId = 8,
                             Kind = (byte)5,
                             Name = "Steadfast",
-                            Radius = 400f
+                            Radius = 424f
                         },
                         new
                         {
                             Id = 330,
-                            Angle = 43f,
+                            Angle = 43.43739f,
                             ForkGroupId = 9,
                             Kind = (byte)5,
                             Name = "Shatterbolt",
-                            Radius = 840f
+                            Radius = 880f
                         },
                         new
                         {
                             Id = 331,
-                            Angle = 47f,
+                            Angle = 46.56261f,
                             ForkGroupId = 9,
                             Kind = (byte)5,
                             Name = "Rimeburst",
-                            Radius = 840f
+                            Radius = 880f
                         },
                         new
                         {

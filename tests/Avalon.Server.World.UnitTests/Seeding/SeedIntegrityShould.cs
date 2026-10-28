@@ -1161,18 +1161,38 @@ public class SeedIntegrityShould
         Assert.Equal((AbilityFlags.Basic, 0u), (ability.Flags & AbilityFlags.Basic, ability.Cost));
     }
 
-    /// <summary>#1181: the client draws the wheel from the seed, so no two nodes share a place, and each angle is normalised.</summary>
+    /// <summary>
+    /// #1181, #1241: the client draws the wheel from the seed, so no two nodes overlap as it draws them (each kind's
+    /// radius in layout units below), and each angle is normalised.
+    /// </summary>
     [Fact]
-    public void Lay_every_talent_node_out_at_a_position_of_its_own()
+    public void Lay_every_talent_node_out_clear_of_every_other()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         var nodes = context.TalentNodes.AsNoTracking().ToList();
 
-        Assert.Equal(nodes.Count, nodes.Select(n => (n.Angle, n.Radius)).Distinct().Count());
         Assert.All(nodes, n => Assert.True(n.Angle is > -180f and <= 180f && n.Radius >= 0f,
             $"node {n.Id} at ({n.Angle}, {n.Radius})"));
+        var placed = nodes.Select(n => (n.Id, X: n.Radius * MathF.Cos(n.Angle * MathF.PI / 180f),
+            Y: n.Radius * MathF.Sin(n.Angle * MathF.PI / 180f), Size: DrawnRadius(n.Kind))).ToList();
+        var overlaps = (from a in placed
+                        from b in placed
+                        where a.Id < b.Id && MathF.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y))) <
+                            a.Size + b.Size
+                        select $"{a.Id}/{b.Id}").ToList();
+        Assert.Empty(overlaps);
+
+        static float DrawnRadius(TalentNodeKind kind) => kind switch
+        {
+            TalentNodeKind.Start => 22f,
+            TalentNodeKind.Notable => 13.5f,
+            TalentNodeKind.Ability => 17f,
+            TalentNodeKind.Capstone or TalentNodeKind.Keystone => 18f,
+            TalentNodeKind.Junction => 10f,
+            _ => 8.5f,
+        };
     }
 
     /// <summary>
