@@ -70,7 +70,7 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   `ItemIdentifyHandler` answers each with exactly one `SMSG_ITEM_IDENTIFY_RESULT` (`0x3092`,
   `SItemIdentifyResultPacket`: `RequestId`, `ItemIdentifyResult`), and a connection with no character gets nothing
   (logged at Debug). `IdentifyRules.Decide`, which reads and never changes, asks in this order, its first four the
-  Workbench's shared prefix (`WorkbenchRules.Access`, which extraction and imprinting ask too, #1180 part C): `Dead`
+  Workbench's shared prefix (`DoodadServiceRules.Access`, which extraction and imprinting ask too, #1180 part C): `Dead`
   (1); `Stunned` (2, `ControlGates.CanAct`); `NotFound` (3: no instance, no doodad of that guid in it, a despawned one,
   or one whose template's service is not Workbench); `TooFar` (4: beyond the Workbench's `InteractionRange`, 5 m, written so a
   position that is not a number is beyond it; a doodad has no conversation to leash, so walking away after opening the
@@ -173,7 +173,7 @@ modifiers](item-modifiers.md#extraction); this section is how the world decides,
 - **The Workbench's three requests.** Identification, extraction and imprinting are all requests at the Resonance
   Workbench, each in `MapSessionFilter`, handled on the tick in the map pass, each answered with exactly one result
   (a connection with no character gets nothing, logged at Debug), and none holding window state. Each first passes the
-  Workbench's shared prefix, `WorkbenchRules.Access` (`WorkbenchAccess`, World-side and not on the wire: `Dead`;
+  Workbench's shared prefix, `DoodadServiceRules.Access` (`DoodadServiceAccess`, World-side and not on the wire: `Dead`;
   `Stunned`, `ControlGates.CanAct`; `NotFound`, no instance, no doodad of that guid in it, a despawned one or one whose
   service is not `Workbench`; `TooFar`, beyond its `InteractionRange`, a distance that is not a number included), which
   each request's rules map to its own result with a `switch`. Then its own rules, which read and never change. **A

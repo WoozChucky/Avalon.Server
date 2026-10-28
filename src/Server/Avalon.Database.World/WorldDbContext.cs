@@ -2398,6 +2398,19 @@ public class WorldDbContext : DbContext
             OffsetZ = -11f,
             Yaw = 0f,
         });
+
+        // The Lectern of Paths (#1181), doodad 8, at world (33, 0, 4) facing yaw 90: its spot in TownPieces (local 3, 4)
+        // is 3 m west of the Workbench, in the market's open south-west, this offset from the entry (15, 0, 15). No gate.
+        builder.HasData(new MapDoodadSpawn
+        {
+            Id = 3,
+            MapTemplateId = 1,
+            DoodadTemplateId = 8,
+            OffsetX = 18f,
+            OffsetY = 0f,
+            OffsetZ = -11f,
+            Yaw = 90f,
+        });
     }
 
     private static void Configure(EntityTypeBuilder<CreaturePath> builder)
@@ -3615,7 +3628,7 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// Doodads: interactable world objects (chests, barrels, shrines, fountains, quest objects). Reference data; the
     /// world's doodad catalog validates it on load. Interaction 0 None, 1 Click; UseLimit 1 OncePerInstance, 2 Unlimited;
-    /// SpentLook 1 ShowUsed, 2 Despawn; Collision 0 None, 1 Box; Service null or 1 Workbench; the gate conditions 1 NotStarted, 2 OnObjective,
+    /// SpentLook 1 ShowUsed, 2 Despawn; Collision 0 None, 1 Box; Service null, 1 Workbench or 2 Lectern; the gate conditions 1 NotStarted, 2 OnObjective,
     /// 3 Completed, 4 NotCompleted. The gate quest and objective ids are plain columns, no foreign key, so seed order
     /// never trips them; the catalog checks them. Every check reads the same on Postgres and on the SQLite the tests
     /// build the model on, and an upper bound refuses NaN too, which Postgres sorts above every number.
@@ -3627,7 +3640,7 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_DoodadTemplates_Interaction", "\"Interaction\" IN (0, 1)");
             t.HasCheckConstraint("CK_DoodadTemplates_UseLimit", "\"UseLimit\" IN (1, 2)");
             t.HasCheckConstraint("CK_DoodadTemplates_SpentLook", "\"SpentLook\" IN (1, 2)");
-            t.HasCheckConstraint("CK_DoodadTemplates_Service", "\"Service\" IS NULL OR \"Service\" = 1");
+            t.HasCheckConstraint("CK_DoodadTemplates_Service", "\"Service\" IS NULL OR \"Service\" IN (1, 2)");
             // A solid doodad's box is finite, has room in both directions, and stands at least 1.05 m tall. The bound
             // is 1.049, not 1.05: the column is a float, and both databases compare it as a double, where a stored
             // 1.05f reads 1.0499999523 and would fail ">= 1.05". The catalog keeps the exact ">= 1.05f" rule.
@@ -3716,6 +3729,25 @@ public class WorldDbContext : DbContext
             SpentLook = DoodadSpentLook.ShowUsed,
             Collision = DoodadCollision.None,
             Service = DoodadService.Workbench,
+        });
+
+        // The Lectern of Paths (#1181), beside the Workbench in Glimmerdell's market: a click opens the client's respec
+        // window, and each refund names it and is checked against its range. Clicked, never spent, walk-through (its box
+        // is the town piece's), with no script, loot or gate, as the Workbench.
+        builder.HasData(new DoodadTemplate
+        {
+            Id = 8,
+            Name = "Lectern of Paths",
+            ModelKit = "props-kit",
+            ModelKey = "BookStand",
+            Interaction = DoodadInteraction.Click,
+            InteractionTimeMs = 0,
+            InteractionRange = 5f,
+            AreaRadius = 0f,
+            UseLimit = DoodadUseLimit.Unlimited,
+            SpentLook = DoodadSpentLook.ShowUsed,
+            Collision = DoodadCollision.None,
+            Service = DoodadService.Lectern,
         });
     }
 

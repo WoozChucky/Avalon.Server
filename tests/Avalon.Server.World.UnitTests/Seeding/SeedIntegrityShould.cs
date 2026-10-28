@@ -2261,25 +2261,28 @@ public class SeedIntegrityShould
         DoodadCatalog catalog = SeededDoodadCatalog(context);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u, 7u], catalog.Templates.Select(t => t.Id.Value));
+        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u], catalog.Templates.Select(t => t.Id.Value));
         // The forest set runs its scripts; the caravan's strongbox and notice board need none, as a use only credits the
-        // quest, and the Resonance Workbench none, as a click only opens the client's window.
+        // quest, and the service doodads (the Resonance Workbench, the Lectern of Paths) none, as a click only opens the
+        // client's window.
         Assert.All(catalog.Templates, t => Assert.Equal(t.Id.Value <= 4, t.ScriptType is not null));
     }
 
     /// <summary>
-    /// #1179: the one service doodad is the Resonance Workbench, a Workbench doodad clicked within 5 m, never spent and
-    /// walk-through (its box is the town piece's), placed once, in Glimmerdell; the catalog loads it as Workbench.
+    /// #1179, #1181: each service doodad is seeded once, in Glimmerdell: the Resonance Workbench (Workbench) and the
+    /// Lectern of Paths (Lectern), each clicked within 5 m, never spent and walk-through (its box is the town piece's);
+    /// the catalog loads each with its service.
     /// </summary>
-    [Fact]
-    public void Seed_one_resonance_workbench_in_glimmerdell()
+    [Theory]
+    [InlineData(DoodadService.Workbench, "Resonance Workbench", "Workbench")]
+    [InlineData(DoodadService.Lectern, "Lectern of Paths", "BookStand")]
+    public void Seed_one_service_doodad_of_each_kind_in_glimmerdell(DoodadService service, string name, string modelKey)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        DoodadTemplate t = Assert.Single(context.DoodadTemplates.AsNoTracking().AsEnumerable(), d => d.Service is not null);
-        Assert.Equal(("Resonance Workbench", "props-kit", "Workbench", DoodadService.Workbench),
-            (t.Name, t.ModelKit, t.ModelKey, t.Service));
+        DoodadTemplate t = Assert.Single(context.DoodadTemplates.AsNoTracking().AsEnumerable(), d => d.Service == service);
+        Assert.Equal((name, "props-kit", modelKey), (t.Name, t.ModelKit, t.ModelKey));
         Assert.Equal(((string?)null, (string?)null, (string?)null, (string?)null),
             (t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip));
         Assert.Equal((DoodadInteraction.Click, 0u, 5f, 0f, DoodadUseLimit.Unlimited, DoodadSpentLook.ShowUsed, DoodadCollision.None),
@@ -2291,7 +2294,7 @@ public class SeedIntegrityShould
 
         // Load_every_seeded_doodad_through_the_catalog_without_refusing_any holds that none is refused; this, its service.
         Assert.True(SeededDoodadCatalog(context).TryGet(t.Id, out DoodadTemplateView? view));
-        Assert.Equal(DoodadService.Workbench, view.Service);
+        Assert.Equal(service, view.Service);
     }
 
     /// <summary>The seeded doodads loaded as the world loads them, against the seeded loot, auras, quests and scripts.</summary>

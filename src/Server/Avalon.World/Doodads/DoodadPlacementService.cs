@@ -388,14 +388,14 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
         DoodadTemplateView template = spawn.Template;
         DoodadGate? visible = spawn.VisibleGate;
         DoodadGate? usable = spawn.UsableGate;
-        // A solid doodad is never hidden, and a Workbench one (the Resonance Workbench, #1179) is never hidden or gated,
-        // as the catalog holds its template to: a spawn row or a rule cannot give either a gate.
-        bool ungated = template.Solid || template.Service == DoodadService.Workbench;
+        // A solid doodad is never hidden, and a service one (the Resonance Workbench, the Lectern of Paths) is never
+        // hidden or gated, as the catalog holds its template to: a spawn row or a rule cannot give either a gate.
+        bool ungated = template.Solid || template.Service is not null;
         if (ungated && (visible is not null || usable is not null))
         {
             _logger.LogWarning("Doodad {DoodadTemplateId} '{Name}' on map {MapId} is {Kind}, which is never hidden or " +
                                "gated: its spawn's gates are dropped", template.Id.Value, template.Name, placement.Map.Value,
-                template.Solid ? "solid" : "a Workbench doodad");
+                template.Solid ? "solid" : "a service doodad");
             visible = null;
             usable = null;
         }

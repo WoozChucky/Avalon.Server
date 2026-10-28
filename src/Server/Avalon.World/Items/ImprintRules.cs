@@ -15,7 +15,7 @@ namespace Avalon.World.Items;
 /// Whether a character may imprint the glyph in one Bag slot onto the item in another at a Resonance Workbench now (#1180
 /// part C). It reads and never changes, and allocates nothing: ItemImprintHandler applies an Ok. The checks, in order:
 /// <list type="number">
-/// <item>the Workbench's shared prefix (<see cref="WorkbenchRules.Access" />: dead, stunned, the Workbench not found,
+/// <item>the Workbench's shared prefix (<see cref="DoodadServiceRules.Access" />: dead, stunned, the Workbench not found,
 /// beyond its range);</item>
 /// <item>NoGlyph: the glyph slot is empty or past the Bag, its template is gone or is not a glyph, it holds other than
 /// exactly one row, or that row's catalog modifier is gone, untiered, or not a prefix or suffix;</item>
@@ -52,16 +52,16 @@ public static class ImprintRules
         out ulong cost)
     {
         cost = 0;
-        WorkbenchAccess access = WorkbenchRules.Access(character, host, workbench);
-        if (access != WorkbenchAccess.Ok)
+        DoodadServiceAccess access = DoodadServiceRules.Access(character, host, workbench, DoodadService.Workbench);
+        if (access != DoodadServiceAccess.Ok)
         {
             return access switch
             {
-                WorkbenchAccess.Dead => ItemImprintResult.Dead,
-                WorkbenchAccess.Stunned => ItemImprintResult.Stunned,
-                WorkbenchAccess.NotFound => ItemImprintResult.NotFound,
-                WorkbenchAccess.TooFar => ItemImprintResult.TooFar,
-                _ => throw new UnreachableException($"WorkbenchAccess {access} has no imprint result"),
+                DoodadServiceAccess.Dead => ItemImprintResult.Dead,
+                DoodadServiceAccess.Stunned => ItemImprintResult.Stunned,
+                DoodadServiceAccess.NotFound => ItemImprintResult.NotFound,
+                DoodadServiceAccess.TooFar => ItemImprintResult.TooFar,
+                _ => throw new UnreachableException($"DoodadServiceAccess {access} has no imprint result"),
             };
         }
 

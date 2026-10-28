@@ -13,7 +13,7 @@ namespace Avalon.World.Items;
 /// <summary>
 /// Whether a character may extract one affix of the item in one Bag slot at a Resonance Workbench now (#1180 part C). It
 /// reads and never changes, costs no gold and allocates nothing: ItemExtractHandler applies an Ok. The checks, in order:
-/// the Workbench's shared prefix (<see cref="WorkbenchRules.Access" />: dead, stunned, the Workbench not found, beyond its
+/// the Workbench's shared prefix (<see cref="DoodadServiceRules.Access" />: dead, stunned, the Workbench not found, beyond its
 /// range); the Bag holds nothing in that slot (a slot past the Bag included); the item is not identified; it is offered
 /// in a trade; it is Tainted; and NotExtractable, for any of these: its template is gone or is not a rolled base (a
 /// unique, a glyph), the copy is not Magic or Rare, the template can never be destroyed, the item carries no row of that
@@ -28,16 +28,16 @@ public static class ExtractRules
     public static ItemExtractResult Decide(CharacterEntity character, IDoodadHost? host, ulong workbench,
         byte bagSlot, uint modifierId, ItemsPatch items)
     {
-        WorkbenchAccess access = WorkbenchRules.Access(character, host, workbench);
-        if (access != WorkbenchAccess.Ok)
+        DoodadServiceAccess access = DoodadServiceRules.Access(character, host, workbench, DoodadService.Workbench);
+        if (access != DoodadServiceAccess.Ok)
         {
             return access switch
             {
-                WorkbenchAccess.Dead => ItemExtractResult.Dead,
-                WorkbenchAccess.Stunned => ItemExtractResult.Stunned,
-                WorkbenchAccess.NotFound => ItemExtractResult.NotFound,
-                WorkbenchAccess.TooFar => ItemExtractResult.TooFar,
-                _ => throw new UnreachableException($"WorkbenchAccess {access} has no extract result"),
+                DoodadServiceAccess.Dead => ItemExtractResult.Dead,
+                DoodadServiceAccess.Stunned => ItemExtractResult.Stunned,
+                DoodadServiceAccess.NotFound => ItemExtractResult.NotFound,
+                DoodadServiceAccess.TooFar => ItemExtractResult.TooFar,
+                _ => throw new UnreachableException($"DoodadServiceAccess {access} has no extract result"),
             };
         }
 

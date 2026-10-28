@@ -5570,7 +5570,7 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_DoodadTemplates_RestorePct", "\"RestorePct\" <= 100");
 
-                            t.HasCheckConstraint("CK_DoodadTemplates_Service", "\"Service\" IS NULL OR \"Service\" = 1");
+                            t.HasCheckConstraint("CK_DoodadTemplates_Service", "\"Service\" IS NULL OR \"Service\" IN (1, 2)");
 
                             t.HasCheckConstraint("CK_DoodadTemplates_SpentLook", "\"SpentLook\" IN (1, 2)");
 
@@ -5740,6 +5740,27 @@ namespace Avalon.Database.World.Migrations
                             Name = "Resonance Workbench",
                             RestorePct = 0L,
                             Service = (byte)1,
+                            SpentLook = (byte)1,
+                            UseLimit = (byte)2
+                        },
+                        new
+                        {
+                            Id = 8L,
+                            AreaRadius = 0f,
+                            Collision = (byte)0,
+                            CollisionHalfX = 0f,
+                            CollisionHalfZ = 0f,
+                            CollisionHeight = 0f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 0L,
+                            MaxGold = 0,
+                            MinGold = 0,
+                            ModelKey = "BookStand",
+                            ModelKit = "props-kit",
+                            Name = "Lectern of Paths",
+                            RestorePct = 0L,
+                            Service = (byte)2,
                             SpentLook = (byte)1,
                             UseLimit = (byte)2
                         });
@@ -21035,6 +21056,16 @@ namespace Avalon.Database.World.Migrations
                             OffsetY = 0f,
                             OffsetZ = -11f,
                             Yaw = 0f
+                        },
+                        new
+                        {
+                            Id = 3,
+                            DoodadTemplateId = 8L,
+                            MapTemplateId = 1,
+                            OffsetX = 18f,
+                            OffsetY = 0f,
+                            OffsetZ = -11f,
+                            Yaw = 90f
                         });
                 });
 

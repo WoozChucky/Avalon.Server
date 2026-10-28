@@ -178,15 +178,16 @@ public class DoodadPlacementShould
 
     /// <summary>
     /// Glimmerdell's fixed spawns: the seeded notice board (MapDoodadSpawns row 1) stands at the entry spawn plus its
-    /// offset, (9, 24), facing its row's yaw, with its template's usable gate (the row sets none), and the Resonance
-    /// Workbench (row 2) at (36, 4). Then rows over the seeded templates: a walk-through doodad authored a metre up
-    /// stands on the navmesh's ground, a solid shrine keeps its authored height, a solid one off a quarter turn is
-    /// refused, and a Workbench row's gate is dropped (#1179), so it is never hidden or gated: one Warning each.
+    /// offset, (9, 24), facing its row's yaw, with its template's usable gate (the row sets none), the Resonance
+    /// Workbench (row 2) at (36, 4), and the Lectern of Paths (row 3) at (33, 4), facing yaw 90. Then rows over the
+    /// seeded templates: a walk-through doodad authored a metre up stands on the navmesh's ground, a solid shrine keeps
+    /// its authored height, a solid one off a quarter turn is refused, and a service doodad's row has its gate dropped
+    /// (#1179, #1181), so it is never hidden or gated: one Warning each.
     /// </summary>
     [Fact]
     public async Task Place_a_town_doodad_at_its_offset_on_the_ground()
     {
-        const uint NoticeBoard = 6, SeededShrine = 3, Workbench = 7;
+        const uint NoticeBoard = 6, SeededShrine = 3, Lectern = 8;
         ChunkLayout town = Reference.TownLayout;
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
         navigator.LoadFromNavMesh(TownNavmesh.Shared);
@@ -200,7 +201,7 @@ public class DoodadPlacementShould
             TownSpawn(101, NoticeBoard, 0f, 1f, 0f, 0f, usable: s_rowGate),       // at the entry, a metre up
             TownSpawn(102, SeededShrine, -10f, 0.3f, -10f, 180f),
             TownSpawn(103, SeededShrine, 10f, 0f, -10f, 45f),
-            TownSpawn(104, Workbench, 0f, 0f, -3f, 0f, usable: s_rowGate),
+            TownSpawn(104, Lectern, 0f, 0f, -3f, 0f, usable: s_rowGate),
         ]));
         DoodadPlacementService service = Service(out TestLog log, spawns);
         MapInstance instance = TestMapInstances.Build(MapInstanceClients.NewWorld(Reference.Data), navigator: navigator,
@@ -208,15 +209,17 @@ public class DoodadPlacementShould
 
         await service.PlaceAsync(instance, town, DoodadPlan.Empty, ScenarioReferenceData.TownMap, CancellationToken.None);
 
-        Assert.Equal(5, instance.Doodads.Count);
-        Doodad board = instance.Doodads.All[0], workbench = instance.Doodads.All[1], lifted = instance.Doodads.All[2],
-            shrine = instance.Doodads.All[3], gatedWorkbench = instance.Doodads.All[4];
+        Assert.Equal(6, instance.Doodads.Count);
+        Doodad board = instance.Doodads.All[0], workbench = instance.Doodads.All[1], lectern = instance.Doodads.All[2],
+            lifted = instance.Doodads.All[3], shrine = instance.Doodads.All[4], gatedLectern = instance.Doodads.All[5];
         Assert.Equal(NoticeBoard, board.Template.Id.Value);
         Assert.Equal((9f, 24f), (board.Position.x, board.Position.z));
         Assert.Equal(90f, board.Orientation.y);
         Assert.NotNull(board.UsableGate);
         Assert.Equal(board.Template.Usable, board.UsableGate);
         Assert.Equal(("Resonance Workbench", 36f, 4f), (workbench.Template.Name, workbench.Position.x, workbench.Position.z));
+        Assert.Equal(("Lectern of Paths", 33f, 4f, 90f),
+            (lectern.Template.Name, lectern.Position.x, lectern.Position.z, lectern.Orientation.y));
 
         Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(15f, 1f, 15f), out Vector3 ground));
         Assert.Equal(new Vector3(15f, ground.y, 15f), lifted.Position);
@@ -225,9 +228,10 @@ public class DoodadPlacementShould
         Assert.Null(lifted.VisibleGate);
         Assert.True(ground.y < 0.5f, $"the ground at the entry is {ground.y} m up");
         Assert.Equal(new Vector3(5f, 0.3f, 5f), shrine.Position);
-        Assert.Equal((Workbench, null, null),
-            (gatedWorkbench.Template.Id.Value, gatedWorkbench.VisibleGate, gatedWorkbench.UsableGate));
+        Assert.Equal((Lectern, null, null),
+            (gatedLectern.Template.Id.Value, gatedLectern.VisibleGate, gatedLectern.UsableGate));
         Assert.Equal(2, log.Entries.Count(e => e.Level >= LogLevel.Warning));
+        Assert.Single(log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("a service doodad", StringComparison.Ordinal));
     }
 
     private static MapDoodadSpawn TownSpawn(int id, uint template, float x, float y, float z, float yaw,

@@ -57,7 +57,7 @@ public static class DoodadCatalogExport
                      "readyClip, useClip and usedClip are animation clips, or null. interaction: 0 none, 1 click. " +
                      "interactionTimeMs is the cast bar in milliseconds, 0 instant; interactionRange in metres. solid: " +
                      "blocks movement and is in the navmesh. spentLook: 1 shows the used look, 2 despawns. service names " +
-                     "the window a click opens, or null for none: 1 workbench.",
+                     "the window a click opens, or null for none: 1 workbench, 2 lectern.",
             Doodads: doodads.OrderBy(d => d.Id.Value).Select(Row.From).ToList());
 
         return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";

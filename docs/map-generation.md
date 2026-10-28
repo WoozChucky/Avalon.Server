@@ -755,14 +755,17 @@ ways: each must stand inside its building's proxy, and it draws that proxy, so t
 town (`MapDoodadSpawns`, [doodads](doodads.md#placement)) at the same spot and yaw, with a template whose `ModelKey` is
 the item's model; `TownDoodadSpawnsShould` pins one seed row per item and none without one. The box stays whatever
 the doodad shows, so a doodad-drawn prop is never hidden: no visibility gate on its row or template, no despawn once
-spent, no script, which could despawn it or hide it through `CanSee` (the same test). There are two today.
+spent, no script, which could despawn it or hide it through `CanSee` (the same test). There are three today.
 Glimmerdell's notice board (`avalon_notice_board` at local (9, 24), yaw 90, in `town_sw_01`) left
 `Maps/Decor/town_sw_01.json` and is doodad 6, the board of quest 9's objective 902. The Resonance Workbench (#1179,
 the props kit's `Workbench`, 2.02 x 1.02 m, at local (6, 4), yaw 0, in the market `town_se_01`, so world (36, 0, 4))
 was added as a doodad-drawn prop from the start, so it added a box to `town_se_01.obj` and a piece to the town's count;
 it is doodad 7, where a player identifies items ([doodads](doodads.md#the-resonance-workbench)). It stands in the
 market's open south-west, its nearest corner about 9.7 m from the walking benchmarks' loop centre, outside the 7-9 m
-band kept clear.
+band kept clear. The Lectern of Paths (#1181, the props kit's `BookStand`, 0.51 x 0.51 m and 1.44 m tall, at local
+(3, 4), yaw 90, in `town_se_01`, so world (33, 0, 4)) was added the same way, with its own box and piece; it is doodad
+8, where a player refunds talent nodes ([doodads](doodads.md#the-lectern-of-paths)). It stands 3 m west of the
+Workbench, 1.7 m clear of the Workbench's box and 2.5 m from the west wall, about 13 m from the loop centre.
 
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:
