@@ -1689,6 +1689,13 @@ enum TalentResult {
    TalentResult_NotConnected = 5;
    TalentResult_ForkLocked = 6;
    TalentResult_InternalError = 7;
+   TalentResult_Stunned = 8;
+   TalentResult_NotFound = 9;
+   TalentResult_TooFar = 10;
+   TalentResult_Casting = 11;
+   TalentResult_NotAllocated = 12;
+   TalentResult_WouldDisconnect = 13;
+   TalentResult_NotEnoughGold = 14;
 }
 message ThreatEntry {
    uint64 AttackerGuid = 1;

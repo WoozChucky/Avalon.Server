@@ -262,6 +262,11 @@ public class GameConfiguration
     /// </summary>
     public ItemConfiguration Items { get; set; } = new();
 
+    /// <summary>
+    /// Game:Talents (#1181 Part C): what a talent refund at the Lectern of Paths costs. Read at startup.
+    /// </summary>
+    public TalentConfiguration Talents { get; set; } = new();
+
     /// <summary>How many characters one character may ignore (#723). A full list refuses /ignore with a system line.</summary>
     [Range(1, 500)]
     public int MaxIgnoredCharacters { get; set; } = 50;

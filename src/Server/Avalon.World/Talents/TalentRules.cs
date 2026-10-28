@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Numerics;
 using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Talents;
@@ -6,8 +7,8 @@ using Avalon.Network.Packets.Talents;
 namespace Avalon.World.Talents;
 
 /// <summary>
-/// Whether a talent allocation (#1181) may go ahead, all or nothing. The rules only decide: they change nothing, mark no
-/// save and allocate nothing, so a refusal leaves the character exactly as it was.
+/// Whether a talent allocation or refund (#1181) may go ahead, all or nothing. The rules only decide: they change
+/// nothing, mark no save and allocate nothing, so a refusal leaves the character exactly as it was.
 /// </summary>
 public static class TalentRules
 {
@@ -65,6 +66,110 @@ public static class TalentRules
         {
             ArrayPool<ulong>.Shared.Return(named);
         }
+    }
+
+    /// <summary>
+    /// The first rule a refund of <paramref name="nodeIds" /> (Part C) breaks, in this order, or Ok:
+    /// <list type="number">
+    /// <item>each id in the order sent: <see cref="TalentResult.UnknownNode" /> (0, past <see cref="int.MaxValue" />, or
+    /// not in the tree, so every id while the tree is refused) and <see cref="TalentResult.NotAllocated" /> (not held,
+    /// or named earlier in the request; a start is never held);</item>
+    /// <item><see cref="TalentResult.WouldDisconnect" />: a held node that a path of held nodes linked to the class's
+    /// start before the refund and none links after it. A node no path reached before does not block the refund.</item>
+    /// </list>
+    /// A refusal names in <paramref name="refusedNode" /> the id as sent, or for WouldDisconnect the lowest-id node the
+    /// refund would strand; 0 otherwise. An empty list is Ok. The rules only decide: nothing changes and nothing is
+    /// marked. The check walks the tree twice, before and after, over four pooled bit sets of one bit per tree index
+    /// (held, named, reached before, reached after) and a pooled queue, every one returned on every path, so a request
+    /// allocates nothing once the pool is warm.
+    /// </summary>
+    public static TalentResult Refund(TalentAllocation talents, TalentCatalog tree, CharacterClass @class,
+        IReadOnlyList<uint> nodeIds, out uint refusedNode)
+    {
+        refusedNode = 0;
+        int count = nodeIds.Count;
+        if (count == 0)
+            return TalentResult.Ok;
+
+        int words = tree.BitWords;
+        ulong[] named = ArrayPool<ulong>.Shared.Rent(words);
+        ulong[] held = ArrayPool<ulong>.Shared.Rent(words);
+        ulong[] before = ArrayPool<ulong>.Shared.Rent(words);
+        ulong[] after = ArrayPool<ulong>.Shared.Rent(words);
+        int[] queue = ArrayPool<int>.Shared.Rent(tree.Count);
+        try
+        {
+            Array.Clear(named, 0, words);
+            for (int i = 0; i < count; i++)
+            {
+                uint id = nodeIds[i];
+                if (id is 0 or > int.MaxValue || !tree.TryIndexOf((int)id, out int index))
+                {
+                    refusedNode = id;
+                    return TalentResult.UnknownNode;
+                }
+
+                if (!talents.Holds((int)id) || IsSet(named, index))
+                {
+                    refusedNode = id;
+                    return TalentResult.NotAllocated;
+                }
+
+                named[index >> 6] |= 1UL << (index & 63);
+            }
+
+            int stranded = Stranded(talents, tree, tree.StartIndexOf(@class), named.AsSpan(0, words),
+                held.AsSpan(0, words), before.AsSpan(0, words), after.AsSpan(0, words), queue.AsSpan(0, tree.Count));
+            if (stranded < 0)
+                return TalentResult.Ok;
+
+            refusedNode = (uint)tree.NodeIdAt(stranded);
+            return TalentResult.WouldDisconnect;
+        }
+        finally
+        {
+            ArrayPool<ulong>.Shared.Return(named);
+            ArrayPool<ulong>.Shared.Return(held);
+            ArrayPool<ulong>.Shared.Return(before);
+            ArrayPool<ulong>.Shared.Return(after);
+            ArrayPool<int>.Shared.Return(queue);
+        }
+    }
+
+    /// <summary>
+    /// The lowest tree index of a held node that the walk from <paramref name="start" /> over held nodes reaches before
+    /// the nodes in <paramref name="named" /> leave and does not reach after; -1 when there is none. Tree indices
+    /// ascend with node ids, so the lowest index is the lowest id. A start of -1 (no start for the class, which a loaded
+    /// tree never has) reaches nothing either way, so it strands nothing.
+    /// </summary>
+    private static int Stranded(TalentAllocation talents, TalentCatalog tree, int start, ReadOnlySpan<ulong> named,
+        Span<ulong> held, Span<ulong> before, Span<ulong> after, Span<int> queue)
+    {
+        if (start < 0)
+            return -1;
+
+        held.Clear();
+        IReadOnlyList<int> heldIds = talents.Held;
+        for (int i = 0; i < heldIds.Count; i++)
+        {
+            // A held node the tree lacks is skipped: the select check drops it at the next select.
+            if (tree.TryIndexOf(heldIds[i], out int index))
+                held[index >> 6] |= 1UL << (index & 63);
+        }
+
+        tree.WalkHeld(start, held, before, queue);
+        for (int w = 0; w < held.Length; w++)
+            held[w] &= ~named[w];
+
+        tree.WalkHeld(start, held, after, queue);
+        for (int w = 0; w < held.Length; w++)
+        {
+            ulong stranded = before[w] & held[w] & ~after[w];
+            if (stranded != 0)
+                return (w << 6) + BitOperations.TrailingZeroCount(stranded);
+        }
+
+        return -1;
     }
 
     /// <summary>

@@ -8,9 +8,9 @@ namespace Avalon.World.Talents;
 /// <summary>
 /// The talent nodes one character holds (#1181), and their stat lines summed into <see cref="Totals" />. World-side and
 /// tick-thread only, never on ICharacter, so no mod can read or change it. Memory is authoritative: the tree changes only
-/// through this class, every allocation and drop marks the save (<see cref="SaveStateTracker.TalentChanged" />), and the
-/// save writes what it holds; <see cref="Load" /> marks nothing. It does not decide what may be allocated: the talent
-/// rules do. Its mutators assert the tick thread while <see cref="TickThreadGuard" /> is enabled.
+/// through this class, every allocation, refund and drop marks the save (<see cref="SaveStateTracker.TalentChanged" />),
+/// and the save writes what it holds; <see cref="Load" /> marks nothing. It does not decide what may be allocated or
+/// refunded: the talent rules do. Its mutators assert the tick thread while <see cref="TickThreadGuard" /> is enabled.
 /// </summary>
 /// <remarks>
 /// The held node ids are a list kept ascending, with membership by binary search: no set, and nothing allocated by a
@@ -79,6 +79,37 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
             if (!Insert(nodeId))
                 continue;
 
+            save.TalentChanged(nodeId);
+            changed = true;
+        }
+
+        if (changed)
+            Version++;
+    }
+
+    /// <summary>
+    /// Holds each node no more and marks it for the save; an id not held is skipped. The talent rules have accepted the
+    /// ids, so each is a held node of the tree, and so a positive <see cref="int" />. Every id is checked before anything
+    /// changes, so one that is not throws and leaves what is held as it was.
+    /// </summary>
+    public void Refund(IReadOnlyList<uint> nodeIds)
+    {
+        tickThread?.AssertOnTick("TalentAllocation.Refund");
+        for (int i = 0; i < nodeIds.Count; i++)
+        {
+            if (nodeIds[i] is 0 or > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(nodeIds), nodeIds[i], "A talent node id is a positive int.");
+        }
+
+        bool changed = false;
+        for (int i = 0; i < nodeIds.Count; i++)
+        {
+            int nodeId = (int)nodeIds[i];
+            int index = _held.BinarySearch(nodeId);
+            if (index < 0)
+                continue;
+
+            _held.RemoveAt(index);
             save.TalentChanged(nodeId);
             changed = true;
         }
