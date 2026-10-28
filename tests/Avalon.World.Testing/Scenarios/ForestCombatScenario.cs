@@ -55,6 +55,15 @@ namespace Avalon.World.Testing.Scenarios;
 /// alone. Its check adds one floor: every fighter's sealed row gained progress during the measured ticks
 /// (<see cref="AwakeningProgress" />), which the report lists (<see cref="Notes" />).
 /// </para>
+/// <para>
+/// Built shaped (<c>forest-capstones</c>, #1181 part D), every fighter fights with capstone-shaped abilities and holds its
+/// class's keystone (<see cref="ScenarioWorld.ShapeKit" />): the warrior's Cleave wider and striking twice, paid in life
+/// under Blood Price; the wizard's Spark Bolt a fan of three under Steady Hand; the hunter's Quick Shot exploding on the
+/// unit it ends on under Glass Edge; the cleric's Smite and Mending Circle striking and healing twice, the circle wider,
+/// under Unbroken. So the fight runs every per-hit path part D added: a fan's pooled lanes and their shared hits, the
+/// explosion, the second hit and heal, the life payment, the crit of 0 and the ward that takes all. It keeps
+/// <c>forest-combat</c>'s floors; a fighter refused for want of life still counts as fighting while it casts.
+/// </para>
 /// </remarks>
 public sealed class ForestCombatScenario : IScenario
 {
@@ -117,6 +126,7 @@ public sealed class ForestCombatScenario : IScenario
 
     private readonly bool _themed;
     private readonly bool _sealedKit;
+    private readonly bool _capstones;
 
     // Each world's fight, for Verify and Kills: the scenario is shared, and builds a world for every run.
     private readonly ConditionalWeakTable<ScenarioWorld, Fight> _fights = new();
@@ -133,15 +143,22 @@ public sealed class ForestCombatScenario : IScenario
     /// Whether every fighter wears the sealed kit instead (see the remarks); both kits wear an amulet, so a fight wears one
     /// or the other.
     /// </param>
-    public ForestCombatScenario(string name, bool themed, bool sealedKit = false)
+    /// <param name="capstones">
+    /// Whether every fighter fights shaped and holds a keystone instead (see the remarks); a shaped fight wears neither kit,
+    /// so its figure over <c>forest-combat</c>'s is part D's alone.
+    /// </param>
+    public ForestCombatScenario(string name, bool themed, bool sealedKit = false, bool capstones = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         if (themed && sealedKit)
             throw new ArgumentException("A fighter wears the Resonance kit or the sealed kit, not both", nameof(sealedKit));
+        if (capstones && (themed || sealedKit))
+            throw new ArgumentException("A shaped fight wears neither kit", nameof(capstones));
 
         Name = name;
         _themed = themed;
         _sealedKit = sealedKit;
+        _capstones = capstones;
     }
 
     public string Name { get; }
@@ -178,6 +195,9 @@ public sealed class ForestCombatScenario : IScenario
 
                     if (seals is not null)
                         seals.Add(ScenarioWorld.WearSealedKit(character, ScenarioReferenceData.Shared.Data).ItemInstanceId);
+
+                    if (_capstones)
+                        ScenarioWorld.ShapeKit(character, ScenarioReferenceData.Shared.Data);
 
                     FillBag(world, character);
                     characters[m] = character;
