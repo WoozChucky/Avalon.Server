@@ -57,6 +57,7 @@ public class MapSessionFilterShould
     [InlineData(NetworkPacketType.CMSG_QUEST_ABANDON)]
     [InlineData(NetworkPacketType.CMSG_INSTANCE_LIST)]
     [InlineData(NetworkPacketType.CMSG_TALENT_ALLOCATE)]
+    [InlineData(NetworkPacketType.CMSG_TALENT_REFUND)]
     public void Accept_an_in_map_request_only_from_a_character_on_a_map(NetworkPacketType type)
     {
         Assert.True(For(CharacterOn(new MapId(1))).CanProcess(type));

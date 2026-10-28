@@ -19,12 +19,14 @@ variant absent
   field 1 NodeIds : List<uint> = null
   field 2 PointsEarned : uint = 0
   field 3 PointsSpent : uint = 0
+  field 4 RefundPricePerNode : ulong = 0
   bytes 0
 
 variant empty
   field 1 NodeIds : List<uint> = 0 elements
   field 2 PointsEarned : uint = 0
   field 3 PointsSpent : uint = 0
+  field 4 RefundPricePerNode : ulong = 0
   bytes 0
 
 variant populated
@@ -33,8 +35,9 @@ variant populated
     element 1 = 300
   field 2 PointsEarned : uint = 1000000
   field 3 PointsSpent : uint = 1000000
-  bytes 13
-    08 2a 08 ac 02 10 c0 84 3d 18 c0 84 3d
+  field 4 RefundPricePerNode : ulong = 42
+  bytes 15
+    08 2a 08 ac 02 10 c0 84 3d 18 c0 84 3d 20 2a
 
 variant maxima
   field 1 NodeIds : List<uint> = 3 elements
@@ -43,15 +46,18 @@ variant maxima
     element 2 = 4294967295
   field 2 PointsEarned : uint = 4294967295
   field 3 PointsSpent : uint = 4294967295
-  bytes 30
+  field 4 RefundPricePerNode : ulong = 18446744073709551615
+  bytes 41
     08 ff ff ff ff 0f 08 ff ff ff ff 0f 08 ff ff ff
-    ff 0f 10 ff ff ff ff 0f 18 ff ff ff ff 0f
+    ff 0f 10 ff ff ff ff 0f 18 ff ff ff ff 0f 20 ff
+    ff ff ff ff ff ff ff ff 01
 
 variant minima
   field 1 NodeIds : List<uint> = 1 element
     element 0 = 0
   field 2 PointsEarned : uint = 0
   field 3 PointsSpent : uint = 0
+  field 4 RefundPricePerNode : ulong = 0
   bytes 2
     08 00
 
@@ -61,6 +67,7 @@ variant varint-edges
     element 1 = 2097151
   field 2 PointsEarned : uint = 268435456
   field 3 PointsSpent : uint = 16383
-  bytes 19
+  field 4 RefundPricePerNode : ulong = 34359738368
+  bytes 26
     08 80 80 80 80 01 08 ff ff 7f 10 80 80 80 80 01
-    18 ff 7f
+    18 ff 7f 20 80 80 80 80 80 01

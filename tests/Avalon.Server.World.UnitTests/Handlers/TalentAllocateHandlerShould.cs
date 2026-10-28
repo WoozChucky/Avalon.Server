@@ -13,6 +13,7 @@ using Avalon.Server.World.UnitTests.Talents;
 using Avalon.World;
 using Avalon.World.Abilities;
 using Avalon.World.Characters;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -87,7 +88,7 @@ public class TalentAllocateHandlerShould
             foreach (int node in (int[])[2, 3, 4, 5, 6])
                 character.Talents.Drop(node);
             TalentChange.Apply(character, reloaded, NullLogger.Instance);
-            TalentFlusher.Flush(client.Connection, s_data.Quests);
+            TalentFlusher.Flush(client.Connection, s_data.Quests, new TalentConfiguration());
             character.SaveState.Acknowledge(character.SaveState.TakeMarks());
         }
 
@@ -115,7 +116,7 @@ public class TalentAllocateHandlerShould
             Assert.Single(client.Read<STalentResultPacket>(NetworkPacketType.SMSG_TALENT_RESULT));
         Assert.Single(client.Sent);
         client.Sent.Clear();
-        TalentFlusher.Flush(client.Connection, s_data.Quests);
+        TalentFlusher.Flush(client.Connection, s_data.Quests, new TalentConfiguration());
         List<SCharacterAbilitiesPacket> abilityLists =
             client.Read<SCharacterAbilitiesPacket>(NetworkPacketType.SMSG_CHARACTER_ABILITIES);
         SaveMarks saved = character.SaveState.TakeMarks();

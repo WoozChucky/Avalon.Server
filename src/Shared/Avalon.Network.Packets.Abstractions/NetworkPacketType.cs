@@ -98,6 +98,7 @@ public enum NetworkPacketType : short
 
     // Talents
     CMSG_TALENT_ALLOCATE = 0x20E0,
+    CMSG_TALENT_REFUND = 0x20E1,
 
     /**************************************************************************
      * Server Packets

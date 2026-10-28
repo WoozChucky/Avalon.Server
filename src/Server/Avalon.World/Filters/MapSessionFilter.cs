@@ -75,6 +75,7 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_TRADE_CONFIRM => true,
             NetworkPacketType.CMSG_TRADE_CANCEL => true,
             NetworkPacketType.CMSG_TALENT_ALLOCATE => true,
+            NetworkPacketType.CMSG_TALENT_REFUND => true,
             _ => false
         };
     }

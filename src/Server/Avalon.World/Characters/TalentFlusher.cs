@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Talents;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Quests;
@@ -23,9 +24,10 @@ public static class TalentFlusher
     /// <summary>
     /// Reads two flags and one level per connection; only a character that is owed something is sent anything, and only
     /// one whose state is owed has its points worked out (<paramref name="quests" />, read once per tick by the caller,
-    /// prices its turned-in quests). The list goes first, so the state finds the client holding what it shows.
+    /// prices its turned-in quests; <paramref name="config" />, Game:Talents, prices a refund at the character's level). The
+    /// list goes first, so the state finds the client holding what it shows.
     /// </summary>
-    public static void Flush(IWorldConnection connection, QuestCatalog quests)
+    public static void Flush(IWorldConnection connection, QuestCatalog quests, TalentConfiguration config)
     {
         if (connection.Character is not CharacterEntity character)
             return;
@@ -50,6 +52,6 @@ public static class TalentFlusher
         talents.StateSent(level);
         int earned = TalentPoints.Earned(level, character.Quests, quests);
         connection.Send(STalentStatePacket.Create(talents.Held, checked((uint)earned), (uint)talents.Spent,
-            PacketEncoder.Shared));
+            TalentPrice.PerNode(level, config), PacketEncoder.Shared));
     }
 }

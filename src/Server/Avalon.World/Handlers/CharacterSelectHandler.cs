@@ -745,7 +745,8 @@ public class CharacterSelectHandler(
         CharacterAbilitiesSender.Send(connection, entity);
 
         connection.Send(STalentStatePacket.Create(entity.Talents.Held, checked((uint)earned),
-            (uint)entity.Talents.Spent, PacketEncoder.Shared));
+            (uint)entity.Talents.Spent, TalentPrice.PerNode(character.Level, world.Configuration.Talents),
+            PacketEncoder.Shared));
         entity.Talents.StateSent(character.Level);
 
         LoadIgnores(connection, select, entity, instance);

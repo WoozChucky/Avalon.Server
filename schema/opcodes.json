@@ -497,6 +497,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_TALENT_REFUND",
+      "opcode": 8417,
+      "hex": "0x20E1",
+      "message": "CTalentRefundPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_CAST_ABILITY",
       "opcode": 8449,
       "hex": "0x2101",

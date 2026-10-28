@@ -258,9 +258,11 @@ public class InventoryAllocationShould
 
     /// <summary>
     /// #1181: a talent request the rules refuse allocates nothing beyond its pooled reply, refused late or early: five
-    /// nodes of the seeded tree whose fourth is not connected, and three whose third repeats the first; and the tick's
-    /// talent flush passes a character whose state is not owed and whose level has not moved, sending and allocating
-    /// nothing.
+    /// nodes of the seeded tree whose fourth is not connected, and three whose third repeats the first. Part C: so does a
+    /// refund at a placed Lectern, by a level-11 Warrior holding its lane's first five nodes (2-6) with no gold, refused
+    /// early (a guid no doodad has), at the tree's last rule (the middle of the lane, WouldDisconnect) and at the gold
+    /// (Cleave's node alone, NotEnoughGold). And the tick's talent flush passes a character whose state is not owed and
+    /// whose level has not moved, sending and allocating nothing.
     /// </summary>
     [Fact]
     public void Refuse_a_talent_request_and_pass_a_settled_talent_state_allocating_nothing()
@@ -283,53 +285,92 @@ public class InventoryAllocationShould
         Assert.Empty(_character.Talents.Held);
         Assert.Equal(2 * 4 * Rounds, _connection.Sent);
 
-        long flushes = Allocated(() => TalentFlusher.Flush(_connection, data.Quests));
+        using MapInstance instance = TestMapInstances.Build(new QuietWorld(data));
+        Doodad lectern = PlaceLectern(instance, data);
+        var world = new QuietWorld(data, instance);
+        _character.Level = 11;
+        _character.Data!.Gold = 0;
+        TalentTestCharacters.Enter(_character, data, 2, 3, 4, 5, 6);
+        CharacterEconomy economy = TestEconomy.Over(world);
+        var refunder = new TalentRefundHandler(NullLogger<TalentRefundHandler>.Instance, world, economy);
+        var notFound = new CTalentRefundPacket { RequestId = 3, LecternGuid = 999, NodeIds = [6] };
+        var wouldDisconnect = new CTalentRefundPacket { RequestId = 4, LecternGuid = lectern.Guid.RawValue, NodeIds = [3] };
+        var notEnoughGold = new CTalentRefundPacket { RequestId = 5, LecternGuid = lectern.Guid.RawValue, NodeIds = [6] };
+        ulong price = TalentPrice.PerNode(_character.Level, world.Configuration.Talents);
+        Assert.Equal(
+            [TalentResult.NotFound, TalentResult.WouldDisconnect, TalentResult.NotEnoughGold],
+            ((CTalentRefundPacket[])[notFound, wouldDisconnect, notEnoughGold]).Select(p => TalentRefundRules.Decide(
+                _character, instance, p.LecternGuid, data.Talents, p.NodeIds, TalentPrice.Total(price, p.NodeIds.Count),
+                economy.WalletOf(_character), out _)));
+
+        long refunds = Allocated(() =>
+        {
+            refunder.Execute(_connection, notFound);
+            refunder.Execute(_connection, wouldDisconnect);
+            refunder.Execute(_connection, notEnoughGold);
+        });
+        Assert.Equal([2, 3, 4, 5, 6], _character.Talents.Held);
+        Assert.Equal((2 + 3) * 4 * Rounds, _connection.Sent);
+
+        TalentConfiguration config = world.Configuration.Talents;
+        long flushes = Allocated(() => TalentFlusher.Flush(_connection, data.Quests, config));
 
         Assert.Multiple(
             () => Assert.Equal(0, refusals),
+            () => Assert.Equal(0, refunds),
             () => Assert.Equal(0, flushes));
-        Assert.Equal(2 * 4 * Rounds, _connection.Sent);
+        Assert.Equal((2 + 3) * 4 * Rounds, _connection.Sent);
     }
 
     /// <summary>
     /// #1181 Part C: a level-10 Warrior holding the first four nodes of its lane (2-5) allocates Cleave's node (6) through
-    /// the real handler and drops it again, as a refund will, over and over: a change of the abilities held allocates
-    /// nothing once warm, since the held list is rebuilt in place and Cleave's ability, parked when it leaves, is taken
-    /// back, ready, when it returns; and each request sends only its result, the ability list waiting for the tick's
-    /// flush.
+    /// the real handler and refunds it at a placed Lectern through the real refund handler, free at level 10, over and
+    /// over: a change of the abilities held allocates nothing once warm, since the held list is rebuilt in place and
+    /// Cleave's ability, parked when it leaves, is taken back, ready, when it returns; and each request sends only its
+    /// result, the ability list waiting for the tick's flush.
     /// </summary>
     [Fact]
-    public void Allocate_and_drop_an_ability_node_again_and_again_allocating_nothing()
+    public void Allocate_and_refund_an_ability_node_again_and_again_allocating_nothing()
     {
         StaticData data = ScenarioReferenceData.Shared.Data;
         var cleaveId = new AbilityId(200);
+        using MapInstance instance = TestMapInstances.Build(new QuietWorld(data));
+        Doodad lectern = PlaceLectern(instance, data);
+        var world = new QuietWorld(data, instance);
         _character.Level = 10;
         TalentTestCharacters.Enter(_character, data, 2, 3, 4, 5);
-        var handler = new TalentAllocateHandler(NullLogger<TalentAllocateHandler>.Instance, new QuietWorld(data));
+        var handler = new TalentAllocateHandler(NullLogger<TalentAllocateHandler>.Instance, world);
+        var refunder = new TalentRefundHandler(NullLogger<TalentRefundHandler>.Instance, world, TestEconomy.Over(world));
         var allocate = new CTalentAllocatePacket { RequestId = 1, NodeIds = [6] };
+        var refund = new CTalentRefundPacket { RequestId = 2, LecternGuid = lectern.Guid.RawValue, NodeIds = [6] };
 
         handler.Execute(_connection, allocate);
         IAbility cleave = _character.Spells[cleaveId]!;
         cleave.CooldownTimer = 3f;
-        Drop();
+        refunder.Execute(_connection, refund);
+        Assert.Equal([2, 3, 4, 5], _character.Talents.Held);
 
         long rounds = Allocated(() =>
         {
             handler.Execute(_connection, allocate);
-            Drop();
+            refunder.Execute(_connection, refund);
         });
 
         handler.Execute(_connection, allocate);
         Assert.Equal(0, rounds);
         Assert.Same(cleave, _character.Spells[cleaveId]);
         Assert.Equal((0f, false), (cleave.CooldownTimer, cleave.Casting));
-        Assert.Equal(2 + 4 * Rounds, _connection.Sent);
+        Assert.Equal(3 + 2 * 4 * Rounds, _connection.Sent);
+    }
 
-        void Drop()
-        {
-            _character.Talents.Drop(6);
-            TalentChange.Apply(_character, data, NullLogger.Instance);
-        }
+    /// <summary>The seeded Lectern of Paths placed where the character stands, in <paramref name="instance" />, the character's.</summary>
+    private Doodad PlaceLectern(MapInstance instance, StaticData data)
+    {
+        var lectern = new Doodad(new ObjectGuid(ObjectType.Doodad, 1),
+            data.Doodads.Templates.Single(t => t.Service == DoodadService.Lectern), _character.Position, 0f);
+        instance.AddDoodad(lectern);
+        _character.InstanceId = instance.InstanceId;
+        return lectern;
     }
 
     /// <summary>
