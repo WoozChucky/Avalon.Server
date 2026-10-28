@@ -253,12 +253,13 @@ handles:
 - **A fan** (`ProjectileCount` above 1). Each lane is a projectile of its own, a `SpellProjectile` world object added,
   moved and removed as any, each lane 10° from its neighbour, centred on the aim. Each lane sends its own
   `SMSG_ABILITY_FIRED` with its own projectile footprint, all under the cast's one `CastId`, so a fan of three is three
-  fired events. A cast-time fan's `SUnitStartCastPacket` footprint is the centre lane, and its `Lanes` (field 8 of
-  `AbilityFootprintDto`) is the cast's projectile count, read from the cast's own shape: draw the telegraph as that
-  many lanes 10° apart about the footprint's `Direction`, each for its `Reach`, which every client can, the caster's
-  abilities unknown. A single projectile's footprint says 1, a circle's and a cone's 0. Each lane tells its own
-  `SMSG_PROJECTILE_IMPACT`; a unit is hit by one lane at most, so a lane that meets a unit another lane already hit
-  flies through it.
+  fired events. A cast-time fan's `SUnitStartCastPacket` footprint is resolved along the aim, and its `Lanes` (field 8
+  of `AbilityFootprintDto`) is the cast's projectile count, read from the cast's own shape: draw the telegraph as that
+  many lanes 10° apart, placed symmetrically about the footprint's `Direction` (an odd count has one lane along it and
+  the rest at ±10°, ±20°, ...; an even count has none along it, its lanes at ±5°, ±15°, ...), each for its `Reach`,
+  which every client can, the caster's abilities unknown. A single projectile's footprint says 1, a circle's and a
+  cone's 0. Each lane tells its own `SMSG_PROJECTILE_IMPACT`; a unit is hit by one lane at most, so a lane that meets a
+  unit another lane already hit flies through it.
 - **An explosion** (`ExplosionRadius` above 0). When a projectile ends on a unit, after that unit's impact and damage,
   one more `SMSG_ABILITY_FIRED` arrives under the projectile's `CastId` with a `Circle` footprint of the explosion's
   radius centred where the projectile met the unit; draw the burst from it. Each other unit it hits takes an ordinary

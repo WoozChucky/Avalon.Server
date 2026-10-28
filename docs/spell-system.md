@@ -418,7 +418,8 @@ projectile is. Each lane is a projectile of its own, with its own guid, flight a
 cast's id. The lanes share one set of the units the cast has hit (`IProjectileFan.ShareHitsWith`, joined before each
 lane is prepared), so a unit is affected at most once per cast, by whichever lane reaches it first, and a lane flies
 through a unit another lane hit. Each lane counts its own hits for `MaxTargets`, so a piercing lane never ends on
-another lane's. The telegraph and a cast-time fan's start broadcast keep the centre lane's footprint, naming the
+another lane's. The telegraph and a cast-time fan's start broadcast keep the footprint resolved along the aim (an
+odd count's middle lane; no lane flies there when the count is even, its lanes at ±5°, ±15°, ...), naming the
 cast's lane count (`AbilityFootprint.Lanes`, sent as `AbilityFootprintDto.Lanes`, from the cast's own copy), so every
 client draws the whole fan from the start alone; the arena's started footprint is left unset for a fan, so every lane
 resolves and tells its own fired event. The count and every lane's shape are the cast's own copy's, never the caster's

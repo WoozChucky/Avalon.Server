@@ -682,7 +682,11 @@ public class InstanceAbilityCastSystem(
             return null;
         }
 
-        int lanes = typeof(IProjectileFan).IsAssignableFrom(scriptType) ? LanesOf(ability.Metadata) : 1;
+        // The type is asked only for a fan, so a cast of one projectile pays nothing for it.
+        int lanes = LanesOf(ability.Metadata);
+        if (lanes > 1 && !typeof(IProjectileFan).IsAssignableFrom(scriptType))
+            lanes = 1;
+
         AbilityAim aim = FanAim.Lane(centre, lane, lanes);
         try
         {
@@ -780,10 +784,11 @@ public class InstanceAbilityCastSystem(
     /// own copy's (<see cref="PooledAbilityScript.CastCopy" />), never the caster's ability, which a capstone may have
     /// reshaped while the cast wound up: a cast fires the shape it was taken with. Each lane joins the first's set of hit
     /// units (<see cref="IProjectileFan.ShareHitsWith" />) before it is prepared, is prepared in a containment of its own
-    /// as the first is, under the cast's id and view, and runs beside it. A fan's start footprint, the centre lane, is not
-    /// set on the arena, so every lane resolves and tells its own. A lane that cannot be built is skipped; one that cannot
-    /// join goes back to the pool unprepared, holding no join; one whose <c>Prepare</c> throws is contained as the first's
-    /// is (logged, the cast interrupted) and ends the cast, while the lanes already in flight fly on.
+    /// as the first is, under the cast's id and view, and runs beside it. A fan's start footprint, resolved along the
+    /// aim (which no lane flies when the count is even), is not set on the arena, so every lane resolves and tells its
+    /// own. A lane that cannot be built is skipped; one that cannot join goes back to the pool unprepared, holding no
+    /// join; one whose <c>Prepare</c> throws is contained as the first's is (logged, the cast interrupted) and ends the
+    /// cast, while the lanes already in flight fly on.
     /// </remarks>
     private void Fire(IUnit caster, IAbility ability, AbilityScript script, float cooldownSeconds, uint castId, CastView view,
         AbilityFootprint? dodge, AbilityFootprint? started, AbilityAim aim)
@@ -953,9 +958,9 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>
     /// The footprint a queued cast will land on (#648), resolved as its script will resolve it: for a fan (#1181 Part
-    /// D) the centre lane, naming the cast's <paramref name="lanes" /> (<see cref="AbilityFootprint.Lanes" />), so
-    /// every client can draw the whole fan. Contained: a footprint that cannot be resolved is sent as none, and the
-    /// cast goes on.
+    /// D) resolved along the aim the lanes are placed about, naming the cast's <paramref name="lanes" />
+    /// (<see cref="AbilityFootprint.Lanes" />), so every client can draw the whole fan. Contained: a footprint that
+    /// cannot be resolved is sent as none, and the cast goes on.
     /// </summary>
     private AbilityFootprint? FootprintOf(IUnit caster, AbilityAim aim, IAbility ability, int lanes)
     {

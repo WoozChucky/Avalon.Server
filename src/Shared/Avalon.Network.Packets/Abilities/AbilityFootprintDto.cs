@@ -53,10 +53,11 @@ public class AbilityFootprintDto
     [ProtoMember(7)] public float ArcDegrees { get; set; }
 
     /// <summary>
-    /// How many projectiles the cast fires (#1181 Part D): 1, or a fan's count, its lanes turned 10 degrees apart about
-    /// <see cref="Direction" />, the middle one along it, each drawn for <see cref="Reach" />, the middle lane's; 0
-    /// for a circle and a cone. Read from the cast's own shape, so a client draws a fan's telegraph without knowing the
-    /// caster's abilities.
+    /// How many projectiles the cast fires (#1181 Part D): 1, or a fan's count, its lanes 10 degrees apart and placed
+    /// symmetrically about <see cref="Direction" />: an odd count has one lane along it and the rest at 10, 20, ...
+    /// degrees each side; an even count has none along it, its lanes at 5, 15, ... degrees each side. Each is drawn for
+    /// <see cref="Reach" />, the reach resolved along <see cref="Direction" />. 0 for a circle and a cone. Read from
+    /// the cast's own shape, so a client draws a fan's telegraph without knowing the caster's abilities.
     /// </summary>
     [ProtoMember(8)] public uint Lanes { get; set; }
 

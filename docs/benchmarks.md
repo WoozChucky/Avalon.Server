@@ -2703,7 +2703,7 @@ before a fan turns its lanes, the start footprint's lane count, the pool's drop 
 197.6 ns (± 1.69 ns), `Hit_twice` 391.8 ns (± 2.49 ns), `Explode_among_five` 2,495.3 ns (± 13.79 ns), `Fire_one`
 45.15 µs (± 0.50 µs) and `Fire_fan_of_three` 83.69 µs (± 9.52 µs, a standard deviation of 11 µs: other work ran on the
 machine during that row). The hit rows and `Fire_one` are within about 2 % of the run above; the fan's row is noise,
-not a cost (the fix adds one type check per lane built), and was not run again.
+not a cost (the fix adds one type check per lane a fan builds, none for a single projectile), and was not run again.
 
 **The scenario.** `forest-capstones` reads 11,549 B per window (16.04 B per player per tick), the same in Debug and
 Release and on both runs of `ForestCombatScenarioShould`, since part D2's final fixes gave its warriors an opener: Rend,
