@@ -638,7 +638,10 @@ public static partial class TalentSeed
     /// <item>A spoke runs inward along its start's angle, 40 units a node, its left and right routes 4 degrees either side;
     /// a spoke branch steps 4 degrees a node further left at radius 400; the hub junctions sit at 160.</item>
     /// <item>A lone capstone (<c>.c6</c>) takes its branch's sixth place by those rules; a fork's two (<c>.cx</c> and
-    /// <c>.cy</c>) take that place 2 degrees less and 2 degrees more round.</item>
+    /// <c>.cy</c>) stand a step further, at the seventh, <see cref="ForkHalfSplit"/> units either side of it across the
+    /// branch: round the ring (less, then more) off a branch that steps away from it, and in, then out, off a spoke
+    /// branch, which runs round it. A fixed distance, not a fixed angle, so a pair near the hub is as far apart as one at
+    /// the rim, and a step past the sixth, so it clears a neighbouring branch's lone capstone there.</item>
     /// <item>A keystone sits inside the hub ring at 120, 45 degrees round from the start its label names first: between
     /// its two junctions.</item>
     /// </list>
@@ -653,12 +656,19 @@ public static partial class TalentSeed
             return (Normalize(Theta(m.Groups["key"].ValueSpan[0]) + 45), 120f);
 
         (float angle, float radius) = Place(m);
-        return m.Groups["fork"].Success
-            ? (Normalize(angle + (m.Groups["fork"].ValueSpan[0] == 'x' ? -2 : 2)), radius)
-            : (angle, radius);
+        if (!m.Groups["fork"].Success)
+            return (angle, radius);
+        float side = m.Groups["fork"].ValueSpan[0] == 'x' ? -ForkHalfSplit : ForkHalfSplit;
+        return m.Groups["route"].Success
+            ? (angle, radius + side)
+            : (Normalize(angle + (side / radius * 180f / MathF.PI)), radius);
     }
 
-    /// <summary>A node's place by its label's start, route, lane and branch node (a fork's capstone at the sixth).</summary>
+    /// <summary>How far each of a fork's two capstones sits from their shared place, in layout units: two capstones
+    /// clear of each other, and of their branch's fifth node.</summary>
+    private const float ForkHalfSplit = 24f;
+
+    /// <summary>A node's place by its label's start, route, lane and branch node (a fork's capstones at the seventh).</summary>
     private static (float Angle, float Radius) Place(Match m)
     {
         if (m.Groups["hub"].Success)
@@ -667,7 +677,7 @@ public static partial class TalentSeed
         char x = m.Groups["x"].ValueSpan[0];
         float theta = Theta(x);
         int n = m.Groups["n"].Success ? int.Parse(m.Groups["n"].ValueSpan, CultureInfo.InvariantCulture) : 0;
-        int k = m.Groups["fork"].Success ? 6
+        int k = m.Groups["fork"].Success ? 7
             : m.Groups["k"].Success ? int.Parse(m.Groups["k"].ValueSpan, CultureInfo.InvariantCulture) : 0;
 
         if (m.Groups["route"].Success)

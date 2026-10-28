@@ -170,10 +170,10 @@ no-repository fallback, the export and the tests read it.
   | spoke branch `Xhub-L2.ck` | θ − 4 − 4k | 400 |
   | hub junction | θ | 160 |
   | lone capstone `.c6` | its branch's node 6, by the rules above | its branch's node 6 |
-  | fork capstone `.cx` / `.cy` | its branch's node 6, − 2 / + 2 | its branch's node 6 |
+  | fork capstone `.cx` / `.cy` | its branch's node 7, ∓ 24/r radians (a spoke branch: node 7) | its branch's node 7 (a spoke branch: 400 ∓ 24) |
   | keystone `key-XY` | θ(X) + 45 | 120 |
 
-  Every position is distinct (`SeedIntegrityShould`).
+  No two nodes overlap as the client draws them (`SeedIntegrityShould`).
 - **Quest talent points** are data in the same migration: `QuestTemplates.RewardTalentPoints`, 1 on quests 3, 7 and
   8, and refused on a repeatable quest ([quests](quests.md)).
 
