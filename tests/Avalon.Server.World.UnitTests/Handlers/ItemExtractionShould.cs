@@ -467,19 +467,27 @@ public class ItemExtractionShould
     /// its roll throws, it has written nothing, and the handler gives the gold it spent back: the answer is InternalError,
     /// and neither item, nor the store's lists, nor the instability, nor the gold has changed. The refusal is a magic chest
     /// whose copy carries no rolled rows; the throw a rare at 99 carrying "S5 Fire T9", which never rolls on a chest, so
-    /// the brick the imprint brings finds no tier to offer it. No game path makes either.
+    /// the brick the imprint brings finds no tier to offer it. No game path makes either. The give-back is never refused
+    /// (#1233): a balance of 220 under a cap since lowered to 200 refuses every addition, yet gets its 25 back.
     /// </summary>
     [Theory]
     [InlineData("the service refuses: a copy carrying no rolled rows")]
+    [InlineData("the service refuses: a copy carrying no rolled rows, 220 gold under a cap lowered to 200")]
     [InlineData("the roll throws: a brick finds no tier for S5 Fire on a chest")]
     public void Give_back_the_gold_of_an_imprint_that_fails_after_the_rules_allowed_it(string @case)
     {
+        bool overTheCap = @case.EndsWith("a cap lowered to 200", StringComparison.Ordinal);
+        ulong gold = overTheCap ? 220UL : Gold;
+        var configuration = new GameConfiguration();
+        if (overTheCap)
+            configuration.MaxGold = 200;
+
         CarriedItem target = @case.StartsWith("the service refuses", StringComparison.Ordinal)
             ? TestCharacters.Carried(new InventoryItem(Slot, new ItemInstanceId(Guid.CreateVersion7()), s_chest.Id, 1, 0,
                 ItemInstanceFlags.None, ItemRarity.Magic, 9, RareName: null, Identified: true, Tainted: false))
             : Target(s_chest, ItemRarity.Rare, 9, identified: true, tainted: false, ItemInstanceFlags.None, instability: 99,
                 "implicit IncreasedMaximumLife T9", "P11 T7", "S5 Fire T9");
-        using var f = new Fixture(s_data, target, Glyph("S14 T9"), Gold);
+        using var f = new Fixture(s_data, target, Glyph("S14 T9"), gold, configuration);
         CharacterEntity character = f.Client.Character;
         ItemInstanceId id = target.Item.InstanceId;
         IReadOnlyList<ItemInstanceModifier> rows = character.ItemModifiers.Of(id);
@@ -494,7 +502,7 @@ public class ItemExtractionShould
         Assert.Same(rows, character.ItemModifiers.Of(id));
         Assert.Same(heldRows, character.ItemModifiers.Of(held.InstanceId));
         Assert.Equal(instability, character.ItemModifiers.InstabilityOf(id));
-        Assert.Equal(Gold, character.Data!.Gold);
+        Assert.Equal(gold, character.Data!.Gold);
         SaveMarks marks = character.SaveState.TakeMarks();
         Assert.Empty(marks.Items);
         Assert.Empty(marks.Slots);
