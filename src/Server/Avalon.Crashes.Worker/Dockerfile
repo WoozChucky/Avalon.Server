@@ -1,6 +1,6 @@
 # Context: this worker project, after dotnet publish -o ./out (never repository-root out/).
 # Reuse the canonical verified releases and licenses; no second set of native pins.
-FROM python:3.15-slim@sha256:f786b2e19cf9bb54e96bfcd4c1b40c4c56336c22e60607ffd4b080ae5b5dee83 AS native
+FROM python:3.15-slim@sha256:94d3426f1def7db4a106a232ac121bfd975393e5dfd40a619b955fae45fe7913 AS native
 COPY native/ /native/
 RUN bash /native/install.sh /opt/avalon-native
 
