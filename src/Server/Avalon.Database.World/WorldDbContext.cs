@@ -80,6 +80,7 @@ public class WorldDbContext : DbContext
     public DbSet<TalentEdge> TalentEdges { get; set; } = null!;
     public DbSet<TalentNodeStat> TalentNodeStats { get; set; } = null!;
     public DbSet<TalentNodeAbility> TalentNodeAbilities { get; set; } = null!;
+    public DbSet<TalentAbilityModifier> TalentAbilityModifiers { get; set; } = null!;
     public DbSet<TalentForkGroup> TalentForkGroups { get; set; } = null!;
     public DbSet<TalentClassStart> TalentClassStarts { get; set; } = null!;
     public DbSet<MapTemplate> MapTemplates { get; set; } = null!;
@@ -156,6 +157,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<TalentEdge>());
         Configure(modelBuilder.Entity<TalentNodeStat>());
         Configure(modelBuilder.Entity<TalentNodeAbility>());
+        Configure(modelBuilder.Entity<TalentAbilityModifier>());
         Configure(modelBuilder.Entity<TalentClassStart>());
         Configure(modelBuilder.Entity<MapTemplate>());
         Configure(modelBuilder.Entity<QuestTemplate>());
@@ -1921,8 +1923,9 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// The shared talent tree's nodes (#1181): a balance table, one row per node with a literal id (TalentSeed). Kind 1
     /// Start, 2 Small, 3 Notable, 4 Ability, 5 Capstone, 6 Keystone, 7 Junction; a notable, an ability, a capstone and a
-    /// keystone are named; only a capstone sits in a fork. Angle in degrees, in (-180, 180]; radius finite and 0 or more
-    /// (the upper bound refuses Infinity and NaN, as the threat checks do).
+    /// keystone are named; only a capstone sits in a fork, and only a keystone carries a rule (Keystone 1 LifeCost,
+    /// 2 NoCrits, 3 WardTakesAll; null on a keystone of stat lines only). Angle in degrees, in (-180, 180]; radius finite
+    /// and 0 or more (the upper bound refuses Infinity and NaN, as the threat checks do).
     /// </summary>
     private static void Configure(EntityTypeBuilder<TalentNode> builder)
     {
@@ -1933,6 +1936,8 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_TalentNodes_Angle", "\"Angle\" > -180 AND \"Angle\" <= 180");
             t.HasCheckConstraint("CK_TalentNodes_Radius", "\"Radius\" >= 0 AND \"Radius\" < 'Infinity'");
             t.HasCheckConstraint("CK_TalentNodes_ForkGroup", "\"ForkGroupId\" IS NULL OR \"Kind\" = 5");
+            t.HasCheckConstraint("CK_TalentNodes_Keystone",
+                "\"Keystone\" IS NULL OR (\"Kind\" = 6 AND \"Keystone\" BETWEEN 1 AND 3)");
         });
         builder.HasKey(n => n.Id);
         builder.Property(n => n.Id).ValueGeneratedNever();
@@ -1987,7 +1992,31 @@ public class WorldDbContext : DbContext
         builder.HasData(TalentSeed.Abilities());
     }
 
-    /// <summary>The capstone forks (#1181): a character holds one capstone of a fork at most. None until Part D.</summary>
+    /// <summary>
+    /// A capstone's modifiers (#1181 Part D): a balance table, one row per kind, naming the ability the capstone shapes.
+    /// Kind 1 AddedProjectiles, 2 ImpactExplosion, 3 AreaPct, 4 ConeReachPct, 5 ConeArcPct, 6 AuraStacks,
+    /// 7 AuraDurationPct, 8 SecondHit; Value above 0; Value2 (above 0) on an ImpactExplosion only, and always on it.
+    /// Which node may hold a row, and whether it fits its ability, the catalog checks. Gone with the node; a shaped ability
+    /// cannot be deleted.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<TalentAbilityModifier> builder)
+    {
+        builder.ToTable("TalentAbilityModifiers", t =>
+        {
+            t.HasCheckConstraint("CK_TalentAbilityModifiers_Kind", "\"Kind\" BETWEEN 1 AND 8");
+            t.HasCheckConstraint("CK_TalentAbilityModifiers_Value", "\"Value\" > 0");
+            t.HasCheckConstraint("CK_TalentAbilityModifiers_Value2",
+                "(\"Kind\" = 2) = (\"Value2\" IS NOT NULL) AND (\"Value2\" IS NULL OR \"Value2\" > 0)");
+        });
+        builder.HasKey(m => new { m.NodeId, m.Kind });
+        builder.Property(m => m.AbilityId).HasConversion(v => v.Value, v => new AbilityId(v)).IsRequired();
+        builder.HasOne<TalentNode>().WithMany().HasForeignKey(m => m.NodeId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<AbilityTemplate>().WithMany().HasForeignKey(m => m.AbilityId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(TalentSeed.Modifiers());
+    }
+
+    /// <summary>The capstone forks (#1181): a character holds one capstone of a fork at most.</summary>
     private static void Configure(EntityTypeBuilder<TalentForkGroup> builder)
     {
         builder.ToTable("TalentForkGroups");

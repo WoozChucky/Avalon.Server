@@ -33,8 +33,22 @@ public sealed class TalentNodeDto
     public int? ForkGroupId { get; set; }
     /// <summary>The ability a start or an ability node grants; null on every other node.</summary>
     public uint? AbilityId { get; set; }
+    /// <summary>The rule a keystone bends; null on every other node, and on a keystone of stat lines only.</summary>
+    public KeystoneRule? Keystone { get; set; }
     /// <summary>By (Stat, Kind).</summary>
     public List<TalentNodeStatDto> Stats { get; set; } = [];
+    /// <summary>How a capstone reshapes the ability its branch hangs from, by kind; empty on every other node.</summary>
+    public List<TalentAbilityModifierDto> Modifiers { get; set; } = [];
+}
+
+public sealed class TalentAbilityModifierDto
+{
+    public TalentModifierKind Kind { get; set; }
+    /// <summary>The ability the capstone shapes.</summary>
+    public uint AbilityId { get; set; }
+    public int Value { get; set; }
+    /// <summary>An explosion's effectiveness, %; null on every other kind.</summary>
+    public int? Value2 { get; set; }
 }
 
 public sealed class TalentNodeStatDto

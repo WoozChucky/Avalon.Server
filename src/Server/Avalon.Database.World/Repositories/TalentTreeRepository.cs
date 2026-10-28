@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.World.Repositories;
 
-/// <summary>The talent tree's six tables (#1181).</summary>
+/// <summary>The talent tree's seven tables (#1181).</summary>
 public interface ITalentTreeRepository
 {
     /// <summary>The whole tree, untracked, each table by its key: what the world's talent catalog checks and holds.</summary>
@@ -17,7 +17,8 @@ public interface ITalentTreeRepository
     /// <summary>
     /// The rows a character's saved nodes read, untracked: the nodes among <paramref name="nodeIds" /> the tree still
     /// holds and their stat lines, <paramref name="characterClass" />'s start, and the ability links of those nodes and
-    /// of that start. No edges and no fork groups: what the REST character reads (#1181) need, not the whole tree.
+    /// of that start. No edges, no fork groups and no modifiers: what the REST character reads (#1181) need, not the
+    /// whole tree; no REST read shapes an ability.
     /// </summary>
     Task<TalentTreeRows> GetHeldAsync(CharacterClass characterClass, IReadOnlyCollection<int> nodeIds,
         CancellationToken ct = default);
@@ -38,8 +39,10 @@ public class TalentTreeRepository(IDbContextFactory<WorldDbContext> contextFacto
             .OrderBy(a => a.NodeId).ToListAsync(ct);
         List<TalentForkGroup> forkGroups = await context.TalentForkGroups.AsNoTracking().OrderBy(g => g.Id).ToListAsync(ct);
         List<TalentClassStart> starts = await context.TalentClassStarts.AsNoTracking().OrderBy(s => s.Class).ToListAsync(ct);
+        List<TalentAbilityModifier> modifiers = await context.TalentAbilityModifiers.AsNoTracking()
+            .OrderBy(m => m.NodeId).ThenBy(m => m.Kind).ToListAsync(ct);
 
-        return new TalentTreeRows(nodes, edges, stats, abilities, forkGroups, starts);
+        return new TalentTreeRows(nodes, edges, stats, abilities, forkGroups, starts) { Modifiers = modifiers };
     }
 
     public async Task<bool> IsGrantedAsync(AbilityId abilityId, CancellationToken ct = default)

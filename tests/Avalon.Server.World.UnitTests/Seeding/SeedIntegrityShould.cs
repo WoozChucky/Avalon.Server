@@ -896,12 +896,13 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1181: the shared talent tree's first region (TalentSeed), without its capstones and keystones: the design's 305
-    /// nodes at ids 1-305, by kind, its 345 edges each written once, its stat lines, a link on every start and ability
-    /// node, no fork yet, a start for each class, and every node reachable from the Warrior's start.
+    /// #1181: the shared talent tree's first region (TalentSeed) with its capstones and keystones: the design's 335 nodes
+    /// at ids 1-335, by kind, its 379 edges each written once, its stat lines (More only on the two keystones that carry
+    /// lines), a link on every start and ability node, its nine forks of two capstones, one modifier row per capstone (the
+    /// design's table), the keystones' rules, a start for each class, and every node reachable from the Warrior's start.
     /// </summary>
     [Fact]
-    public void Seed_the_first_region_of_the_talent_tree()
+    public void Seed_the_first_region_of_the_talent_tree_with_its_capstones_and_keystones()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -910,7 +911,7 @@ public class SeedIntegrityShould
         var edges = context.TalentEdges.AsNoTracking().ToList();
         var stats = context.TalentNodeStats.AsNoTracking().ToList();
 
-        Assert.Equal(Enumerable.Range(1, 305), nodes.Select(n => n.Id).Order());
+        Assert.Equal(Enumerable.Range(1, 335), nodes.Select(n => n.Id).Order());
         Assert.Equal(
             new Dictionary<TalentNodeKind, int>
             {
@@ -918,17 +919,68 @@ public class SeedIntegrityShould
                 [TalentNodeKind.Small] = 253,
                 [TalentNodeKind.Notable] = 25,
                 [TalentNodeKind.Ability] = 19,
+                [TalentNodeKind.Capstone] = 26,
+                [TalentNodeKind.Keystone] = 4,
                 [TalentNodeKind.Junction] = 4,
             },
             nodes.GroupBy(n => n.Kind).ToDictionary(g => g.Key, g => g.Count()));
-        Assert.Equal(345, edges.Count);
+        Assert.Equal(379, edges.Count);
         Assert.All(edges, e => Assert.True(e.NodeA < e.NodeB, $"edge {e.NodeA}-{e.NodeB}"));
-        Assert.Equal(286, stats.Count);
-        Assert.All(stats, line => Assert.Equal(TalentStatKind.Added, line.Kind));
+        Assert.Equal(290, stats.Count);
+        Assert.All(stats.Where(line => line.Kind == TalentStatKind.More),
+            line => Assert.Contains(line.NodeId, new[] { 333, 334 }));
         Assert.Equal(23, context.TalentNodeAbilities.AsNoTracking().Count());
-        Assert.Empty(context.TalentForkGroups.AsNoTracking());
         Assert.Equal(4, context.TalentClassStarts.AsNoTracking().Count());
-        Assert.Equal(305, TalentDistances(edges, 1).Count);
+        Assert.Equal(335, TalentDistances(edges, 1).Count);
+
+        // Nine forks, each of exactly two capstones.
+        var forks = context.TalentForkGroups.AsNoTracking().Select(g => g.Id).ToList();
+        Assert.Equal(Enumerable.Range(1, 9), forks.Order());
+        Assert.All(forks, fork => Assert.Equal(2,
+            nodes.Count(n => n.ForkGroupId == fork && n.Kind == TalentNodeKind.Capstone)));
+
+        // One modifier row per capstone, the design's (D-R2): node, kind, ability, value, value2.
+        (int Node, TalentModifierKind Kind, uint Ability, int Value, int? Value2)[] designed =
+        [
+            (306, TalentModifierKind.ConeArcPct, 200, 50, null),        // Wide Arc: Cleave
+            (307, TalentModifierKind.ConeReachPct, 200, 40, null),      // Long Reach: Cleave
+            (308, TalentModifierKind.AuraStacks, 203, 2, null),         // Haemorrhage: Rend
+            (309, TalentModifierKind.AreaPct, 201, 40, null),           // Earthshaker: Ground Slam
+            (310, TalentModifierKind.SecondHit, 201, 50, null),         // Aftershock: Ground Slam
+            (311, TalentModifierKind.AddedProjectiles, 202, 1, null),   // Twin Axes: Hurled Axe
+            (312, TalentModifierKind.ConeArcPct, 222, 40, null),        // Broad Volley: Scatter Shot
+            (313, TalentModifierKind.ConeReachPct, 222, 40, null),      // Long Volley: Scatter Shot
+            (314, TalentModifierKind.AddedProjectiles, 221, 1, null),   // Twin Arrows: Piercing Arrow
+            (315, TalentModifierKind.SecondHit, 223, 50, null),         // Double Tap: Crippling Shot
+            (316, TalentModifierKind.ImpactExplosion, 224, 25, 50),     // Blight Burst: Binding Shot
+            (317, TalentModifierKind.AddedProjectiles, 224, 1, null),   // Twin Binding: Binding Shot
+            (318, TalentModifierKind.ConeReachPct, 212, 40, null),      // Glacial Reach: Frost Fan
+            (319, TalentModifierKind.ConeArcPct, 212, 50, null),        // Wide Fan: Frost Fan
+            (320, TalentModifierKind.AreaPct, 214, 40, null),           // Frost Field: Frost Bind
+            (321, TalentModifierKind.AreaPct, 211, 40, null),           // Conflagration: Flame Burst
+            (322, TalentModifierKind.AuraDurationPct, 213, 50, null),   // Wildfire: Ignite
+            (323, TalentModifierKind.AreaPct, 213, 50, null),           // Firestorm: Ignite
+            (324, TalentModifierKind.SecondHit, 231, 50, null),         // Thunderclap: Radiant Pulse
+            (325, TalentModifierKind.AreaPct, 232, 40, null),           // Sanctuary: Mending Circle
+            (326, TalentModifierKind.SecondHit, 232, 50, null),         // Twice Blessed: Mending Circle
+            (327, TalentModifierKind.AuraDurationPct, 233, 50, null),   // Enduring Renewal: Renew
+            (328, TalentModifierKind.AreaPct, 234, 50, null),           // Bastion: Fortify
+            (329, TalentModifierKind.AuraDurationPct, 234, 50, null),   // Steadfast: Fortify
+            (330, TalentModifierKind.AddedProjectiles, 320, 2, null),   // Shatterbolt: Frostbolt
+            (331, TalentModifierKind.ImpactExplosion, 320, 30, 60),     // Rimeburst: Frostbolt
+        ];
+        Assert.Equal(designed,
+            context.TalentAbilityModifiers.AsNoTracking().AsEnumerable().OrderBy(m => m.NodeId).ThenBy(m => m.Kind)
+                .Select(m => (m.NodeId, m.Kind, m.AbilityId.Value, m.Value, m.Value2)));
+        Assert.Equal(nodes.Where(n => n.Kind == TalentNodeKind.Capstone).Select(n => n.Id).Order(),
+            designed.Select(d => d.Node));
+
+        // The keystones' rules: Blood Price, Glass Edge (lines only), Steady Hand and Unbroken; none anywhere else.
+        Assert.Equal(
+            [(332, (KeystoneRule?)KeystoneRule.LifeCost), (333, null), (334, KeystoneRule.NoCrits),
+                (335, KeystoneRule.WardTakesAll)],
+            nodes.Where(n => n.Kind == TalentNodeKind.Keystone).OrderBy(n => n.Id).Select(n => (n.Id, n.Keystone)));
+        Assert.All(nodes.Where(n => n.Kind != TalentNodeKind.Keystone), n => Assert.Null(n.Keystone));
 
         // The world's catalog accepts the seed against the seeded abilities, and holds node 1's five neighbours (WH-A1,
         // WH-B1, WC-A1, WC-B1, Whub-S1).
@@ -939,15 +991,16 @@ public class SeedIntegrityShould
                 TalentSeed.Rows().Granted),
             NullLoggerFactory.Instance);
         Assert.True(tree.IsLoaded, tree.Refusal);
-        Assert.Equal(305, tree.Count);
+        Assert.Equal(335, tree.Count);
         Assert.True(tree.TryIndexOf(1, out int start));
         Assert.Equal([2, 12, 32, 42, 57], tree.NeighboursAt(start).ToArray().Select(tree.NodeIdAt));
     }
 
     /// <summary>
-    /// #1181: the points each ability, joint and hub junction takes from a class's own start (the start is free), walked
-    /// over the seeded edges: the design's distances (5 and 10 for a region's abilities, 11 for a joint from either side,
-    /// 10 for a hub junction).
+    /// #1181: the points each ability, joint, hub junction, capstone and keystone takes from a class's own start (the start
+    /// is free), walked over the seeded edges: the design's distances (5 and 10 for a region's abilities, 11 for a joint
+    /// from either side, 10 for a hub junction, 11 and 16 for a first and a second capstone, 17 for Frostbolt's fork, and
+    /// 11 for a keystone from the two starts beside it, 12 from the others).
     /// </summary>
     [Theory]
     [InlineData(CharacterClass.Warrior, 6, 5)]      // Cleave
@@ -980,6 +1033,24 @@ public class SeedIntegrityShould
     [InlineData(CharacterClass.Hunter, 303, 10)]    // hub-H
     [InlineData(CharacterClass.Wizard, 304, 10)]    // hub-Z
     [InlineData(CharacterClass.Cleric, 305, 10)]    // hub-C
+    [InlineData(CharacterClass.Warrior, 306, 11)]   // Wide Arc
+    [InlineData(CharacterClass.Warrior, 308, 16)]   // Haemorrhage
+    [InlineData(CharacterClass.Warrior, 310, 16)]   // Aftershock
+    [InlineData(CharacterClass.Warrior, 311, 11)]   // Twin Axes
+    [InlineData(CharacterClass.Hunter, 315, 11)]    // Double Tap
+    [InlineData(CharacterClass.Hunter, 316, 16)]    // Blight Burst
+    [InlineData(CharacterClass.Wizard, 322, 16)]    // Wildfire
+    [InlineData(CharacterClass.Cleric, 327, 16)]    // Enduring Renewal
+    [InlineData(CharacterClass.Cleric, 329, 11)]    // Steadfast
+    [InlineData(CharacterClass.Hunter, 330, 17)]    // Shatterbolt
+    [InlineData(CharacterClass.Wizard, 331, 17)]    // Rimeburst
+    [InlineData(CharacterClass.Warrior, 332, 11)]   // Blood Price
+    [InlineData(CharacterClass.Hunter, 332, 11)]    // Blood Price
+    [InlineData(CharacterClass.Wizard, 332, 12)]    // Blood Price
+    [InlineData(CharacterClass.Cleric, 332, 12)]    // Blood Price
+    [InlineData(CharacterClass.Hunter, 333, 11)]    // Glass Edge
+    [InlineData(CharacterClass.Wizard, 334, 11)]    // Steady Hand
+    [InlineData(CharacterClass.Cleric, 335, 11)]    // Unbroken
     public void Place_each_ability_and_joint_at_its_distance_from_its_own_start(CharacterClass start, int nodeId, int points)
     {
         using var database = SqliteDatabase.World();
@@ -988,6 +1059,62 @@ public class SeedIntegrityShould
         int startNode = context.TalentClassStarts.AsNoTracking().Single(s => s.Class == start).NodeId;
 
         Assert.Equal(points, TalentDistances(context.TalentEdges.AsNoTracking().ToList(), startNode)[nodeId]);
+    }
+
+    /// <summary>
+    /// #1181 (spec 5.2.11): no keystone is ever a route and no capstone leads anywhere. From each class's start, every node
+    /// but a keystone is as far with the keystones' edges as without them; each capstone hangs by one edge from a small
+    /// node, and walking back along its branch's small nodes reaches the ability node granting the ability its modifier
+    /// shapes; and no stack or duration modifier deepens or lengthens a crowd-control aura (a stun, root or silence, or a
+    /// slow).
+    /// </summary>
+    [Fact]
+    public void Keep_keystones_and_capstones_off_every_route()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var nodes = context.TalentNodes.AsNoTracking().ToDictionary(n => n.Id);
+        var edges = context.TalentEdges.AsNoTracking().ToList();
+        var links = context.TalentNodeAbilities.AsNoTracking().AsEnumerable().ToDictionary(a => a.NodeId, a => a.AbilityId);
+        var modifiers = context.TalentAbilityModifiers.AsNoTracking().AsEnumerable().ToList();
+        var keystones = nodes.Values.Where(n => n.Kind == TalentNodeKind.Keystone).Select(n => n.Id).ToHashSet();
+        var withoutKeystones = edges.Where(e => !keystones.Contains(e.NodeA) && !keystones.Contains(e.NodeB)).ToList();
+
+        foreach (TalentClassStart start in context.TalentClassStarts.AsNoTracking())
+        {
+            Dictionary<int, int> all = TalentDistances(edges, start.NodeId);
+            Dictionary<int, int> without = TalentDistances(withoutKeystones, start.NodeId);
+            Assert.Equal(all.Where(d => !keystones.Contains(d.Key)).OrderBy(d => d.Key), without.OrderBy(d => d.Key));
+        }
+
+        ILookup<int, int> neighbours = edges.SelectMany(e => new[] { (e.NodeA, e.NodeB), (e.NodeB, e.NodeA) })
+            .ToLookup(pair => pair.Item1, pair => pair.Item2);
+        Assert.All(nodes.Values.Where(n => n.Kind == TalentNodeKind.Capstone), capstone =>
+        {
+            int at = Assert.Single(neighbours[capstone.Id]);
+            Assert.Equal(TalentNodeKind.Small, nodes[at].Kind);
+            int previous = capstone.Id;
+            while (nodes[at].Kind == TalentNodeKind.Small)
+            {
+                // A branch node's only way on, away from where the walk came from and from its capstones.
+                int next = Assert.Single(neighbours[at],
+                    n => n != previous && nodes[n].Kind != TalentNodeKind.Capstone);
+                (previous, at) = (at, next);
+            }
+
+            Assert.Equal(TalentNodeKind.Ability, nodes[at].Kind);
+            Assert.All(modifiers.Where(m => m.NodeId == capstone.Id), m => Assert.Equal(links[at], m.AbilityId));
+        });
+
+        var abilities = context.AbilityTemplates.AsNoTracking().AsEnumerable().ToDictionary(a => a.Id);
+        var auras = context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).AsEnumerable().ToDictionary(a => a.Id);
+        Assert.All(modifiers.Where(m => m.Kind is TalentModifierKind.AuraStacks or TalentModifierKind.AuraDurationPct), m =>
+        {
+            AuraTemplate aura = auras[abilities[m.AbilityId].AuraId!];
+            Assert.False(aura.Control != CrowdControl.None || AuraRules.IsSlow(aura),
+                $"node {m.NodeId}'s {m.Kind} names ability {m.AbilityId.Value}, whose aura {aura.Id.Value} is crowd control");
+        });
     }
 
     /// <summary>

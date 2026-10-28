@@ -8,19 +8,24 @@ using static Avalon.Domain.World.StatType;
 namespace Avalon.Database.World.Seeding;
 
 /// <summary>
-/// The seeded talent tree (#1181): the first region of the wheel every class shares, without its capstones and keystones
-/// (Part D adds them, from id 306). The model's HasData, the catalog's fallback, the export and the tests read it from
-/// here.
+/// The seeded talent tree (#1181): the first region of the wheel every class shares, with its capstones and keystones
+/// (Part D). The model's HasData, the catalog's fallback, the export and the tests read it from here.
 /// <list type="bullet">
 /// <item>Ids are literal surrogates written in the table, in the design's table order: the Warrior's region 1-73, the
-/// Hunter's 74-146, the Wizard's 147-219, the Cleric's 220-292 and the shared nodes 293-305. An id means nothing and never
-/// changes, since characters store the ids they hold; a node added later takes the next id above the highest ever used.</item>
+/// Hunter's 74-146, the Wizard's 147-219, the Cleric's 220-292, the shared nodes 293-305, then the capstones 306-331 and
+/// the keystones 332-335. An id means nothing and never changes, since characters store the ids they hold; a node added
+/// later takes the next id above the highest ever used. The capstone forks take 1-9, in the order their first capstone
+/// appears.</item>
 /// <item>Each row carries the design's label (<c>WH-A5</c>: the Warrior's half-path toward the Hunter, lane A, node 5;
-/// <c>.c1</c> a node of the branch hanging off it; <c>Whub-L2</c> the Warrior's spoke, left route, node 2). A label is a
-/// key of this source only, never stored, exported or sent: it wires the edges, written below as chains of labels, places
-/// the node on the wheel (<see cref="Layout" />), and tells the reader which node a row is.</item>
-/// <item>A start links its class's starter ability and an ability node the ability it unlocks; every other node carries
-/// stat lines, all <see cref="TalentStatKind.Added" />, in the gear's vocabulary.</item>
+/// <c>.c1</c> a node of the branch hanging off it, <c>.c6</c> its lone capstone, <c>.cx</c> and <c>.cy</c> a fork's two;
+/// <c>Whub-L2</c> the Warrior's spoke, left route, node 2; <c>key-WH</c> the keystone between the Warrior's and the
+/// Hunter's hub junctions). A label is a key of this source only, never stored, exported or sent: it wires the edges,
+/// written below as chains of labels, places the node on the wheel (<see cref="Layout" />), and tells the reader which
+/// node a row is.</item>
+/// <item>A start links its class's starter ability and an ability node the ability it unlocks; a capstone carries the
+/// modifiers that reshape the ability its branch hangs from, and a keystone its rule, its stat lines, or both; every
+/// other node carries stat lines in the gear's vocabulary, <see cref="TalentStatKind.Added" />. Only a keystone has a
+/// <see cref="TalentStatKind.More" /> line.</item>
 /// </list>
 /// </summary>
 public static partial class TalentSeed
@@ -65,35 +70,53 @@ public static partial class TalentSeed
     /// <summary>Each start's and each ability node's ability.</summary>
     public static TalentNodeAbility[] Abilities() => [.. Build().Abilities];
 
-    /// <summary>The capstone forks: none until Part D seeds the capstones.</summary>
+    /// <summary>The capstone forks, by id.</summary>
     public static TalentForkGroup[] ForkGroups() => [.. Build().ForkGroups];
+
+    /// <summary>The capstones' modifiers, by (NodeId, Kind).</summary>
+    public static TalentAbilityModifier[] Modifiers() => [.. Build().Modifiers];
 
     /// <summary>The node each class starts on.</summary>
     public static TalentClassStart[] Starts() => [.. Build().Starts];
 
-    /// <summary>One node: its id, label, kind, name, the class starting on it, the ability it links, and its stat lines.</summary>
+    /// <summary>
+    /// One node: its id, label, kind, name, the class starting on it, the ability it links, its stat lines, its keystone
+    /// rule, the fork it sits in, and its modifiers.
+    /// </summary>
     private sealed record Row(int Id, string Label, TalentNodeKind Kind, string? Name, CharacterClass? Class, uint? Ability,
-        Line[] Lines);
+        Line[] Lines, KeystoneRule? Keystone, int? Fork, Mod[] Modifiers);
 
     /// <summary>A stat line; an "adds X to Y" line has its high end in <paramref name="ValueMax" />.</summary>
-    private readonly record struct Line(StatType Stat, int Value, int? ValueMax = null);
+    private readonly record struct Line(StatType Stat, int Value, int? ValueMax = null,
+        TalentStatKind Kind = TalentStatKind.Added);
+
+    /// <summary>A capstone's modifier of <paramref name="Ability" />; only an explosion has a <paramref name="Value2" />.</summary>
+    private readonly record struct Mod(TalentModifierKind Kind, uint Ability, int Value, int? Value2 = null);
 
     private static Row Start(int id, string label, CharacterClass @class, string name, uint ability) =>
-        new(id, label, TalentNodeKind.Start, name, @class, ability, []);
+        new(id, label, TalentNodeKind.Start, name, @class, ability, [], null, null, []);
 
     private static Row Small(int id, string label, params Line[] lines) =>
-        new(id, label, TalentNodeKind.Small, null, null, null, lines);
+        new(id, label, TalentNodeKind.Small, null, null, null, lines, null, null, []);
 
     private static Row Notable(int id, string label, string name, params Line[] lines) =>
-        new(id, label, TalentNodeKind.Notable, name, null, null, lines);
+        new(id, label, TalentNodeKind.Notable, name, null, null, lines, null, null, []);
 
     private static Row Ability(int id, string label, string name, uint ability) =>
-        new(id, label, TalentNodeKind.Ability, name, null, ability, []);
+        new(id, label, TalentNodeKind.Ability, name, null, ability, [], null, null, []);
 
     private static Row Junction(int id, string label, params Line[] lines) =>
-        new(id, label, TalentNodeKind.Junction, null, null, null, lines);
+        new(id, label, TalentNodeKind.Junction, null, null, null, lines, null, null, []);
+
+    private static Row Capstone(int id, string label, string name, int? fork, params Mod[] modifiers) =>
+        new(id, label, TalentNodeKind.Capstone, name, null, null, [], null, fork, modifiers);
+
+    private static Row Keystone(int id, string label, string name, KeystoneRule? rule, params Line[] lines) =>
+        new(id, label, TalentNodeKind.Keystone, name, null, null, lines, rule, null, []);
 
     private static Line L(StatType stat, int value) => new(stat, value);
+
+    private static Line More(StatType stat, int value) => new(stat, value, null, TalentStatKind.More);
 
     private static Line Adds(StatType stat, int low, int high) => new(stat, low, high);
 
@@ -415,37 +438,73 @@ public static partial class TalentSeed
         Junction(303, "hub-H", L(IncreasedMaximumLife, 3)),
         Junction(304, "hub-Z", L(IncreasedMaximumLife, 3)),
         Junction(305, "hub-C", L(IncreasedMaximumLife, 3)),
+
+        // The capstones, each hanging from its branch's .c5 and shaping the ability the branch hangs from; a fork's two
+        // share a group, of which a character holds one
+        Capstone(306, "WH-A5.cx", "Wide Arc", 1, new Mod(TalentModifierKind.ConeArcPct, Cleave, 50)),
+        Capstone(307, "WH-A5.cy", "Long Reach", 1, new Mod(TalentModifierKind.ConeReachPct, Cleave, 40)),
+        Capstone(308, "WH-B10.c6", "Haemorrhage", null, new Mod(TalentModifierKind.AuraStacks, Rend, 2)),
+        Capstone(309, "WC-B10.cx", "Earthshaker", 2, new Mod(TalentModifierKind.AreaPct, GroundSlam, 40)),
+        Capstone(310, "WC-B10.cy", "Aftershock", 2, new Mod(TalentModifierKind.SecondHit, GroundSlam, 50)),
+        Capstone(311, "Whub-L2.c6", "Twin Axes", null, new Mod(TalentModifierKind.AddedProjectiles, HurledAxe, 1)),
+        Capstone(312, "HW-A5.cx", "Broad Volley", 3, new Mod(TalentModifierKind.ConeArcPct, ScatterShot, 40)),
+        Capstone(313, "HW-A5.cy", "Long Volley", 3, new Mod(TalentModifierKind.ConeReachPct, ScatterShot, 40)),
+        Capstone(314, "HW-B10.c6", "Twin Arrows", null, new Mod(TalentModifierKind.AddedProjectiles, PiercingArrow, 1)),
+        Capstone(315, "HZ-A5.c6", "Double Tap", null, new Mod(TalentModifierKind.SecondHit, CripplingShot, 50)),
+        Capstone(316, "HZ-B10.cx", "Blight Burst", 4, new Mod(TalentModifierKind.ImpactExplosion, BindingShot, 25, 50)),
+        Capstone(317, "HZ-B10.cy", "Twin Binding", 4, new Mod(TalentModifierKind.AddedProjectiles, BindingShot, 1)),
+        Capstone(318, "ZH-A5.cx", "Glacial Reach", 5, new Mod(TalentModifierKind.ConeReachPct, FrostFan, 40)),
+        Capstone(319, "ZH-A5.cy", "Wide Fan", 5, new Mod(TalentModifierKind.ConeArcPct, FrostFan, 50)),
+        Capstone(320, "ZH-B10.c6", "Frost Field", null, new Mod(TalentModifierKind.AreaPct, FrostBind, 40)),
+        Capstone(321, "ZC-A5.c6", "Conflagration", null, new Mod(TalentModifierKind.AreaPct, FlameBurst, 40)),
+        Capstone(322, "ZC-B10.cx", "Wildfire", 6, new Mod(TalentModifierKind.AuraDurationPct, Ignite, 50)),
+        Capstone(323, "ZC-B10.cy", "Firestorm", 6, new Mod(TalentModifierKind.AreaPct, Ignite, 50)),
+        Capstone(324, "CZ-A5.c6", "Thunderclap", null, new Mod(TalentModifierKind.SecondHit, RadiantPulse, 50)),
+        Capstone(325, "CW-A5.cx", "Sanctuary", 7, new Mod(TalentModifierKind.AreaPct, MendingCircle, 40)),
+        Capstone(326, "CW-A5.cy", "Twice Blessed", 7, new Mod(TalentModifierKind.SecondHit, MendingCircle, 50)),
+        Capstone(327, "CW-B10.c6", "Enduring Renewal", null, new Mod(TalentModifierKind.AuraDurationPct, Renew, 50)),
+        Capstone(328, "Chub-L2.cx", "Bastion", 8, new Mod(TalentModifierKind.AreaPct, Fortify, 50)),
+        Capstone(329, "Chub-L2.cy", "Steadfast", 8, new Mod(TalentModifierKind.AuraDurationPct, Fortify, 50)),
+        Capstone(330, "HZ-joint.cx", "Shatterbolt", 9, new Mod(TalentModifierKind.AddedProjectiles, Frostbolt, 2)),
+        Capstone(331, "HZ-joint.cy", "Rimeburst", 9, new Mod(TalentModifierKind.ImpactExplosion, Frostbolt, 30, 60)),
+
+        // The keystones, each between the two hub junctions beside it
+        Keystone(332, "key-WH", "Blood Price", KeystoneRule.LifeCost),
+        Keystone(333, "key-HZ", "Glass Edge", null, More(IncreasedDamage, 30), More(IncreasedMaximumLife, -25)),
+        Keystone(334, "key-ZC", "Steady Hand", KeystoneRule.NoCrits, More(IncreasedDamage, 20), More(IncreasedHealing, 20)),
+        Keystone(335, "key-CW", "Unbroken", KeystoneRule.WardTakesAll),
     ];
 
     // The edges, as chains of labels: each lane from its start to its joint, the lanes' crossings at nodes 3, 6 and 9,
-    // each branch off its ability, each spoke's two routes to its hub junction, and the hub ring.
+    // each branch off its ability down to its capstone (a fork's second capstone a chain of its own off .c5), each
+    // spoke's two routes to its hub junction, the hub ring, and each keystone between its two junctions.
     private static readonly string[][] s_chains =
     [
         // Warrior region
         Chain("W-start", "WH-A1", "WH-A2", "WH-A3", "WH-A4", "WH-A5", "WH-A6", "WH-A7", "WH-A8", "WH-A9", "WH-A10", "WH-joint"),
         Chain("W-start", "WH-B1", "WH-B2", "WH-B3", "WH-B4", "WH-B5", "WH-B6", "WH-B7", "WH-B8", "WH-B9", "WH-B10", "WH-joint"),
         Chain("WH-A3", "WH-B3"), Chain("WH-A6", "WH-B6"), Chain("WH-A9", "WH-B9"),
-        Chain("WH-A5", "WH-A5.c1", "WH-A5.c2", "WH-A5.c3", "WH-A5.c4", "WH-A5.c5"),
-        Chain("WH-B10", "WH-B10.c1", "WH-B10.c2", "WH-B10.c3", "WH-B10.c4", "WH-B10.c5"),
+        Chain("WH-A5", "WH-A5.c1", "WH-A5.c2", "WH-A5.c3", "WH-A5.c4", "WH-A5.c5", "WH-A5.cx"), Chain("WH-A5.c5", "WH-A5.cy"),
+        Chain("WH-B10", "WH-B10.c1", "WH-B10.c2", "WH-B10.c3", "WH-B10.c4", "WH-B10.c5", "WH-B10.c6"),
         Chain("W-start", "WC-A1", "WC-A2", "WC-A3", "WC-A4", "WC-A5", "WC-A6", "WC-A7", "WC-A8", "WC-A9", "WC-A10", "CW-joint"),
         Chain("W-start", "WC-B1", "WC-B2", "WC-B3", "WC-B4", "WC-B5", "WC-B6", "WC-B7", "WC-B8", "WC-B9", "WC-B10", "CW-joint"),
         Chain("WC-A3", "WC-B3"), Chain("WC-A6", "WC-B6"), Chain("WC-A9", "WC-B9"),
-        Chain("WC-B10", "WC-B10.c1", "WC-B10.c2", "WC-B10.c3", "WC-B10.c4", "WC-B10.c5"),
+        Chain("WC-B10", "WC-B10.c1", "WC-B10.c2", "WC-B10.c3", "WC-B10.c4", "WC-B10.c5", "WC-B10.cx"), Chain("WC-B10.c5", "WC-B10.cy"),
         Chain("W-start", "Whub-S1", "Whub-S2", "Whub-S3", "Whub-L1", "Whub-L2", "Whub-L3", "Whub-S4", "Whub-S5", "Whub-S6", "hub-W"),
         Chain("Whub-S3", "Whub-R1", "Whub-R2", "Whub-R3", "Whub-S4"),
-        Chain("Whub-L2", "Whub-L2.c1", "Whub-L2.c2", "Whub-L2.c3", "Whub-L2.c4", "Whub-L2.c5"),
+        Chain("Whub-L2", "Whub-L2.c1", "Whub-L2.c2", "Whub-L2.c3", "Whub-L2.c4", "Whub-L2.c5", "Whub-L2.c6"),
 
         // Hunter region
         Chain("H-start", "HW-A1", "HW-A2", "HW-A3", "HW-A4", "HW-A5", "HW-A6", "HW-A7", "HW-A8", "HW-A9", "HW-A10", "WH-joint"),
         Chain("H-start", "HW-B1", "HW-B2", "HW-B3", "HW-B4", "HW-B5", "HW-B6", "HW-B7", "HW-B8", "HW-B9", "HW-B10", "WH-joint"),
         Chain("HW-A3", "HW-B3"), Chain("HW-A6", "HW-B6"), Chain("HW-A9", "HW-B9"),
-        Chain("HW-A5", "HW-A5.c1", "HW-A5.c2", "HW-A5.c3", "HW-A5.c4", "HW-A5.c5"),
-        Chain("HW-B10", "HW-B10.c1", "HW-B10.c2", "HW-B10.c3", "HW-B10.c4", "HW-B10.c5"),
+        Chain("HW-A5", "HW-A5.c1", "HW-A5.c2", "HW-A5.c3", "HW-A5.c4", "HW-A5.c5", "HW-A5.cx"), Chain("HW-A5.c5", "HW-A5.cy"),
+        Chain("HW-B10", "HW-B10.c1", "HW-B10.c2", "HW-B10.c3", "HW-B10.c4", "HW-B10.c5", "HW-B10.c6"),
         Chain("H-start", "HZ-A1", "HZ-A2", "HZ-A3", "HZ-A4", "HZ-A5", "HZ-A6", "HZ-A7", "HZ-A8", "HZ-A9", "HZ-A10", "HZ-joint"),
         Chain("H-start", "HZ-B1", "HZ-B2", "HZ-B3", "HZ-B4", "HZ-B5", "HZ-B6", "HZ-B7", "HZ-B8", "HZ-B9", "HZ-B10", "HZ-joint"),
         Chain("HZ-A3", "HZ-B3"), Chain("HZ-A6", "HZ-B6"), Chain("HZ-A9", "HZ-B9"),
-        Chain("HZ-A5", "HZ-A5.c1", "HZ-A5.c2", "HZ-A5.c3", "HZ-A5.c4", "HZ-A5.c5"),
-        Chain("HZ-B10", "HZ-B10.c1", "HZ-B10.c2", "HZ-B10.c3", "HZ-B10.c4", "HZ-B10.c5"),
+        Chain("HZ-A5", "HZ-A5.c1", "HZ-A5.c2", "HZ-A5.c3", "HZ-A5.c4", "HZ-A5.c5", "HZ-A5.c6"),
+        Chain("HZ-B10", "HZ-B10.c1", "HZ-B10.c2", "HZ-B10.c3", "HZ-B10.c4", "HZ-B10.c5", "HZ-B10.cx"), Chain("HZ-B10.c5", "HZ-B10.cy"),
         Chain("H-start", "Hhub-S1", "Hhub-S2", "Hhub-S3", "Hhub-L1", "Hhub-L2", "Hhub-L3", "Hhub-S4", "Hhub-S5", "Hhub-S6", "hub-H"),
         Chain("Hhub-S3", "Hhub-R1", "Hhub-R2", "Hhub-R3", "Hhub-S4"),
 
@@ -453,13 +512,13 @@ public static partial class TalentSeed
         Chain("Z-start", "ZH-A1", "ZH-A2", "ZH-A3", "ZH-A4", "ZH-A5", "ZH-A6", "ZH-A7", "ZH-A8", "ZH-A9", "ZH-A10", "HZ-joint"),
         Chain("Z-start", "ZH-B1", "ZH-B2", "ZH-B3", "ZH-B4", "ZH-B5", "ZH-B6", "ZH-B7", "ZH-B8", "ZH-B9", "ZH-B10", "HZ-joint"),
         Chain("ZH-A3", "ZH-B3"), Chain("ZH-A6", "ZH-B6"), Chain("ZH-A9", "ZH-B9"),
-        Chain("ZH-A5", "ZH-A5.c1", "ZH-A5.c2", "ZH-A5.c3", "ZH-A5.c4", "ZH-A5.c5"),
-        Chain("ZH-B10", "ZH-B10.c1", "ZH-B10.c2", "ZH-B10.c3", "ZH-B10.c4", "ZH-B10.c5"),
+        Chain("ZH-A5", "ZH-A5.c1", "ZH-A5.c2", "ZH-A5.c3", "ZH-A5.c4", "ZH-A5.c5", "ZH-A5.cx"), Chain("ZH-A5.c5", "ZH-A5.cy"),
+        Chain("ZH-B10", "ZH-B10.c1", "ZH-B10.c2", "ZH-B10.c3", "ZH-B10.c4", "ZH-B10.c5", "ZH-B10.c6"),
         Chain("Z-start", "ZC-A1", "ZC-A2", "ZC-A3", "ZC-A4", "ZC-A5", "ZC-A6", "ZC-A7", "ZC-A8", "ZC-A9", "ZC-A10", "ZC-joint"),
         Chain("Z-start", "ZC-B1", "ZC-B2", "ZC-B3", "ZC-B4", "ZC-B5", "ZC-B6", "ZC-B7", "ZC-B8", "ZC-B9", "ZC-B10", "ZC-joint"),
         Chain("ZC-A3", "ZC-B3"), Chain("ZC-A6", "ZC-B6"), Chain("ZC-A9", "ZC-B9"),
-        Chain("ZC-A5", "ZC-A5.c1", "ZC-A5.c2", "ZC-A5.c3", "ZC-A5.c4", "ZC-A5.c5"),
-        Chain("ZC-B10", "ZC-B10.c1", "ZC-B10.c2", "ZC-B10.c3", "ZC-B10.c4", "ZC-B10.c5"),
+        Chain("ZC-A5", "ZC-A5.c1", "ZC-A5.c2", "ZC-A5.c3", "ZC-A5.c4", "ZC-A5.c5", "ZC-A5.c6"),
+        Chain("ZC-B10", "ZC-B10.c1", "ZC-B10.c2", "ZC-B10.c3", "ZC-B10.c4", "ZC-B10.c5", "ZC-B10.cx"), Chain("ZC-B10.c5", "ZC-B10.cy"),
         Chain("Z-start", "Zhub-S1", "Zhub-S2", "Zhub-S3", "Zhub-L1", "Zhub-L2", "Zhub-L3", "Zhub-S4", "Zhub-S5", "Zhub-S6", "hub-Z"),
         Chain("Zhub-S3", "Zhub-R1", "Zhub-R2", "Zhub-R3", "Zhub-S4"),
 
@@ -467,19 +526,21 @@ public static partial class TalentSeed
         Chain("C-start", "CZ-A1", "CZ-A2", "CZ-A3", "CZ-A4", "CZ-A5", "CZ-A6", "CZ-A7", "CZ-A8", "CZ-A9", "CZ-A10", "ZC-joint"),
         Chain("C-start", "CZ-B1", "CZ-B2", "CZ-B3", "CZ-B4", "CZ-B5", "CZ-B6", "CZ-B7", "CZ-B8", "CZ-B9", "CZ-B10", "ZC-joint"),
         Chain("CZ-A3", "CZ-B3"), Chain("CZ-A6", "CZ-B6"), Chain("CZ-A9", "CZ-B9"),
-        Chain("CZ-A5", "CZ-A5.c1", "CZ-A5.c2", "CZ-A5.c3", "CZ-A5.c4", "CZ-A5.c5"),
+        Chain("CZ-A5", "CZ-A5.c1", "CZ-A5.c2", "CZ-A5.c3", "CZ-A5.c4", "CZ-A5.c5", "CZ-A5.c6"),
         Chain("C-start", "CW-A1", "CW-A2", "CW-A3", "CW-A4", "CW-A5", "CW-A6", "CW-A7", "CW-A8", "CW-A9", "CW-A10", "CW-joint"),
         Chain("C-start", "CW-B1", "CW-B2", "CW-B3", "CW-B4", "CW-B5", "CW-B6", "CW-B7", "CW-B8", "CW-B9", "CW-B10", "CW-joint"),
         Chain("CW-A3", "CW-B3"), Chain("CW-A6", "CW-B6"), Chain("CW-A9", "CW-B9"),
-        Chain("CW-A5", "CW-A5.c1", "CW-A5.c2", "CW-A5.c3", "CW-A5.c4", "CW-A5.c5"),
-        Chain("CW-B10", "CW-B10.c1", "CW-B10.c2", "CW-B10.c3", "CW-B10.c4", "CW-B10.c5"),
+        Chain("CW-A5", "CW-A5.c1", "CW-A5.c2", "CW-A5.c3", "CW-A5.c4", "CW-A5.c5", "CW-A5.cx"), Chain("CW-A5.c5", "CW-A5.cy"),
+        Chain("CW-B10", "CW-B10.c1", "CW-B10.c2", "CW-B10.c3", "CW-B10.c4", "CW-B10.c5", "CW-B10.c6"),
         Chain("C-start", "Chub-S1", "Chub-S2", "Chub-S3", "Chub-L1", "Chub-L2", "Chub-L3", "Chub-S4", "Chub-S5", "Chub-S6", "hub-C"),
         Chain("Chub-S3", "Chub-R1", "Chub-R2", "Chub-R3", "Chub-S4"),
-        Chain("Chub-L2", "Chub-L2.c1", "Chub-L2.c2", "Chub-L2.c3", "Chub-L2.c4", "Chub-L2.c5"),
+        Chain("Chub-L2", "Chub-L2.c1", "Chub-L2.c2", "Chub-L2.c3", "Chub-L2.c4", "Chub-L2.c5", "Chub-L2.cx"), Chain("Chub-L2.c5", "Chub-L2.cy"),
 
         // Shared: Frostbolt's branch and the hub ring
-        Chain("HZ-joint", "HZ-joint.c1", "HZ-joint.c2", "HZ-joint.c3", "HZ-joint.c4", "HZ-joint.c5"),
+        Chain("HZ-joint", "HZ-joint.c1", "HZ-joint.c2", "HZ-joint.c3", "HZ-joint.c4", "HZ-joint.c5", "HZ-joint.cx"), Chain("HZ-joint.c5", "HZ-joint.cy"),
         Chain("hub-W", "hub-H", "hub-Z", "hub-C", "hub-W"),
+        Chain("hub-W", "key-WH", "hub-H"), Chain("hub-H", "key-HZ", "hub-Z"),
+        Chain("hub-Z", "key-ZC", "hub-C"), Chain("hub-C", "key-CW", "hub-W"),
     ];
 
     private static TalentTreeRows Build()
@@ -489,20 +550,42 @@ public static partial class TalentSeed
         List<TalentNodeStat> stats = [];
         List<TalentNodeAbility> abilities = [];
         List<TalentClassStart> starts = [];
+        List<TalentAbilityModifier> modifiers = [];
         foreach (Row row in s_rows)
         {
             ids.Add(row.Label, row.Id);
             (float angle, float radius) = Layout(row.Label);
-            nodes.Add(new TalentNode { Id = row.Id, Kind = row.Kind, Name = row.Name, Angle = angle, Radius = radius });
+            nodes.Add(new TalentNode
+            {
+                Id = row.Id,
+                Kind = row.Kind,
+                Name = row.Name,
+                Angle = angle,
+                Radius = radius,
+                ForkGroupId = row.Fork,
+                Keystone = row.Keystone,
+            });
             foreach (Line line in row.Lines)
             {
                 stats.Add(new TalentNodeStat
                 {
                     NodeId = row.Id,
                     Stat = line.Stat,
-                    Kind = TalentStatKind.Added,
+                    Kind = line.Kind,
                     Value = line.Value,
                     ValueMax = line.ValueMax,
+                });
+            }
+
+            foreach (Mod mod in row.Modifiers.OrderBy(m => m.Kind))
+            {
+                modifiers.Add(new TalentAbilityModifier
+                {
+                    NodeId = row.Id,
+                    Kind = mod.Kind,
+                    AbilityId = new AbilityId(mod.Ability),
+                    Value = mod.Value,
+                    Value2 = mod.Value2,
                 });
             }
 
@@ -524,8 +607,17 @@ public static partial class TalentSeed
             }
         }
 
+        TalentForkGroup[] forkGroups =
+        [
+            .. s_rows.Where(r => r.Fork is not null).Select(r => r.Fork!.Value).Distinct().Order()
+                .Select(id => new TalentForkGroup { Id = id }),
+        ];
+
         return new TalentTreeRows(nodes, [.. edges.Select(e => new TalentEdge { NodeA = e.A, NodeB = e.B })], stats,
-            abilities, [], starts);
+            abilities, forkGroups, starts)
+        {
+            Modifiers = modifiers,
+        };
 
         int IdOf(string label, string other) =>
             ids.TryGetValue(label, out int id)
@@ -545,6 +637,10 @@ public static partial class TalentSeed
     /// <item>A joint sits 45 degrees round from the start its label names first, at 600, its branch stepping outward.</item>
     /// <item>A spoke runs inward along its start's angle, 40 units a node, its left and right routes 4 degrees either side;
     /// a spoke branch steps 4 degrees a node further left at radius 400; the hub junctions sit at 160.</item>
+    /// <item>A lone capstone (<c>.c6</c>) takes its branch's sixth place by those rules; a fork's two (<c>.cx</c> and
+    /// <c>.cy</c>) take that place 2 degrees less and 2 degrees more round.</item>
+    /// <item>A keystone sits inside the hub ring at 120, 45 degrees round from the start its label names first: between
+    /// its two junctions.</item>
     /// </list>
     /// </summary>
     private static (float Angle, float Radius) Layout(string label)
@@ -553,13 +649,26 @@ public static partial class TalentSeed
         if (!m.Success)
             throw new InvalidOperationException($"The talent label '{label}' has no place on the wheel.");
 
+        if (m.Groups["key"].Success)
+            return (Normalize(Theta(m.Groups["key"].ValueSpan[0]) + 45), 120f);
+
+        (float angle, float radius) = Place(m);
+        return m.Groups["fork"].Success
+            ? (Normalize(angle + (m.Groups["fork"].ValueSpan[0] == 'x' ? -2 : 2)), radius)
+            : (angle, radius);
+    }
+
+    /// <summary>A node's place by its label's start, route, lane and branch node (a fork's capstone at the sixth).</summary>
+    private static (float Angle, float Radius) Place(Match m)
+    {
         if (m.Groups["hub"].Success)
             return (Theta(m.Groups["hub"].ValueSpan[0]), 160f);
 
         char x = m.Groups["x"].ValueSpan[0];
         float theta = Theta(x);
         int n = m.Groups["n"].Success ? int.Parse(m.Groups["n"].ValueSpan, CultureInfo.InvariantCulture) : 0;
-        int k = m.Groups["k"].Success ? int.Parse(m.Groups["k"].ValueSpan, CultureInfo.InvariantCulture) : 0;
+        int k = m.Groups["fork"].Success ? 6
+            : m.Groups["k"].Success ? int.Parse(m.Groups["k"].ValueSpan, CultureInfo.InvariantCulture) : 0;
 
         if (m.Groups["route"].Success)
         {
@@ -603,10 +712,11 @@ public static partial class TalentSeed
     private static float Normalize(float degrees) =>
         degrees > 180f ? degrees - 360f : degrees <= -180f ? degrees + 360f : degrees;
 
-    // A label: hub-X, X-start, Xhub-Rn, XY-joint or XY-Ln, any of the last three with a branch node .ck.
+    // A label: hub-X, key-XY, X-start, Xhub-Rn, XY-joint or XY-Ln, any of the last three with a branch node .ck or a
+    // fork's capstone .cx or .cy.
     [GeneratedRegex(
-        @"^(?:hub-(?<hub>[WHZC])|(?<x>[WHZC])(?:-start|hub-(?<route>[SLR])(?<n>\d+)|" +
-        @"(?<y>[WHZC])-(?:joint|(?<lane>[AB])(?<n>\d+))))(?:\.c(?<k>\d+))?$",
+        @"^(?:hub-(?<hub>[WHZC])|key-(?<key>[WHZC])[WHZC]|(?<x>[WHZC])(?:-start|hub-(?<route>[SLR])(?<n>\d+)|" +
+        @"(?<y>[WHZC])-(?:joint|(?<lane>[AB])(?<n>\d+))))(?:\.c(?:(?<k>\d+)|(?<fork>[xy])))?$",
         RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex LabelPattern();
 }

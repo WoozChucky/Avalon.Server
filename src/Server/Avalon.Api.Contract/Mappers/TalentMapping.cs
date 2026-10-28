@@ -5,11 +5,14 @@ namespace Avalon.Api.Contract.Mappers;
 /// <summary>The talent tree as the REST contract carries it (#1181).</summary>
 public static class TalentMapping
 {
-    /// <summary>Nodes by id, each node's stats by (stat, kind), edges by (NodeA, NodeB) and starts by class.</summary>
+    /// <summary>
+    /// Nodes by id, each node's stats by (stat, kind) and modifiers by kind, edges by (NodeA, NodeB) and starts by class.
+    /// </summary>
     public static TalentTreeDto ToDto(this TalentTreeRows rows)
     {
         ILookup<int, TalentNodeStat> stats = rows.Stats.ToLookup(s => s.NodeId);
         var abilities = rows.Abilities.ToDictionary(a => a.NodeId, a => a.AbilityId.Value);
+        ILookup<int, TalentAbilityModifier> modifiers = rows.Modifiers.ToLookup(m => m.NodeId);
 
         return new TalentTreeDto
         {
@@ -24,6 +27,7 @@ public static class TalentMapping
                     Radius = n.Radius,
                     ForkGroupId = n.ForkGroupId,
                     AbilityId = abilities.TryGetValue(n.Id, out uint ability) ? ability : null,
+                    Keystone = (KeystoneRule?)n.Keystone,
                     Stats =
                     [
                         .. stats[n.Id].OrderBy(s => s.Stat).ThenBy(s => s.Kind).Select(s => new TalentNodeStatDto
@@ -32,6 +36,16 @@ public static class TalentMapping
                             Kind = (TalentStatKind)s.Kind,
                             Value = s.Value,
                             ValueMax = s.ValueMax,
+                        }),
+                    ],
+                    Modifiers =
+                    [
+                        .. modifiers[n.Id].OrderBy(m => m.Kind).Select(m => new TalentAbilityModifierDto
+                        {
+                            Kind = (TalentModifierKind)m.Kind,
+                            AbilityId = m.AbilityId.Value,
+                            Value = m.Value,
+                            Value2 = m.Value2,
                         }),
                     ],
                 }),

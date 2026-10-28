@@ -75,7 +75,7 @@ public class TalentRefundHandlerShould
         CharacterEntity character = f.Client.Character;
 
         // [3] would strand 4-6, and its 100 gold is more than 99: every row breaks every rule after its own. The seeded
-        // tree holds ids up to 305, so 999 is unknown.
+        // tree holds ids up to 335, so 999 is unknown.
         uint[] request = @case switch
         {
             "unknown node" => [999, 3],
