@@ -314,11 +314,12 @@ Allocating works anywhere in a map. "Reset all" is the client naming every node 
   (`TalentAllocation.Refund`, which checks every id is a positive `int` before it changes anything, removes each held
   one, marks it for the save and moves `Version` once), then runs `TalentChange.Apply` as an allocation does. An
   exception is logged at Error and answered `InternalError`: a throw while dropping the nodes changed nothing, so the
-  gold is given back (`IWallet.GiveBack`, which no cap or trade refuses, since it restores the balance held before the
-  spend on the same tick; no test reaches this path through the real surface, since the rules refuse every id it would
-  throw on); a throw in `TalentChange.Apply` comes after the nodes were dropped, so the refund stands, paid for, and the
-  state is still owed. Every request with a character
-  gets exactly one `SMSG_TALENT_RESULT`; the refused node is named for `UnknownNode`, `NotAllocated` and
+  gold is given back (`IWalletRestore.GiveBack`, internal to Avalon.World and implemented by `CharacterWallet`, which no
+  cap or trade refuses, since it restores the balance held before the spend on the same tick; a wallet that is not one
+  gets it back through `TryAddGold`, within the cap, with an Error; no test reaches this path through the real
+  surface, since the rules refuse every id it would throw on); a throw in `TalentChange.Apply` comes after the nodes
+  were dropped, so the refund stands, paid for, and the state is still owed. Every request with a character gets
+  exactly one `SMSG_TALENT_RESULT`; the refused node is named for `UnknownNode`, `NotAllocated` and
   `WouldDisconnect`, and 0 otherwise. A refusal changes nothing, marks no save, spends no gold and allocates nothing
   beyond its pooled reply.
 - **The price on the state.** `SMSG_TALENT_STATE` carries `RefundPricePerNode`, the per-node price at the character's

@@ -85,11 +85,27 @@ public sealed class TalentRefundHandler(ILogger<TalentRefundHandler> logger, IWo
             // Dropping the nodes checks every id before it changes anything, so a throw left them all held: nothing
             // changed, and the gold goes back. GiveBack, not TryAddGold: it restores the balance the character held
             // before the spend above, on this tick, so the cap or a trade's incoming gold can never refuse it.
-            wallet?.GiveBack(price);
+            if (wallet is IWalletRestore restore)
+                restore.GiveBack(price);
+            else if (wallet is not null)
+                GiveBackWithinTheCap(wallet, price, character);
+
             throw;
         }
 
         TalentChange.Apply(character, data, logger);
         return TalentResult.Ok;
+    }
+
+    /// <summary>
+    /// A wallet that cannot restore (not the economy's own) gets the gold back only within the cap, so no gold is made
+    /// past it; either way the miss is an Error.
+    /// </summary>
+    private void GiveBackWithinTheCap(IWallet wallet, ulong price, CharacterEntity character)
+    {
+        WalletResult added = wallet.TryAddGold(price);
+        logger.LogError("Giving back {Price} gold after a failed talent refund to character {CharacterId}: the wallet " +
+                        "cannot restore past the cap, so it was added within it ({Result})", price, character.Guid.Id,
+            added);
     }
 }

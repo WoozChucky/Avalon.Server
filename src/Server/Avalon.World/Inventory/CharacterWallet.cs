@@ -7,7 +7,7 @@ namespace Avalon.World.Inventory;
 /// <see cref="IWallet" /> over <c>Character.Gold</c>. The one writer of a character's gold. Gold offered in a trade
 /// (#1175) cannot be spent, and gold a completing trade is about to pay counts toward the cap.
 /// </summary>
-public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWallet
+public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWallet, IWalletRestore
 {
     /// <summary>The gold cap it was made under: an addition past it is refused.</summary>
     public ulong MaxGold => maxGold;
@@ -48,7 +48,7 @@ public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWal
         return WalletResult.Ok;
     }
 
-    void IWallet.GiveBack(ulong gold)
+    void IWalletRestore.GiveBack(ulong gold)
     {
         if (gold == 0)
             return;
