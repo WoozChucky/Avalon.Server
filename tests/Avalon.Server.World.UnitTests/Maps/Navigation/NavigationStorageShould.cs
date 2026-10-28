@@ -1,4 +1,5 @@
 using Avalon.World.Maps.Navigation;
+using Avalon.World.Testing;
 using Avalon.World.Testing.Navigation;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
@@ -36,7 +37,7 @@ public class NavigationStorageShould(ITestOutputHelper output)
         var query = new ReusingNavMeshQuery(fixture.Mesh);
         for (int attempt = 0; attempt < 2; attempt++)
         {
-            long before = GC.GetAllocatedBytesForCurrentThread();
+            long before = ThreadAllocations.BeforeQuietWindow();
             DtStatus status = query.FindPath(fixture.StartRef, fixture.EndRef, fixture.Start, fixture.End,
                 filter, actual, out int count, actual.Length);
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -68,7 +69,7 @@ public class NavigationStorageShould(ITestOutputHelper output)
         }
 
         var query = new ReusingNavMeshQuery(fixture.Mesh);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         DtStatus status = query.MoveAlongSurfaceReusing(fixture.StartRef, fixture.Start, fixture.End, fixture.Filter,
             out RcVec3f position, actual, out int count, actual.Length);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
