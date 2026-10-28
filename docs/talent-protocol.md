@@ -179,12 +179,13 @@ allocated or refunded an ability node), `SMSG_CHARACTER_ABILITIES` (`0x3027`, `S
 again, whole, **at the end of the tick, after the request's result** and just before the state: the starter first,
 then each held ability node's ability by ascending node id. It also arrives when a change keeps the same abilities but
 changes how a capstone shapes one of them (a capstone allocated or refunded, a fork switched), carrying the new shape
-(section 8). Since Part C it never arrives before the result, for allocations and refunds alike. A tick of several such requests sends one list, as things stand after the last of them.
+(section 8). Since Part C it never arrives before the result, for allocations and refunds alike. A tick of several
+such requests sends one list, as things stand after the last of them.
 An ability already held keeps its running cooldown; a new one arrives ready, and so does one refunded and taken again,
 even one refunded on cooldown. An ability a capstone reshapes keeps its running cooldown too. A change of small,
 notable, junction or keystone nodes sends no ability list: the stats it changes reach the client as usual, through
-`SMSG_CHARACTER_STATS` (`0x302A`) and, when an ability's amount or pace moved, `SMSG_CHARACTER_ABILITY_AMOUNTS` (`0x302C`), at the end of the tick
-([inventory and saves](inventory-and-saves.md)). The ability list has no fixed length: an action bar takes any number
+`SMSG_CHARACTER_STATS` (`0x302A`) and, when an ability's amount or pace moved, `SMSG_CHARACTER_ABILITY_AMOUNTS`
+(`0x302C`), at the end of the tick ([inventory and saves](inventory-and-saves.md)). The ability list has no fixed length: an action bar takes any number
 of abilities.
 
 ## 6. Quest talent points

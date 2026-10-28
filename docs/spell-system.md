@@ -497,9 +497,10 @@ holding it ([talents](talents.md#shaped-abilities)). `AbilityMetadata` carries t
 `ArcDegrees`, and six init-only fields for the rest: `ProjectileCount` (1 unless shaped, at most 9),
 `ExplosionRadius` (metres), `ExplosionEffectiveness` (%), `SecondHitEffectiveness` (%), `AuraStacksBonus` and
 `AuraDurationPct` (%). `AbilityInfo` sends them as fields 25-30
-([talent protocol](talent-protocol.md#8-capstones-and-keystones)), beside the shaped fields 11-13. Its copy constructor, `AbilityMetadata(AbilityMetadata)`, copies every member and is
-what `Clone()` and the shaping use; nothing on it is settable, so it grants no mod a way to shape an ability. Until
-part D2, only the cone and circle values act: no cast reads the six new fields, so a projectile ability fires one
+([talent protocol](talent-protocol.md#8-capstones-and-keystones)), beside the shaped fields 11-13. Its copy
+constructor, `AbilityMetadata(AbilityMetadata)`, copies every member and is what `Clone()` and the shaping use;
+nothing on it is settable, so it grants no mod a way to shape an ability. Until part D2, only the cone and circle values
+act: no cast reads the six new fields, so a projectile ability fires one
 projectile, and no hit lands a second time or explodes.
 
 Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twenty-one abilities of the old class

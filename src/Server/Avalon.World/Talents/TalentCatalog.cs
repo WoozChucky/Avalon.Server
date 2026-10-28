@@ -35,8 +35,9 @@ public readonly record struct TalentModifier(TalentModifierKind Kind, AbilityId 
 /// <see cref="TalentStatRules.Problem" />; every notable, ability, capstone and keystone has a name; only a Keystone node
 /// carries a keystone rule, and only a known one; every capstone modifier sits on a Capstone, names an ability a Start
 /// or an Ability node grants, the same one as the capstone's other rows, and passes
-/// <see cref="TalentModifierRules.Problem" /> against that ability and its aura (which refuses a duration or stack
-/// modifier on crowd control); and every node is reached from the first class's start.
+/// <see cref="TalentModifierRules.RowProblem" /> against that ability and its aura (which refuses a duration or stack
+/// modifier on crowd control), and the capstones on one ability give it at most two shapes besides its own; and every
+/// node is reached from the first class's start.
 /// </summary>
 public sealed class TalentCatalog
 {
@@ -456,12 +457,31 @@ public sealed class TalentCatalog
                 return $"capstone {modifier.NodeId} shapes both ability {ability} and ability {other.AbilityId.Value}";
 
             AuraTemplate? aura = template.AuraId is { } auraId && auras.TryGet(auraId, out AuraTemplate? held) ? held : null;
-            bool explodes = rows.Modifiers.Any(m =>
-                m.Kind == TalentModifierKind.ImpactExplosion && m.AbilityId.Value == ability);
-            if (TalentModifierRules.Problem(modifier.Kind, modifier.Value, modifier.Value2, template, aura, explodes)
-                is { } problem)
+            if (TalentModifierRules.RowProblem(modifier, rows.Modifiers, template, aura) is { } problem)
+                return problem;
+        }
+
+        return ShapeCountProblem(rows, nodes, ids);
+    }
+
+    /// <summary>
+    /// Rule 8's last part: the capstones that shape one ability give it at most <see cref="TreeAbility.KeptShapes" />
+    /// shapes besides its own, the shaped copies a held ability keeps, so no talent change builds one once warm: one
+    /// capstone, or a fork's two sides. Each fork, or lone capstone, held or not multiplies the shapes it can take.
+    /// </summary>
+    private static string? ShapeCountProblem(TalentTreeRows rows, TalentNode[] nodes, int[] ids)
+    {
+        foreach (IGrouping<uint, TalentAbilityModifier> shaping in rows.Modifiers.GroupBy(m => m.AbilityId.Value))
+        {
+            int[] capstones = [.. shaping.Select(m => m.NodeId).Distinct().Order()];
+            int shapes = 1;
+            foreach (IGrouping<int, int> fork in capstones.GroupBy(id => nodes[IndexOf(ids, id)].ForkGroupId ?? -id))
+                shapes *= fork.Count() + 1;
+
+            if (shapes - 1 > TreeAbility.KeptShapes)
             {
-                return $"node {modifier.NodeId}'s {modifier.Kind} modifier: {problem}";
+                return $"capstones {string.Join(", ", capstones)} could give ability {shaping.Key} {shapes - 1} shapes " +
+                       $"besides its own, more than the {TreeAbility.KeptShapes} a held ability keeps";
             }
         }
 

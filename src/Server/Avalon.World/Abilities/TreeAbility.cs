@@ -20,6 +20,11 @@ namespace Avalon.World.Abilities;
 /// </remarks>
 internal sealed class TreeAbility : GameAbility
 {
+    /// <summary>
+    /// The shaped copies kept: the most shapes besides its own the talent catalog lets the capstones on one ability give.
+    /// </summary>
+    internal const int KeptShapes = 2;
+
     // The last two shaped copies, the one used last first, each with the shaping that built it.
     private AbilityMetadata? _newer, _older;
     private AbilityShaping _newerShaping, _olderShaping;

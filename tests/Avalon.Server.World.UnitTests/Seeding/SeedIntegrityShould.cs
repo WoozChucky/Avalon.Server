@@ -927,8 +927,15 @@ public class SeedIntegrityShould
         Assert.Equal(379, edges.Count);
         Assert.All(edges, e => Assert.True(e.NodeA < e.NodeB, $"edge {e.NodeA}-{e.NodeB}"));
         Assert.Equal(290, stats.Count);
-        Assert.All(stats.Where(line => line.Kind == TalentStatKind.More),
-            line => Assert.Contains(line.NodeId, new[] { 333, 334 }));
+        // The More lines are exactly the keystones' (Glass Edge 333, Steady Hand 334).
+        Assert.Equal(
+            new (int, StatType, int)[]
+            {
+                (333, StatType.IncreasedDamage, 30), (333, StatType.IncreasedMaximumLife, -25),
+                (334, StatType.IncreasedDamage, 20), (334, StatType.IncreasedHealing, 20),
+            },
+            stats.Where(line => line.Kind == TalentStatKind.More)
+                .Select(line => (line.NodeId, line.Stat, line.Value)).OrderBy(l => l.NodeId).ThenBy(l => l.Stat));
         Assert.Equal(23, context.TalentNodeAbilities.AsNoTracking().Count());
         Assert.Equal(4, context.TalentClassStarts.AsNoTracking().Count());
         Assert.Equal(335, TalentDistances(edges, 1).Count);

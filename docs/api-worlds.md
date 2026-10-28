@@ -447,8 +447,11 @@ singletons as in every host. Only their context factories differ in the API, whi
   serves (`WorldStartup`). The order is: the worlds go first, each migrating at its next start (start any stopped world
   once, so it migrates too), and then the API release with the change is cut. An older API reading a migrated world
   ignores the new table and column. An API with the change reading a world that has not migrated fails with Postgres
-  42P01 on `TalentAbilityModifiers` (the public talent tree) and 42703 on `Keystone` (every read of `TalentNodes`: the
-  public talent tree, and a character's talents and abilities); which is why the worlds go first. To roll a world back
+  42703 on `Keystone` at every read of `TalentNodes`: the public talent tree (which reads the nodes first, so it never
+  reaches the 42P01 the missing `TalentAbilityModifiers` would raise next), and a character's talents and abilities;
+  which is why the worlds go first. No release is cut between the part D1 and part D2 merges (owner decision): D1's
+  inert capstones and keystones ([talents](talents.md)) reach only dev builds, and the release that carries D1 carries
+  D2 with it. To roll a world back
   to a build without the change, run `dotnet ef database update AddLecternOfPaths` against its World database: it drops
   `TalentAbilityModifiers` and `CK_TalentNodes_Keystone`, deletes the 34 edges, the 4 stat lines, nodes 306-335 and the
   nine fork groups, then drops the column. `CharacterTalents` rows naming 306-335 stay, and a character holding them

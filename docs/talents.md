@@ -12,9 +12,14 @@ rows, the catalog's checks on them, and the held abilities their capstones shape
 **Part D1 adds no hit, cast or aura code.** A cone's reach and arc and a circle's radius are read from the shaped
 metadata, so the capstones that widen or lengthen a cone or a circle act in play now. Every other modifier (more
 projectiles, an explosion, a second hit, more stacks, a longer aura) is carried on the ability and sent to the client,
-but nothing in the cast, hit or aura code reads it yet. Keystones fold their stat lines (all of Glass Edge, and Steady Hand's two
-`More` lines), but no keystone rule is read: Blood Price, Steady Hand's crit rule and Unbroken do nothing yet. Part D2
-brings the rest ("What Part D2 adds", below).
+but nothing in the cast, hit or aura code reads it yet. Keystones fold their stat lines (all of Glass Edge, and Steady
+Hand's two `More` lines), but no keystone rule is read: Blood Price, Steady Hand's crit rule and Unbroken do nothing
+yet. Part D2 brings the rest ("What Part D2 adds", below).
+
+**No release is cut between the D1 and D2 merges** (owner decision). Between them, fourteen capstones and two keystones
+(Blood Price and Unbroken) do nothing, and Steady Hand gives its 20 % more damage and healing without its crit rule.
+There is no catalog gate for that state: no flag marks a capstone or a keystone as not yet live, since such a gate would
+be added by one migration and dropped by the next. Dev builds carry the state until D2 merges.
 
 ## The tables
 
@@ -215,8 +220,11 @@ afterwards.
   7. a keystone rule on a node that is not a `Keystone`, or a rule value that is not one;
   8. each capstone modifier, in row order (the repository's `(NodeId, Kind)` order): one naming a missing node; one on
      a node that is not a `Capstone`; one naming an ability no `Start` or `Ability` node links; a capstone whose rows
-     name two abilities; then one `TalentModifierRules.Problem` refuses against the ability and its aura (below),
-     prefixed "node N's {Kind} modifier: ";
+     name two abilities; then one `TalentModifierRules.RowProblem` refuses against the ability and its aura (below),
+     worded "node N's {Kind} modifier: ...". Then, per ability, capstones that could give it more than two shapes
+     besides its own (`TreeAbility.KeptShapes`, the shaped copies a held ability keeps): each fork, or lone capstone,
+     that shapes it multiplies its shapes, held or not, so an ability takes one capstone or a fork's two sides, and two
+     lone capstones on one ability (three shapes) are refused;
   9. a node no walk from the first class's start (the Warrior's) reaches.
 - **A refused tree** holds no nodes (`Count` 0, `IsLoaded` false, `Refusal` the reason). It keeps `StarterOf` for each
   class whose start row names a `Start` node linked to an ability the ability catalog holds, so a bad deploy leaves
@@ -230,17 +238,20 @@ afterwards.
   - `More` only on the thirteen offence increases and on increased maximum life and mana;
   - a `ValueMax` only on an added damage line, and at least its `Value`;
   - the stats local to an item (35-44) never, since a node has no item to scale.
-- **`TalentModifierRules`** (`src/Server/Avalon.Combat/TalentModifierRules.cs`, pure, Part D):
+- **`TalentModifierRules`** (`src/Server/Avalon.Combat/TalentModifierRules.cs`, pure, Part D, shared by the catalog
+  and the REST API's [live template edits](live-template-editing.md)):
   `Problem(kind, value, value2, ability, aura, explodes)` checks one row against the ability it shapes, that ability's
-  aura from the aura catalog (null when it names none or the catalog does not hold it), and whether any capstone gives
-  the ability an `ImpactExplosion`. In order:
+  aura from the aura catalog (null when it names none or the catalog does not hold it), and whether **the same
+  capstone** gives the ability an `ImpactExplosion` (a fork partner's explosion is never held with it). `RowProblem`
+  runs it for one row among the tree's rows, worded "node N's {Kind} modifier: ...", and `AbilityProblem` for each row
+  that shapes one ability, returning the first that fails. In order:
   - an unknown kind;
   - a `Value2` on any kind but `ImpactExplosion`, or none on it;
   - `Value` out of range: 1-8 for `AddedProjectiles` (`MaxAddedProjectiles`, so a cast fires at most 9, each lane an
     object of its own), 1-100 for `ImpactExplosion` (0.1-10 m) and `AuraStacks`, 1-1000 for the rest; `Value2` 1-1000;
   - the fit: `AddedProjectiles` needs a `Projectile`; `ImpactExplosion` a `Projectile` that does not pierce and deals
-    direct damage to hostiles; `AreaPct` a `Circle`, or a `Projectile` that explodes; `ConeReachPct` and `ConeArcPct`
-    a `Cone`; `SecondHit` a direct amount (`AbilityRules.HasDirectEffect`); `AuraStacks` and `AuraDurationPct` an aura
+    direct damage to hostiles; `AreaPct` a `Circle`, or a `Projectile` its own capstone explodes; `ConeReachPct` and
+    `ConeArcPct` a `Cone`; `SecondHit` a direct amount (`AbilityRules.HasDirectEffect`); `AuraStacks` and `AuraDurationPct` an aura
     that is **not crowd control** (`AuraRules.IsCrowdControl`: a stun, a root or a silence in its `Control`, or a slow),
     refused first as "lengthens or deepens crowd control: its aura N stuns, roots, silences or slows", and then, for
     `AuraStacks`, an aura that stacks (`AuraStacking.Stack`).
@@ -252,8 +263,8 @@ afterwards.
   `nodes` in id order (`id`, `kind`, `name`, `angle`, `radius`, `forkGroupId`, `abilityId`, `keystone`, `stats` by stat
   then kind: `stat`, `kind`, `value`, `valueMax`; and `modifiers` by kind: `kind`, `abilityId`, `value`, `value2`),
   `edges` by `(a, b)` with `a < b`, `forkGroups` and `classStarts` (`class`, `nodeId`). Enumerations are numbers,
-  listed in its `$comment`; camelCase, indented, `\n`. `TalentCatalogExportShould` fails when the committed file differs from the seed rendered, so a seed change needs a
-  re-export ([tooling](tooling.md)).
+  listed in its `$comment`; camelCase, indented, `\n`. `TalentCatalogExportShould` fails when the committed file
+  differs from the seed rendered, so a seed change needs a re-export ([tooling](tooling.md)).
 - **The public read.** `GET /public/world/{worldId}/talents` (`PublicController.GetTalentTree`, `GetPublicTalentTree`,
   anonymous, `[PublicWorldScoped]`, the tooltips' cache headers) returns `TalentTreeDto`: the world's tree as its World
   database holds it (`TalentMapping.ToDto`), whether or not the world's catalog accepted it. Each `TalentNodeDto`
@@ -308,7 +319,10 @@ repository). Back on the tick:
    level does, and the drop is saved. Each step that drops anything logs one Warning naming the character id, with the
    count and the ids. **A tree the catalog refused drops nothing**: the rows stay as they are, inert, so a bad deploy
    of the tree wipes nobody's allocation. That promise covers a refused tree only, not refused quests. The held lines
-   are then summed (`RebuildTotals`);
+   are then summed (`RebuildTotals`). **The check does not hold a fork to one capstone**: only an allocation does
+   (`ForkLocked`). No saved set holds both sides of a fork today, since every fork capstone is new with Part D1, but a
+   later seed migration that puts two capstones a character may already hold into one fork would let the character
+   keep both, and both would shape the ability. Such a migration must keep the forks consistent with what is held;
 3. the stats refresh, with the tree folded (below), `EnterWorld`, and the bare-hand fallback when there is no class
    row;
 4. the inventory snapshot;
@@ -511,10 +525,10 @@ while refunds are free. `Create` refills one id list per thread, so a send alloc
 post-update `ability_amounts` stage, after `CharacterSheetFlusher` and before `AbilityAmountsFlusher`
 ([instrumentation](instrumentation.md)). It reads two flags and one level. First, when the ability list is owed (a
 talent change changed the abilities held, or the shape of one), it sends `SMSG_CHARACTER_ABILITIES` and clears that
-flag. Then it sends the state when the state is owed (an accepted allocation or refund, or a turn-in of a quest that pays talent points, which also says "You gained 1 talent point.",
-[quests](quests.md)) or when the character's level differs from the one the last state was sent at, which catches
-every level-up (anything that grants experience: a kill, a quest, an item) without touching the experience award, and
-with it every change of the refund price. Each flag is cleared, and the level recorded, before its send, so a send
+flag. Then it sends the state when the state is owed (an accepted allocation or refund, or a turn-in of a quest that
+pays talent points, which also says "You gained 1 talent point.", [quests](quests.md)) or when the character's level
+differs from the one the last state was sent at, which catches every level-up (anything that grants experience: a
+kill, a quest, an item) without touching the experience award, and with it every change of the refund price. Each flag is cleared, and the level recorded, before its send, so a send
 that throws is not tried again on every tick. The quest catalog the points are priced by and `Game:Talents` are read
 once per tick by `WorldServer`.
 

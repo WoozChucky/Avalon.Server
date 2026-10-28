@@ -184,6 +184,7 @@ public class TalentAllocateHandlerShould
     [Theory]
     [InlineData("capstone")]
     [InlineData("fork switched")]
+    [InlineData("fork switched back")]
     [InlineData("capstone refunded and taken again")]
     [InlineData("ability refunded and taken again")]
     [InlineData("re-taken after a reload")]
@@ -240,6 +241,15 @@ public class TalentAllocateHandlerShould
                 Assert.Equal(3.5f, ability.Metadata.Reach, Tolerance);
                 Assert.Equal(100f, ability.Metadata.ArcDegrees);
                 break;
+            case "fork switched back":
+                // Wide Arc's copy is the older of the two kept once Long Reach's is built, and is used again.
+                Refund(s_data, WideArc);
+                Allocate(world, LongReach);
+                Refund(s_data, LongReach);
+                Allocate(world, WideArc);
+                Assert.Equal(150f, before.ArcDegrees);
+                Assert.Same(before, ability.Metadata);
+                break;
             case "capstone refunded and taken again":
                 Allocate(world, WideArc);
                 AbilityMetadata shaped = ability.Metadata;
@@ -249,6 +259,7 @@ public class TalentAllocateHandlerShould
                 Assert.Same(shaped, ability.Metadata);
                 break;
             case "ability refunded and taken again":
+                Assert.Equal(150f, before.ArcDegrees);
                 Refund(s_data, [.. cleaveBranch, WideArc]);
                 Assert.Null(character.Spells[s_cleave]);
                 Allocate(world, 2, 3, 4, 5, 6);

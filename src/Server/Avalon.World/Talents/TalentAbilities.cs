@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -45,7 +46,10 @@ public static class TalentAbilities
         }
 
         spells.FinishRebuild(abilities);
-        Walk(spells.All, character, tree, abilities, reshape: true);
+        // The reshaping walk follows the list just built, position for position; a walk that stopped early would leave
+        // the rest unshaped.
+        bool walked = Walk(spells.All, character, tree, abilities, reshape: true);
+        Debug.Assert(walked, "the rebuilt ability list is not in the order the walk reads");
         return true;
     }
 

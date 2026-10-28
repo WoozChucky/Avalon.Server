@@ -134,7 +134,7 @@ public class TalentAllocateBenchmarks
         if (owed != 2 || arc != 100f || _capstoner.Talents.Holds(WideArc))
         {
             throw new InvalidOperationException($"Taking and dropping Wide Arc owed {owed} ability lists, not one " +
-                $"after each change, or left Cleave's arc at {arc}, not 100.");
+                $"after each change, left Cleave's arc at {arc}, not 100, or left Wide Arc held.");
         }
     }
 

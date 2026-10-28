@@ -366,18 +366,27 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "damageType", null, "damageType" },                       // on the starter sword: a weapon names its damage type (#1179)
     };
 
-    /// <summary>Refusals on a seeded row <see cref="RefusalTargetAsync"/> would not pick for the field, which each names.</summary>
-    public static TheoryData<string, string, object?, string, ulong?> NamedRefusals => new()
+    /// <summary>
+    /// Refusals on a seeded row <see cref="RefusalTargetAsync"/> would not pick for the field, which each names, with a
+    /// part of the field's error when the key alone would not tell the refusal apart.
+    /// </summary>
+    public static TheoryData<string, string, object?, string, ulong?, string?> NamedRefusals => new()
     {
         // granted ability loses its damage type: Cleave, a class ability because the talent tree grants it (#1181)
-        { "ability", "damageType", null, "damageType", 200UL },
+        { "ability", "damageType", null, "damageType", 200UL, null },
+        // the capstones (#1181 Part D), which the world would refuse with the whole tree: Wildfire's duration on Ignite
+        // once Ignite roots (Bound), Double Tap's second hit on Crippling Shot once it deals no damage (Debuff only), and
+        // Haemorrhage's stacks on Rend's Bleed once it refreshes
+        { "ability", "auraId", 13, "auraId", 213UL, "node 322's AuraDurationPct modifier: lengthens or deepens crowd control" },
+        { "ability", "effects", 8, "effects", 223UL, "node 315's SecondHit modifier" },
+        { "aura", "stacking", "Refresh", "stacking", 1UL, "node 308's AuraStacks modifier: its aura 1 does not stack" },
     };
 
     [Theory]
     [MemberData(nameof(Refusals))]
     [MemberData(nameof(NamedRefusals))]
     public async Task Answer_400_with_the_field_key_and_write_nothing(string kind, string field, object? value, string key,
-        ulong? target = null)
+        ulong? target = null, string? reason = null)
     {
         ulong id = target ?? await RefusalTargetAsync(kind, field, value);
         (JsonObject json, string version) = await ReadAsync(kind, id);
@@ -388,6 +397,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         JsonObject problem = await BodyAsync(response);
         Assert.Contains(key, problem["errors"]!.AsObject().Select(e => e.Key));
+        if (reason is not null)
+            Assert.Contains(problem["errors"]![key]!.AsArray(), e => e!.GetValue<string>().Contains(reason, StringComparison.Ordinal));
         Assert.Equal(version, (await ReadAsync(kind, id)).Version);
         Assert.Empty(_signal.Requests);
     }

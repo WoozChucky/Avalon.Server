@@ -2553,7 +2553,23 @@ Setup fails the run unless the row's first call owes one ability list after each
 arc back at 100, and leaves Wide Arc unheld. The seeded forks also broke part B's `Decide_refused_long` setup: its
 breadth-first walk from the Warrior's start took both of Cleave's fork capstones (306 and 307), so its request was
 refused `ForkLocked` at 307 instead of `NotConnected` at its last id. The walk now skips a capstone whose fork partner
-it already took. Its request, and `Refund_refused_long`'s holder, changed, and neither row was run again.
+it already took. Its request, and `Refund_refused_long`'s holder, changed, so both rows were run again once, in the
+branch's final fix wave (`e9b4c8d5b` plus that wave), on 2026-10-28, same machine and settings:
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TalentAllocateBenchmarks.Decide_refused_long*" "*TalentAllocateBenchmarks.Refund_refused_long*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Operation | Part C | Part D1 | Allocated |
+|---|---:|---:|---:|
+| `Decide_refused_long` | 2,228.14 ns (± 15.22 ns) | 2,202 ns (± 11 ns) | 0 B |
+| `Refund_refused_long` | 2,035.04 ns (± 41.14 ns) | 2,147 ns (± 35 ns) | 0 B |
+
+Both stay at 0 B and near part C's times. The request is refused `NotConnected` at its last id again, as long as
+before, but it skips each fork capstone whose partner it took (Long Reach, 307, among them) for the next node the
+walk reaches, so the two parts scan slightly different requests, and one run of each does not tell the 1 % and 5 %
+moves apart from the variation between runs. BenchmarkDotNet removed two outliers from `Decide_refused_long` and one
+from `Refund_refused_long`. The figures were not tuned by running again.
 
 The first run stopped in that setup and measured nothing. One run after the fix, on the branch (`ee8bf7879` plus the
 benchmark), on 2026-10-28 (out of process, ten warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8,

@@ -12,6 +12,7 @@ namespace Avalon.Database.World.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // EF also emitted a no-op update per existing node (Keystone null on a column added null), removed by hand.
             migrationBuilder.AddColumn<byte>(
                 name: "Keystone",
                 table: "TalentNodes",

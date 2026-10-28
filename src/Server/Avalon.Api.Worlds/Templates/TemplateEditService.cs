@@ -108,17 +108,27 @@ public sealed class TemplateEditService(
                 // it can scale with (its tags and spell base), as the world's ability catalog checks the link. A
                 // concurrent edit of that aura's Kind can still race this check (it reads the aura, not a lock on it); the
                 // world's catalog then refuses the link and logs it.
+                AuraTemplate? loaded = null;
                 if (row.AuraId is { } auraId)
                 {
                     AuraTemplate? aura = await db.AuraTemplates.AsNoTracking().Include(a => a.Modifiers)
                         .FirstOrDefaultAsync(a => a.Id == auraId, ct2);
-                    AuraTemplate? loaded = aura is not null && AuraRules.Problem(aura) is null ? aura : null;
+                    loaded = aura is not null && AuraRules.Problem(aura) is null ? aura : null;
                     if (AuraRules.LinkProblem(row.Affects, auraId, _ => loaded) is { } problem)
                         errors.Add("auraId", $"The world would refuse this ability: {problem}.");
                     else if (loaded is not null && AuraRules.DamageTypeProblem(row, loaded, granted) is { } typeProblem)
                         errors.Add("damageType", $"The world would refuse this ability: {typeProblem}.");
                     else if (loaded is not null && AuraRules.SourceProblem(row, loaded, granted) is { } sourceProblem)
                         errors.Add(TemplateValidation.AbilitySourceField(sourceProblem), $"The world would refuse this ability: {sourceProblem}.");
+                }
+
+                // The capstones that shape it (#1181 Part D) must still fit it and its aura, or the world would refuse the
+                // whole talent tree. Of its fields, only the effects and the aura can break one.
+                if (await CapstoneProblemAsync(db, row, loaded, ct2) is ({ } capstone, { } capstoneProblem))
+                {
+                    bool onAura = capstone.Kind is Domain.World.TalentModifierKind.AuraStacks
+                        or Domain.World.TalentModifierKind.AuraDurationPct;
+                    errors.Add(onAura ? "auraId" : "effects", $"The world would refuse the talent tree: {capstoneProblem}.");
                 }
             }),
             caller, id, ifMatch, request, ct);
@@ -159,9 +169,30 @@ public sealed class TemplateEditService(
                     {
                         errors.Add("periodicKind", $"The world would refuse ability {ability.Id.Value} '{ability.Name}': {typeProblem}.");
                     }
+
+                    // The capstones that shape the ability (#1181 Part D) must still fit the aura: never on crowd control,
+                    // and a stack modifier only on an aura that stacks, or the world would refuse the whole talent tree.
+                    if (await CapstoneProblemAsync(db, ability, row, ct2) is (_, { } capstoneProblem))
+                    {
+                        string key = row.Control != Domain.World.CrowdControl.None ? "control"
+                            : AuraRules.IsCrowdControl(row) ? "modifiers" : "stacking";
+                        errors.Add(key, $"The world would refuse the talent tree: {capstoneProblem}.");
+                    }
                 }
             }),
             caller, id, ifMatch, request, ct);
+    }
+
+    /// <summary>
+    /// The first capstone row that could not shape <paramref name="ability" /> with <paramref name="aura" /> as its aura
+    /// (<see cref="TalentModifierRules.AbilityProblem" />, the world catalog's own check), read in the edit's transaction.
+    /// </summary>
+    private static async Task<(TalentAbilityModifier Row, string Problem)?> CapstoneProblemAsync(
+        WorldDbContext db, AbilityTemplate ability, AuraTemplate? aura, CancellationToken ct)
+    {
+        List<TalentAbilityModifier> capstones = await db.TalentAbilityModifiers.AsNoTracking()
+            .Where(m => m.AbilityId == ability.Id).ToListAsync(ct);
+        return capstones.Count == 0 ? null : TalentModifierRules.AbilityProblem(capstones, ability, aura);
     }
 
     public Task<TemplateEditResult<CreatureTemplate>> EditCreatureAsync(

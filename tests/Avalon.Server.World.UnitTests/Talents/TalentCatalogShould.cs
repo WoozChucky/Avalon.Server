@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -43,8 +44,13 @@ public class TalentCatalogShould
     [InlineData("modifier on a small node", "node 10 is a Small node and cannot shape an ability")]
     [InlineData("modifier on an ability no node grants", "node 20 shapes ability 104, which no node grants")]
     [InlineData("capstone shaping two abilities", "capstone 20 shapes both ability 110 and ability 100")]
-    [InlineData("cone reach on a projectile", "node 20's ConeReachPct modifier: ")]
-    [InlineData("explosion on a piercing projectile", "node 20's ImpactExplosion modifier: ")]
+    [InlineData("cone reach on a projectile", "node 20's ConeReachPct modifier: only a cone has a reach and an arc")]
+    [InlineData("explosion on a piercing projectile", "node 20's ImpactExplosion modifier: a piercing projectile never")]
+    [InlineData("fan of ten", "node 20's AddedProjectiles modifier: Value 9 is not from 1 to 8")]
+    [InlineData("explosion past full strength", "node 20's ImpactExplosion modifier: Value2 1001 is not from 1 to 1000")]
+    [InlineData("area on a projectile the fork partner explodes",
+        "node 21's AreaPct modifier: only a circle, or a projectile the same capstone explodes")]
+    [InlineData("two lone capstones on one ability", "capstones 20, 21 could give ability 110 3 shapes besides its own")]
     [InlineData("node no start reaches", "node 30 is not reached from the Warrior's start")]
     public void Refuse_the_whole_tree_naming_the_first_problem(string row, string reasonPart)
     {
@@ -121,6 +127,31 @@ public class TalentCatalogShould
                 TalentAbilityModifier explosion = tree.Modifiers.Single(m => m.NodeId == 20);
                 explosion.Kind = TalentModifierKind.ImpactExplosion;
                 explosion.Value2 = 50;
+                break;
+            case "fan of ten":
+                abilities[abilities.FindIndex(a => a.Id.Value == ChainAbility)] = AbilityTestData.Projectile(ChainAbility);
+                TalentAbilityModifier fan = tree.Modifiers.Single(m => m.NodeId == 20);
+                fan.Kind = TalentModifierKind.AddedProjectiles;
+                fan.Value = TalentModifierRules.MaxAddedProjectiles + 1;
+                break;
+            case "explosion past full strength":
+                abilities[abilities.FindIndex(a => a.Id.Value == ChainAbility)] = AbilityTestData.Projectile(ChainAbility);
+                TalentAbilityModifier strong = tree.Modifiers.Single(m => m.NodeId == 20);
+                strong.Kind = TalentModifierKind.ImpactExplosion;
+                strong.Value2 = 1001;
+                break;
+            case "area on a projectile the fork partner explodes":
+                abilities[abilities.FindIndex(a => a.Id.Value == ChainAbility)] = AbilityTestData.Projectile(ChainAbility);
+                TalentAbilityModifier burst = tree.Modifiers.Single(m => m.NodeId == 20);
+                burst.Kind = TalentModifierKind.ImpactExplosion;
+                burst.Value2 = 50;
+                tree.Modifiers.Single(m => m.NodeId == 21).Kind = TalentModifierKind.AreaPct;
+                break;
+            case "two lone capstones on one ability":
+                // Each held or not: three shapes besides the cone's own, one more than a held ability keeps.
+                tree.Node(20).ForkGroupId = null;
+                tree.Node(21).ForkGroupId = null;
+                tree.ForkGroups.Clear();
                 break;
             case "node no start reaches":
                 tree.Nodes.Add(new TalentNode { Id = 30, Kind = TalentNodeKind.Small });

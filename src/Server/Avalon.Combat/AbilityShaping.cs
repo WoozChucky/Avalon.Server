@@ -70,8 +70,10 @@ public record struct AbilityShaping
     /// <summary>
     /// A copy of <paramref name="metadata" /> shaped by the summed modifiers: a cone's reach and arc (at most 360
     /// degrees), a circle's radius, a projectile's count (at most <see cref="MaxProjectiles" />), the explosion's radius
-    /// (widened by the area modifier) and effectiveness, and the second hit, stack and duration shares as summed. A
-    /// modifier that does not fit the ability's shape changes nothing.
+    /// (widened by the area modifier) and effectiveness, and the second hit, stack and duration shares as summed. A reach,
+    /// arc, area or projectile modifier that does not fit the ability's shape leaves its shape fields unchanged; the other
+    /// fields are set whatever the shape, and the talent catalog refuses a modifier that does not fit
+    /// (<see cref="TalentModifierRules" />).
     /// </summary>
     public readonly AbilityMetadata Apply(AbilityMetadata metadata)
     {
