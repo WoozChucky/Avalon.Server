@@ -5,6 +5,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Talents;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Persistence;
 using Avalon.World.Talents;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -135,7 +136,7 @@ public class TalentRulesShould
             [AbilityTestData.Cone(100), AbilityTestData.Cone(101), AbilityTestData.Cone(102), AbilityTestData.Cone(103)];
 
         return new TalentCatalog(new TalentTreeRows(nodes, edges, [], links, [new TalentForkGroup { Id = 1 }], starts),
-            new AbilityCatalog(abilities, NullLoggerFactory.Instance), NullLoggerFactory.Instance);
+            new AbilityCatalog(abilities, NullLoggerFactory.Instance), AuraCatalog.Empty, NullLoggerFactory.Instance);
 
         static TalentEdge Edge(int a, int b) => new() { NodeA = a, NodeB = b };
         static TalentNodeAbility Link(int nodeId, uint abilityId) => new() { NodeId = nodeId, AbilityId = new AbilityId(abilityId) };

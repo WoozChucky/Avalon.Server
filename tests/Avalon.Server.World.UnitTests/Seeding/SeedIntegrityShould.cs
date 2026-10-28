@@ -982,18 +982,33 @@ public class SeedIntegrityShould
             nodes.Where(n => n.Kind == TalentNodeKind.Keystone).OrderBy(n => n.Id).Select(n => (n.Id, n.Keystone)));
         Assert.All(nodes.Where(n => n.Kind != TalentNodeKind.Keystone), n => Assert.Null(n.Keystone));
 
-        // The world's catalog accepts the seed against the seeded abilities, and holds node 1's five neighbours (WH-A1,
-        // WH-B1, WC-A1, WC-B1, Whub-S1).
+        // The world's catalog accepts the seed against the seeded abilities and auras, every capstone checked against its
+        // ability, and holds node 1's five neighbours (WH-A1, WH-B1, WC-A1, WC-B1, Whub-S1). Cleave (node 6) is shaped by
+        // Wide Arc and Long Reach, Ground Slam (51) by Earthshaker and Aftershock, the Warrior's start by none; Rimeburst
+        // holds its explosion, Steady Hand its rule and Glass Edge none.
         var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
             static _ => null, NullLoggerFactory.Instance);
         var tree = new TalentCatalog(TalentSeed.Rows(),
             new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance, auras,
                 TalentSeed.Rows().Granted),
-            NullLoggerFactory.Instance);
+            auras, NullLoggerFactory.Instance);
         Assert.True(tree.IsLoaded, tree.Refusal);
         Assert.Equal(335, tree.Count);
         Assert.True(tree.TryIndexOf(1, out int start));
         Assert.Equal([2, 12, 32, 42, 57], tree.NeighboursAt(start).ToArray().Select(tree.NodeIdAt));
+        Assert.Equal([306, 307], tree.ShapersAt(IndexOf(6)).ToArray().Select(tree.NodeIdAt));
+        Assert.Equal([309, 310], tree.ShapersAt(IndexOf(51)).ToArray().Select(tree.NodeIdAt));
+        Assert.True(tree.ShapersAt(start).IsEmpty);
+        Assert.Equal([(TalentModifierKind.ImpactExplosion, 320u, 30, (int?)60)],
+            tree.ModifiersAt(IndexOf(331)).ToArray().Select(m => (m.Kind, m.Ability.Value, m.Value, m.Value2)));
+        Assert.Equal(KeystoneRule.NoCrits, tree.KeystoneAt(IndexOf(334)));
+        Assert.Null(tree.KeystoneAt(IndexOf(333)));
+
+        int IndexOf(int nodeId)
+        {
+            Assert.True(tree.TryIndexOf(nodeId, out int index));
+            return index;
+        }
     }
 
     /// <summary>

@@ -92,6 +92,12 @@ public static class AuraRules
     }
 
     /// <summary>
+    /// A crowd-control aura (#770): one whose Control has a stun, a root or a silence, or a slow (<see cref="IsSlow" />).
+    /// Read from the row itself, never from a list of ids.
+    /// </summary>
+    public static bool IsCrowdControl(AuraTemplate t) => t.Control != CrowdControl.None || IsSlow(t);
+
+    /// <summary>
     /// How many ticks an aura gives: one per whole interval in its duration, at least one for a tick-giving aura, none
     /// with no interval. The ticks are anchored at expiry (see <see cref="AuraSchedule" />), so the last lands there.
     /// </summary>

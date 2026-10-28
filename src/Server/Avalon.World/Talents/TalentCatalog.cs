@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Talents;
@@ -11,9 +12,16 @@ namespace Avalon.World.Talents;
 public readonly record struct TalentLine(StatType Stat, TalentStatKind Kind, int Value, int ValueMax);
 
 /// <summary>
-/// The shared talent tree (#1181), checked whole against the ability catalog of the same generation and immutable
-/// afterwards. Built off the tick by the Abilities reload area, after the ability catalog and against it, and published
-/// with it (<see cref="Reload.AbilitiesPatch" />), so an ability link is never checked against another generation.
+/// One of a capstone's modifiers (#1181 Part D), as the catalog holds it: how it reshapes <see cref="Ability" />.
+/// <see cref="Value2" /> is set on an <see cref="TalentModifierKind.ImpactExplosion" /> only.
+/// </summary>
+public readonly record struct TalentModifier(TalentModifierKind Kind, AbilityId Ability, int Value, int? Value2);
+
+/// <summary>
+/// The shared talent tree (#1181), checked whole against the ability and aura catalogs of the same generation and
+/// immutable afterwards. Built off the tick by the Abilities reload area, after the ability catalog and against it and
+/// the auras it was checked with, and published with it (<see cref="Reload.AbilitiesPatch" />), so an ability link or a
+/// capstone's modifier is never checked against another generation.
 /// <list type="bullet">
 /// <item>The nodes sit at dense indices 0..<see cref="Count" /> - 1 in id order. Everything is read by index; a node id is
 /// turned into one by <see cref="TryIndexOf" />, a binary search, and nothing is indexed by an id's value.</item>
@@ -24,8 +32,11 @@ public readonly record struct TalentLine(StatType Stat, TalentStatKind Kind, int
 /// The rules, in the order they are checked: every class has one start on a Start node, and every Start node is a
 /// class's; every edge names nodes the tree holds; exactly the Start and Ability nodes link one ability each, which the
 /// ability catalog holds; each fork group holds exactly two capstones; every stat line passes
-/// <see cref="TalentStatRules.Problem" />; every notable, ability, capstone and keystone has a name; and every node is
-/// reached from the first class's start.
+/// <see cref="TalentStatRules.Problem" />; every notable, ability, capstone and keystone has a name; only a Keystone node
+/// carries a keystone rule, and only a known one; every capstone modifier sits on a Capstone, names an ability a Start
+/// or an Ability node grants, the same one as the capstone's other rows, and passes
+/// <see cref="TalentModifierRules.Problem" /> against that ability and its aura (which refuses a duration or stack
+/// modifier on crowd control); and every node is reached from the first class's start.
 /// </summary>
 public sealed class TalentCatalog
 {
@@ -36,12 +47,17 @@ public sealed class TalentCatalog
     private readonly TalentNodeKind[] _kinds;
     private readonly AbilityId?[] _abilities;
     private readonly int[] _forkPartners;
+    private readonly KeystoneRule?[] _keystones;
 
     // Each node's neighbours and lines, packed: node i's are at [_xStarts[i], _xStarts[i + 1]).
     private readonly int[] _neighbourStarts;
     private readonly int[] _neighbours;
     private readonly int[] _lineStarts;
     private readonly TalentLine[] _lines;
+    private readonly int[] _modifierStarts;
+    private readonly TalentModifier[] _modifiers;
+    private readonly int[] _shaperStarts;
+    private readonly int[] _shapers;
 
     // One entry per class with a start row that resolves: its start's index (-1 on a refused tree) and its starter.
     private readonly ClassStart[] _starts;
@@ -52,14 +68,19 @@ public sealed class TalentCatalog
         _kinds = [];
         _abilities = [];
         _forkPartners = [];
+        _keystones = [];
         _neighbourStarts = [0];
         _neighbours = [];
         _lineStarts = [0];
         _lines = [];
+        _modifierStarts = [0];
+        _modifiers = [];
+        _shaperStarts = [0];
+        _shapers = [];
         _starts = [];
     }
 
-    public TalentCatalog(TalentTreeRows rows, AbilityCatalog abilities, ILoggerFactory loggerFactory)
+    public TalentCatalog(TalentTreeRows rows, AbilityCatalog abilities, AuraCatalog auras, ILoggerFactory loggerFactory)
         : this()
     {
         ILogger<TalentCatalog> logger = loggerFactory.CreateLogger<TalentCatalog>();
@@ -67,11 +88,11 @@ public sealed class TalentCatalog
         TalentNode[] nodes = [.. rows.Nodes.OrderBy(n => n.Id)];
         int[] ids = [.. nodes.Select(n => n.Id)];
 
-        string? refusal = Problem(rows, nodes, ids, abilities);
+        string? refusal = Problem(rows, nodes, ids, abilities, auras);
         Tree? tree = null;
         if (refusal is null)
         {
-            tree = Tree.Build(rows, nodes, ids, abilities);
+            tree = Tree.Build(rows, nodes, ids);
             refusal = tree.Disconnected(ids);
         }
 
@@ -87,10 +108,15 @@ public sealed class TalentCatalog
         _kinds = [.. nodes.Select(n => n.Kind)];
         _abilities = tree.Abilities;
         _forkPartners = tree.ForkPartners;
+        _keystones = [.. nodes.Select(n => n.Keystone)];
         _neighbourStarts = tree.NeighbourStarts;
         _neighbours = tree.Neighbours;
         _lineStarts = tree.LineStarts;
         _lines = tree.Lines;
+        _modifierStarts = tree.ModifierStarts;
+        _modifiers = tree.Modifiers;
+        _shaperStarts = tree.ShaperStarts;
+        _shapers = tree.Shapers;
         _starts = tree.Starts;
         IsLoaded = true;
 
@@ -140,6 +166,20 @@ public sealed class TalentCatalog
 
     /// <summary>The index of the other capstone of the node's fork group, or -1 when it is in none.</summary>
     public int ForkPartnerAt(int index) => _forkPartners[index];
+
+    /// <summary>The rule a keystone bends; null on every other node, and on a keystone that carries only stat lines.</summary>
+    public KeystoneRule? KeystoneAt(int index) => _keystones[index];
+
+    /// <summary>A capstone's modifiers, by kind, all naming the one ability it shapes; empty on every other node.</summary>
+    public ReadOnlySpan<TalentModifier> ModifiersAt(int index) =>
+        _modifiers.AsSpan(_modifierStarts[index], _modifierStarts[index + 1] - _modifierStarts[index]);
+
+    /// <summary>
+    /// For a Start or an Ability node, the indices of the capstones whose modifiers shape the ability it links,
+    /// ascending; empty on every other node, and on one whose ability no capstone shapes.
+    /// </summary>
+    public ReadOnlySpan<int> ShapersAt(int index) =>
+        _shapers.AsSpan(_shaperStarts[index], _shaperStarts[index + 1] - _shaperStarts[index]);
 
     /// <summary>The index of the class's start, or -1 when the tree holds none (a refused tree, or no such class).</summary>
     public int StartIndexOf(CharacterClass characterClass)
@@ -222,8 +262,9 @@ public sealed class TalentCatalog
 
     private static int IndexOf(int[] ids, int nodeId) => Math.Max(Array.BinarySearch(ids, nodeId), -1);
 
-    /// <summary>The first problem of rules 1-6, or null; rule 7, connection, needs the built tree.</summary>
-    private static string? Problem(TalentTreeRows rows, TalentNode[] nodes, int[] ids, AbilityCatalog abilities)
+    /// <summary>The first problem of rules 1-8, or null; rule 9, connection, needs the built tree.</summary>
+    private static string? Problem(TalentTreeRows rows, TalentNode[] nodes, int[] ids, AbilityCatalog abilities,
+        AuraCatalog auras)
     {
         for (int i = 1; i < ids.Length; i++)
         {
@@ -236,7 +277,9 @@ public sealed class TalentCatalog
                ?? LinkProblem(rows, nodes, ids, abilities)
                ?? ForkProblem(rows, nodes)
                ?? StatProblem(rows, ids)
-               ?? NameProblem(nodes);
+               ?? NameProblem(nodes)
+               ?? KeystoneProblem(nodes)
+               ?? ModifierProblem(rows, nodes, ids, abilities, auras);
     }
 
     private static string? StartProblem(TalentTreeRows rows, TalentNode[] nodes, int[] ids)
@@ -370,6 +413,61 @@ public sealed class TalentCatalog
         return null;
     }
 
+    /// <summary>Rule 7: a keystone rule only on a Keystone node, and only one of the rules.</summary>
+    private static string? KeystoneProblem(TalentNode[] nodes)
+    {
+        foreach (TalentNode node in nodes)
+        {
+            if (node.Keystone is not { } rule)
+                continue;
+            if (node.Kind != TalentNodeKind.Keystone)
+                return $"node {node.Id} is a {node.Kind} node and cannot carry a keystone rule";
+            if (!Enum.IsDefined(rule))
+                return $"node {node.Id} names keystone rule {(int)rule}, which is not one";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Rule 8, in row order: a modifier sits on a Capstone the tree holds, names an ability a Start or an Ability node
+    /// grants and the same one as the capstone's other rows, and fits that ability and its aura. Rule 3 has passed, so a
+    /// granted ability is one the ability catalog holds.
+    /// </summary>
+    private static string? ModifierProblem(TalentTreeRows rows, TalentNode[] nodes, int[] ids, AbilityCatalog abilities,
+        AuraCatalog auras)
+    {
+        foreach (TalentAbilityModifier modifier in rows.Modifiers)
+        {
+            int index = IndexOf(ids, modifier.NodeId);
+            if (index < 0)
+                return $"a modifier names node {modifier.NodeId}, which the tree does not hold";
+            if (nodes[index].Kind != TalentNodeKind.Capstone)
+                return $"node {modifier.NodeId} is a {nodes[index].Kind} node and cannot shape an ability";
+
+            uint ability = modifier.AbilityId.Value;
+            if (!rows.Abilities.Any(a => a.AbilityId.Value == ability)
+                || !abilities.TryGet(modifier.AbilityId, out AbilityTemplate? template))
+            {
+                return $"node {modifier.NodeId} shapes ability {ability}, which no node grants";
+            }
+
+            if (rows.Modifiers.FirstOrDefault(m => m.NodeId == modifier.NodeId && m.AbilityId.Value != ability) is { } other)
+                return $"capstone {modifier.NodeId} shapes both ability {ability} and ability {other.AbilityId.Value}";
+
+            AuraTemplate? aura = template.AuraId is { } auraId && auras.TryGet(auraId, out AuraTemplate? held) ? held : null;
+            bool explodes = rows.Modifiers.Any(m =>
+                m.Kind == TalentModifierKind.ImpactExplosion && m.AbilityId.Value == ability);
+            if (TalentModifierRules.Problem(modifier.Kind, modifier.Value, modifier.Value2, template, aura, explodes)
+                is { } problem)
+            {
+                return $"node {modifier.NodeId}'s {modifier.Kind} modifier: {problem}";
+            }
+        }
+
+        return null;
+    }
+
     private static bool Links(TalentNodeKind kind) => kind is TalentNodeKind.Start or TalentNodeKind.Ability;
 
     /// <summary>
@@ -400,7 +498,7 @@ public sealed class TalentCatalog
 
     private readonly record struct ClassStart(CharacterClass Class, int Index, AbilityId? Starter);
 
-    /// <summary>A tree that passed rules 1-6, laid out at dense indices; rule 7 is checked on it.</summary>
+    /// <summary>A tree that passed rules 1-8, laid out at dense indices; rule 9 is checked on it.</summary>
     private sealed class Tree
     {
         public required AbilityId?[] Abilities { get; init; }
@@ -409,9 +507,13 @@ public sealed class TalentCatalog
         public required int[] Neighbours { get; init; }
         public required int[] LineStarts { get; init; }
         public required TalentLine[] Lines { get; init; }
+        public required int[] ModifierStarts { get; init; }
+        public required TalentModifier[] Modifiers { get; init; }
+        public required int[] ShaperStarts { get; init; }
+        public required int[] Shapers { get; init; }
         public required ClassStart[] Starts { get; init; }
 
-        public static Tree Build(TalentTreeRows rows, TalentNode[] nodes, int[] ids, AbilityCatalog abilities)
+        public static Tree Build(TalentTreeRows rows, TalentNode[] nodes, int[] ids)
         {
             int count = ids.Length;
 
@@ -456,6 +558,34 @@ public sealed class TalentCatalog
                 lineStarts[i + 1] = lines.Count;
             }
 
+            // A capstone's rows by kind; and for each Start or Ability node, the capstones whose rows name its ability.
+            ILookup<int, TalentAbilityModifier> byCapstone = rows.Modifiers.ToLookup(m => IndexOf(ids, m.NodeId));
+            int[] modifierStarts = new int[count + 1];
+            List<TalentModifier> modifiers = [];
+            for (int i = 0; i < count; i++)
+            {
+                modifiers.AddRange(byCapstone[i]
+                    .OrderBy(m => m.Kind)
+                    .Select(m => new TalentModifier(m.Kind, m.AbilityId, m.Value, m.Value2)));
+                modifierStarts[i + 1] = modifiers.Count;
+            }
+
+            int[] shaperStarts = new int[count + 1];
+            List<int> shapers = [];
+            for (int i = 0; i < count; i++)
+            {
+                if (linked[i] is { } ability)
+                {
+                    shapers.AddRange(rows.Modifiers
+                        .Where(m => m.AbilityId.Value == ability.Value)
+                        .Select(m => IndexOf(ids, m.NodeId))
+                        .Distinct()
+                        .Order());
+                }
+
+                shaperStarts[i + 1] = shapers.Count;
+            }
+
             ClassStart[] starts =
             [
                 .. s_classes.Select(c =>
@@ -473,11 +603,15 @@ public sealed class TalentCatalog
                 Neighbours = [.. neighbours],
                 LineStarts = lineStarts,
                 Lines = [.. lines],
+                ModifierStarts = modifierStarts,
+                Modifiers = [.. modifiers],
+                ShaperStarts = shaperStarts,
+                Shapers = [.. shapers],
                 Starts = starts,
             };
         }
 
-        /// <summary>Rule 7: the lowest id no walk from the first class's start reaches, over every node, or null.</summary>
+        /// <summary>Rule 9: the lowest id no walk from the first class's start reaches, over every node, or null.</summary>
         public string? Disconnected(int[] ids)
         {
             int count = ids.Length;

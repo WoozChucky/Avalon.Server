@@ -30,8 +30,9 @@ public class TalentSelectCheckShould
     {
         TalentCatalog tree = row switch
         {
-            "cut off" => new TalentCatalog(Without(TalentSeed(), 3), Data.Abilities, NullLoggerFactory.Instance),
-            "tree refused" => new TalentCatalog(new TalentTreeRows([], [], [], [], [], []), Data.Abilities,
+            "cut off" => new TalentCatalog(Without(TalentSeed(), 3), Data.Abilities, Data.Auras,
+                NullLoggerFactory.Instance),
+            "tree refused" => new TalentCatalog(new TalentTreeRows([], [], [], [], [], []), Data.Abilities, Data.Auras,
                 NullLoggerFactory.Instance),
             _ => Data.Talents,
         };

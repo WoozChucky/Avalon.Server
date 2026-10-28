@@ -2,8 +2,11 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.World;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Talents;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.Talents;
@@ -12,7 +15,7 @@ namespace Avalon.Server.World.UnitTests.Talents;
 /// The talent tree (#1181) is checked whole: a tree breaking any rule is refused, naming its first problem, and holds no
 /// node, while each class whose start resolves keeps its starter, so a bad deploy leaves every character one ability.
 /// The tree here: the four class starts on a ring (1-4), a chain off the Warrior's start (10 small, 11 ability, 12
-/// notable) and a fork pair of capstones off it (20, 21).
+/// notable) and a fork pair of capstones off it (20, 21), each shaping the chain's cone (110).
 /// </summary>
 public class TalentCatalogShould
 {
@@ -36,6 +39,12 @@ public class TalentCatalogShould
     [InlineData("range on strength", "Strength cannot have a range")]
     [InlineData("local armour", "LocalIncreasedArmor is local to the item")]
     [InlineData("notable without a name", "Notable node 12 has no name")]
+    [InlineData("keystone rule on a notable", "node 12 is a Notable node and cannot carry a keystone rule")]
+    [InlineData("modifier on a small node", "node 10 is a Small node and cannot shape an ability")]
+    [InlineData("modifier on an ability no node grants", "node 20 shapes ability 104, which no node grants")]
+    [InlineData("capstone shaping two abilities", "capstone 20 shapes both ability 110 and ability 100")]
+    [InlineData("cone reach on a projectile", "node 20's ConeReachPct modifier: ")]
+    [InlineData("explosion on a piercing projectile", "node 20's ImpactExplosion modifier: ")]
     [InlineData("node no start reaches", "node 30 is not reached from the Warrior's start")]
     public void Refuse_the_whole_tree_naming_the_first_problem(string row, string reasonPart)
     {
@@ -90,6 +99,29 @@ public class TalentCatalogShould
             case "notable without a name":
                 tree.Node(12).Name = null;
                 break;
+            case "keystone rule on a notable":
+                tree.Node(12).Keystone = KeystoneRule.NoCrits;
+                break;
+            case "modifier on a small node":
+                tree.Modifiers.Add(Modifier(10, TalentModifierKind.ConeArcPct, ChainAbility, 10));
+                break;
+            case "modifier on an ability no node grants":
+                abilities.Add(AbilityTestData.Cone(104));
+                tree.Modifiers.Single(m => m.NodeId == 20).AbilityId = new AbilityId(104);
+                break;
+            case "capstone shaping two abilities":
+                tree.Modifiers.Add(Modifier(20, TalentModifierKind.ConeArcPct, WarriorStarter, 10));
+                break;
+            case "cone reach on a projectile":
+                abilities[abilities.FindIndex(a => a.Id.Value == ChainAbility)] = AbilityTestData.Projectile(ChainAbility);
+                break;
+            case "explosion on a piercing projectile":
+                abilities[abilities.FindIndex(a => a.Id.Value == ChainAbility)] =
+                    AbilityTestData.Projectile(ChainAbility, pierce: true);
+                TalentAbilityModifier explosion = tree.Modifiers.Single(m => m.NodeId == 20);
+                explosion.Kind = TalentModifierKind.ImpactExplosion;
+                explosion.Value2 = 50;
+                break;
             case "node no start reaches":
                 tree.Nodes.Add(new TalentNode { Id = 30, Kind = TalentNodeKind.Small });
                 break;
@@ -112,6 +144,39 @@ public class TalentCatalogShould
         Assert.Equal(0UL, reached[0]);
     }
 
+    /// <summary>
+    /// Spec 5.2.12 (Part D): no capstone lengthens or deepens a stun, a root, a silence or a slow. Over the seeded tree,
+    /// with Wide Arc's (306) modifier pointed at each crowd-control ability, checked against the seeded abilities and
+    /// auras.
+    /// </summary>
+    [Theory]
+    [InlineData(204u, TalentModifierKind.AuraDurationPct)]  // Shield Bash: Stunned
+    [InlineData(204u, TalentModifierKind.AuraStacks)]
+    [InlineData(224u, TalentModifierKind.AuraDurationPct)]  // Binding Shot: Bound
+    [InlineData(214u, TalentModifierKind.AuraStacks)]       // Frost Bind: Frozen
+    [InlineData(235u, TalentModifierKind.AuraDurationPct)]  // Hush: Silenced
+    [InlineData(235u, TalentModifierKind.AuraStacks)]
+    [InlineData(223u, TalentModifierKind.AuraDurationPct)]  // Crippling Shot: Crippled, a slow
+    [InlineData(223u, TalentModifierKind.AuraStacks)]
+    public void Refuse_a_capstone_that_lengthens_or_deepens_crowd_control(uint abilityId, TalentModifierKind kind)
+    {
+        StaticData data = ScenarioReferenceData.Shared.Data;
+        TalentTreeRows rows = Avalon.Database.World.Seeding.TalentSeed.Rows();
+        rows = rows with
+        {
+            Modifiers =
+            [
+                .. rows.Modifiers.Select(m => m.NodeId == 306 ? Modifier(306, kind, abilityId, 50) : m),
+            ],
+        };
+
+        var catalog = new TalentCatalog(rows, data.Abilities, data.Auras, NullLoggerFactory.Instance);
+
+        Assert.False(catalog.IsLoaded);
+        Assert.Contains("node 306's", catalog.Refusal, StringComparison.Ordinal);
+        Assert.Contains("lengthens or deepens crowd control", catalog.Refusal, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Walk_the_held_nodes_linked_to_the_start()
     {
@@ -132,9 +197,15 @@ public class TalentCatalogShould
         Assert.Equal([1, 10, 11, 12], Ids(catalog, reached));
     }
 
-    private static TalentCatalog Catalog(TreeRows tree, List<AbilityTemplate> abilities) =>
-        new(new TalentTreeRows(tree.Nodes, tree.Edges, tree.Stats, tree.Abilities, tree.ForkGroups, tree.Starts),
-            new AbilityCatalog(abilities, NullLoggerFactory.Instance), NullLoggerFactory.Instance);
+    private static TalentCatalog Catalog(TreeRows tree, List<AbilityTemplate> abilities)
+    {
+        var rows = new TalentTreeRows(tree.Nodes, tree.Edges, tree.Stats, tree.Abilities, tree.ForkGroups, tree.Starts)
+        {
+            Modifiers = tree.Modifiers,
+        };
+        return new TalentCatalog(rows, new AbilityCatalog(abilities, NullLoggerFactory.Instance), AuraCatalog.Empty,
+            NullLoggerFactory.Instance);
+    }
 
     private static List<AbilityTemplate> Abilities() =>
     [
@@ -165,6 +236,9 @@ public class TalentCatalogShould
 
     private static TalentNodeAbility Link(int nodeId, uint abilityId) =>
         new() { NodeId = nodeId, AbilityId = new AbilityId(abilityId) };
+
+    private static TalentAbilityModifier Modifier(int nodeId, TalentModifierKind kind, uint abilityId, int value) =>
+        new() { NodeId = nodeId, Kind = kind, AbilityId = new AbilityId(abilityId), Value = value };
 
     private static TalentNodeStat Line(int nodeId, StatType stat, TalentStatKind kind, int value, int? valueMax = null) =>
         new() { NodeId = nodeId, Stat = stat, Kind = kind, Value = value, ValueMax = valueMax };
@@ -202,6 +276,12 @@ public class TalentCatalogShould
         public List<TalentNodeAbility> Abilities { get; } =
         [
             Link(1, WarriorStarter), Link(2, WizardStarter), Link(3, 102), Link(4, 103), Link(11, ChainAbility),
+        ];
+
+        public List<TalentAbilityModifier> Modifiers { get; } =
+        [
+            Modifier(20, TalentModifierKind.ConeReachPct, ChainAbility, 10),
+            Modifier(21, TalentModifierKind.ConeArcPct, ChainAbility, 10),
         ];
 
         public List<TalentForkGroup> ForkGroups { get; } = [new() { Id = 1 }];

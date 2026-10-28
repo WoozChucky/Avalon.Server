@@ -3,11 +3,11 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
-using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Vendors;
 using Avalon.World;
 using Avalon.World.Scripts;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -65,12 +65,26 @@ internal static class TestStaticData
     };
 
     /// <summary>
-    /// A plain cone for each ability the seeded talent tree links (#1181), the abilities a sound tree needs: a test whose
-    /// StaticData falls back on the seeded tree and asks that nothing was logged at Error passes them among its abilities,
-    /// as it passes <see cref="Glyph" /> among its items.
+    /// The seeded template of each ability the seeded talent tree links (#1181), the abilities a sound tree needs, since
+    /// each capstone is checked against its ability's shape: a test whose StaticData falls back on the seeded tree and
+    /// asks that nothing was logged at Error passes them among its abilities, and <see cref="TalentTreeAuras" /> among
+    /// its auras, as it passes <see cref="Glyph" /> among its items.
     /// </summary>
     public static IReadOnlyCollection<AbilityTemplate> TalentTreeAbilities() =>
-        [.. TalentSeed.Abilities().Select(link => AbilityTestData.Cone(link.AbilityId.Value))];
+        [.. TalentSeed.Abilities().Select(link => Seeded.Abilities.TryGet(link.AbilityId, out AbilityTemplate? template)
+            ? template
+            : throw new InvalidOperationException($"the seed holds no ability {link.AbilityId.Value}"))];
+
+    /// <summary>The seeded auras <see cref="TalentTreeAbilities" /> apply, which their capstones are checked against.</summary>
+    public static IReadOnlyCollection<AuraTemplate> TalentTreeAuras() =>
+    [
+        .. TalentTreeAbilities().Select(a => a.AuraId).OfType<AuraId>().DistinctBy(id => id.Value)
+            .Select(id => Seeded.Auras.TryGet(id, out AuraTemplate? aura)
+                ? aura
+                : throw new InvalidOperationException($"the seed holds no aura {id.Value}")),
+    ];
+
+    private static StaticData Seeded => ScenarioReferenceData.Shared.Data;
 
     public static Task<StaticData> LoadAsync(
         IReadOnlyCollection<ClassLevelStat>? classStats = null,

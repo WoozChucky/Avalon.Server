@@ -95,6 +95,8 @@ public class ScriptHotReloadPollingShould
         IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns([.. TestStaticData.TalentTreeAbilities()]);
+        IAuraTemplateRepository auraTemplates = Substitute.For<IAuraTemplateRepository>();
+        auraTemplates.GetAllAsync(Arg.Any<CancellationToken>()).Returns(TestStaticData.TalentTreeAuras());
         ILocalizedTextRepository localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedText>>([]));
@@ -155,7 +157,7 @@ public class ScriptHotReloadPollingShould
             reloader,
             Substitute.For<IChunkLibrary>(),
             dialogue, LootRepositories.Empty(), Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), parties: parties, tickThread: tickThread,
-            awakening: awakening);
+            awakening: awakening, auraTemplateRepository: auraTemplates);
 
         await world.LoadAsync(CancellationToken.None);
         return world;
