@@ -211,10 +211,12 @@ refused: its cost and cooldown are spent all the same.
   restored, so overheal adds none (#531).
 - **The second hit (#1181 part D, a capstone's `SecondHit`).** When the cast's `SecondHitEffectiveness` is above 0,
   `AbilityEffect.Apply` affects each unit twice at once. An Ally ability heals at 100 %, then again at that share, then
-  applies its aura once. A Hostile ability hits with the whole amount, applies its aura if that hit landed (or the
-  ability is `Unavoidable`), then hits again at that share (a `HitShaping`, through `IAbilityArena.HitForAbility`),
-  with its own evasion, crit and block rolls, and threat, Resonance and Awakening as for any hit; when the first applied
-  no aura and the second lands, the second applies it. So only the first landed hit applies the aura. No second hit
+  applies its aura once. A Hostile ability hits with the whole amount, then again at that share (a `HitShaping`,
+  through `IAbilityArena.HitForAbility`), with its own evasion, crit and block rolls, and threat, Resonance and
+  Awakening as for any hit, and only then applies its aura, once, for the first hit that landed: the first when it
+  landed (or the ability is `Unavoidable`), else the second when that landed. Placed after both hits, the aura is not
+  on the unit while the second lands, so the cast's own second hit never rolls a damage break on crowd control its
+  first just earned. No second hit
   follows a first the unit passed over (`HitOutcome.Ignored`) or one that left it dead, so a corpse draws no roll, no
   number and no second kill. A held hit (the dodge wait, below) resolves through the same `Apply`, so it lands both
   when it falls due.
@@ -416,12 +418,16 @@ projectile is. Each lane is a projectile of its own, with its own guid, flight a
 cast's id. The lanes share one set of the units the cast has hit (`IProjectileFan.ShareHitsWith`, joined before each
 lane is prepared), so a unit is affected at most once per cast, by whichever lane reaches it first, and a lane flies
 through a unit another lane hit. Each lane counts its own hits for `MaxTargets`, so a piercing lane never ends on
-another lane's. The telegraph and a cast-time fan's start broadcast keep the centre lane's footprint, and the client
-draws the fan from `ProjectileCount`; the arena's started footprint is left unset for a fan, so every lane resolves
-and tells its own fired event. The count and every lane's shape are the cast's own copy's, never the caster's
-ability, so a capstone taken or refunded while a cast winds up changes none of its lanes. A lane that cannot be built
-is skipped; one whose `Prepare` throws is contained as the first's is (logged, the cast interrupted) and ends the
-cast, while the lanes already in flight fly on. A first lane that finished inside its `Prepare` fires no other.
+another lane's. The telegraph and a cast-time fan's start broadcast keep the centre lane's footprint, naming the
+cast's lane count (`AbilityFootprint.Lanes`, sent as `AbilityFootprintDto.Lanes`, from the cast's own copy), so every
+client draws the whole fan from the start alone; the arena's started footprint is left unset for a fan, so every lane
+resolves and tells its own fired event. The count and every lane's shape are the cast's own copy's, never the caster's
+ability, so a capstone taken or refunded while a cast winds up changes none of its lanes. A lane that cannot be built is
+skipped; one whose `Prepare` throws is contained as the first's is (logged, the cast interrupted) and ends the cast,
+while the lanes already in flight fly on, and the cast is still logged as fired. A first lane that finished inside its
+`Prepare` fires no other. Only a script type that flies fans (`IProjectileFan`, `ProjectileAbilityScript`) fires lanes:
+a projectile ability whose script answers another type fires its one lane along the aim, whatever its count, and its
+start footprint names 1.
 
 **An explosion (#1181 part D, a capstone's `ImpactExplosion`).** When the cast's `ExplosionRadius` is above 0 and the
 projectile ends on a unit (its first hit without `Pierce`, its `MaxTargets`-th with it), a circle of that radius bursts
@@ -441,18 +447,24 @@ the next cast: its own copy of the ability made again from the caster's (`GameAb
 aim, and every other field as a new script has it (`AbilityScript.ResetForReuse`, then the type's own). `Clear` lets
 go of all of it when the script goes back, so a pooled script keeps nothing alive. A prepared script that leaves the
 running list is retired, and is free again only after two whole view rounds (`IAbilityArena.ViewRound`, which
-`MapInstance` counts up after each completed view decision, about 200 ms); one never prepared (a queued cast that ends
+`MapInstance` counts up after each broadcast tick's decision of every view completes, never for one client's own
+decision, about 200 ms); one never prepared (a queued cast that ends
 without firing) goes back at once. **A projectile's id is new for every flight**: `Prepare` writes the next id into
 the projectile's own guid wrapper, so an id is never reused, and the wrapper is reused only once no view, list or
-packet can still hold it for the flight before ([world simulation](world-simulation.md), `EntityTrackingSystem`). Each
-type keeps at most `InstanceAbilityCastSystem.PooledScripts` (256) free and retired scripts, and as many hit sets; one
-handed back past the cap is left to the collector. The queue entries (`AbilityInstance`) and the running list's
-entries (`ActiveScript`) are reused too, for every cast. **Never pooled:** a circle's or a cone's script (still built
-per cast, 224 B, #1238), a script for an ability that is not a `GameAbility` or for a script name that answers another
-type, one built outside a pool (the activator's, a test's), and a script whose `Prepare`, `Update` or `State` threw,
-which is left to the collector with what it holds. On the modding API, `AbilityScript`'s `Caster`, `Aim` and
-`Ability` are virtual getters with a protected parameterless constructor, so nothing becomes settable, and
-`PooledAbilityScript`'s constructor and reset hooks are not visible outside Avalon.World.
+packet can still hold it for the flight before ([world simulation](world-simulation.md), `EntityTrackingSystem`); a
+pooled projectile has no guid from its launch until its `Prepare`. Each type keeps at most
+`InstanceAbilityCastSystem.PooledScripts` (256) free and retired scripts, and as many hit sets; one handed back past
+the cap is left to the collector and counted (`world.ability_scripts.pool_drops`,
+[instrumentation](instrumentation.md)), since the next cast of its type builds one anew. The queue entries
+(`AbilityInstance`) and the running list's entries (`ActiveScript`) are reused too, for every cast. **Never pooled:** a
+circle's or a cone's script (still built per cast, 224 B, #1238; moving them onto the pool also needs the dodge wait's
+held hit, `PendingHit`, to keep the ability id and metadata it reads rather than the script's own copy, which the pool
+clears when the script goes back, and a factory with the DI services a script declares), a script for an ability that is
+not a `GameAbility` or for a script name that answers another type, one built outside a pool (the activator's, a
+test's), and a script whose `Prepare`, `Update` or `State` threw, which is left to the collector with what it holds. On
+the modding API, `AbilityScript`'s `Caster`, `Aim` and `Ability` are virtual getters with a protected parameterless
+constructor, so nothing becomes settable, and `PooledAbilityScript`'s constructor and reset hooks are not visible
+outside Avalon.World.
 
 **Shaped per character (#1181 part D).** A character's `Reach`, `Radius` and `ArcDegrees` are its own: the capstones
 it holds on the talent tree scale a cone's reach and arc (the arc at most 360°) and a circle's radius, summed per

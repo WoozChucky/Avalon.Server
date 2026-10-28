@@ -60,9 +60,12 @@ namespace Avalon.World.Testing.Scenarios;
 /// class's keystone (<see cref="ScenarioWorld.ShapeKit" />): the warrior's Cleave wider and striking twice, paid in life
 /// under Blood Price; the wizard's Spark Bolt a fan of three under Steady Hand; the hunter's Quick Shot exploding on the
 /// unit it ends on under Glass Edge; the cleric's Smite and Mending Circle striking and healing twice, the circle wider,
-/// under Unbroken. So the fight runs every per-hit path part D added: a fan's pooled lanes and their shared hits, the
-/// explosion, the second hit and heal, the life payment, the crit of 0 and the ward that takes all. It keeps
-/// <c>forest-combat</c>'s floors; a fighter refused for want of life still counts as fighting while it casts.
+/// under Unbroken; and the warrior opens with Rend, 2 stacks deeper and its Bleed 50 % longer, whenever it is ready
+/// (<see cref="ScenarioWorld.ShapedOpener" />). So the fight runs every per-hit path part D added: a fan's pooled lanes
+/// and their shared hits, the explosion, the second hit and heal, an aura's capstone factors (the stack bonus and the
+/// longer duration read at apply), the life payment, the crit of 0 and the ward that takes all. It keeps
+/// <c>forest-combat</c>'s floors, a fighter refused for want of life still counting as fighting while it casts, and
+/// adds one: the warriors cast their shaped Rend during the measured ticks.
 /// </para>
 /// </remarks>
 public sealed class ForestCombatScenario : IScenario
@@ -202,7 +205,8 @@ public sealed class ForestCombatScenario : IScenario
                     FillBag(world, character);
                     characters[m] = character;
                     roster.Add(character);
-                    var fighter = new LoopFighter(handlers, character, seed: fighters.Count + 1);
+                    var fighter = new LoopFighter(handlers, character, seed: fighters.Count + 1,
+                        opener: _capstones ? ScenarioWorld.ShapedOpener(character.Class) : 0);
                     members[m] = world.Connect(character,
                         watch is null ? fighter.Step : watch.Watching(character, fighter.Step));
                     party[m] = fighter;
@@ -288,6 +292,12 @@ public sealed class ForestCombatScenario : IScenario
                 RequireAtLeast(fired[trigger], 1, $"fired {trigger} Resonance effects");
         }
 
+        if (_capstones)
+        {
+            RequireAtLeast(fight.Openers() - fight.MarkedOpeners, 1,
+                "cast the warriors' shaped Rend (an aura's capstone factors)");
+        }
+
         if (_sealedKit)
         {
             IReadOnlyList<int> progress = AwakeningProgress(world);
@@ -361,10 +371,17 @@ public sealed class ForestCombatScenario : IScenario
     /// <summary>
     /// For the report: what the themed fight fired during the measured ticks, by trigger, Evaded and WardBroken included,
     /// which the check does not floor; or the progress the sealed kit's fighters gained in them
-    /// (<see cref="AwakeningProgress" />); null for a fight in neither kit.
+    /// (<see cref="AwakeningProgress" />); or how many shaped Rends the shaped fight's warriors cast in them; null for
+    /// a plain fight.
     /// </summary>
     public string? Notes(ScenarioWorld world)
     {
+        if (_capstones)
+        {
+            Fight fight = FightOf(world);
+            return $"Shaped Rends cast in the measured ticks: {fight.Openers() - fight.MarkedOpeners}";
+        }
+
         if (_sealedKit)
         {
             IReadOnlyList<int> progress = AwakeningProgress(world);
@@ -440,6 +457,17 @@ public sealed class ForestCombatScenario : IScenario
 
         public int[] MarkedKills { get; } = new int[forests.Count];
 
+        public int MarkedOpeners { get; private set; }
+
+        /// <summary>The openers the fighters have cast so far.</summary>
+        public int Openers()
+        {
+            int openers = 0;
+            for (int i = 0; i < Fighters.Count; i++)
+                openers += Fighters[i].Openers;
+            return openers;
+        }
+
         public FightOutcome? MarkedOutcome { get; private set; }
 
         public IReadOnlyDictionary<ResonanceTrigger, int>? MarkedFires { get; private set; }
@@ -452,6 +480,7 @@ public sealed class ForestCombatScenario : IScenario
                 MarkedCasts[i] = Fighters[i].Casts;
             for (int f = 0; f < Forests.Count; f++)
                 MarkedKills[f] = Forests[f].Kills;
+            MarkedOpeners = Openers();
             MarkedOutcome = Outcome();
             if (Watch is { } resonance)
             {

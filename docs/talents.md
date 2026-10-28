@@ -584,9 +584,11 @@ class's start), never the whole tree.
 Part D2: the rules the keystones bend. `TalentTotals` carries one flag per rule, `LifeCost`, `NoCrits` and
 `WardTakesAll` (`AddKeystone`, which also clears `IsEmpty`, since Blood Price and Unbroken carry no stat lines; `Clear`
 resets them), set by `TalentAllocation.RebuildTotals` from each held node's `KeystoneAt` at select and after every
-talent change. Each flag is read where its rule acts, never per tick: a cast reads one, a hit or a tick on a warded
-character reads one, and the stats fold reads one. A creature holds no keystone, and the REST character reads carry
-no keystone rule: keystones act only in the world, and the REST sheet is the saved one the world folded.
+talent change. Each flag is read where its rule acts: a cast reads one, a hit or a tick on a warded character reads
+one, the stats fold reads one, and each update of a character whose ward is below its maximum (waiting out its delay
+or recharging) reads Unbroken's, which sets that delay; a full ward, or none, reads nothing. A creature holds no
+keystone, and the REST character reads carry no keystone rule: keystones act only in the world, and the REST sheet is
+the saved one the world folded.
 
 - **Blood Price (`LifeCost`).** Every ability cost is paid from current life instead of mana
   (`AbilityCost.Check` and `Pay` with `fromLife`, which `CharacterEntity.PaysWithLife` answers). A cost is payable
@@ -601,13 +603,15 @@ no keystone rule: keystones act only in the world, and the REST sheet is the sav
 - **Steady Hand (`NoCrits`).** `CharacterStatsCalculator.Calculate` sets the crit chance to 0 after the aura
   fold, so no aura gives it back. Hits, heals (`HitResolver.ResolveHeal`) and the snapshots of the holder's auras
   (`AuraRules.Snapshot`, from `CombatService.AttackerFor`) all read that chance, so none needs a check of its own and
-  nothing is read per hit; the character sheet shows 0. Its two `More` lines (20 % more damage, 20 % more healing)
-  fold as any node's.
+  nothing is read per hit; the character sheet shows 0. An aura placed before Steady Hand was taken keeps the crit
+  chance it snapshotted at apply, as every aura does, so its ticks may still crit until it ends. Its two `More` lines
+  (20 % more damage, 20 % more healing) fold as any node's.
 - **Unbroken (`WardTakesAll`).** The holder's ward also absorbs blight hits, blight ticks and bleed ticks
   (`HitResolver.WardAbsorbs(type, periodic, takesAll)`): a hit's whole damage is absorbable instead of all but its
   blight share, and every tick is. Its recharge delay is doubled (`WardPool.Advance` with `slowRecharge`, from
   `CharacterEntity.AdvanceWard`): 8 s at the default `Regen:WardRechargeDelaySeconds` of 4 s, the recharge itself
-  unchanged. `CombatService` reads the flag once per hit or tick, and only for a target with a ward.
+  unchanged. `CombatService` reads the flag once per hit or tick, and only for a target with a ward; the ward's
+  advance reads it on each update while the ward is below its maximum.
 - **Glass Edge** has no rule: its `IncreasedDamage` `More` 30 and `IncreasedMaximumLife` `More` −25 fold as
   any node's lines (a factor of 0.75 on maximum life).
 

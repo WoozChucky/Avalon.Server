@@ -87,6 +87,7 @@ message AbilityFootprintDto {
    float Radius = 5;
    float Reach = 6;
    float ArcDegrees = 7;
+   uint32 Lanes = 8;
 }
 message AbilityInfo {
    uint32 AbilityId = 1;

@@ -19,8 +19,9 @@ using NSubstitute;
 namespace Avalon.Server.World.UnitTests.Abilities;
 
 /// <summary>
-/// A real hit query over units the test places, a substitute combat service to record who was hit
-/// and in what order, and a navigator that lets every ray through unless a test says otherwise.
+/// A real hit query over units the test places, records of who was hit or healed, in what order and at what share of
+/// the amount (#1181 Part D: a second hit's share is kept with it), and a navigator that lets every ray through unless
+/// a test says otherwise. Its combat service is a substitute that hits and heals never reach.
 /// </summary>
 internal sealed class TestArena : IAbilityArena
 {
@@ -58,26 +59,26 @@ internal sealed class TestArena : IAbilityArena
     /// <summary>Every hostile hit's shaping, in order (#1181 Part D).</summary>
     public List<HitShaping> Shapings { get; } = [];
 
-    /// <summary>Every heal's share of the amount, in percent, in order (#1181 Part D).</summary>
-    public List<float> HealShares { get; } = [];
+    /// <summary>Every hit of an ability whose Effects has Damage, in order, with its shaping (#1181 Part D).</summary>
+    public List<(IUnit Caster, IUnit Target, HitShaping Shaping)> DamageDealt { get; } = [];
+
+    /// <summary>Every heal, in order, with its share of the amount in percent (#1181 Part D).</summary>
+    public List<(IUnit Target, float SharePct)> HealsDone { get; } = [];
 
     /// <summary>
-    /// Records the hit's shaping and the damage of an ability whose Effects has Damage, and answers
+    /// Records the hit's shaping and, for an ability whose Effects has Damage, the damage with it, and answers
     /// <see cref="NextOutcome" />.
     /// </summary>
     public HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability, in HitShaping shaping)
     {
         Shapings.Add(shaping);
         if (AbilityRules.HasDirectEffect(ability.Metadata.Effects, ability.Metadata.Affects))
-            CombatService.ApplyDamage(caster, target, ability);
+            DamageDealt.Add((caster, target, shaping));
         return NextOutcome;
     }
 
-    public void HealForAbility(IUnit caster, IUnit target, IAbility ability, float amountPct)
-    {
-        HealShares.Add(amountPct);
-        CombatService.ApplyHeal(caster, target, ability);
-    }
+    public void HealForAbility(IUnit caster, IUnit target, IAbility ability, float amountPct) =>
+        HealsDone.Add((target, amountPct));
 
     public void ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability) => AurasApplied.Add((caster, target, ability));
 
@@ -168,15 +169,9 @@ internal sealed class TestArena : IAbilityArena
         return creature;
     }
 
-    /// <summary>Every unit damaged, in order.</summary>
-    public List<IUnit> Damaged() => CombatService.ReceivedCalls()
-        .Where(c => c.GetMethodInfo().Name == nameof(ICombatService.ApplyDamage))
-        .Select(c => (IUnit)c.GetArguments()[1]!)
-        .ToList();
+    /// <summary>Every unit damaged, in order, once for each hit (a second hit's unit twice).</summary>
+    public List<IUnit> Damaged() => [.. DamageDealt.Select(d => d.Target)];
 
-    /// <summary>Every unit healed, in order.</summary>
-    public List<IUnit> Healed() => CombatService.ReceivedCalls()
-        .Where(c => c.GetMethodInfo().Name == nameof(ICombatService.ApplyHeal))
-        .Select(c => (IUnit)c.GetArguments()[1]!)
-        .ToList();
+    /// <summary>Every unit healed, in order, once for each heal.</summary>
+    public List<IUnit> Healed() => [.. HealsDone.Select(h => h.Target)];
 }

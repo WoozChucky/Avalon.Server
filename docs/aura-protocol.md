@@ -133,10 +133,10 @@ at full health). A killing tick is sent like any killing hit, before `SMSG_UNIT_
   over the ticks. Nothing the caster does afterwards changes it. Each tick rolls crit with the caster's crit chance
   and crit multiplier as they were at apply time. The amounts are the server's: the catalog carries neither the base
   nor the percentage.
-- **Applied again**, by its stacking: a refresh aura renews its duration and amounts (a fresh snapshot and a fresh
-  roll of the base damage); a stack aura gains a stack up to its `maxStacks` and renews the same way; a "one per
-  caster" aura keeps a separate copy for each caster, each renewed by its own caster only. Stacks multiply the
-  amounts and the stat modifiers.
+- **Applied again**, by its stacking: a refresh aura renews its duration, never shortening what is left, and its
+  amounts (a fresh snapshot and a fresh roll of the base damage); a stack aura gains a stack up to its `maxStacks` and
+  renews the same way; a "one per caster" aura keeps a separate copy for each caster, each renewed by its own caster
+  only. Stacks multiply the amounts and the stat modifiers.
 - **A unit holds at most `Game:MaxAurasPerUnit` auras** (32 by default); past that a new aura is not applied. A copy
   the unit already holds still refreshes or stacks.
 - **An evaded hit applies no aura.** Every hostile ability rolls whether it lands on each unit it affects, whether it
@@ -230,7 +230,8 @@ its aura for longer than the row's duration (Wildfire's Burn 13.5 s, Enduring Re
 Fortified 45 s), with the extra ticks that time holds, each the same size; and may stack it above the row's
 `MaxStacks` (Haemorrhage: Bleed to 5). Draw the timer from the entry's `DurationMs` and the count from its `Stacks`,
 never from this table. A stack count above the row's cap comes only from the shaped caster's applications; another
-caster's refresh keeps the count the copy holds.
+caster's refresh keeps the count the copy holds, and never shortens the time it has left, so its `DurationMs` may then
+be that time rather than the row's. A count above the cap comes back as it was after a relog.
 
 All are instant. Every cost is mana, for every class (#1181). Every character of a class holds its class's new
 abilities. An Ally circle affects the caster too when the circle covers it.

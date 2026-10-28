@@ -1,10 +1,10 @@
-using System.Reflection;
 using System.Runtime.CompilerServices;
-using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Auras;
@@ -81,9 +81,12 @@ public class InstanceAbilityCastSystemShould
         Assert.Equal(!accepted, ArrivalProtection.IsProtected(caster));
     }
 
-    /// <summary>An ability whose cost, if any, is spent from mana (#1181).</summary>
+    /// <summary>
+    /// An ability whose cost, if any, is spent from mana (#1181); with <paramref name="projectiles" />, a projectile's
+    /// shape firing that many (#1181 Part D, a fan).
+    /// </summary>
     private static GameAbility Ability(uint cost = 0, float castTime = 0f, string script = "Recording",
-        AbilityFlags flags = AbilityFlags.None) => new()
+        AbilityFlags flags = AbilityFlags.None, int projectiles = 0) => new()
         {
             AbilityId = new AbilityId(1),
             Metadata = new AbilityMetadata
@@ -94,6 +97,8 @@ public class InstanceAbilityCastSystemShould
                 CastTime = castTime,
                 Cooldown = 2f,
                 Flags = flags,
+                Shape = projectiles > 0 ? AbilityShape.Projectile : AbilityShape.Circle,
+                ProjectileCount = Math.Max(1, projectiles),
             },
             CastTimeTimer = castTime,
             CooldownTimer = 0f,
@@ -344,7 +349,8 @@ public class InstanceAbilityCastSystemShould
     /// <summary>
     /// Every cast's aim is handed to its script's constructor out of one box the cast system keeps and overwrites
     /// (#925). A script must keep the aim it was built with: the first cast here is still winding up, its script
-    /// already built, when the second cast's aim goes into the box.
+    /// already built, when the second cast's aim goes into the box. The second has a fan's shape (#1181 Part D, three
+    /// projectiles) on a script that flies no fans, so it fires its one lane along its own aim, never turned.
     /// </summary>
     [Fact]
     public void Fire_each_script_with_the_aim_of_its_own_cast()
@@ -353,7 +359,7 @@ public class InstanceAbilityCastSystemShould
         ICharacter first = Caster();
         ICharacter second = Caster();
         Assert.True(_sut.QueueAbility(first, s_aim, Ability(castTime: 0.01f)));
-        Assert.True(_sut.RunInstant(second, other, Ability()));
+        Assert.True(_sut.RunInstant(second, other, Ability(projectiles: 3)));
 
         _sut.Update(s_tick, []);
 
@@ -637,25 +643,24 @@ public class InstanceAbilityCastSystemShould
     private static readonly AbilityAim s_north = new(new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, 10f));
 
     /// <summary>
-    /// Projectiles are pooled per instance (#1181 Part D, D-R21): one that left the world is reused only once two whole view
+    /// Projectiles are pooled per instance (#1181 Part D): one that left the world is reused only once two whole view
     /// rounds have passed, when no view can still hold its guid's wrapper, with a new id in the same wrapper, and nothing
     /// of its last flight: not its hit set, caster, ability, cast id, lane or state. A queued cast that never fired hands
-    /// its projectile back at once, since nothing saw it, and fires the shape it was queued with. A projectile that threw
-    /// is never reused, the pool keeps at most its cap, and a pooled projectile keeps neither its caster nor its metadata
-    /// alive. A fan's lane that ends first goes back alone, leaving the cast's shared set of hit units to the lanes still
-    /// flying. Each round casts at a creature 6 m north and flies the projectile to its end, its changes taken as
-    /// the broadcast takes them.
+    /// its projectile back at once, since nothing saw it. A projectile that threw is never reused, the pool keeps at
+    /// most its cap, and a pooled projectile keeps neither its caster nor its metadata alive. A piercing fan's lane
+    /// that ends first goes back alone, leaving the cast's shared set of hit units to the lanes still flying, each
+    /// counting its own hits for MaxTargets. Each round casts at a creature 6 m north and flies the projectile to its
+    /// end, its changes taken as the broadcast takes them.
     /// </summary>
     [Theory]
     [InlineData("after two view rounds")]
     [InlineData("after one view round")]
     [InlineData("nothing of its last flight")]
     [InlineData("a queued cast that never fired")]
-    [InlineData("a queued cast keeps the shape it was queued with")]
     [InlineData("after its flight threw")]
     [InlineData("past the pool's capacity")]
     [InlineData("keeps nothing alive")]
-    [InlineData("a lane that ends first")]
+    [InlineData("a piercing lane that ends first")]
     public void Reuse_a_projectile_only_once_nothing_can_still_see_its_last_flight(string row)
     {
         var arena = new TestArena();
@@ -721,29 +726,14 @@ public class InstanceAbilityCastSystemShould
             }
 
             case "a queued cast that never fired":
-            case "a queued cast keeps the shape it was queued with":
             {
-                bool fires = row == "a queued cast keeps the shape it was queued with";
                 ProjectileAbilityScript first = Round(caster, ability);
                 arena.ViewRound += 2;
                 sut.Update(s_tick, objects);
                 AbilityTemplate slow = AbilityTestData.Projectile(219, reach: 10f, speed: 20f).Dealing(10);
-                slow.CastTime = fires ? 100u : 500u;
+                slow.CastTime = 500u;
                 GameAbility queued = AbilityTestData.Game(slow);
                 Assert.True(sut.QueueAbility(caster, s_north, queued));
-
-                if (fires)
-                {
-                    // The caster's ability reshaped mid-cast (a capstone refunded): a reach that would end the flight 4 m
-                    // short of the creature. The cast fires the shape it was queued with.
-                    AbilityTemplate shorter = AbilityTestData.Projectile(219, reach: 2f, speed: 20f).Dealing(10);
-                    typeof(GameAbility).GetMethod("SetMetadata", BindingFlags.NonPublic | BindingFlags.Instance)!
-                        .Invoke(queued, [AbilityMetadataMapper.From(shorter)]);
-
-                    Assert.Same(first, Assert.Single(Fly(sut, objects)));
-                    Assert.Equal([creature, creature], arena.Damaged());
-                    break;
-                }
 
                 // Moved: the cast is interrupted, as Complete_one_cast_and_interrupt_another_in_the_same_update does.
                 caster.Position = new Vector3(1f, 0f, 0f);
@@ -796,22 +786,30 @@ public class InstanceAbilityCastSystemShould
                 break;
             }
 
-            case "a lane that ends first":
+            case "a piercing lane that ends first":
             {
-                // A fan of three: the centre lane's creature 2 m out, slim enough that the side lanes pass it, the side
-                // lanes' 8 m out at -10 and +10 degrees.
+                // A piercing fan of three (Twin Arrows on Piercing Arrow, here at most two hits a lane). The centre
+                // lane ends on its second hit, 8.5 m out, its first 2 m out, both slim enough that the side lanes pass
+                // them. Each side lane strikes a wide body 9 m out at -10 or +10 degrees, flies on through it for its
+                // own count of one, and is still inside it when the centre lane ends and goes back: a set emptied then
+                // would let it strike that body again. The creature 6 m north stands aside, out of every lane.
+                creature.Position.Returns(new Vector3(-20f, 0f, 0f));
                 ICreature near = arena.Creature(0f, 2f, body: 0.2f, health: 1000);
-                float side = 8f * MathF.Sin(10f * MathF.PI / 180f);
-                float ahead = 8f * MathF.Cos(10f * MathF.PI / 180f);
-                ICreature left = arena.Creature(-side, ahead, health: 1000);
-                ICreature right = arena.Creature(side, ahead, health: 1000);
+                ICreature far = arena.Creature(0f, 8.5f, body: 0.2f, health: 1000);
+                float side = 9f * MathF.Sin(10f * MathF.PI / 180f);
+                float ahead = 9f * MathF.Cos(10f * MathF.PI / 180f);
+                ICreature left = arena.Creature(-side, ahead, body: 1.2f, health: 1000);
+                ICreature right = arena.Creature(side, ahead, body: 1.2f, health: 1000);
                 ICreature east = arena.Creature(6f, 0f, health: 1000);
+                AbilityTemplate piercing =
+                    AbilityTestData.Projectile(221, reach: 10f, speed: 20f, pierce: true).Dealing(10);
+                piercing.MaxTargets = 2;
                 Assert.True(sut.RunInstant(caster, s_north,
-                    AbilityTestData.Shaped(template, (TalentModifierKind.AddedProjectiles, 2, null))));
+                    AbilityTestData.Shaped(piercing, (TalentModifierKind.AddedProjectiles, 2, null))));
 
-                // Ten updates: the centre lane has ended and left, the side lanes are a third of the way out.
+                // 27 updates: the centre lane has ended and left, the side lanes are still inside their bodies.
                 HashSet<ProjectileAbilityScript> fan = [];
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 27; i++)
                 {
                     objects.Clear();
                     sut.Update(s_tick, objects);
@@ -835,8 +833,13 @@ public class InstanceAbilityCastSystemShould
                 Assert.Equal(3, rest.Count);
                 Assert.Contains(centre, rest);
                 List<IUnit> damaged = arena.Damaged();
-                Assert.Equal(4, damaged.Count);
-                Assert.All(new[] { near, left, right, east }, unit => Assert.Single(damaged, unit));
+                Assert.Equal(5, damaged.Count);
+                Assert.All(new[] { near, far, left, right, east }, unit => Assert.Single(damaged, unit));
+                // Each side lane's one hit was not its last, the centre lane's second was.
+                Assert.Equal([ProjectileImpactReason.Pierced, ProjectileImpactReason.Pierced],
+                    arena.Impacts.Where(i => i.Target == left || i.Target == right).Select(i => i.Reason));
+                Assert.Equal([ProjectileImpactReason.Pierced, ProjectileImpactReason.Hit],
+                    arena.Impacts.Where(i => i.Target == near || i.Target == far).Select(i => i.Reason));
                 break;
             }
 
@@ -851,6 +854,8 @@ public class InstanceAbilityCastSystemShould
                 arena.Finished.Clear();
                 arena.FinishedIds.Clear();
                 arena.AurasApplied.Clear();
+                arena.DamageDealt.Clear();
+                arena.Shapings.Clear();
                 arena.CombatService.ClearReceivedCalls();
                 objects.Clear();
 

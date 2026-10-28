@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Avalon.Common.Telemetry;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
@@ -34,8 +35,10 @@ namespace Avalon.World.Abilities;
 /// </para>
 /// <para>
 /// <b>The cap.</b> Each type keeps at most <see cref="InstanceAbilityCastSystem.PooledScripts" /> free and retired scripts,
-/// and the hit sets as many: one handed back past it is left to the collector, its hit set released. So an instance keeps
-/// what its own busiest moment had in flight, up to some 110 KB of projectiles.
+/// and the hit sets as many: one handed back past it is left to the collector, its hit set released, and counted
+/// (<c>world.ability_scripts.pool_drops</c>, <see cref="DiagnosticsConfig.World.AbilityScriptPoolDrops" />), since the
+/// next cast of its type builds one anew. So an instance keeps what its own busiest moment had in flight, up to some
+/// 110 KB of projectiles.
 /// </para>
 /// <para>
 /// <b>The guid.</b> A projectile's id is new for every flight (<c>Prepare</c> writes the next id into its own wrapper,
@@ -107,6 +110,8 @@ internal sealed class AbilityScriptPool(IAbilityArena arena)
 
         if (back.Kind.Held < InstanceAbilityCastSystem.PooledScripts)
             back.Kind.Free.Push(back.Script);
+        else
+            DiagnosticsConfig.World.AbilityScriptPoolDrops.Add(1);
     }
 
     /// <summary>
@@ -115,8 +120,14 @@ internal sealed class AbilityScriptPool(IAbilityArena arena)
     /// </summary>
     public void Retire(AbilityScript script)
     {
-        if (HandBack(script) is not { } back || back.Kind.Held >= InstanceAbilityCastSystem.PooledScripts)
+        if (HandBack(script) is not { } back)
             return;
+
+        if (back.Kind.Held >= InstanceAbilityCastSystem.PooledScripts)
+        {
+            DiagnosticsConfig.World.AbilityScriptPoolDrops.Add(1);
+            return;
+        }
 
         back.Kind.Retired++;
         _retired.Enqueue(new Retired(back.Script, back.Kind, arena.ViewRound));

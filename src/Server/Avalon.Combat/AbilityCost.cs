@@ -19,8 +19,8 @@ public enum CostCheck
 /// the cast, on the queued path and the instant path alike; a queued cast is paid once, when it is queued.
 /// A character holding Blood Price (#1181 Part D, <c>KeystoneRule.LifeCost</c>) pays from current life instead
 /// (<c>fromLife</c>): a cost is payable only when it leaves at least 1 life, and the refusal is the same NotEnoughPower.
-/// Paying life is not damage: it meets no ward, armour or evasion, reports no hit and starts no combat, and mana is
-/// untouched.
+/// Paying life is not damage: it meets no ward, armour or evasion, reports no hit, and the payment itself tags no
+/// combat (the cast enters combat as any cast does); mana is untouched.
 /// </summary>
 public static class AbilityCost
 {

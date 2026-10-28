@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Combat;
 using Avalon.Server.World.UnitTests.Talents;
 using Avalon.World;
 using Avalon.World.Entities;
@@ -300,16 +301,18 @@ public class MapInstanceAbilityCastShould
     /// <summary>
     /// #1181 Part D: a capstone-shaped ability through the real handler, cast system and combat service. A second hit
     /// (<c>SecondHit</c> 50) hits each unit again at once at half the amount, its own number sent; a first hit that
-    /// kills draws no second (review focus 3: one death, one kill credited, no number on the corpse); a heal heals
-    /// again. A fan (<c>AddedProjectiles</c> 2) fires three lanes 10° apart, each telling its own lane, and affects a unit
-    /// once however many lanes cross it (review focus 5); an explosion (<c>ImpactExplosion</c> 30, 50) bursts where the
-    /// projectile ended on a unit, a 3 m circle told as a second fired event, hitting the other hostiles in it at half the
-    /// amount and sparing the struck unit, the unflagged player beside it and anything outside it, and never bursts at
-    /// full reach.
+    /// kills draws no second (one death, one kill credited, no number on the corpse), a flagged player's corpse
+    /// included, which only the dead check before the second hit spares; a heal heals again. A fan
+    /// (<c>AddedProjectiles</c> 2) fires three lanes 10° apart, each telling its own lane, and affects a unit once
+    /// however many lanes cross it; an explosion (<c>ImpactExplosion</c> 30, 50) bursts where the
+    /// projectile ended on a unit, a 3 m circle told as a second fired event, hitting the other hostiles in it at half
+    /// the amount and sparing the struck unit, the unflagged player beside it and anything outside it, and never bursts
+    /// at full reach.
     /// </summary>
     [Theory]
     [InlineData("second hit")]
     [InlineData("second hit on a killing blow")]
+    [InlineData("second hit on a killing blow to a player")]
     [InlineData("second heal")]
     [InlineData("fan of three")]
     [InlineData("fan through one body")]
@@ -322,8 +325,12 @@ public class MapInstanceAbilityCastShould
             new CharacterLevelExperience { Level = 1, Experience = 1000 },
             new CharacterLevelExperience { Level = 2, Experience = 2000 },
         ]));
+        // Enough rolls for two whole hits, so whether a second hit drew any is read off what is left.
+        ScriptedCombatRandom? random = row.EndsWith("to a player", StringComparison.Ordinal)
+            ? new ScriptedCombatRandom(0.99, 0.99, 0.99, 0.99, 0.99, 0.99).Longs(10, 10)
+            : null;
         using MapInstance instance =
-            TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: NewWorld(data));
+            TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: NewWorld(data), random: random);
         MapInstanceClient caster = Join(instance, 164_261);
 
         if (row.StartsWith("fan", StringComparison.Ordinal) || row.StartsWith("explosion", StringComparison.Ordinal))
@@ -349,6 +356,29 @@ public class MapInstanceAbilityCastShould
             Assert.Equal(80u, ally.Character.CurrentHealth);
             Assert.Equal([40u, 20u],
                 ally.Read<SUnitHealedPacket>(NetworkPacketType.SMSG_UNIT_HEALED).Select(p => p.Amount));
+            return;
+        }
+
+        if (row == "second hit on a killing blow to a player")
+        {
+            MapInstanceClient flagged = Join(instance, 164_263);
+            caster.Character.Data!.PvpEnabled = true;
+            flagged.Character.Data!.PvpEnabled = true;
+            flagged.Character.Position = new Vector3(0f, 0f, 1.2f);
+            flagged.Character.Health = 100;
+            flagged.Character.CurrentHealth = 10;
+            caster.Character.Spells.Load([
+                AbilityTestData.Shaped(AbilityTestData.Cone(203, reach: 2.5f, arc: 90f).Dealing(10),
+                    (TalentModifierKind.SecondHit, 50, null)),
+            ]);
+
+            handler.Execute(caster.Connection, new CCastAbilityPacket { AbilityId = 203 });
+
+            Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+            Assert.True(flagged.Character.IsDead);
+            Assert.Equal([10u],
+                flagged.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED).Select(p => p.Damage));
+            Assert.Equal((3, 1), (random!.DoublesLeft, random.LongsLeft));   // one hit's rolls left undrawn
             return;
         }
 
@@ -458,9 +488,11 @@ public class MapInstanceAbilityCastShould
     }
 
     /// <summary>
-    /// #1181 Part D (review focus 1): a capstone taken while a cast winds up changes nothing of that cast. A Hunter holding
+    /// #1181 Part D: a capstone taken while a cast winds up changes nothing of that cast. A Hunter holding
     /// Frostbolt (320, 0.5 s) and its branch queues it, then takes Shatterbolt (330, <c>AddedProjectiles</c> 2) before it
-    /// fires: that cast fires the one bolt its telegraph showed, and the next fires three.
+    /// fires: that cast fires the one bolt its telegraph showed, and the next fires three. Each start footprint names
+    /// the lanes its own cast fires (<c>Lanes</c>), so a watcher who knows none of the Hunter's abilities draws one,
+    /// then the fan of three.
     /// </summary>
     [Fact]
     public void Fire_a_queued_cast_with_the_shape_it_started_with()
@@ -470,6 +502,7 @@ public class MapInstanceAbilityCastShould
         CharacterEntity hunter = Inventory.TestCharacters.New(164_261);
         hunter.Data!.Class = CharacterClass.Hunter;
         MapInstanceClient caster = Join(instance, hunter);
+        MapInstanceClient watcher = Join(instance, 164_262);
         TalentTestCharacters.Enter(hunter, data, [105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 294, 297, 298, 299, 300, 301]);
         hunter.PowerType = PowerType.Mana;   // as select sets it: every class casts from mana
         AddCreature(instance, 164_911, new Vector3(0f, 0f, 10f), health: 100_000);
@@ -501,6 +534,8 @@ public class MapInstanceAbilityCastShould
 
         Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
         Assert.Equal(4, FiredLanes());
+        Assert.Equal([1u, 3u],
+            watcher.Read<SUnitStartCastPacket>(NetworkPacketType.SMSG_UNIT_START_CAST).Select(s => s.Footprint!.Lanes));
     }
 
     /// <summary>

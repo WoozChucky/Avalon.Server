@@ -23,6 +23,7 @@ variant absent
   field 5 Radius : float = 0 (0x00000000)
   field 6 Reach : float = 0 (0x00000000)
   field 7 ArcDegrees : float = 0 (0x00000000)
+  field 8 Lanes : uint = 0
   bytes 0
 
 variant empty
@@ -42,6 +43,7 @@ variant empty
   field 5 Radius : float = 0 (0x00000000)
   field 6 Reach : float = 0 (0x00000000)
   field 7 ArcDegrees : float = 0 (0x00000000)
+  field 8 Lanes : uint = 0
   bytes 6
     12 00 1a 00 22 00
 
@@ -62,12 +64,13 @@ variant populated
   field 5 Radius : float = 0.100000001 (0x3dcccccd)
   field 6 Reach : float = -7.50000027E-08 (0xb3a10fb0)
   field 7 ArcDegrees : float = 1.5 (0x3fc00000)
-  bytes 68
+  field 8 Lanes : uint = 300
+  bytes 71
     08 01 12 0f 0d b0 0f a1 b3 15 00 00 10 c0 1d b0
     0f a1 b3 1a 0f 0d b0 0f a1 b3 15 00 00 10 c0 1d
     b0 0f a1 b3 22 0f 0d b0 0f a1 b3 15 00 00 10 c0
     1d b0 0f a1 b3 2d cd cc cc 3d 35 b0 0f a1 b3 3d
-    00 00 c0 3f
+    00 00 c0 3f 40 ac 02
 
 variant maxima
   field 1 Shape : AbilityShape = Projectile (2)
@@ -86,12 +89,13 @@ variant maxima
   field 5 Radius : float = 3.40282347E+38 (0x7f7fffff)
   field 6 Reach : float = 3.40282347E+38 (0x7f7fffff)
   field 7 ArcDegrees : float = 3.40282347E+38 (0x7f7fffff)
-  bytes 68
+  field 8 Lanes : uint = 4294967295
+  bytes 74
     08 02 12 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff
     ff 7f 7f 1a 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d
     ff ff 7f 7f 22 0f 0d ff ff 7f 7f 15 ff ff 7f 7f
     1d ff ff 7f 7f 2d ff ff 7f 7f 35 ff ff 7f 7f 3d
-    ff ff 7f 7f
+    ff ff 7f 7f 40 ff ff ff ff 0f
 
 variant minima
   field 1 Shape : AbilityShape = Circle (0)
@@ -110,6 +114,7 @@ variant minima
   field 5 Radius : float = -3.40282347E+38 (0xff7fffff)
   field 6 Reach : float = -3.40282347E+38 (0xff7fffff)
   field 7 ArcDegrees : float = -3.40282347E+38 (0xff7fffff)
+  field 8 Lanes : uint = 0
   bytes 66
     12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff 7f
     ff 1a 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff
@@ -134,12 +139,13 @@ variant varint-edges
   field 5 Radius : float = 1.17549435E-38 (0x00800000)
   field 6 Reach : float = 1.17549435E-38 (0x00800000)
   field 7 ArcDegrees : float = 1.17549435E-38 (0x00800000)
-  bytes 68
+  field 8 Lanes : uint = 127
+  bytes 70
     08 03 12 0f 0d 00 00 80 00 15 00 00 80 00 1d 00
     00 80 00 1a 0f 0d 00 00 80 00 15 00 00 80 00 1d
     00 00 80 00 22 0f 0d 00 00 80 00 15 00 00 80 00
     1d 00 00 80 00 2d 00 00 80 00 35 00 00 80 00 3d
-    00 00 80 00
+    00 00 80 00 40 7f
 
 variant float-specials
   field 1 Shape : AbilityShape = Cone (1)
@@ -158,8 +164,9 @@ variant float-specials
   field 5 Radius : float = NaN (0x7fc00001)
   field 6 Reach : float = Infinity (0x7f800000)
   field 7 ArcDegrees : float = NaN (0xffc00000)
-  bytes 53
+  field 8 Lanes : uint = 300
+  bytes 56
     08 01 12 0a 0d 00 00 80 ff 1d 01 00 00 00 1a 0a
     0d 00 00 80 ff 1d 01 00 00 00 22 0a 0d 00 00 80
     ff 1d 01 00 00 00 2d 01 00 c0 7f 35 00 00 80 7f
-    3d 00 00 c0 ff
+    3d 00 00 c0 ff 40 ac 02

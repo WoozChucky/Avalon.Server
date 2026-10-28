@@ -415,7 +415,11 @@ one, its two states are boxes every projectile shares, and the queue and running
 keeps at most `InstanceAbilityCastSystem.PooledScripts` (256) scripts. A warm projectile cast, a fan's included,
 allocates nothing (`ProjectileCastAllocationShould`, `ProjectileCastBenchmarks`), and `forest-combat`'s committed
 figure fell by a third ([benchmarks](benchmarks.md)). A circle's or a cone's script is still built per cast (224 B),
-until #1238 moves it onto the same pool.
+until #1238 moves it onto the same pool. That move is more than a registration and the two resets: a queued hostile
+circle or cone holds the hits it defers for the dodge wait (`PendingHit`) with the script's own copy of the ability,
+which the pool clears when the script goes back, so a held hit must first keep the id and metadata it reads; and the
+pool's factory takes no DI services, so a pooled type declares none. A script handed back past the cap is counted
+(`world.ability_scripts.pool_drops`).
 
 ---
 

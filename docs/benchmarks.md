@@ -2631,7 +2631,7 @@ forest tick, which must not regress. The rows:
 
   Setup fails the run unless `Hit_twice` passes two hits to the arena (counted through a counting arena, setup only)
   and the burst's cast hit the struck boar and five more and nothing else.
-- **`ProjectileCastBenchmarks`** (new with the pool, Task 6 and 7 of part D2): one instant Spark Bolt (210) through
+- **`ProjectileCastBenchmarks`** (new with part D2's projectile pool and fans): one instant Spark Bolt (210) through
   `MapInstance.RunInstantAbility`, flown to its end on a boar 6 m away and ticked through its final broadcast and two
   view rounds, as `ProjectileCastAllocationShould` pins it (`Fire_one`); and the same Spark Bolt shaped as a fan of
   three (`AddedProjectiles` 2), a boar for each lane (`Fire_fan_of_three`). Setup fails the run unless every warm-up
@@ -2664,7 +2664,8 @@ first run read 190.1 ns, 431.6 ns (± 34.5 ns) and 2,751 ns for the three rows.
 **Nothing on the hit path allocates.** A second hit is a second whole `ResolveHit` (its rolls, mitigation, threat and
 report), so it takes about twice the first (2.01 times). The burst is about 12.6 single hits: six hits, two broadcasts
 and one circle query. **A projectile cast allocates nothing once warm, a fan's included.** The fan of three takes
-70.02 µs against Task 6's steady `Fire_one` of 44.41 µs (± 0.26 µs, its own pinned run; this run's reads the same),
+70.02 µs against the steady `Fire_one` of 44.41 µs (± 0.26 µs, the pool commit's own pinned run; this run's reads the
+same),
 +25.6 µs for two more lanes, each a whole projectile's flight, impacts, hit and broadcasts, every lane taken from the
 pool. The first casts of an instance fill its pool, one projectile for each in flight or waiting out its two view
 rounds, and nothing is per hit or per lane after that. BenchmarkDotNet removed outliers from `Hit_once` (two),
@@ -2688,25 +2689,38 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ForestTi
 
 A projectile cast takes as long as it did and no longer allocates its 546 B (its script, its cast copy, its hit set,
 its state boxes, its guid and its running-list entry; `ProjectileCastAllocationShould` on the base reads 544 B an
-instant cast and 672 B a queued one, the queue entry besides). Task 6's in-process pair read 229.0 µs (± 3.8 µs, 547
-B) on the base against 237.5 µs (± 2.5 µs, 5 B) on the branch, about two error bars apart. **The unshaped tick
+instant cast and 672 B a queued one, the queue entry besides). The pool commit's in-process pair read 229.0 µs (± 3.8
+µs, 547 B) on the base against 237.5 µs (± 2.5 µs, 5 B) on the branch, about two error bars apart. **The unshaped tick
 allocates nothing on either side.** Out of process the branch reads 24 ns (2.2 %) more per tick, just outside both
 errors. The first in-process pair read 14 % more, and the one more pair run to check it 2.9 % (the branch's first run
 was the slow one); neither is inside the base's error. What part D2 adds to a tick with no cast is a few reads: the
 pool's `Recycle` at each cast-system update (one look at an empty queue), the view round counted after each view
 decision, and Unbroken's flag passed to each character's ward advance. The figures were not tuned by running again.
 
-**The scenario.** `forest-capstones` reads 11,135 B per window (15.47 B per player per tick), the same in Debug and
-Release and on both runs of `ForestCombatScenarioShould`. Its fight over the whole run: 151 kills, 2 deaths, 21 heals
-landed, 33 kill quests completed, 270 pickups and 140 items destroyed, against `forest-combat`'s 117, 4, 20, 21, 216
-and 112. Its 1,733 B (18 %) over `forest-combat`'s 9,402 B is the larger fight's, whose kills, pickups and quest
-completions allocate as in the plain fight (loot, quests, items), and it stays under the 12,134 B the plain fight's
-bytes per kill would give 151 kills; nothing is per hit, per lane or per explosion, as the rows above read. **Pooled
-projectiles at their peak**: a one-off probe read, every tick of a whole run, each instance's pooled projectiles (free,
-waiting out their rounds, in flight or queued, creatures' included): at most 10, 19, 8 and 18 in `forest-capstones`'s
-four forests, and 9, 14, 12 and 11 in `forest-combat`'s, against `InstanceAbilityCastSystem.PooledScripts`, 256 per
-type, so no fight comes near the cap. **The committed rows were lowered** with the scenario's first entry
-([the allocation gate](#the-allocation-gate)).
+**After part D2's final fixes** (the second hit's aura placed after both hits, a lane count read from the script type
+before a fan turns its lanes, the start footprint's lane count, the pool's drop counter), one more pinned run of
+`CapstoneBenchmarks` and `ProjectileCastBenchmarks`, same command and settings, read every row 0 B again: `Hit_once`
+197.6 ns (± 1.69 ns), `Hit_twice` 391.8 ns (± 2.49 ns), `Explode_among_five` 2,495.3 ns (± 13.79 ns), `Fire_one`
+45.15 µs (± 0.50 µs) and `Fire_fan_of_three` 83.69 µs (± 9.52 µs, a standard deviation of 11 µs: other work ran on the
+machine during that row). The hit rows and `Fire_one` are within about 2 % of the run above; the fan's row is noise,
+not a cost (the fix adds one type check per lane built), and was not run again.
+
+**The scenario.** `forest-capstones` reads 11,549 B per window (16.04 B per player per tick), the same in Debug and
+Release and on both runs of `ForestCombatScenarioShould`, since part D2's final fixes gave its warriors an opener: Rend,
+shaped with `AuraStacks` 2 and `AuraDurationPct` 50, cast whenever it is ready (16 casts in the measured ticks), so the
+fight also places auras with capstone factors (11,135 B before). Its fight over the whole run: 147 kills, 4 deaths, 18
+heals landed, 32 kill quests completed, 282 pickups and 154 items destroyed (151, 2, 21, 33, 270 and 140 before the
+opener), against `forest-combat`'s 117, 4, 20, 21, 216 and 112. Its 2,147 B (23 %) over `forest-combat`'s 9,402 B is the
+larger fight's, whose kills, pickups and quest completions allocate as in the plain fight (loot, quests, items), and it
+stays under the 11,813 B the plain fight's bytes per kill would give 147 kills; nothing is per hit, per lane, per
+explosion or per aura factor, as the rows above read. **The aura factors cost nothing**: one run with the opener's Rend
+unshaped (the same casts, no stack bonus and no longer Bleed) read the same 11,549 B, so the 414 B the opener added is
+its fight's (more pickups, destroys and deaths), not the factors'. **Pooled projectiles at their peak**: a one-off probe
+read, every tick of a whole run before the opener, each instance's pooled projectiles (free, waiting out their rounds,
+in flight or queued, creatures' included): at most 10, 19, 8 and 18 in `forest-capstones`'s four forests, and 9, 14, 12
+and 11 in `forest-combat`'s, against `InstanceAbilityCastSystem.PooledScripts`, 256 per type, so no fight comes near the
+cap (`world.ability_scripts.pool_drops` counts a script let go past it, [instrumentation](instrumentation.md)). **The
+committed rows were lowered** with the scenario's first entry ([the allocation gate](#the-allocation-gate)).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -4823,7 +4837,7 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 | `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 33, 46, 56 and 36 (1 to 4 until #1109, then 45, 46, 15 and 36 until its tree walls, then 33, 46, 15 and 36 until #1113), each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 325, 226, 198 and 231 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a cleric. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach and in sight casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a cleric heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
 | `forest-resonance` | 4 forests | 12 | `forest-combat`'s fight with every fighter in Resonance gear (#1180 part A2). Before its bag is filled, each is refreshed wearing four pieces (helmet 36, ring 68 on both fingers, amulet 69), each with one T9 affix of each of its class's two themes (warrior Iron and Thorn, wizard Ember and Veil, hunter Storm and Gale, cleric Wild and Rime), so both its themes stand at 4 and it runs their count-4 rows; across the roster that is every count-4 row, 13 of the 29 effect rows. Its procs fire through the real `ResonanceDispatcher` and place their auras through the real aura system. It keeps `forest-combat`'s floors and adds one: across the roster, Hit, Crit, Kill and Struck effects must each have fired (a slot holding a cooldown). `ForestCombatScenario.TriggersFired` reports those and Evaded and WardBroken too, which are not floored; the runner prints none of them. |
 | `forest-awakening` | 4 forests | 12 | `forest-combat`'s fight with every fighter in the sealed kit (#1180 part B). Before its bag is filled, each is refreshed wearing one identified rare amulet (69) at item level 1000 carrying only a sealed T9 "S5 Fire" at progress 0 (`ScenarioWorld.WearSealedKit`); a sealed affix adds nothing, so it fights `forest-combat`'s fight kill for kill, and its threshold (10,040 points) is never reached, so nothing wakes. Its kills and damage feed each fighter's Awakening meter, which the tick's Awakening stage settles and sends (`ScenarioWorld.Tick` runs `AwakeningFlusher` after the instance tick, as `WorldServer` does). It keeps `forest-combat`'s floors and adds one: every fighter's sealed row gained progress over the measured ticks. |
-| `forest-capstones` | 4 forests | 12 | `forest-combat`'s fight with every fighter shaped by capstones and holding a keystone (#1181 part D). Before its bag is filled, each class's abilities are replaced by plain ones shaped as held capstones shape them, and it holds its class's keystone, its stats refreshed (`ScenarioWorld.ShapeKit`): the warrior's Cleave wider (`ConeArcPct` 50) and striking twice (`SecondHit` 50), paid in life under Blood Price; the wizard's Spark Bolt a fan of three (`AddedProjectiles` 2) under Steady Hand; the hunter's Quick Shot exploding on the unit it ends on (`ImpactExplosion` 25, 50) under Glass Edge; the cleric's Smite striking twice and its Mending Circle wider and healing twice (`AreaPct` 40, `SecondHit` 50) under Unbroken. So the fight runs every per-hit path of part D: a fan's pooled lanes and their shared hits, the explosion, the second hit and heal, the life payment, the crit of 0 and the ward that takes all. It keeps `forest-combat`'s floors, and `ForestCombatScenarioShould` checks its fight is not `forest-combat`'s. |
+| `forest-capstones` | 4 forests | 12 | `forest-combat`'s fight with every fighter shaped by capstones and holding a keystone (#1181 part D). Before its bag is filled, each class's abilities are replaced by plain ones shaped as held capstones shape them, and it holds its class's keystone, its stats refreshed (`ScenarioWorld.ShapeKit`): the warrior's Cleave wider (`ConeArcPct` 50) and striking twice (`SecondHit` 50), paid in life under Blood Price; the wizard's Spark Bolt a fan of three (`AddedProjectiles` 2) under Steady Hand; the hunter's Quick Shot exploding on the unit it ends on (`ImpactExplosion` 25, 50) under Glass Edge; the cleric's Smite striking twice and its Mending Circle wider and healing twice (`AreaPct` 40, `SecondHit` 50) under Unbroken; and the warrior opens with Rend, its Bleed 2 stacks deeper and 50 % longer (`AuraStacks` 2, `AuraDurationPct` 50), whenever it is ready (`ScenarioWorld.ShapedOpener`, `LoopFighter`'s opener). So the fight runs every per-hit path of part D: a fan's pooled lanes and their shared hits, the explosion, the second hit and heal, an aura's capstone factors, the life payment, the crit of 0 and the ward that takes all. It keeps `forest-combat`'s floors and adds one, the warriors' shaped Rends cast during the measured ticks; `ForestCombatScenarioShould` checks its fight is not `forest-combat`'s. |
 | `town-doodads` | 1 town | 30 | `town-walk`'s circle with no creatures, among 40 doodads on a ring 20 m from its centre: 20 without rules and 20 behind a NotStarted quest gate, which every other player has taken, so half the views refuse them. Every view decision lists the ungated ones by distance alone and the gated ones by the answer the view holds (`CharacterCharacterGameState.Sees`); the scenario checks that each view holds exactly the doodads its rules allow. |
 
 No scenario was reduced in size: `many-instances` takes 1 to 8 s for its 600 warm-up ticks and windows (5 to 7 s with
@@ -5075,7 +5089,12 @@ with the committed figure, in every build (Debug and Release, see below) and for
   smallest, 24 B, is 1,440 B per window).
   `town-doodads` reads 0 from its first entry (doodads S1, 2026-10-18), its row added alone, with no other row
   regenerated: a view decision over 40 doodads, half of them gated, allocates nothing.
-  `forest-capstones` reads 11,135 B per window from its first entry (#1181 part D2, at `226f7c252`). Its row was added
+  `forest-capstones` reads 11,549 B per window since part D2's final fixes, its row alone regenerated, every other row
+  inside its tolerance unregenerated: the fight gained its warriors' opener, a Rend shaped with both aura factors,
+  because the scenario ran no aura factor before; the factors themselves cost 0 B (a run with the same Rend unshaped
+  reads the same 11,549 B), and the 414 B is the opener's fight, which picks up, destroys and dies more ([capstones on
+  the hit path](#capstones-on-the-hit-path--capstonebenchmarkscs-projectilecastbenchmarkscs-1181-part-d2)). It read
+  11,135 B per window from its first entry (#1181 part D2, at `226f7c252`). Its row was added
   alone first, and every other row passed inside its tolerance unregenerated (9 of 9 in Debug and in Release); then the
   file was regenerated once, in Release, to lock in the pooled projectiles' saving, so a later change cannot spend it
   unseen under the old ceilings: `forest-combat` 14,126 to 9,402 B (−33.4 %), `forest-awakening` 14,194 to 9,468 B

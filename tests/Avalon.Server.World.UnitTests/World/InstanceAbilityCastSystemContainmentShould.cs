@@ -248,10 +248,7 @@ public class InstanceAbilityCastSystemContainmentShould
         }
 
         // Only the staying caster's projectile hit.
-        Assert.Single(_arena.Damaged());
-        Assert.Same(staying, _arena.CombatService.ReceivedCalls()
-            .Single(c => c.GetMethodInfo().Name == nameof(Avalon.World.Public.Combat.ICombatService.ApplyDamage))
-            .GetArguments()[0]);
+        Assert.Same(staying, Assert.Single(_arena.DamageDealt).Caster);
     }
 
     // ── #883: the index GetAbility answers from follows the active scripts ──

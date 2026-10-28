@@ -716,11 +716,15 @@ public sealed class ScenarioWorld : IDisposable
             throw new InvalidOperationException($"The seed has no stats for {character.Class}");
     }
 
-    // The shaped fight's abilities, by class: each ability and the capstone rows it is shaped by (D-R18).
+    // The shaped fight's abilities, by class: each ability and the capstone rows it is shaped by.
     private static readonly Dictionary<CharacterClass, (uint Ability, (TalentModifierKind, int, int?)[] Rows)[]> s_shapedKit =
         new()
         {
-            [CharacterClass.Warrior] = [(200, [(TalentModifierKind.ConeArcPct, 50, null), (TalentModifierKind.SecondHit, 50, null)])],
+            [CharacterClass.Warrior] =
+            [
+                (200, [(TalentModifierKind.ConeArcPct, 50, null), (TalentModifierKind.SecondHit, 50, null)]),
+                (203, [(TalentModifierKind.AuraStacks, 2, null), (TalentModifierKind.AuraDurationPct, 50, null)]),
+            ],
             [CharacterClass.Wizard] = [(210, [(TalentModifierKind.AddedProjectiles, 2, null)])],
             [CharacterClass.Hunter] = [(220, [(TalentModifierKind.ImpactExplosion, 25, 50)])],
             [CharacterClass.Cleric] =
@@ -729,6 +733,14 @@ public sealed class ScenarioWorld : IDisposable
                 (232, [(TalentModifierKind.AreaPct, 40, null), (TalentModifierKind.SecondHit, 50, null)]),
             ],
         };
+
+    /// <summary>
+    /// The ability a shaped fighter of <paramref name="characterClass" /> opens with whenever it is ready (#1181 part
+    /// D, <c>LoopFighter</c>'s opener), 0 for none: the warrior's Rend (203), shaped by <see cref="ShapeKit" /> to
+    /// stack its Bleed 2 deeper and hold it 50 % longer, so the fight places auras with capstone factors.
+    /// </summary>
+    public static uint ShapedOpener(CharacterClass characterClass) =>
+        characterClass == CharacterClass.Warrior ? 203u : 0u;
 
     // The shaped fight's keystones, by class: Blood Price, Steady Hand, Glass Edge and Unbroken.
     private static readonly Dictionary<CharacterClass, int> s_keystones = new()

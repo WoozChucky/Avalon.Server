@@ -6,13 +6,14 @@ namespace Avalon.Server.World.UnitTests.Performance;
 
 /// <summary>
 /// The <c>forest-combat</c>, <c>forest-resonance</c>, <c>forest-awakening</c> and <c>forest-capstones</c> scenarios are
-/// gated by <see cref="ScenarioAllocationsShould" /> like the others, which holds only if the same build fights the same fight on every run: this checks that each does,
-/// in one process, where anything process-wide (the object id counter, caches warmed by the first run) would show. The
-/// scenario's own check (<see cref="ForestCombatScenario.Verify" />, run by each measurement) requires heals landed, kill
-/// quests credited and completed, drops picked up, items destroyed and, themed, Resonance effects fired during the
-/// measured ticks and, sealed, progress on every fighter's sealed affix; this adds that the whole run kills and dies, and
-/// that both runs did all of it alike, the themed fight firing the same effects and the sealed one filling the same bars,
-/// and that the shaped fight is not the plain one.
+/// gated by <see cref="ScenarioAllocationsShould" /> like the others, which holds only if the same build fights the
+/// same fight on every run: this checks that each does, in one process, where anything process-wide (the object id
+/// counter, caches warmed by the first run) would show. The scenario's own check
+/// (<see cref="ForestCombatScenario.Verify" />, run by each measurement) requires heals landed, kill quests credited
+/// and completed, drops picked up, items destroyed and, themed, Resonance effects fired during the measured ticks and,
+/// sealed, progress on every fighter's sealed affix; this adds that the whole run kills and dies, and that both runs
+/// did all of it alike, the themed fight firing the same effects and the sealed one filling the same bars, and that the
+/// shaped fight is not the plain one.
 /// </summary>
 [Collection(nameof(ScenarioAllocations))]
 public sealed class ForestCombatScenarioShould(ITestOutputHelper output)

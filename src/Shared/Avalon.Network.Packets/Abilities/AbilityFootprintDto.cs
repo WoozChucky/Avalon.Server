@@ -21,9 +21,10 @@ namespace Avalon.Network.Packets.Abilities;
 /// <see cref="Reach" /> (its length) and <see cref="ArcDegrees" /> (its full angle). Walls do not clip it.</item>
 /// <item><b>Projectile:</b> a lane from <see cref="Origin" /> along <see cref="Direction" /> for
 /// <see cref="Reach" />, cut where the walkable ray stops; the projectile may stop earlier on its first hit. It
-/// is sent on the start only: once fired, the projectile is a world object with its own replication.</item>
+/// is sent on the start only: once fired, the projectile is a world object with its own replication. A fan (#1181
+/// Part D) fires <see cref="Lanes" /> such lanes, 10 degrees apart and centred on <see cref="Direction" />.</item>
 /// </list>
-/// A member a shape does not use is absent (the vectors) or 0 (the floats).
+/// A member a shape does not use is absent (the vectors) or 0 (the numbers).
 /// </remarks>
 [ProtoContract]
 public class AbilityFootprintDto
@@ -51,8 +52,16 @@ public class AbilityFootprintDto
     /// <summary>A cone's full angle, in degrees; 0 for the other shapes.</summary>
     [ProtoMember(7)] public float ArcDegrees { get; set; }
 
+    /// <summary>
+    /// How many projectiles the cast fires (#1181 Part D): 1, or a fan's count, its lanes turned 10 degrees apart about
+    /// <see cref="Direction" />, the middle one along it, each drawn for <see cref="Reach" />, the middle lane's; 0
+    /// for a circle and a cone. Read from the cast's own shape, so a client draws a fan's telegraph without knowing the
+    /// caster's abilities.
+    /// </summary>
+    [ProtoMember(8)] public uint Lanes { get; set; }
+
     public static AbilityFootprintDto Create(AbilityShape shape, Vector3 origin, Vector3? direction, Vector3? centre,
-        float radius, float reach, float arcDegrees) => new()
+        float radius, float reach, float arcDegrees, uint lanes) => new()
         {
             Shape = shape,
             Origin = Vector3Dto.From(origin),
@@ -61,5 +70,6 @@ public class AbilityFootprintDto
             Radius = radius,
             Reach = reach,
             ArcDegrees = arcDegrees,
+            Lanes = lanes,
         };
 }

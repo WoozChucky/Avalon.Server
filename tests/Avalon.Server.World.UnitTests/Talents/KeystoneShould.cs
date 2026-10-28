@@ -28,10 +28,11 @@ namespace Avalon.Server.World.UnitTests.Talents;
 
 /// <summary>
 /// #1181 Part D: the three keystone rules, held through the seeded tree, through a real instance, the real cast handler
-/// and the combat service. Blood Price (332) pays Cleave's 6 from life, never mana, the ward or combat, and refuses a cost
-/// that would leave less than 1 life (review focus 4). Steady Hand (334) keeps the crit chance at 0 whatever an aura
-/// grants, so no hit and no aura snapshot of its holder crits, even on rolls of 0. Unbroken (335) lets the ward take
-/// blight and a bleed tick, and waits 8 s, not 4, before the ward recharges. Character ids 118_401 upward.
+/// and the combat service. Blood Price (332) pays Cleave's 6 from life, never mana or the ward, the payment itself
+/// tagging no combat (the cast enters combat as any cast does), and refuses a cost that would leave less than 1 life.
+/// Steady Hand (334) keeps the crit chance at 0 whatever an aura grants, so no hit and no aura snapshot of its holder
+/// crits, even on rolls of 0. Unbroken (335) lets the ward take blight and a bleed tick, and waits 8 s, not 4, before
+/// the ward recharges. Character ids 118_401 upward.
 /// </summary>
 public class KeystoneShould
 {
@@ -52,7 +53,8 @@ public class KeystoneShould
     {
         StaticData data = ScenarioReferenceData.Shared.Data;
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
-        // Every chance roll 0: a crit chance above 0 would crit; nothing here has evasion or block to draw on it.
+        // Every chance roll 0: a crit chance above 0 would crit; nothing here has evasion or block to draw on it. Every
+        // damage roll 14, the low end of Spark Bolt's spell base (14 to 20).
         ScriptedCombatRandom? random = row.StartsWith("steady", StringComparison.Ordinal)
             ? new ScriptedCombatRandom(new double[300]).Longs([.. Enumerable.Repeat(14L, 50)])
             : null;

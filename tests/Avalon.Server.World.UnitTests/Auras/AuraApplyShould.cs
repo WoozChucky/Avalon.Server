@@ -341,8 +341,10 @@ public class AuraApplyShould
     /// placing new copies on units that held some, the owner's cancel, the removal on death and the removal on a
     /// creature's reset. Nor does an application that is refused: an ability's aura on a corpse costs nothing before its
     /// refusal. The creatures' auras come from an ability shaped by capstones (#1181 Part D: 50 % longer, 2 stacks more),
-    /// each applied twice, so the lengthened placement and the raised cap's stack cost nothing either. Every copy the round placed is one the round before ended, never one still held. Copies made elsewhere and
-    /// ended here never join the pool, which stays at this system's own ten, each holding no template.
+    /// each applied four times, so Bleed stacks to 4, past its row's cap of 3: the lengthened placement and the stack
+    /// the raised cap allows cost nothing either. Every copy the round placed is one the round before ended, never one
+    /// still held. Copies made elsewhere and ended here never join the pool, which stays at this system's own ten, each
+    /// holding no template.
     /// </summary>
     [Fact]
     public void Place_refuse_and_end_auras_without_allocating()
@@ -392,14 +394,14 @@ public class AuraApplyShould
             {
                 for (int a = 0; a < harmful.Length; a++)
                 {
-                    _h.Auras.Apply(healer, creatures[i], harmful[a], shaped);
-                    _h.Auras.Apply(healer, creatures[i], harmful[a], shaped);
+                    for (int times = 0; times < 4; times++)
+                        _h.Auras.Apply(healer, creatures[i], harmful[a], shaped);
                 }
             }
 
             long placing = GC.GetAllocatedBytesForCurrentThread() - before;
             ActiveAura shapedBleed = creatures[0].Auras.All[0];
-            Assert.Equal((901u, 2u, 18_000u), (shapedBleed.Id.Value, shapedBleed.Stacks, shapedBleed.DurationMs));
+            Assert.Equal((901u, 4u, 18_000u), (shapedBleed.Id.Value, shapedBleed.Stacks, shapedBleed.DurationMs));
 
             // Outside the measure: the round's copies against the last round's.
             if (round == 1)

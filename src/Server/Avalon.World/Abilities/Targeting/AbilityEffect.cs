@@ -34,9 +34,10 @@ public static class AbilityEffect
     /// <remarks>
     /// A second hit (#1181 Part D: <see cref="AbilityMetadata.SecondHitEffectiveness" /> above 0) follows at once, at
     /// that share of the amount, with its own evasion, crit and block rolls: an Ally ability heals again, then applies
-    /// its aura once. A Hostile one applies its aura after the first hit when that landed (or it is Unavoidable), then
-    /// hits again unless the first was passed over or left the unit dead, so a corpse draws no roll; when the first
-    /// applied no aura and the second lands, the second applies it. Only the first landed hit applies the aura.
+    /// its aura once. A Hostile one hits again unless the first was passed over or left the unit dead, so a corpse
+    /// draws no roll, and only then applies its aura, once, for the first hit that landed: the first when it landed (or
+    /// the ability is Unavoidable), else the second when that landed. Placed after both hits, the aura is never on the
+    /// unit while the cast's own second hit lands, so that hit can never break crowd control the first just placed.
     /// </remarks>
     public static void Apply(IAbilityArena arena, IUnit caster, IAbility ability, IUnit unit)
     {
@@ -57,16 +58,15 @@ public static class AbilityEffect
         }
 
         HitOutcome first = arena.HitForAbility(caster, unit, ability, HitShaping.Whole);
-        bool auraApplied = first == HitOutcome.Landed
-                           || (metadata.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
-        if (auraApplied)
-            arena.ApplyAbilityAura(caster, unit, ability);
+        bool landed = first == HitOutcome.Landed || (metadata.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
 
-        if (!(secondHit > 0f) || first == HitOutcome.Ignored || AuraSystem.IsDead(unit))
-            return;
+        if (secondHit > 0f && first != HitOutcome.Ignored && !AuraSystem.IsDead(unit))
+        {
+            landed |= arena.HitForAbility(caster, unit, ability, new HitShaping(secondHit, AbilityTags.None))
+                      == HitOutcome.Landed;
+        }
 
-        HitOutcome second = arena.HitForAbility(caster, unit, ability, new HitShaping(secondHit, AbilityTags.None));
-        if (!auraApplied && second == HitOutcome.Landed)
+        if (landed)
             arena.ApplyAbilityAura(caster, unit, ability);
     }
 

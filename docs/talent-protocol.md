@@ -253,9 +253,12 @@ handles:
 - **A fan** (`ProjectileCount` above 1). Each lane is a projectile of its own, a `SpellProjectile` world object added,
   moved and removed as any, each lane 10° from its neighbour, centred on the aim. Each lane sends its own
   `SMSG_ABILITY_FIRED` with its own projectile footprint, all under the cast's one `CastId`, so a fan of three is three
-  fired events. A cast-time fan's `SUnitStartCastPacket` footprint is the centre lane: draw the telegraph as a fan from
-  `ProjectileCount`. Each lane tells its own `SMSG_PROJECTILE_IMPACT`; a unit is hit by one lane at most, so a lane that
-  meets a unit another lane already hit flies through it.
+  fired events. A cast-time fan's `SUnitStartCastPacket` footprint is the centre lane, and its `Lanes` (field 8 of
+  `AbilityFootprintDto`) is the cast's projectile count, read from the cast's own shape: draw the telegraph as that
+  many lanes 10° apart about the footprint's `Direction`, each for its `Reach`, which every client can, the caster's
+  abilities unknown. A single projectile's footprint says 1, a circle's and a cone's 0. Each lane tells its own
+  `SMSG_PROJECTILE_IMPACT`; a unit is hit by one lane at most, so a lane that meets a unit another lane already hit
+  flies through it.
 - **An explosion** (`ExplosionRadius` above 0). When a projectile ends on a unit, after that unit's impact and damage,
   one more `SMSG_ABILITY_FIRED` arrives under the projectile's `CastId` with a `Circle` footprint of the explosion's
   radius centred where the projectile met the unit; draw the burst from it. Each other unit it hits takes an ordinary
@@ -275,7 +278,7 @@ gain for a loss with `More` stat lines, or both:
 |---:|---|---|---|
 | 332 | Blood Price | 1, life cost: an ability's cost is paid from current life, never leaving less than 1 | – |
 | 333 | Glass Edge | null | 30 % more damage, 25 % less maximum life |
-| 334 | Steady Hand | 2, no crits: no hit, heal or aura tick of the holder's is critical | 20 % more damage, 20 % more healing |
+| 334 | Steady Hand | 2, no crits: no hit, heal or aura tick of the holder's is critical (an aura placed before it was taken keeps its chance) | 20 % more damage, 20 % more healing |
 | 335 | Unbroken | 3, ward takes all: the ward also absorbs blight and bleeding, and waits twice as long to recharge | – |
 
 A keystone's stat lines reach the client as any node's do, through the character sheet. What the client sees of each
@@ -286,7 +289,8 @@ rule:
   packet; mana does not move. A cast whose cost would leave less than 1 life is refused `NotEnoughPower` (the same
   `SAbilityNotReadyPacket` as too little mana): show it as not enough life. The accepted cast enters combat as any
   cast does.
-- **Steady Hand.** The character sheet's crit chance is 0, and no hit, heal or aura tick of the holder's carries
-  `Crit`.
+- **Steady Hand.** The character sheet's crit chance is 0, and no hit or heal of the holder's carries `Crit`, nor any
+  tick of an aura placed while holding it. An aura placed before Steady Hand was taken keeps the crit chance it
+  snapshotted, so its ticks may still carry `Crit` until it ends.
 - **Unbroken.** The holder's ward also takes blight hits, blight ticks and bleed ticks (their `WardAbsorbed` is set
   where it was 0), and starts recharging after twice the usual delay.

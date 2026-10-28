@@ -165,10 +165,12 @@ public sealed class AuraSystem
     /// duration: on a creature, the share its <see cref="Creature.ControlResistance" /> takes; on a character, from
     /// another character, the PvP diminishing step of each type it stuns, roots or silences with (full, half, quarter,
     /// immune), the smallest winning, each type then recorded as landed. Nothing landing (a share of 0, the immune step,
-    /// or a creature walking home) is Resisted: nothing is placed and nothing recorded. Its refresh keeps the later of
-    /// the held expiry and the new one. A stun or a silence that landed then ends the target's running cast bar, through
-    /// the instance. A <paramref name="durationMs" /> given (a GameMaster's /aura, #1152) is the duration placed exactly,
-    /// a refresh included: no resistance share, no diminishing step, nothing recorded.
+    /// or a creature walking home) is Resisted: nothing is placed and nothing recorded. A stun or a silence that landed
+    /// then ends the target's running cast bar, through the instance. A refresh of any aura keeps the later of the held
+    /// expiry and the new one, so it never shortens what the copy has left: neither crowd control's (#770) nor a copy a
+    /// capstone lengthened, whoever refreshes it (#1181 Part D). A <paramref name="durationMs" /> given (a GameMaster's
+    /// /aura, #1152) is the duration placed exactly, a refresh included: no resistance share, no diminishing step,
+    /// nothing recorded, and the held expiry not kept.
     /// <para>
     /// #1181 Part D: the source ability's capstone factors, read from its metadata before the aura lets it go. Its
     /// <see cref="Avalon.World.Public.Abilities.AbilityMetadata.AuraDurationPct" /> lengthens the row's duration
@@ -211,7 +213,7 @@ public sealed class AuraSystem
         bool controls = false;
         if (template.Kind == AuraKind.Harmful)
         {
-            controls = template.Control != CrowdControl.None || AuraRules.IsSlow(template);
+            controls = AuraRules.IsCrowdControl(template);
 
             // A creature walking home resists crowd control (its caster is told "Immune") and refuses any other harmful
             // aura; one every hit passes over for any other reason (arrival protection, invulnerable) refuses either.
@@ -268,7 +270,7 @@ public sealed class AuraSystem
             HitResolver.TypeOf(source.DamageType, casterCombat), _combat.Random, source.CannotCrit);
         // The metadata has done its work: the aura keeps its source without it, so it holds no ability for its life.
         AuraApplyResult result = Place(target, auras, held, template, casterGuid, source with { Ability = null }, snapshot,
-            placedMs, scaled, stackBonus, now);
+            placedMs, keepsLater: durationMs is null, stackBonus, now);
 
         // A first hook (or the removal it asked for) that killed the target: death ends every aura, and a corpse enters
         // no combat.
@@ -330,12 +332,13 @@ public sealed class AuraSystem
     /// <summary>
     /// Renews the copy held (stacking it when its row allows) or adds a new one, for <paramref name="durationMs" />,
     /// refreshes the stats it modifies and runs its script's OnStack or OnApply; a script that ended its aura from that
-    /// hook has it removed at once. A crowd-control aura's refresh (<paramref name="controls" />) never shortens what the
-    /// held copy has left (#770): it keeps the later expiry. <paramref name="stackBonus" /> raises a Stack row's cap for
-    /// this application (#1181 Part D), and the stacks held are never lowered.
+    /// hook has it removed at once. A refresh that <paramref name="keepsLater" /> (any but a given duration's) never
+    /// shortens what the held copy has left: it keeps the later expiry, so neither crowd control (#770) nor a copy a
+    /// capstone lengthened (#1181 Part D) is cut short by another application. <paramref name="stackBonus" /> raises a
+    /// Stack row's cap for this application (#1181 Part D), and the stacks held are never lowered.
     /// </summary>
     private AuraApplyResult Place(IUnit target, UnitAuras auras, ActiveAura? held, AuraTemplate template,
-        ObjectGuid casterGuid, AuraSource source, AuraSnapshot snapshot, uint durationMs, bool controls,
+        ObjectGuid casterGuid, AuraSource source, AuraSnapshot snapshot, uint durationMs, bool keepsLater,
         uint stackBonus, DateTimeOffset now)
     {
         AuraApplyResult result;
@@ -343,7 +346,7 @@ public sealed class AuraSystem
         {
             uint stacks = AuraRules.NextStacks(template.Stacking, held.Stacks, template.MaxStacks, stackBonus);
             bool stacked = stacks > held.Stacks;
-            if (controls)
+            if (keepsLater)
                 durationMs = Math.Max(durationMs, UnitAuras.RemainingMs(held, now));
             held.Renew(template, casterGuid, source, stacks, snapshot, durationMs, now);
             auras.Changed(held, stacked ? AuraChangeKind.Stacked : AuraChangeKind.Refreshed, now);

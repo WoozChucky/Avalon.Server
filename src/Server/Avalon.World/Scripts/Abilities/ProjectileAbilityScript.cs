@@ -30,9 +30,10 @@ namespace Avalon.World.Scripts.Abilities;
 /// <see cref="AbilityScriptPool" />, so a warm projectile cast allocates nothing. A projectile from the pool lives cast
 /// after cast: <see cref="PooledAbilityScript.Launch" /> binds it to the next (its own copy of the caster's ability made
 /// again, the caster and the aim) and leaves every other field as this constructor would: no hit set, nothing travelled,
-/// at rest at the origin, cast id 0, executing, nothing unsent. <see cref="PooledAbilityScript.Clear" /> lets go of its
-/// cast when it goes back: its copy cleared, no caster, its hit set released, finished, so a pooled projectile keeps
-/// nothing alive. Built through the public constructor (the activator, a test), it is an ordinary projectile no pool takes.
+/// at rest at the origin, no guid until it is prepared, cast id 0, executing, nothing unsent.
+/// <see cref="PooledAbilityScript.Clear" /> lets go of its cast when it goes back: its copy cleared, no caster, its hit
+/// set released, finished, so a pooled projectile keeps nothing alive. Built through the public constructor (the
+/// activator, a test), it is an ordinary projectile no pool takes.
 /// </para>
 /// <para>
 /// <b>Its guid.</b> One wrapper of its own, made at its first <see cref="Prepare" />, which writes a new id into it at
@@ -113,6 +114,8 @@ public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileId
         Position = Vector3.zero;
         Velocity = Vector3.zero;
         Orientation = Vector3.zero;
+        // No guid until Prepare writes the flight's new id into the wrapper, which is kept for that.
+        Guid = null!;
         CastId = 0;
         State = s_executing;
     }
@@ -197,8 +200,8 @@ public sealed class ProjectileAbilityScript : PooledAbilityScript, IProjectileId
 
             if (last)
             {
-                // Ended on a unit: the explosion bursts there. The list it walks is the one this loop read, reused by the
-                // query, so nothing reads `units` after it.
+                // Ended on a unit: the explosion bursts there, its circle in a list of the query's own, and the flight
+                // returns before reading `units` again.
                 if (meta.ExplosionRadius > 0f)
                     Explode(hitPoint, unit);
 

@@ -18,14 +18,18 @@ namespace Avalon.Server.World.UnitTests.Abilities;
 /// <summary>What an ability does to one unit its shape affects: the direct amount its Effects carries, then its aura.</summary>
 public class AbilityEffectShould
 {
-    private static IAbility Blessing(SpellEffect effects)
+    private static IAbility Blessing(SpellEffect effects, params (TalentModifierKind, int, int?)[] shape)
     {
         AbilityTemplate row = AbilityTestData.HealCircle(233);
         row.Effects = effects;
         row.AuraId = new AuraId(904);
-        return AbilityTestData.Game(row);
+        return AbilityTestData.Shaped(row, shape);
     }
 
+    /// <summary>
+    /// The heal, then the aura; shaped with a second heal (#1181 Part D, <c>SecondHit</c> 50), the heal again at half
+    /// the amount before the aura, which is applied once.
+    /// </summary>
     [Fact]
     public void Heal_then_apply_the_aura_of_an_ally_ability_with_the_heal_flag()
     {
@@ -33,9 +37,10 @@ public class AbilityEffectShould
         CharacterEntity caster = arena.Player(1, 0f, 0f);
         CharacterEntity ally = arena.Player(2, 0f, 2f);
 
-        AbilityEffect.Apply(arena, caster, Blessing(SpellEffect.Heal | SpellEffect.Buff), ally);
+        AbilityEffect.Apply(arena, caster,
+            Blessing(SpellEffect.Heal | SpellEffect.Buff, (TalentModifierKind.SecondHit, 50, null)), ally);
 
-        Assert.Equal([ally], arena.Healed());
+        Assert.Equal<(IUnit, float)>([(ally, 100f), (ally, 50f)], arena.HealsDone);
         Assert.Single(arena.AurasApplied);
     }
 

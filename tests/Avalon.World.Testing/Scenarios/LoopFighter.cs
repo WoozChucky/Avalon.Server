@@ -162,6 +162,11 @@ public sealed class LoopFighter
     private readonly Vector3Dto _aimPoint = new();
     private readonly CCastAbilityPacket _castPacket;
 
+    // An opener (#1181 part D: a shaped fight's warrior's Rend) and its packet, cast in reach before the basic ability
+    // whenever it is ready; null when the fighter has none.
+    private readonly IAbility? _opener;
+    private readonly CCastAbilityPacket? _openerPacket;
+
     // A cleric's heal (Mending Circle 232), its aim and its packet; null for every other class.
     private readonly IAbility? _heal;
     private readonly Vector3Dto _healPoint = new();
@@ -195,7 +200,11 @@ public sealed class LoopFighter
     /// <param name="handlers">The handlers every fighter of the world shares (<see cref="Handlers" />).</param>
     /// <param name="character">The fighter's character, holding its class's basic ability.</param>
     /// <param name="seed">Seeds its turns away from walls.</param>
-    public LoopFighter(FighterHandlers handlers, ICharacter character, int seed)
+    /// <param name="opener">
+    /// An ability the character holds, cast in reach and in sight before the basic ability whenever it is ready (0 for
+    /// none): an instant along the facing (a Movement aim) whose reach is no shorter than the basic ability's.
+    /// </param>
+    public LoopFighter(FighterHandlers handlers, ICharacter character, int seed, uint opener = 0)
     {
         ArgumentNullException.ThrowIfNull(handlers);
         ArgumentNullException.ThrowIfNull(character);
@@ -212,6 +221,21 @@ public sealed class LoopFighter
         _stopDistance = meta.Reach - MathF.Min(ReachMargin, ReachMarginShare * meta.Reach);
         _castPacket = new CCastAbilityPacket { AbilityId = abilityId, GroundPos = _cursorAim ? _aimPoint : null };
 
+        if (opener != 0)
+        {
+            _opener = character.Spells[new AbilityId(opener)]
+                      ?? throw new InvalidOperationException($"{character.Name} has no opener {opener}");
+            AbilityMetadata openerMeta = _opener.Metadata;
+            if (openerMeta.AimMode != AbilityAimMode.Movement || openerMeta.CastTime > 0f
+                                                              || openerMeta.Reach < meta.Reach)
+            {
+                throw new ArgumentException(
+                    $"Opener {opener} is not an instant along the facing that reaches as far as the basic",
+                    nameof(opener));
+            }
+            _openerPacket = new CCastAbilityPacket { AbilityId = opener };
+        }
+
         if (character.Class == CharacterClass.Cleric)
         {
             _heal = character.Spells[new AbilityId(HealAbility)]
@@ -220,8 +244,11 @@ public sealed class LoopFighter
         }
     }
 
-    /// <summary>The casts the cast handler accepted, heals included.</summary>
+    /// <summary>The casts the cast handler accepted, heals and openers included.</summary>
     public int Casts { get; private set; }
+
+    /// <summary>The openers the cast handler accepted (none without one).</summary>
+    public int Openers { get; private set; }
 
     /// <summary>The times the fighter died.</summary>
     public int Deaths { get; private set; }
@@ -338,6 +365,19 @@ public sealed class LoopFighter
 
         if (TryHeal(connection, character))
             return;
+
+        if (_opener is not null && Ready(_opener, character))
+        {
+            _openerPacket!.ViewTick = ViewTick();
+            DateTime opened = character.LastCastStartTime;
+            _cast.Execute(connection, _openerPacket);
+            if (character.LastCastStartTime != opened)
+            {
+                Casts++;
+                Openers++;
+                return;
+            }
+        }
 
         if (Ready(_ability, character))
         {

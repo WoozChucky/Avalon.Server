@@ -14,10 +14,11 @@ namespace Avalon.World.Auras;
 /// At select: the saved auras come back as they were, their time having stood still while the character was out of the
 /// world, and it stands still on until the character enters its instance (<see cref="UnitAuras.ResumeHeld" />), so the
 /// loading screen costs none of it. Each keeps its snapshot, stacks, ticks owed, carried fraction of a point and, when a
-/// character applied it, its caster; it is held under the template loaded now. A row whose aura is no longer loaded, or
-/// whose snapshot cannot be believed, is dropped with a warning, and so is any row past the cap; a drop marks the auras
-/// changed, so the next save deletes the dropped rows. Restoring owes the client nothing: it gets a list when
-/// the character enters the world. A restored stat aura refills the pools as select does. Tick thread.
+/// character applied it, its caster; it is held under the template loaded now, its stacks above that row's cap too. A
+/// row whose aura is no longer loaded, or whose snapshot cannot be believed, is dropped with a warning, and so is any
+/// row past the cap; a drop marks the auras changed, so the next save deletes the dropped rows. Restoring owes the
+/// client nothing: it gets a list when the character enters the world. A restored stat aura refills the pools as select
+/// does. Tick thread.
 /// </summary>
 public static class AuraRestore
 {
@@ -97,8 +98,9 @@ public static class AuraRestore
                 ? AuraSource.Of(ability)
                 : AuraSource.None;
 
-            // No more than the template allows now: a reload may have lowered its cap.
-            uint stacks = row.Stacks < 1 ? 1u : Math.Min((uint)row.Stacks, Math.Max(1u, template.MaxStacks));
+            // The stacks it held, never trimmed to the row's cap now (#1181 Part D): a capstone's AuraStacks may have
+            // raised them past it, and a reload that lowered the cap keeps the copies held, as it does in the world.
+            uint stacks = row.Stacks < 1 ? 1u : (uint)row.Stacks;
             kept.Add((row, new ActiveAura(template, Caster(row.CasterGuid), source, stacks,
                 new AuraSnapshot(row.TickAmount, row.CritPct, (ushort)Math.Clamp(row.CasterLevel, 0, ushort.MaxValue),
                     TypeOf(row.DamageType), CritMultiplierBonus(row.CritMultiplierBonus)),

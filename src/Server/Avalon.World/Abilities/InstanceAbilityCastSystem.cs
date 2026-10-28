@@ -178,7 +178,7 @@ public class InstanceAbilityCastSystem(
         // Built now, with the aim captured at cast start, so a script that is missing or cannot be
         // built is refused before anything is paid, and a reload that removes it mid-cast costs nothing. A fan's first
         // lane (#1181 Part D); its other lanes are built when it fires, from the aim kept on the entry.
-        if (Build(caster, FanAim.Lane(aim, 0, LanesOf(ability.Metadata)), ability) is not { } script)
+        if (Build(caster, aim, 0, ability) is not { } script)
         {
             return false;
         }
@@ -187,7 +187,7 @@ public class InstanceAbilityCastSystem(
         // now, so a gear change mid-cast (a weapon swap) changes neither.
         CasterPace pace = PaceOf(caster);
         uint castId = TakeCastId();
-        AbilityFootprint? footprint = FootprintOf(caster, aim, ability);
+        AbilityFootprint? footprint = FootprintOf(caster, aim, ability, LanesOf(script, ability));
         if (!_freeCasts.TryPop(out AbilityInstance? queued))
             queued = new AbilityInstance();
         queued.Start(caster, ability, script, aim, caster.Position, CooldownOf(caster, ability, pace), castId, footprint,
@@ -225,7 +225,7 @@ public class InstanceAbilityCastSystem(
         }
 
         aim = aim with { Origin = caster.Position };
-        if (Build(caster, FanAim.Lane(aim, 0, LanesOf(ability.Metadata)), ability) is not { } script)
+        if (Build(caster, aim, 0, ability) is not { } script)
         {
             return false;
         }
@@ -666,7 +666,14 @@ public class InstanceAbilityCastSystem(
         ability.CastTimeTimer = ability.Metadata.CastTime;
     }
 
-    private AbilityScript? Build(IUnit caster, AbilityAim aim, IAbility ability)
+    /// <summary>
+    /// The script for lane <paramref name="lane" /> of a cast of <paramref name="ability" /> aimed at
+    /// <paramref name="centre" /> (#1181 Part D): a fan's lanes are turned from the centre aim
+    /// (<see cref="FanAim.Lane" />) only for a script type that flies fans (<see cref="IProjectileFan" />); any other
+    /// fires its one lane along the aim, whatever its row's projectile count. Null, logged, when the script is missing
+    /// or cannot be built.
+    /// </summary>
+    private AbilityScript? Build(IUnit caster, AbilityAim centre, int lane, IAbility ability)
     {
         Type? scriptType = scriptManager.GetAbilityScript(ability.Metadata.ScriptName);
         if (scriptType is null)
@@ -675,6 +682,8 @@ public class InstanceAbilityCastSystem(
             return null;
         }
 
+        int lanes = typeof(IProjectileFan).IsAssignableFrom(scriptType) ? LanesOf(ability.Metadata) : 1;
+        AbilityAim aim = FanAim.Lane(centre, lane, lanes);
         try
         {
             // A type the pool keeps, for a World-side ability, comes from the pool (#1181 Part D): a free one bound to this
@@ -784,8 +793,8 @@ public class InstanceAbilityCastSystem(
         arena.BroadcastFinishCast(caster, ability, castId);
 
         // The shape the cast was taken with: its own copy's, which a reshape of the caster's ability never reaches.
-        IAbility shaped = script is PooledAbilityScript pooled ? pooled.CastCopy : ability;
-        int lanes = LanesOf(shaped.Metadata);
+        IAbility shaped = CopyOf(script, ability);
+        int lanes = LanesOf(script, ability);
         if (lanes > 1)
             started = null;
 
@@ -807,7 +816,7 @@ public class InstanceAbilityCastSystem(
         Run(caster, ability, script, castId, view);
         for (int lane = 1; lane < lanes; lane++)
         {
-            if (Build(caster, FanAim.Lane(aim, lane, lanes), shaped) is not { } next)
+            if (Build(caster, aim, lane, shaped) is not { } next)
                 continue;
 
             if (next is not IProjectileFan fan || script is not IProjectileFan first)
@@ -818,7 +827,7 @@ public class InstanceAbilityCastSystem(
 
             fan.ShareHitsWith(first);
             if (!TryPrepare(caster, ability, next, castId, view, dodge, null, out bool flying))
-                return;
+                break;
 
             if (flying)
                 Run(caster, ability, next, castId, view);
@@ -826,6 +835,7 @@ public class InstanceAbilityCastSystem(
                 _pool.Retire(next);
         }
 
+        // Fired, with the lanes already in flight, even when a later lane's Prepare threw and ended the cast.
         CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
     }
 
@@ -883,6 +893,20 @@ public class InstanceAbilityCastSystem(
     private static int LanesOf(AbilityMetadata meta) =>
         meta.Shape == AbilityShape.Projectile ? Math.Max(1, meta.ProjectileCount) : 1;
 
+    /// <summary>
+    /// How many projectiles the cast <paramref name="script" /> was built for fires: its own copy's count when its type
+    /// flies fans (<see cref="IProjectileFan" />), else 1, as <see cref="Build" /> turned its lane.
+    /// </summary>
+    private static int LanesOf(AbilityScript script, IAbility ability) =>
+        script is IProjectileFan ? LanesOf(CopyOf(script, ability).Metadata) : 1;
+
+    /// <summary>
+    /// The ability as the cast was taken: a pooled script's own copy (<see cref="PooledAbilityScript.CastCopy" />),
+    /// which a reshape of the caster's ability never reaches; else the caster's.
+    /// </summary>
+    private static IAbility CopyOf(AbilityScript script, IAbility ability) =>
+        script is PooledAbilityScript pooled ? pooled.CastCopy : ability;
+
     /// <summary>The pool of this instance's scripts, keyed by type: projectiles today (#1181 Part D).</summary>
     private static AbilityScriptPool NewPool(IAbilityArena arena)
     {
@@ -928,15 +952,19 @@ public class InstanceAbilityCastSystem(
     }
 
     /// <summary>
-    /// The footprint a queued cast will land on (#648), resolved as its script will resolve it. Contained: a
-    /// footprint that cannot be resolved is sent as none, and the cast goes on.
+    /// The footprint a queued cast will land on (#648), resolved as its script will resolve it: for a fan (#1181 Part
+    /// D) the centre lane, naming the cast's <paramref name="lanes" /> (<see cref="AbilityFootprint.Lanes" />), so
+    /// every client can draw the whole fan. Contained: a footprint that cannot be resolved is sent as none, and the
+    /// cast goes on.
     /// </summary>
-    private AbilityFootprint? FootprintOf(IUnit caster, AbilityAim aim, IAbility ability)
+    private AbilityFootprint? FootprintOf(IUnit caster, AbilityAim aim, IAbility ability, int lanes)
     {
         Vector3 origin = aim.Origin ?? caster.Position;
         try
         {
-            return AbilityFootprint.Resolve(ability.Metadata, aim, origin, arena.GetNavigatorForPosition(origin));
+            AbilityFootprint? footprint =
+                AbilityFootprint.Resolve(ability.Metadata, aim, origin, arena.GetNavigatorForPosition(origin));
+            return footprint is { Shape: AbilityShape.Projectile } lane ? lane with { Lanes = (uint)lanes } : footprint;
         }
         catch (Exception e)
         {
