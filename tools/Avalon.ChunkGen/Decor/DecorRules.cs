@@ -31,20 +31,43 @@ public static class DecorRules
 
     /// <summary>
     /// The item's model box scaled by its scale and turned by its yaw about the model's origin (as
-    /// <see cref="TownBuilding.Place" /> turns a recipe) and moved to the item's position: chunk-local metres. A model
-    /// the bounds table does not have, or a yaw that is not a quarter turn, is refused (InvalidOperationException).
+    /// <see cref="TownBuilding.Place" /> turns a recipe) and moved to the item's position: chunk-local metres. A yaw off
+    /// a quarter turn (a doodad-drawn prop's, <see cref="TownSquare.DoodadDrawn" />) gives the bounds of the turned box.
+    /// A model the bounds table does not have, or a yaw outside 0-359, is refused (InvalidOperationException).
     /// </summary>
     public static (float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ) WorldBounds(DecorItem item)
     {
         if (!s_kit.Value.TryGetValue(item.Model, out ModelBounds? b))
             throw new InvalidOperationException($"the kit's bounds table has no model '{item.Model}'");
-        if (item.Yaw is not (0 or 90 or 180 or 270))
-            throw new InvalidOperationException($"{item.Model} has yaw {item.Yaw}, not 0, 90, 180 or 270");
+        if (item.Yaw is < 0 or > 359)
+            throw new InvalidOperationException($"{item.Model} has yaw {item.Yaw}, not 0-359");
 
         float s = item.Scale;
-        (float minX, float maxX, float minZ, float maxZ) =
-            TownBuilding.Footprint(b.MinX * s, b.MaxX * s, b.MinZ * s, b.MaxZ * s, item.X, item.Z, item.Yaw / 90);
+        (float minX, float maxX, float minZ, float maxZ) = item.Yaw % 90 == 0
+            ? TownBuilding.Footprint(b.MinX * s, b.MaxX * s, b.MinZ * s, b.MaxZ * s, item.X, item.Z, item.Yaw / 90)
+            : Turned(b.MinX * s, b.MaxX * s, b.MinZ * s, b.MaxZ * s, item.X, item.Z, item.Yaw);
         return (minX, maxX, item.Y + b.MinY * s, item.Y + b.MaxY * s, minZ, maxZ);
+    }
+
+    /// <summary>
+    /// The bounds of a box turned clockwise seen from above by <paramref name="yaw" /> degrees about the model's origin
+    /// (yaw 90 takes local +Z to +X, as <see cref="TownBuilding.Footprint" />'s quarter turns do) and moved to the anchor.
+    /// </summary>
+    private static (float MinX, float MaxX, float MinZ, float MaxZ) Turned(
+        float minX, float maxX, float minZ, float maxZ, float anchorX, float anchorZ, int yaw)
+    {
+        double radians = yaw * Math.PI / 180.0;
+        double cos = Math.Cos(radians), sin = Math.Sin(radians);
+        double loX = double.MaxValue, hiX = double.MinValue, loZ = double.MaxValue, hiZ = double.MinValue;
+        foreach ((float x, float z) in new[] { (minX, minZ), (minX, maxZ), (maxX, minZ), (maxX, maxZ) })
+        {
+            double tx = x * cos + z * sin, tz = -x * sin + z * cos;
+            loX = Math.Min(loX, tx);
+            hiX = Math.Max(hiX, tx);
+            loZ = Math.Min(loZ, tz);
+            hiZ = Math.Max(hiZ, tz);
+        }
+        return ((float)(anchorX + loX), (float)(anchorX + hiX), (float)(anchorZ + loZ), (float)(anchorZ + hiZ));
     }
 
     /// <summary>Whether a player could collide with the item: anything but ground tiles and hanging dressing.</summary>

@@ -2399,10 +2399,10 @@ public class WorldDbContext : DbContext
         // Placement reads every row for one map at instance-build time.
         builder.HasIndex(b => b.MapTemplateId);
 
-        // Glimmerdell's notice board (quest 9's objective 902), doodad 6, at world (9, 0, 24) facing yaw 90: the entry
-        // spawn is (15, 0, 15) and the arrival square town_sw_01 stands at grid (0, 0) unturned, so the board's spot in
-        // TownPieces (local 9, 24) is this offset from the entry (TownDoodadSpawnsShould). No gate: the template's usable
-        // gate stands, and everyone sees it.
+        // Glimmerdell's notice board (quest 9's objective 902), doodad 6, at world (9, 0, 24) facing yaw 180, its notices
+        // toward -Z (yaw 0 faces +Z and 90 faces +X; the model's front is its +Z): the entry spawn is (15, 0, 15) and the
+        // arrival square town_sw_01 stands at grid (0, 0) unturned, so the board's spot in TownPieces (local 9, 24) is this
+        // offset from the entry (TownDoodadSpawnsShould). No gate: the template's usable gate stands, and everyone sees it.
         builder.HasData(new MapDoodadSpawn
         {
             Id = 1,
@@ -2411,7 +2411,7 @@ public class WorldDbContext : DbContext
             OffsetX = -6f,
             OffsetY = 0f,
             OffsetZ = 9f,
-            Yaw = 90f,
+            Yaw = 180f,
         });
 
         // The Resonance Workbench (#1179), doodad 7, at world (36, 0, 4) facing yaw 0: the market square town_se_01
@@ -2428,17 +2428,19 @@ public class WorldDbContext : DbContext
             Yaw = 0f,
         });
 
-        // The Lectern of Paths (#1181), doodad 8, at world (33, 0, 4) facing yaw 90: its spot in TownPieces (local 3, 4)
-        // is 3 m west of the Workbench, in the market's open south-west, this offset from the entry (15, 0, 15). No gate.
+        // The Lectern of Paths (#1181), doodad 8, at world (41.5, 0, 5) facing yaw 225, its reading side (the model's +Z)
+        // toward (-X, -Z), the camera: its spot in TownPieces (local 11.5, 5 in the market square town_se_01, at grid
+        // (1, 0) unturned), in the market's open south, is this offset from the entry (15, 0, 15). Walk-through, so its
+        // yaw need not be a quarter turn. No gate.
         builder.HasData(new MapDoodadSpawn
         {
             Id = 3,
             MapTemplateId = 1,
             DoodadTemplateId = 8,
-            OffsetX = 18f,
+            OffsetX = 26.5f,
             OffsetY = 0f,
-            OffsetZ = -11f,
-            Yaw = 90f,
+            OffsetZ = -10f,
+            Yaw = 225f,
         });
     }
 

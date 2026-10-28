@@ -235,8 +235,9 @@ public sealed record TownSquare(
     /// <summary>
     /// Refuses what the bake could not place: a piece outside the 0-30 m cell (a roof's overhang included), a bound that
     /// is not a number, a top not above its base, a wall not named "Wall...", a piece named like a wall (the placement
-    /// tests read wall boxes by that prefix), a decor item <see cref="DecorItem.Check" /> refuses or standing outside the
-    /// cell, then every rule in <see cref="TownRules" />, then the decor's in <see cref="DecorRules" />.
+    /// tests read wall boxes by that prefix), a decor item <see cref="DecorItem.Check" /> refuses (off a quarter turn, but
+    /// a doodad-drawn one) or standing outside the cell, then every rule in <see cref="TownRules" />, then the decor's in
+    /// <see cref="DecorRules" />.
     /// </summary>
     public void Validate()
     {
@@ -264,9 +265,11 @@ public sealed record TownSquare(
         if (Decor.Count > 0 || DoodadDrawn.Count > 0)
         {
             IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
-            foreach (DecorItem item in Drawn)
+            // The kit's pieces meet on a grid, so decor turns by quarters; a doodad is off the grid, any whole degree.
+            foreach ((DecorItem item, DecorYaw yaws) in Decor.Select(d => (d, DecorYaw.QuarterTurns))
+                         .Concat(DoodadDrawn.Select(d => (d, DecorYaw.AnyDegree))))
             {
-                item.Check(DecorRules.Where(Name, item.Building), kit, DecorYaw.QuarterTurns);
+                item.Check(DecorRules.Where(Name, item.Building), kit, yaws);
                 if (!WithinCell(item.X) || !WithinCell(item.Z))
                     throw new InvalidOperationException($"{DecorRules.Where(Name, item.Building)}: {item.Model} at ({item.X}, {item.Z}) lies outside the 0-30 m cell");
             }

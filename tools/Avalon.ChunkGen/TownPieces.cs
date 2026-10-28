@@ -86,8 +86,9 @@ public static class TownPieces
         s.Torch("torch 3", 20.5f, 11f);
         s.Torch("torch 4", 25.5f, 11f);
         s.Brazier("brazier", 6f, 5f);
-        // Drawn as a doodad (Glimmerdell's MapDoodadSpawns row 1, quest 9's objective 902), not from the decor file.
-        s.DoodadProp("avalon_notice_board", "Notice board", "board", 9f, 24f, 90);
+        // Drawn as a doodad (Glimmerdell's MapDoodadSpawns row 1, quest 9's objective 902), not from the decor file. Its
+        // notices face -Z, toward the fountain and the camera's side.
+        s.DoodadProp("avalon_notice_board", "Notice board", "board", 9f, 24f, 180);
         // A house in the south-east corner, south of the east doorway lane: south-west of every NPC is kept low, so
         // the camera sees each one over it.
         s.Building("house_a", "House A", 23.5f, 7.1f, 0);
@@ -154,9 +155,10 @@ public static class TownPieces
         // Drawn as a doodad (Glimmerdell's MapDoodadSpawns row 2, the Resonance Workbench, #1179), not from the decor
         // file: in the open south-west, its nearest corner about 9.7 m from the walkers' loop.
         s.DoodadProp("Workbench", "Resonance Workbench", "workbench", 6f, 4f, 0);
-        // Drawn as a doodad too (row 3, the Lectern of Paths, #1181): 3 m west of the Workbench, about 13 m from the
-        // walkers' loop.
-        s.DoodadProp("BookStand", "Lectern of Paths", "lectern", 3f, 4f, 90);
+        // Drawn as a doodad too (row 3, the Lectern of Paths, #1181): in the open south, west of the north road's line,
+        // turned to yaw 225 so its reading side (the model's +Z) faces (-X, -Z), the camera; its box, around the
+        // turned stand, 5.6-6.6 m from the walkers' loop centre, short of the 7-9 m band kept clear.
+        s.DoodadProp("BookStand", "Lectern of Paths", "lectern", 11.5f, 5f, 225);
     }
 
     /// <summary>North-east: the bank with its railing, the inn, a house with its yard, the well in the open south-west.</summary>
@@ -210,7 +212,8 @@ public static class TownPieces
         /// <summary>
         /// A <see cref="Prop" /> the client draws as a doodad (a town's MapDoodadSpawns row places it, TownDoodadSpawnsShould)
         /// rather than from the decor file: the same collision box, so the navmesh is the same, and its model in
-        /// <see cref="TownSquare.DoodadDrawn" /> instead of the decor.
+        /// <see cref="TownSquare.DoodadDrawn" /> instead of the decor. A doodad is not on the kit's grid, so its yaw may be
+        /// any whole degree; off a quarter turn, its box is the bounds of its turned footprint.
         /// </summary>
         public void DoodadProp(string model, string building, string part, float x, float z, int yaw) =>
             DoodadDrawn.Add(PropBox(model, building, part, x, z, yaw));

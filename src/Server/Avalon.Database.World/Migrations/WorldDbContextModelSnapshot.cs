@@ -21045,7 +21045,7 @@ namespace Avalon.Database.World.Migrations
                             OffsetX = -6f,
                             OffsetY = 0f,
                             OffsetZ = 9f,
-                            Yaw = 90f
+                            Yaw = 180f
                         },
                         new
                         {
@@ -21062,10 +21062,10 @@ namespace Avalon.Database.World.Migrations
                             Id = 3,
                             DoodadTemplateId = 8L,
                             MapTemplateId = 1,
-                            OffsetX = 18f,
+                            OffsetX = 26.5f,
                             OffsetY = 0f,
-                            OffsetZ = -11f,
-                            Yaw = 90f
+                            OffsetZ = -10f,
+                            Yaw = 225f
                         });
                 });
 

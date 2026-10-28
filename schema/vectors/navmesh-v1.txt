@@ -136,7 +136,7 @@ chunk town_sw_01 0 0 0
 chunk town_se_01 1 0 0
 chunk town_nw_01 0 1 0
 chunk town_ne_01 1 1 0
-mesh tiles 49 polys 269 verts 674
+mesh tiles 49 polys 277 verts 687
 ray 15 0.15 15 16 0.15 15 -> reached 16 0.15 15 3.4028235E+38 # open floor, one metre
 ray 15 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # open floor, the length of a tile and then some
 ray 45 0.15 45 35 0.15 35 -> clamped 41.850002 0.15 41.850002 0.31499985 # diagonal, north-east quadrant, stopping short of the torch at the roads' corner
@@ -145,8 +145,8 @@ ray 5 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # crosses the x = 9
 ray 5 0.15 17.95 25 0.15 17.95 -> reached 25 0.15 17.95 3.4028235E+38 # crosses two seams a metre below the z = 18.95 one
 ray 4 0.15 3 4 0.15 25 -> reached 4 0.15 25 3.4028235E+38 # crosses the z = 9.35 and 18.95 tile seams, west of the brazier
 ray 43 0.15 43 24 0.15 48 -> reached 24 0.15 48 3.4028235E+38 # shallow diagonal across the seams on both axes, through the x = 30 doorway
-ray 35 0.15 5 25 0.15 5 -> clamped 30.95 0.15 5 0.4049999 # head-on into the x = 30 wall, west across the market's open ground
-ray 40 0.15 5 20 0.15 5 -> clamped 30.95 0.15 5 0.45249993 # the same line from twice the distance
+ray 35 0.15 6.5 25 0.15 6.5 -> clamped 30.95 0.15 6.5 0.4049999 # head-on into the x = 30 wall, west across the market's open ground
+ray 40 0.15 6.5 20 0.15 6.5 -> clamped 30.95 0.15 6.5 0.45249993 # the same line from twice the distance
 ray 34 0.15 4.5 24 0.15 -5.5 -> clamped 30.95 0.15 1.4500008 0.30499992 # 45 degrees toward the corner where the x = 30 and z = 0 walls meet, half a metre north of it
 ray 15 0.15 3 15 0.15 12 -> clamped 15 0.15 3 0 # starts within the agent radius of the bench south of the fountain: no step
 ray 28.9 0.15 25 35 0.15 25 -> clamped 28.9 0.15 25 0 # flush against the x = 30 wall, pointing into it
