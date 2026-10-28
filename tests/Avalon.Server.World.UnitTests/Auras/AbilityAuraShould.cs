@@ -88,7 +88,12 @@ public class AbilityAuraShould
 
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
 
-    private async Task<(MapInstance Instance, CastAbilityHandler Handler)> InstanceAsync(ICombatRandom? random = null)
+    /// <summary>
+    /// The instance over the test catalog; with <paramref name="burnRoots" />, Burn edited into crowd control (a root), as
+    /// a reload after the talent tree loaded could leave it.
+    /// </summary>
+    private async Task<(MapInstance Instance, CastAbilityHandler Handler)> InstanceAsync(ICombatRandom? random = null,
+        bool burnRoots = false)
     {
         IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
@@ -97,12 +102,15 @@ public class AbilityAuraShould
         bleed.PeriodicEffectiveness = 0f;
         AuraTemplate renew = AuraTestData.Renew();
         renew.PeriodicEffectiveness = 0f;
+        AuraTemplate burn = AuraTestData.Burn();
+        if (burnRoots)
+            burn.Control = CrowdControl.Root;
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             scripts: scripts,
             abilities: () => [Rend(), Ignite(), UnavoidableIgnite(), StunningIgnite(), Renew(), Volley()],
             auras: () =>
             [
-                AuraTestData.Scripted(bleed, nameof(RecordingAuraScript)), AuraTestData.Burn(),
+                AuraTestData.Scripted(bleed, nameof(RecordingAuraScript)), burn,
                 AuraTestData.Scripted(renew, nameof(RecordingAuraScript)), AuraTestData.Stunned(),
             ]));
         var auraScripts = new AuraScripts(scripts, new ServiceCollection().BuildServiceProvider(), _clock,
@@ -245,6 +253,84 @@ public class AbilityAuraShould
         ActiveAuraIs(boar, 901, warrior.Character.Guid);
         Assert.Equal((uint)stacks, Assert.Single(Avalon.World.Auras.AuraHolders.Of(boar)!.All).Stacks);
     }
+
+    /// <summary>
+    /// #1181 Part D: a capstone's <c>AuraDurationPct</c> lengthens its ability's aura, which holds the extra ticks, each
+    /// the row's own (Renew 50 % longer: six ticks of 6 over 18 s, where the row's own stops at four); its
+    /// <c>AuraStacks</c> raises the cap for its caster alone (Rend +2 stacks Bleed to 5, which another warrior's Rend
+    /// never lowers, and which that warrior alone stops at 3); and neither reaches an aura edited into crowd control
+    /// after the tree loaded (Ignite 50 % longer places a rooting Burn for its row's 9 s).
+    /// </summary>
+    [Theory]
+    [InlineData("longer renew ticks more of the same size")]
+    [InlineData("bleed past its cap for the shaped caster only")]
+    [InlineData("an aura edited into crowd control is not lengthened")]
+    public async Task Lengthen_and_deepen_an_ability_aura_by_its_shape(string row)
+    {
+        switch (row)
+        {
+            case "longer renew ticks more of the same size":
+            {
+                (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync();
+                MapInstanceClient healer = Caster(instance, 912_121,
+                    AbilityTestData.Shaped(Renew(), (TalentModifierKind.AuraDurationPct, 50, null)));
+
+                handler.Execute(healer.Connection, new CCastAbilityPacket { AbilityId = 233, GroundPos = new Vector3Dto() });
+                _clock.Advance(TimeSpan.FromSeconds(12));
+                instance.Update(TimeSpan.FromSeconds(1d / 60d));
+                uint at12 = healer.Character.CurrentHealth;
+                _clock.Advance(TimeSpan.FromSeconds(6));
+                instance.Update(TimeSpan.FromSeconds(1d / 60d));
+
+                Assert.Equal((424u, 436u, 0), (at12, healer.Character.CurrentHealth, healer.Character.Auras.Count));
+                break;
+            }
+            case "bleed past its cap for the shaped caster only":
+            {
+                (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync();
+                MapInstanceClient shaped = Caster(instance, 912_122,
+                    AbilityTestData.Shaped(Rend(), (TalentModifierKind.AuraStacks, 2, null)));
+                MapInstanceClient plain = Caster(instance, 912_123, Rend());
+                Creature boar = Boar(instance, 912_921, health: 1000);
+
+                CastTimes(handler, shaped, 5);
+                uint byTheShaped = StacksOn(boar);
+                CastTimes(handler, plain, 1);
+                uint afterThePlain = StacksOn(boar);
+                Creature fresh = Boar(instance, 912_922, health: 1000);
+                CastTimes(handler, plain, 5);
+
+                Assert.Equal((5u, 5u, 3u), (byTheShaped, afterThePlain, StacksOn(fresh)));
+                break;
+            }
+            default:
+            {
+                (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync(burnRoots: true);
+                MapInstanceClient wizard = Caster(instance, 912_124,
+                    AbilityTestData.Shaped(Ignite(), (TalentModifierKind.AuraDurationPct, 50, null)));
+                Creature boar = Boar(instance, 912_923);
+
+                handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = s_atTheBoar });
+
+                Avalon.World.Auras.ActiveAura burn = Assert.Single(Avalon.World.Auras.AuraHolders.Of(boar)!.All);
+                Assert.Equal((902u, 9000u), (burn.Id.Value, burn.DurationMs));
+                break;
+            }
+        }
+    }
+
+    /// <summary>Casts Rend <paramref name="times" /> times, the global cooldown put behind it before each.</summary>
+    private void CastTimes(CastAbilityHandler handler, MapInstanceClient caster, int times)
+    {
+        for (int i = 0; i < times; i++)
+        {
+            caster.Character.LastCastStartTime = _clock.GetUtcNow().UtcDateTime.AddSeconds(-1);
+            handler.Execute(caster.Connection, new CCastAbilityPacket { AbilityId = 203 });
+        }
+    }
+
+    private static uint StacksOn(Creature boar) =>
+        Assert.Single(Avalon.World.Auras.AuraHolders.Of(boar)!.All).Stacks;
 
     [Fact]
     public async Task Put_a_helpful_aura_on_the_caster_and_its_allies_and_heal_over_time()
