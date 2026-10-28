@@ -35,16 +35,21 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <see cref="Apply_ability_change" /> drops WH-A5 and allocates it again through <see cref="TalentAllocation" />, each
 /// followed by the change, so Cleave is parked and taken back, and the ability list is owed, not sent;
 /// <see cref="Cycle_flushed" /> is that change followed by the tick's <see cref="TalentFlusher.Flush" />, which sends
-/// the owed list and state once. 0 B expected on every row: the packets are the encoder's scratch, and the list's
-/// entries and amounts are the last list's, overwritten, since the change leaves as many abilities held.
+/// the owed list and state once. <see cref="Apply_capstone_change" /> (Part D) is a level-15 Warrior holding Cleave and
+/// its branch (WH-A1 to WH-A5, WH-A5.c1 to WH-A5.c5) taking Wide Arc (306) and dropping it again, each followed by the
+/// change: Cleave stays held and swaps between its unshaped metadata and the shaped copy it keeps, and each change owes
+/// the ability list. 0 B expected on every row: the packets are the encoder's scratch, the list's entries and amounts
+/// are the last list's, overwritten, since the change leaves as many abilities held, and a shape already seen is the
+/// copy Cleave keeps.
 /// </summary>
 /// <remarks>
 /// Neither the rules, the change nor the flusher read an instance or the handler's packet, so the rows call them
 /// directly, as the handlers and the tick do, with a <see cref="QuietConnection" /> counting the packets sent. Setup
 /// fails the run unless each decision row's first call gives its intended result (and names the node it should),
 /// unless <see cref="Apply_small_nodes" /> sends nothing, unless <see cref="Apply_ability_change" /> sends nothing (the
-/// ability list waits for the tick's TalentFlusher) and ends holding Cleave again, and unless
-/// <see cref="Cycle_flushed" /> sends exactly the list and the state.
+/// ability list waits for the tick's TalentFlusher) and ends holding Cleave again, unless
+/// <see cref="Cycle_flushed" /> sends exactly the list and the state, and unless <see cref="Apply_capstone_change" />
+/// owes one ability list after each change and ends with Cleave's arc back at 100.
 /// </remarks>
 [MemoryDiagnoser]
 public class TalentAllocateBenchmarks
@@ -60,6 +65,11 @@ public class TalentAllocateBenchmarks
     private static readonly uint[] s_refundAccepted = [11, 19];
     private static readonly AbilityId s_cleaveAbility = new(200);
 
+    // Cleave's branch: WH-A1..WH-A5 (2-6) and WH-A5.c1..WH-A5.c5 (22-26); Wide Arc (WH-A5.cx) is node 306.
+    private static readonly int[] s_cleaveBranch = [2, 3, 4, 5, 6, 22, 23, 24, 25, 26];
+    private const int WideArc = 306;
+    private static readonly uint[] s_wideArc = [WideArc];
+
     private StaticData _data = null!;
     private TalentCatalog _tree = null!;
     private CharacterEntity _fresh = null!;
@@ -68,6 +78,7 @@ public class TalentAllocateBenchmarks
     private QuietConnection _connection = null!;
     private uint[] _long = null!;
     private CharacterEntity _long134 = null!;
+    private CharacterEntity _capstoner = null!;
     private uint[] _startNeighbours = null!;
     private readonly TalentConfiguration _config = new();
 
@@ -116,6 +127,15 @@ public class TalentAllocateBenchmarks
             throw new InvalidOperationException(
                 $"A flushed change sent {flushed} packets, not the list and the state.");
         }
+
+        _capstoner = Warrior(4, level: 15, held: s_cleaveBranch);
+        int owed = Apply_capstone_change();
+        float arc = _capstoner.Spells[s_cleaveAbility]?.Metadata.ArcDegrees ?? 0f;
+        if (owed != 2 || arc != 100f || _capstoner.Talents.Holds(WideArc))
+        {
+            throw new InvalidOperationException($"Taking and dropping Wide Arc owed {owed} ability lists, not one " +
+                $"after each change, or left Cleave's arc at {arc}, not 100.");
+        }
     }
 
     [Benchmark(Baseline = true)]
@@ -144,6 +164,18 @@ public class TalentAllocateBenchmarks
         return _connection.Sent;
     }
 
+    /// <summary>
+    /// A capstone taken and dropped, each followed by the change: the changes that owed the ability list (2).
+    /// </summary>
+    [Benchmark]
+    public int Apply_capstone_change()
+    {
+        _capstoner.Talents.Allocate(s_wideArc);
+        int owed = Change(_capstoner);
+        _capstoner.Talents.Drop(WideArc);
+        return owed + Change(_capstoner);
+    }
+
     [Benchmark]
     public TalentResult Refund_refused() => Refund(_holder, s_refundRefused, out _);
 
@@ -163,6 +195,17 @@ public class TalentAllocateBenchmarks
         Apply_ability_change();
         TalentFlusher.Flush(_connection, _data.Quests, _config);
         return _connection.Sent - before;
+    }
+
+    /// <summary>
+    /// <see cref="TalentChange.Apply" /> with nothing owed before it, as after the tick's flush: 1 when it owes the
+    /// ability list.
+    /// </summary>
+    private int Change(CharacterEntity character)
+    {
+        character.Talents.AbilitiesSent();
+        TalentChange.Apply(character, _data, NullLogger.Instance);
+        return character.Talents.AbilitiesOwed ? 1 : 0;
     }
 
     /// <summary>A Warrior entering the world holding <paramref name="held" />, as character select leaves it.</summary>
@@ -189,8 +232,9 @@ public class TalentAllocateBenchmarks
     }
 
     /// <summary>
-    /// 134 nodes in breadth-first order from the Warrior's start, never through a start, so each touches the start or one
-    /// named before it; then the first node by id that touches neither the start nor any of them.
+    /// 134 nodes in breadth-first order from the Warrior's start, never through a start nor to a capstone whose fork
+    /// partner was taken (Part D), so each touches the start or one named before it and none is ForkLocked; then the first
+    /// node by id that touches neither the start nor any of them.
     /// </summary>
     private uint[] LongRequest()
     {
@@ -204,7 +248,8 @@ public class TalentAllocateBenchmarks
         {
             foreach (int neighbour in _tree.NeighboursAt(queue.Dequeue()))
             {
-                if (seen[neighbour] || _tree.KindAt(neighbour) == TalentNodeKind.Start)
+                int partner = _tree.ForkPartnerAt(neighbour);
+                if (seen[neighbour] || _tree.KindAt(neighbour) == TalentNodeKind.Start || (partner >= 0 && seen[partner]))
                     continue;
 
                 seen[neighbour] = true;
