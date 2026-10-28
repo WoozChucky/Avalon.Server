@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Doodads;
+using Avalon.World.Testing;
 
 namespace Avalon.Server.World.UnitTests.Doodads;
 
@@ -47,7 +48,7 @@ public class DoodadIndexShould
         // A view decision runs this for every client on every broadcast tick: it must allocate nothing.
         var counter = new Counter();
         index.Visit(60f, 60f, 70f, ref counter);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 100; i++)
             index.Visit(60f, 60f, 70f, ref counter);
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
