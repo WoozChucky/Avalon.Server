@@ -93,6 +93,8 @@ public sealed class CrashReadStoreShould : IAsyncLifetime
         known.GpuDriverVersion = "42";
         known.GpuDriverSource = "faulting_module";
         known.OsBuild = "26100";
+        known.GpuName = "NVIDIA GeForce RTX 4090";
+        known.VulkanDriverVersion = "581.57";
         CrashReport unknown = Report(group, s_now.AddHours(-1));
         unknown.Version = null;
         await SeedAsync(group, known, unknown);
@@ -105,6 +107,10 @@ public sealed class CrashReadStoreShould : IAsyncLifetime
         Assert.Contains(new CrashGpuDriverCount("nvwgf2umx.dll", "42", "faulting_module", 1), detail.ByGpuDriver);
         Assert.Contains(new CrashVersionCount("unknown", 1), detail.ByVersion);
         Assert.Contains(new CrashOsBuildCount("unknown", 1), detail.ByOsBuild);
+        // The client's GPU (schema 2, Client#459): a report from before it, or without it, reads as unknown.
+        Assert.Equal(detail.RetainedReportCount, detail.ByGpu.Sum(x => x.Count));
+        Assert.Contains(new CrashGpuCount("NVIDIA GeForce RTX 4090", "581.57", 1), detail.ByGpu);
+        Assert.Contains(new CrashGpuCount("unknown", "unknown", 1), detail.ByGpu);
     }
 
     [IntegrationFact]
@@ -277,7 +283,8 @@ public sealed class CrashReadStoreShould : IAsyncLifetime
         probe.Queries.Clear();
         await read.GetGroupAsync(single.Items[0].Id, 1, 1, s_now, default);
         int smallReportQueries = probe.Queries.Count;
-        Assert.InRange(smallReportQueries, 1, 10);
+        // A constant count however many reports: eleven since the client's GPU breakdown joined the driver's (#1252).
+        Assert.InRange(smallReportQueries, 1, 11);
         probe.Queries.Clear();
         await read.GetGroupAsync(single.Items[0].Id, 1, 100, s_now, default);
         Assert.Equal(smallReportQueries, probe.Queries.Count);

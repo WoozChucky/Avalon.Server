@@ -14,5 +14,10 @@ public sealed record CrashInlineFrameDto([property: JsonIgnore(Condition = JsonI
 public sealed record CrashModuleDto(string Name, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? ImageKey, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? PdbName, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? PdbKey,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Version, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? BaseAddress, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Size, bool SymbolsAvailable);
 public sealed record CrashMetadataDto(int Schema, string Exe, string Version, string GitHash, uint ExceptionCode,
-    string ExceptionAddress, uint ThreadId, DateTimeOffset Time);
+    string ExceptionAddress, uint ThreadId, DateTimeOffset Time,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] uint? GpuVendorId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] uint? GpuDeviceId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? GpuName,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? VulkanDriverVersion,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? LastState);
 public sealed record CrashProcessorDto(string StackwalkVersion, string ConverterVersion, string CacheVersion);

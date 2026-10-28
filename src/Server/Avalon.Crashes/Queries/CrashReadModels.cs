@@ -17,6 +17,8 @@ public sealed record CrashGroupPage(
 
 public sealed record CrashVersionCount(string Version, long Count);
 public sealed record CrashGpuDriverCount(string Module, string Version, string Source, long Count);
+// The client's GPU and its Vulkan driver (schema 2, Client#459); "unknown" for reports without them.
+public sealed record CrashGpuCount(string Name, string DriverVersion, long Count);
 public sealed record CrashOsBuildCount(string Build, long Count);
 
 public sealed record CrashReportSummary(
@@ -30,7 +32,10 @@ public sealed record CrashGroupDetail(
     DateTimeOffset WindowEnd, long RetainedReportCount, CrashReportId? LatestReportId,
     DateTimeOffset? LatestStackReceivedAt, CrashThread? LatestStack, CrashQualityFlags? LatestStackQuality,
     IReadOnlyList<CrashVersionCount> ByVersion, IReadOnlyList<CrashGpuDriverCount> ByGpuDriver,
-    IReadOnlyList<CrashOsBuildCount> ByOsBuild, CrashReportPage Reports);
+    IReadOnlyList<CrashOsBuildCount> ByOsBuild, CrashReportPage Reports)
+{
+    public IReadOnlyList<CrashGpuCount> ByGpu { get; init; } = [];
+}
 
 // Analysis is the bounded, typed schema, never raw upstream JSON. Non-processed rows have only the safe envelope.
 public sealed record CrashReportDetail(

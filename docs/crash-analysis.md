@@ -46,9 +46,15 @@ it is not an identity startup or global health dependency.
 
 Only `dump.dmp`, `meta.json` and optional `log-tail.txt` are accepted. ZIP download
 and total expanded input are each at most 4 MiB; metadata is 4 KiB and log tail
-64 KiB. Existing client schema 1 metadata is sufficient. Client#459 is unnecessary:
-no new metadata or client rollout is required. Unsafe ZIP names, links, duplicate
-entries, CRC/range errors and malformed metadata/dumps are rejected before tools.
+64 KiB. `meta.json` is schema 1 or 2. Schema 2 (Client#459, #1252) adds what the client
+knew: `gpuVendorId` and `gpuDeviceId` (u32), `gpuName` (at most 128 printable characters),
+`driverVersion` (at most 32 of `[0-9A-Za-z.+-]`, stored as `VulkanDriverVersion`, apart from
+the dump-derived `GpuDriverVersion`) and `lastState` (`boot`, `menu`, `loading` or
+`in-world`). Each is optional: a malformed one is dropped, never a reason to refuse the
+report. `gpu_name` and `vulkan_driver_version` are columns, so a group's detail breaks
+its reports down `ByGpu` beside `ByGpuDriver`; reports without them read `unknown`.
+Unsafe ZIP names, links, duplicate entries, CRC/range errors and malformed
+metadata/dumps are rejected before tools.
 
 | Bound | First-release value |
 | --- | --- |

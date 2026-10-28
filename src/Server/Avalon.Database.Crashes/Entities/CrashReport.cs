@@ -39,6 +39,9 @@ public sealed class CrashReport
     public string? GpuDriverModule { get; set; }
     public string? GpuDriverVersion { get; set; }
     public string? GpuDriverSource { get; set; }
+    // What the client said of its GPU (schema 2, Client#459), apart from the dump-derived driver above.
+    public string? GpuName { get; set; }
+    public string? VulkanDriverVersion { get; set; }
     public string? Stack { get; set; }
     public int? StackSchemaVersion { get; set; }
     public CrashQualityFlags QualityFlags { get; set; }

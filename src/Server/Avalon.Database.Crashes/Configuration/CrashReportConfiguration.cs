@@ -19,7 +19,7 @@ public sealed class CrashReportConfiguration : IEntityTypeConfiguration<CrashRep
             table.HasCheckConstraint("ck_crash_reports_campaign_attempts", "retry_campaign_attempt_count >= 0 AND retry_campaign_attempt_count <= attempt_count");
             table.HasCheckConstraint("ck_crash_reports_lease", "(status = 'processing') = (lease_owner IS NOT NULL AND lease_until IS NOT NULL)");
             table.HasCheckConstraint("ck_crash_reports_processed", "(status = 'processed') = (group_id IS NOT NULL AND stack IS NOT NULL AND processed_at IS NOT NULL AND signature_version IS NOT NULL)");
-            table.HasCheckConstraint("ck_crash_reports_no_failed_input", "status NOT IN ('rejected','failed') OR (meta IS NULL AND stack IS NULL AND log_tail IS NULL AND version IS NULL AND git_hash IS NULL AND client_crashed_at IS NULL)");
+            table.HasCheckConstraint("ck_crash_reports_no_failed_input", "status NOT IN ('rejected','failed') OR (meta IS NULL AND stack IS NULL AND log_tail IS NULL AND version IS NULL AND git_hash IS NULL AND client_crashed_at IS NULL AND gpu_name IS NULL AND vulkan_driver_version IS NULL)");
             table.HasCheckConstraint("ck_crash_reports_reason", "reason_code IS NULL OR reason_code IN ('unsafe_archive','archive_too_large','metadata_too_large','log_too_large','invalid_metadata','unsupported_schema','invalid_dump','unsupported_architecture','runtime_identity_mismatch','object_changed','storage_unavailable','missing_runtime_symbols','tool_timeout','tool_failed','resource_limit','invalid_analysis','ungroupable_analysis','configuration_invalid','access_denied','object_missing','invalid_object_key')");
             table.HasCheckConstraint("ck_crash_reports_driver_source", "gpu_driver_source IS NULL OR gpu_driver_source IN ('faulting_module','loaded_module','unknown')");
             table.HasCheckConstraint("ck_crash_reports_quality", "quality_flags ~ '^(none|(missingSystemSymbols|scanFrames|truncated|metadataDisagreement|versionComparisonUnavailable|sanitizedText)(, (missingSystemSymbols|scanFrames|truncated|metadataDisagreement|versionComparisonUnavailable|sanitizedText))*)$'");
@@ -49,6 +49,8 @@ public sealed class CrashReportConfiguration : IEntityTypeConfiguration<CrashRep
         builder.Property(x => x.GpuDriverModule).HasMaxLength(128);
         builder.Property(x => x.GpuDriverVersion).HasMaxLength(128);
         builder.Property(x => x.GpuDriverSource).HasMaxLength(32);
+        builder.Property(x => x.GpuName).HasMaxLength(128);
+        builder.Property(x => x.VulkanDriverVersion).HasMaxLength(32);
         builder.Property(x => x.ProcessorVersion).HasMaxLength(128);
         builder.Property(x => x.ConverterVersion).HasMaxLength(128);
         builder.Property(x => x.CacheVersion).HasMaxLength(128);
