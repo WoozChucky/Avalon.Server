@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
@@ -244,6 +245,13 @@ public partial class CharacterEntity : ICharacter
     /// abilities packet carries them, and by <c>AbilityAmountsFlusher</c> whenever they change.
     /// </summary>
     internal AbilityAmount[]? AbilityAmountsSent { get; set; }
+
+    /// <summary>
+    /// The entries of the last SMSG_CHARACTER_ABILITIES this character's client was sent (#1181), kept so the next list
+    /// of the same length overwrites them and allocates nothing. World-side and never saved; a send encodes them at
+    /// once, so writing them later changes nothing already sent.
+    /// </summary>
+    internal AbilityInfo[]? AbilityInfosSent { get; set; }
 
     internal (AttackerCombat Combat, CasterPace Pace)? AbilityAmountsSentFor { get; set; }
 

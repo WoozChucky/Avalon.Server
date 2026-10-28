@@ -73,7 +73,7 @@ public class DoodadSchemaShould
     [InlineData("interaction 2")]
     [InlineData("use limit 0")]
     [InlineData("spent look 3")]
-    [InlineData("service 2")]
+    [InlineData("service 3")]
     [InlineData("box height 1.0")]
     [InlineData("box half x 0")]
     [InlineData("min gold above max")]
@@ -107,8 +107,8 @@ public class DoodadSchemaShould
             case "spent look 3":
                 t.SpentLook = (DoodadSpentLook)3;
                 return "CK_DoodadTemplates_SpentLook";
-            case "service 2":
-                t.Service = (DoodadService)2;
+            case "service 3":
+                t.Service = (DoodadService)3;
                 return "CK_DoodadTemplates_Service";
             case "box height 1.0":
                 (t.Collision, t.CollisionHalfX, t.CollisionHalfZ, t.CollisionHeight) = (DoodadCollision.Box, 0.5f, 0.5f, 1.0f);

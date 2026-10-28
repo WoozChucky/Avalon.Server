@@ -112,7 +112,7 @@ public class TownPiecesShould
         Assert.Contains("Torches", buildings);
         Assert.Contains("Braziers", buildings);
         Assert.DoesNotContain("Lamp posts", buildings);
-        Assert.Equal(116, TownPieces.Squares().Sum(s => s.Pieces.Count));
+        Assert.Equal(117, TownPieces.Squares().Sum(s => s.Pieces.Count));
     }
 
     /// <summary>

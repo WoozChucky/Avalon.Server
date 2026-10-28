@@ -1,7 +1,7 @@
 # Talent Protocol
 
 > **Audience:** client developers and LLMs handed the client codebase.
-> **Status:** the talent tree, Part B (#1181). Amended in place when the talent protocol changes.
+> **Status:** the talent tree, Parts B and C (#1181). Amended in place when the talent protocol changes.
 
 This is the client contract for the talent tree. The wire schema is `schema/avalon.proto` (re-exported with
 `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]` numbers in it. Server-side rules are described in
@@ -37,15 +37,16 @@ request is dropped unanswered.
 | Opcode | Value | Packet | Fields |
 |---|---|---|---|
 | `CMSG_TALENT_ALLOCATE` | `0x20E0` | `CTalentAllocatePacket` | 1 `RequestId` (uint32), 2 `NodeIds` (repeated uint32) |
+| `CMSG_TALENT_REFUND` | `0x20E1` | `CTalentRefundPacket` | 1 `RequestId` (uint32), 2 `LecternGuid` (uint64), 3 `NodeIds` (repeated uint32) |
 
 Server to client, to the character's own connection only.
 
 | Opcode | Value | Packet | Fields |
 |---|---|---|---|
 | `SMSG_TALENT_RESULT` | `0x30F0` | `STalentResultPacket` | 1 `RequestId` (uint32, echoed), 2 `Result` (`TalentResult`), 3 `NodeId` (uint32) |
-| `SMSG_TALENT_STATE` | `0x30F1` | `STalentStatePacket` | 1 `NodeIds` (repeated uint32), 2 `PointsEarned` (uint32), 3 `PointsSpent` (uint32) |
+| `SMSG_TALENT_STATE` | `0x30F1` | `STalentStatePacket` | 1 `NodeIds` (repeated uint32), 2 `PointsEarned` (uint32), 3 `PointsSpent` (uint32), 4 `RefundPricePerNode` (uint64) |
 
-All three are encrypted.
+All four are encrypted.
 
 ## 3. Allocating
 
@@ -59,9 +60,34 @@ node, no point, no stat, no ability.
 
 An empty `NodeIds` is `Ok` and changes nothing (no state follows).
 
+### Refunding
+
+`CMSG_TALENT_REFUND` gives nodes back, **all or nothing**, and only at the Lectern of Paths: the doodad in
+Glimmerdell's market whose entry in the doodad catalog (`schema/doodads/doodad-catalog-v1.json`, template 8) has
+`service` 2. A click on it opens the respec window, as a click on the Workbench (`service` 1) opens its window; the
+click itself sends nothing new. The client plans refunds in that window and commits them with one request naming the
+Lectern's guid (as its doodad spawn carried it) and the nodes. **"Reset all" is every node held.** `NodeIds` may come
+in any order: the server judges the refund as a whole, and accepts it when every node still held afterwards reaches
+the class's start through held nodes. Refunding the held side of a fork frees the other side.
+
+The Lectern and its range (5 m) are checked on every request, so a player who walks away with the window open is
+refused `TooFar`, and a guid naming any other doodad, the Workbench included, is refused `NotFound`.
+
+**The price.** Free up to and including level 10. From level 11 each node costs gold, by the character's level when
+it refunds: 100 a node at level 11, then 25 more for each level (125 at 12, 200 at 15, 575 at 30, 1,075 at 50, 2,325
+at 100; the server's `Game:Talents` settings). The state carries the price of one node, `RefundPricePerNode`
+(section 5), so the window shows a refund's cost as `RefundPricePerNode` times the nodes named, free when it is 0.
+Gold offered in an open trade does not count toward paying it.
+
+Every refund request with a character in the world gets **exactly one** `SMSG_TALENT_RESULT`, the same packet an
+allocation gets. A refusal changes nothing: no node, no point, no gold, no stat, no ability. An empty `NodeIds` at the
+Lectern is `Ok` and changes nothing (no state follows); away from it, it is refused as any refund is.
+
 ## 4. `TalentResult`
 
-A `byte` enum, append-only. The server checks the rules in this order and answers the first one broken:
+A `byte` enum, append-only. Values 8-14 were appended for refunds after `InternalError` (7), so the values do not
+follow the order the rules are asked in. For an allocation, the server checks the rules in this order and answers the
+first one broken:
 
 1. `Dead` (1): the character is dead.
 2. `TooMany` (2): the request names more nodes than the character has points left to spend (earned minus spent; so any
@@ -78,22 +104,41 @@ A `byte` enum, append-only. The server checks the rules in this order and answer
    - `ForkLocked` (6): its fork partner is held or named earlier. No fork group is seeded yet, so this is not sent
      until capstones are.
 
+For a refund, in this order:
+
+1. `Dead` (1): the character is dead.
+2. `Stunned` (8): the character cannot act.
+3. `NotFound` (9): no doodad of that guid in the character's instance, or it is not a Lectern.
+4. `TooFar` (10): the character is beyond the Lectern's range.
+5. `Casting` (11): the character is casting an ability (using an item or a doodad does not count), so no ability
+   leaves mid-cast.
+6. Then each id, in the order sent; the first id that breaks a rule is named in `NodeId`:
+   - `UnknownNode` (3): 0, above 2,147,483,647, or not a node of the tree. While the world's tree is unavailable, every
+     id is unknown, so every non-empty refund is refused `UnknownNode`;
+   - `NotAllocated` (12): not held, named earlier in the same request, or a class start (never held).
+7. `WouldDisconnect` (13): the refund would leave a held node cut off from the class's start. `NodeId` names the node
+   it would strand, the lowest id if there are several, so the window can show which node holds the refund back.
+8. `NotEnoughGold` (14): the price (section 3, "Refunding") is above 0 and more than the character can spend, gold
+   offered in an open trade left out.
+
 The other values:
 
 | Value | Name | Meaning |
 |---:|---|---|
-| 0 | `Ok` | Every node named is held now. Changed what the window shows, so `SMSG_TALENT_STATE` follows (section 5). |
-| 7 | `InternalError` | Something on the server failed; it is logged. A failure before the nodes were held changed nothing; one after leaves them held, and the state follows as for `Ok`. |
+| 0 | `Ok` | Every node named is held now (an allocation), or no longer held and paid for (a refund). Changed what the window shows, so `SMSG_TALENT_STATE` follows (section 5). |
+| 7 | `InternalError` | Something on the server failed; it is logged. A failure before the nodes changed changed nothing (a refund's gold is given back); one after leaves the change made (a refund stays paid for), and the state follows as for `Ok`. |
 
-`NodeId` is the refused node for `UnknownNode`, `AlreadyAllocated`, `NotConnected` and `ForkLocked` (the id as sent,
-so 0 when the refused id was 0), and 0 for `Ok`, `Dead`, `TooMany` and `InternalError`.
+`NodeId` is the refused node for `UnknownNode`, `AlreadyAllocated`, `NotConnected`, `ForkLocked` and `NotAllocated`
+(the id as sent, so 0 when the refused id was 0), the node the refund would strand for `WouldDisconnect`, and 0 for
+every other value.
 
 ## 5. The state, and when it arrives
 
 `SMSG_TALENT_STATE` is what the talent window shows, **whole every time**: `NodeIds`, every node the character holds,
 ascending (never its class start); `PointsEarned`, one per level plus the talent points of every quest it has turned in
-(section 6); `PointsSpent`, one per node held. What it may still spend is earned minus spent. The client replaces what
-it holds with each state.
+(section 6); `PointsSpent`, one per node held; `RefundPricePerNode`, the gold one node costs to refund at the
+character's level, 0 while refunds are free (section 3, "Refunding"). What it may still spend is earned minus spent.
+The client replaces what it holds with each state.
 
 **Spent above earned.** Spent is above earned when the points earned fell while the nodes were kept: a reload or a
 deploy refused or removed a quest the character turned in that paid talent points, or lowered what it pays, or staff
@@ -115,20 +160,24 @@ It arrives:
   the whole tree as a lowered level does), so the first state is already the corrected one. A character that lost
   nodes this way gets its points back and no other message. Only a refused tree keeps every saved node (it drops
   nothing); refused quests do not.
-- **After an accepted allocation**: the request's `SMSG_TALENT_RESULT` (`Ok`) first, then the state at the end of the
-  same tick.
+- **After an accepted allocation or refund**: the request's `SMSG_TALENT_RESULT` (`Ok`) first, then at the end of the
+  same tick the ability list when the abilities held changed (below), then the state.
 - **After a level-up**, whatever gave it (anything that grants experience: a kill, a quest, an item), at the end of
-  that tick: one more point.
+  that tick: one more point, and the refund price at the new level (from level 11 it changes with every level; the
+  level-up from 10 to 11 shows 100 at once).
 - **After a turn-in of a quest that pays talent points**: the system line "You gained 1 talent point." (or "You gained
   N talent points.") right after "Quest completed: X.", and the state at the end of the same tick
   ([quest protocol](quest-protocol.md), section 9). A repeatable quest pays none.
 
 A tick that changes the state several times (an allocation and a level-up together) sends it once.
 
-**The abilities after an allocation.** When an allocation changes the abilities the character holds (it allocated an
-ability node), `SMSG_CHARACTER_ABILITIES` (`0x3027`, `SCharacterAbilitiesPacket`) arrives again, whole, before the
-request's result: the starter first, then each held ability node's ability by ascending node id. An ability already
-held keeps its running cooldown; a new one arrives ready. An allocation of small or notable nodes sends no ability
+**The abilities after a change.** When an allocation or a refund changes the abilities the character holds (it
+allocated or refunded an ability node), `SMSG_CHARACTER_ABILITIES` (`0x3027`, `SCharacterAbilitiesPacket`) arrives
+again, whole, **at the end of the tick, after the request's result** and just before the state: the starter first,
+then each held ability node's ability by ascending node id. Since Part C it never arrives before the result, for
+allocations and refunds alike. A tick of several such requests sends one list, as things stand after the last of them.
+An ability already held keeps its running cooldown; a new one arrives ready, and so does one refunded and taken again,
+even one refunded on cooldown. A change of small or notable nodes sends no ability
 list: the stats it changes reach the client as usual, through `SMSG_CHARACTER_STATS` (`0x302A`) and, when an ability's
 amount or pace moved, `SMSG_CHARACTER_ABILITY_AMOUNTS` (`0x302C`), at the end of the tick
 ([inventory and saves](inventory-and-saves.md)). The ability list has no fixed length: an action bar takes any number

@@ -1,6 +1,5 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
-using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 
@@ -33,10 +32,10 @@ public sealed class Doodad : IWorldObject
         Position = position;
         Orientation = new Vector3(0f, yawDegrees, 0f);
 
-        // A solid doodad is never hidden, and a Workbench one (#1179) never hidden or gated: the catalog refuses a gated
-        // template of either, and a spawn's gate on one is dropped here too, so no placement path can make an unseen
-        // wall or a Workbench that will not open.
-        if (!template.Solid && template.Service != DoodadService.Workbench)
+        // A solid doodad is never hidden, and a service one (#1179, #1181) never hidden or gated: the catalog refuses a
+        // gated template of either, and a spawn's gate on one is dropped here too, so no placement path can make an
+        // unseen wall or a service doodad that will not open.
+        if (!template.Solid && template.Service is null)
         {
             VisibleGate = visibleGate ?? template.Visible;
             UsableGate = usableGate ?? template.Usable;

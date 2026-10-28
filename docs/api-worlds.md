@@ -426,6 +426,17 @@ singletons as in every host. Only their context factories differ in the API, whi
   nothing in the older build, so the allocations are back when the world rolls forward; going on to
   `dotnet ef database update AddImprintsAndInstability` drops it too, and every allocation with it. No world or API
   does that by itself.
+  **Migration order, #1181 (part C).** The Lectern of Paths is additive. A world's World database migrates through
+  `AddLecternOfPaths`: it widens `CK_DoodadTemplates_Service` to `"Service" IS NULL OR "Service" IN (1, 2)`, then
+  inserts doodad template row 8, the Lectern of Paths (`Service` 2), and fixed doodad spawn row 3 on map 1 (reordered
+  by hand so the widened check exists before row 8 goes in). There is no Character migration: refunds remove
+  `CharacterTalents` rows and spend gold through the existing columns. Each world applies it at its start, before it
+  serves (`WorldStartup`). The API reads none of it (no REST route serves a doodad template or spawn) and has no REST
+  change in this part, so either order works; the API release Part B2 waits for is cut after this part, once the
+  worlds have migrated. To roll a world back to a build without the change, run
+  `dotnet ef database update AbilitiesFromTheTree` against its World database, which deletes spawn row 3 and template
+  row 8 before it narrows the check back to `"Service" IS NULL OR "Service" = 1`. No world or API does that by
+  itself.
 
 ## How a request reaches its world
 

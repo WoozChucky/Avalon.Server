@@ -12,11 +12,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Avalon.Server.World.UnitTests.Talents;
 
 /// <summary>
-/// #1181: an allocation is all or nothing, and the rules only decide. A request is refused at the first rule it breaks,
-/// naming the node, in the order dead, too many, then each node as sent: unknown, already allocated, not connected, fork
-/// locked. The tree here: the Warrior's start 1, a chain 1-2-3-4, a branch 2-5, a fork pair of capstones 6 and 7 off 4
-/// (fork group 1), and the Hunter's start 10 joined at 4-10, with the Wizard's start 11 and the Cleric's 12 beyond it:
-/// ten nodes.
+/// #1181: an allocation or a refund is all or nothing, and the rules only decide. A request is refused at the first rule
+/// it breaks, naming the node: an allocation in the order dead, too many, then each node as sent: unknown, already
+/// allocated, not connected, fork locked; a refund each node as sent: unknown, not allocated, then would disconnect,
+/// naming the lowest node it would strand. The tree here: the Warrior's start 1, a chain 1-2-3-4, a branch 2-5, a node 8
+/// joined at 3-8 and 5-8 (so 2-3-8-5 is a loop), a fork pair of capstones 6 and 7 off 4 (fork group 1), and the Hunter's
+/// start 10 joined at 4-10, with the Wizard's start 11 and the Cleric's 12 beyond it: eleven nodes.
 /// </summary>
 public class TalentRulesShould
 {
@@ -57,6 +58,52 @@ public class TalentRulesShould
         Assert.Empty(save.TakeMarks().Talents!);
     }
 
+    [Theory]
+    [InlineData("a tip", new uint[] { 2, 3, 4 }, new uint[] { 4 }, TalentResult.Ok, 0u)]
+    [InlineData("reset all, tip last", new uint[] { 2, 3, 4, 5 }, new uint[] { 2, 5, 3, 4 }, TalentResult.Ok, 0u)]
+    [InlineData("the middle of a chain", new uint[] { 2, 3, 4 }, new uint[] { 3 }, TalentResult.WouldDisconnect, 4u)]
+    [InlineData("the first node", new uint[] { 2, 3 }, new uint[] { 2 }, TalentResult.WouldDisconnect, 3u)]
+    [InlineData("a cut that strands several", new uint[] { 2, 3, 4, 5 }, new uint[] { 2 }, TalentResult.WouldDisconnect,
+        3u)]
+    [InlineData("another path keeps the far side", new uint[] { 2, 3, 5, 8 }, new uint[] { 3 }, TalentResult.Ok, 0u)]
+    [InlineData("a node already cut off is no obstacle", new uint[] { 2, 4 }, new uint[] { 2 }, TalentResult.Ok, 0u)]
+    [InlineData("not held", new uint[] { 2 }, new uint[] { 3 }, TalentResult.NotAllocated, 3u)]
+    [InlineData("listed twice", new uint[] { 2, 3 }, new uint[] { 3, 3 }, TalentResult.NotAllocated, 3u)]
+    [InlineData("a start", new uint[] { 2 }, new uint[] { 1 }, TalentResult.NotAllocated, 1u)]
+    [InlineData("unknown before a stranding", new uint[] { 2, 3 }, new uint[] { 2, 99 }, TalentResult.UnknownNode, 99u)]
+    [InlineData("zero", new uint[] { 2 }, new uint[] { 0 }, TalentResult.UnknownNode, 0u)]
+    [InlineData("tree refused", new uint[] { 2 }, new uint[] { 2 }, TalentResult.UnknownNode, 2u)]
+    [InlineData("empty", new uint[] { 2 }, new uint[0], TalentResult.Ok, 0u)]
+    [InlineData("the held side of a fork", new uint[] { 2, 3, 4, 6 }, new uint[] { 6 }, TalentResult.Ok, 0u)]
+    public void Refund_or_refuse_naming_the_node(string row, uint[] held, uint[] request, TalentResult result, uint node)
+    {
+        Assert.True(s_tree.IsLoaded, s_tree.Refusal);
+        TalentCatalog tree = row == "tree refused" ? TalentCatalog.Empty : s_tree;
+        var save = new SaveStateTracker();
+        var talents = new TalentAllocation(save);
+        talents.Load([.. held.Select(n => new CharacterTalent { CharacterId = 118_101u, NodeId = (int)n })]);
+        int version = talents.Version;
+
+        TalentResult decided = TalentRules.Refund(talents, tree, CharacterClass.Warrior, request, out uint refused);
+
+        Assert.True((result, node) == (decided, refused), $"{row}: {decided} naming {refused}");
+        Assert.Equal(held.Select(n => (int)n), talents.Held);
+        Assert.Equal(version, talents.Version);
+        Assert.Empty(save.TakeMarks().Talents!);
+
+        if (row != "the held side of a fork")
+            return;
+
+        // Refunding the held side of a fork frees the other side.
+        talents.Refund(request);
+
+        Assert.Equal([2, 3, 4], talents.Held);
+        Assert.Equal(version + 1, talents.Version);
+        Assert.Equal([6], save.TakeMarks().Talents!.Keys);
+        Assert.Equal(TalentResult.Ok,
+            TalentRules.Allocate(talents, s_tree, CharacterClass.Warrior, dead: false, earned: 5, [7], out _));
+    }
+
     private static TalentCatalog Tree()
     {
         List<TalentNode> nodes =
@@ -68,6 +115,7 @@ public class TalentRulesShould
             new() { Id = 5, Kind = TalentNodeKind.Small },
             new() { Id = 6, Kind = TalentNodeKind.Capstone, Name = "Left capstone", ForkGroupId = 1 },
             new() { Id = 7, Kind = TalentNodeKind.Capstone, Name = "Right capstone", ForkGroupId = 1 },
+            new() { Id = 8, Kind = TalentNodeKind.Small },
             new() { Id = 10, Kind = TalentNodeKind.Start, Name = "Hunter start" },
             new() { Id = 11, Kind = TalentNodeKind.Start, Name = "Wizard start" },
             new() { Id = 12, Kind = TalentNodeKind.Start, Name = "Cleric start" },
@@ -75,6 +123,7 @@ public class TalentRulesShould
         List<TalentEdge> edges =
         [
             Edge(1, 2), Edge(2, 3), Edge(3, 4), Edge(2, 5), Edge(4, 6), Edge(4, 7), Edge(4, 10), Edge(10, 11), Edge(11, 12),
+            Edge(3, 8), Edge(5, 8),
         ];
         List<TalentNodeAbility> links = [Link(1, 100), Link(10, 101), Link(11, 102), Link(12, 103)];
         List<TalentClassStart> starts =

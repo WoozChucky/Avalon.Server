@@ -29,17 +29,17 @@ variant empty
 
 variant populated
   field 1 RequestId : uint = 65535
-  field 2 Result : TalentResult = TooMany (2)
+  field 2 Result : TalentResult = NotFound (9)
   field 3 NodeId : uint = 7
   bytes 8
-    08 ff ff 03 10 02 18 07
+    08 ff ff 03 10 09 18 07
 
 variant maxima
   field 1 RequestId : uint = 4294967295
-  field 2 Result : TalentResult = InternalError (7)
+  field 2 Result : TalentResult = NotEnoughGold (14)
   field 3 NodeId : uint = 4294967295
   bytes 14
-    08 ff ff ff ff 0f 10 07 18 ff ff ff ff 0f
+    08 ff ff ff ff 0f 10 0e 18 ff ff ff ff 0f
 
 variant minima
   field 1 RequestId : uint = 0
@@ -49,7 +49,7 @@ variant minima
 
 variant varint-edges
   field 1 RequestId : uint = 2097152
-  field 2 Result : TalentResult = <not a declared member> (8)
+  field 2 Result : TalentResult = <not a declared member> (15)
   field 3 NodeId : uint = 127
   bytes 9
-    08 80 80 80 01 10 08 18 7f
+    08 80 80 80 01 10 0f 18 7f

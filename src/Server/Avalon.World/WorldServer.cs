@@ -18,6 +18,7 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.GameAuth;
 using Avalon.World.Inventory;
@@ -1013,13 +1014,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             CharacterSheetFlusher.Flush(conns[i], combat);
         stageStart = StageDone(stageStart, s_sheetStage);
 
-        // The talent window's state (#1181), when an allocation or a paying turn-in marked it owed or the level moved;
-        // then each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it. The quest
-        // catalog the points are priced by is read once, so every connection is priced by the same one.
+        // The ability list a talent change owes (#1181), once however many changes the tick made, and the talent
+        // window's state, when an allocation or a paying turn-in marked it owed or the level moved; then each ability's
+        // per-hit amount (#669), in the same flush as the sheet whose stats moved it. The quest
+        // catalog the points are priced by, and Game:Talents a refund is priced by, are read once, so every connection is
+        // priced by the same ones.
         QuestCatalog questCatalog = _world.Data.Quests;
+        TalentConfiguration talentConfig = _world.Configuration.Talents;
         for (int i = 0; i < conns.Length; i++)
         {
-            TalentFlusher.Flush(conns[i], questCatalog);
+            TalentFlusher.Flush(conns[i], questCatalog, talentConfig);
             AbilityAmountsFlusher.Flush(conns[i]);
         }
         stageStart = StageDone(stageStart, s_abilityAmountsStage);

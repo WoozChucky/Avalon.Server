@@ -358,6 +358,11 @@ message CTalentAllocatePacket {
    uint32 RequestId = 1;
    repeated uint32 NodeIds = 2 [packed = false];
 }
+message CTalentRefundPacket {
+   uint32 RequestId = 1;
+   uint64 LecternGuid = 2;
+   repeated uint32 NodeIds = 3 [packed = false];
+}
 message CTargetUnitPacket {
    optional uint64 TargetGuid = 1;
 }
@@ -887,6 +892,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_TRADE_CONFIRM = 8405;
    NetworkPacketType_CMSG_TRADE_CANCEL = 8406;
    NetworkPacketType_CMSG_TALENT_ALLOCATE = 8416;
+   NetworkPacketType_CMSG_TALENT_REFUND = 8417;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
@@ -1566,6 +1572,7 @@ message STalentStatePacket {
    repeated uint32 NodeIds = 1 [packed = false];
    uint32 PointsEarned = 2;
    uint32 PointsSpent = 3;
+   uint64 RefundPricePerNode = 4;
 }
 message SThreatListPacket {
    uint64 TargetGuid = 1;
@@ -1689,6 +1696,13 @@ enum TalentResult {
    TalentResult_NotConnected = 5;
    TalentResult_ForkLocked = 6;
    TalentResult_InternalError = 7;
+   TalentResult_Stunned = 8;
+   TalentResult_NotFound = 9;
+   TalentResult_TooFar = 10;
+   TalentResult_Casting = 11;
+   TalentResult_NotAllocated = 12;
+   TalentResult_WouldDisconnect = 13;
+   TalentResult_NotEnoughGold = 14;
 }
 message ThreatEntry {
    uint64 AttackerGuid = 1;

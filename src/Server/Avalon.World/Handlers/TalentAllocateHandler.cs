@@ -12,8 +12,9 @@ namespace Avalon.World.Handlers;
 /// Allocates talent nodes (#1181), all or nothing, on the tick, in the map pass. Every request gets exactly one
 /// SMSG_TALENT_RESULT; a connection with no character gets nothing. TalentRules decides against every id before anything
 /// changes, so a refusal changes nothing, marks no save and allocates nothing beyond its pooled reply. An accepted
-/// request holds every node, then TalentChange refreshes the stats and the abilities and marks the talent state owed,
-/// which the tick's TalentFlusher sends.
+/// request holds every node, then TalentChange refreshes the stats and the abilities and marks the talent state owed, and
+/// the ability list when the abilities held changed; the result is the request's only packet, and the tick's
+/// TalentFlusher sends both after it, once per tick however many requests the tick ran.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_TALENT_ALLOCATE)]
 public sealed class TalentAllocateHandler(ILogger<TalentAllocateHandler> logger, IWorld world)
@@ -31,7 +32,7 @@ public sealed class TalentAllocateHandler(ILogger<TalentAllocateHandler> logger,
         uint refusedNode;
         try
         {
-            result = Allocate(connection, character, packet, out refusedNode);
+            result = Allocate(character, packet, out refusedNode);
         }
         catch (Exception e)
         {
@@ -47,8 +48,7 @@ public sealed class TalentAllocateHandler(ILogger<TalentAllocateHandler> logger,
         connection.Send(STalentResultPacket.Create(packet.RequestId, result, refusedNode, PacketEncoder.Shared));
     }
 
-    private TalentResult Allocate(IWorldConnection connection, CharacterEntity character, CTalentAllocatePacket packet,
-        out uint refusedNode)
+    private TalentResult Allocate(CharacterEntity character, CTalentAllocatePacket packet, out uint refusedNode)
     {
         // One read: the tree, the abilities and the quests the points are priced by are one generation.
         StaticData data = world.Data;
@@ -61,7 +61,7 @@ public sealed class TalentAllocateHandler(ILogger<TalentAllocateHandler> logger,
             return result;
 
         talents.Allocate(packet.NodeIds);
-        TalentChange.Apply(connection, character, data, logger);
+        TalentChange.Apply(character, data, logger);
         return TalentResult.Ok;
     }
 }

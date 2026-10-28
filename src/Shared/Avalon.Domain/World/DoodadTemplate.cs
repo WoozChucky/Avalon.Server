@@ -52,6 +52,11 @@ public enum DoodadService : byte
     /// onto another item, one item per request.
     /// </summary>
     Workbench = 1,
+
+    /// <summary>
+    /// The Lectern of Paths: opens the client's respec window, where the user refunds talent nodes.
+    /// </summary>
+    Lectern = 2,
 }
 
 /// <summary>
@@ -168,7 +173,7 @@ public class DoodadTemplate : IDbEntity<DoodadTemplateId>
     public uint? UsableObjectiveId { get; set; }
 
     /// <summary>
-    /// The service window a click opens on the client, or null for none. The catalog keeps a Workbench doodad clicked and
+    /// The service window a click opens on the client, or null for none. The catalog keeps a service doodad clicked and
     /// Unlimited, with no script, loot table or gate, so it is never hidden, spent or despawned.
     /// </summary>
     public DoodadService? Service { get; set; }

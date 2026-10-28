@@ -8,9 +8,9 @@ namespace Avalon.World.Talents;
 /// <summary>
 /// The talent nodes one character holds (#1181), and their stat lines summed into <see cref="Totals" />. World-side and
 /// tick-thread only, never on ICharacter, so no mod can read or change it. Memory is authoritative: the tree changes only
-/// through this class, every allocation and drop marks the save (<see cref="SaveStateTracker.TalentChanged" />), and the
-/// save writes what it holds; <see cref="Load" /> marks nothing. It does not decide what may be allocated: the talent
-/// rules do. Its mutators assert the tick thread while <see cref="TickThreadGuard" /> is enabled.
+/// through this class, every allocation, refund and drop marks the save (<see cref="SaveStateTracker.TalentChanged" />),
+/// and the save writes what it holds; <see cref="Load" /> marks nothing. It does not decide what may be allocated or
+/// refunded: the talent rules do. Its mutators assert the tick thread while <see cref="TickThreadGuard" /> is enabled.
 /// </summary>
 /// <remarks>
 /// The held node ids are a list kept ascending, with membership by binary search: no set, and nothing allocated by a
@@ -39,6 +39,12 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
     /// <summary>The character's level when the talent window's state was last sent.</summary>
     public ushort StateSentLevel { get; private set; }
 
+    /// <summary>
+    /// The abilities held changed since their list was last sent: the flusher sends it, once per tick however many
+    /// changes the tick made (Part C).
+    /// </summary>
+    public bool AbilitiesOwed { get; private set; }
+
     public bool Holds(int nodeId) => _held.BinarySearch(nodeId) >= 0;
 
     /// <summary>Replaces what is held with the stored rows, each node once. Marks nothing.</summary>
@@ -60,11 +66,7 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
     public void Allocate(IReadOnlyList<uint> nodeIds)
     {
         tickThread?.AssertOnTick("TalentAllocation.Allocate");
-        for (int i = 0; i < nodeIds.Count; i++)
-        {
-            if (nodeIds[i] is 0 or > int.MaxValue)
-                throw new ArgumentOutOfRangeException(nameof(nodeIds), nodeIds[i], "A talent node id is a positive int.");
-        }
+        ThrowUnlessNodeIds(nodeIds);
 
         bool changed = false;
         for (int i = 0; i < nodeIds.Count; i++)
@@ -73,6 +75,33 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
             if (!Insert(nodeId))
                 continue;
 
+            save.TalentChanged(nodeId);
+            changed = true;
+        }
+
+        if (changed)
+            Version++;
+    }
+
+    /// <summary>
+    /// Holds each node no more and marks it for the save; an id not held is skipped. The talent rules have accepted the
+    /// ids, so each is a held node of the tree, and so a positive <see cref="int" />. Every id is checked before anything
+    /// changes, so one that is not throws and leaves what is held as it was.
+    /// </summary>
+    public void Refund(IReadOnlyList<uint> nodeIds)
+    {
+        tickThread?.AssertOnTick("TalentAllocation.Refund");
+        ThrowUnlessNodeIds(nodeIds);
+
+        bool changed = false;
+        for (int i = 0; i < nodeIds.Count; i++)
+        {
+            int nodeId = (int)nodeIds[i];
+            int index = _held.BinarySearch(nodeId);
+            if (index < 0)
+                continue;
+
+            _held.RemoveAt(index);
             save.TalentChanged(nodeId);
             changed = true;
         }
@@ -111,13 +140,46 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
         }
     }
 
-    public void MarkStateOwed() => StateOwed = true;
+    public void MarkStateOwed()
+    {
+        tickThread?.AssertOnTick("TalentAllocation.MarkStateOwed");
+        StateOwed = true;
+    }
+
+    public void MarkAbilitiesOwed()
+    {
+        tickThread?.AssertOnTick("TalentAllocation.MarkAbilitiesOwed");
+        AbilitiesOwed = true;
+    }
+
+    /// <summary>The ability list was sent: nothing is owed until the abilities held change again.</summary>
+    public void AbilitiesSent()
+    {
+        tickThread?.AssertOnTick("TalentAllocation.AbilitiesSent");
+        AbilitiesOwed = false;
+    }
 
     /// <summary>The state was sent at <paramref name="level" />: nothing is owed until it changes again.</summary>
     public void StateSent(ushort level)
     {
+        tickThread?.AssertOnTick("TalentAllocation.StateSent");
         StateOwed = false;
         StateSentLevel = level;
+    }
+
+    /// <summary>
+    /// Throws, before anything changes, when an id is not a positive <see cref="int" />, as every node id is.
+    /// </summary>
+    private static void ThrowUnlessNodeIds(IReadOnlyList<uint> nodeIds)
+    {
+        for (int i = 0; i < nodeIds.Count; i++)
+        {
+            if (nodeIds[i] is 0 or > int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(nodeIds), nodeIds[i],
+                    "A talent node id is a positive int.");
+            }
+        }
     }
 
     /// <summary>Inserts the node at its place in the ascending list; false when it is held already.</summary>

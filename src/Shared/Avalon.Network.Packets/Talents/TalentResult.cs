@@ -6,7 +6,10 @@ namespace Avalon.Network.Packets.Talents;
 /// </summary>
 public enum TalentResult : byte
 {
-    /// <summary>Every node named is held. An accepted non-empty request is followed by an STalentStatePacket.</summary>
+    /// <summary>
+    /// Every node named is held after an allocation, or no longer held after a refund. An accepted non-empty request is
+    /// followed by an STalentStatePacket.
+    /// </summary>
     Ok = 0,
 
     Dead = 1,
@@ -28,4 +31,25 @@ public enum TalentResult : byte
 
     /// <summary>Something on the server failed after the request was allowed; it is logged.</summary>
     InternalError = 7,
+
+    /// <summary>The character is stunned.</summary>
+    Stunned = 8,
+
+    /// <summary>No Lectern of that guid in the character's instance.</summary>
+    NotFound = 9,
+
+    /// <summary>The Lectern is out of the character's reach.</summary>
+    TooFar = 10,
+
+    /// <summary>The character is casting an ability.</summary>
+    Casting = 11,
+
+    /// <summary>A node to refund that is not held, listed twice in the request, or a class start, which is never held.</summary>
+    NotAllocated = 12,
+
+    /// <summary>The refund would cut a held node off from the class's start; the node named is the lowest one cut off.</summary>
+    WouldDisconnect = 13,
+
+    /// <summary>The refund costs more gold than the character can spend, gold an open trade holds left out.</summary>
+    NotEnoughGold = 14,
 }

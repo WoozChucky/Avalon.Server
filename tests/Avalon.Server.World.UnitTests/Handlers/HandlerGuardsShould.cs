@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Social;
+using Avalon.Network.Packets.Talents;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Characters;
@@ -52,6 +53,7 @@ public class HandlerGuardsShould
     [InlineData(NetworkPacketType.CMSG_LOOT_PICKUP)]
     [InlineData(NetworkPacketType.CMSG_PARTY_LEAVE)]
     [InlineData(NetworkPacketType.CMSG_QUEST_ACCEPT)]
+    [InlineData(NetworkPacketType.CMSG_TALENT_REFUND)]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUY)]
     [InlineData(NetworkPacketType.CMSG_VENDOR_SELL)]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK)]
@@ -110,6 +112,10 @@ public class HandlerGuardsShould
                             Substitute.For<IItemRoller>(), TimeProvider.System, NullLogger<QuestService>.Instance),
                         NullLogger<QuestAcceptHandler>.Instance)
                     .Execute(connection, new CQuestAcceptPacket { QuestId = 1, NpcGuid = 7 });
+                break;
+            case NetworkPacketType.CMSG_TALENT_REFUND:
+                new TalentRefundHandler(NullLogger<TalentRefundHandler>.Instance, world, economy)
+                    .Execute(connection, new CTalentRefundPacket { RequestId = 1, LecternGuid = 7, NodeIds = [6] });
                 break;
             case NetworkPacketType.CMSG_VENDOR_BUY:
                 new VendorBuyHandler(NullLogger<VendorBuyHandler>.Instance, world, economy, NoQuestProgress.Instance,
