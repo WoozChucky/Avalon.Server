@@ -85,8 +85,15 @@ internal sealed record PartyClient(IWorldConnection Connection, CharacterEntity 
     public List<SPartyInvitePacket> Invites() => Read<SPartyInvitePacket>(NetworkPacketType.SMSG_PARTY_INVITE);
     public List<SPartyMemberStatusPacket> Statuses() => Read<SPartyMemberStatusPacket>(NetworkPacketType.SMSG_PARTY_MEMBER_STATUS);
 
+    /// <summary>What the server told this player: its system lines and its refusals (#1249), in order.</summary>
     public List<string> Lines() => Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)
-        .Where(m => m.Channel == ChatChannel.System)
+        .Where(m => m.Channel is ChatChannel.System or ChatChannel.Refusal)
+        .Select(m => m.Message)
+        .ToList();
+
+    /// <summary>The refusals alone (#1249): the lines the client shows in its refusal banner.</summary>
+    public List<string> Refusals() => Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)
+        .Where(m => m.Channel == ChatChannel.Refusal)
         .Select(m => m.Message)
         .ToList();
 

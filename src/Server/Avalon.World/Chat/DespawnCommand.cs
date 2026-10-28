@@ -21,19 +21,19 @@ public sealed class DespawnCommand(IWorld world, GmSpawns spawns, ILogger<Despaw
     {
         if (args.Length != 0)
         {
-            ctx.Reply("Usage: /despawn");
+            ctx.Refuse("Usage: /despawn");
             return;
         }
 
         if (ctx.Connection.Character is not CharacterEntity character)
         {
-            ctx.Reply("No character selected.");
+            ctx.Refuse("No character selected.");
             return;
         }
 
         if (world.InstanceRegistry.GetInstanceById(character.InstanceId) is not IItemUseHost host)
         {
-            ctx.Reply("You are not in a map.");
+            ctx.Refuse("You are not in a map.");
             return;
         }
 

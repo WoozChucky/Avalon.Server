@@ -54,4 +54,8 @@ public class SChatMessagePacket : Packet
     /// <summary>A line from the server, on the system channel.</summary>
     public static OutboundPacket System(string message, DateTime dateTime, PacketEncoder encoder)
         => Create(0UL, 0UL, "System", message, dateTime, encoder, ChatChannel.System);
+
+    /// <summary>A refusal from the server (#1249): a system line on the refusal channel.</summary>
+    public static OutboundPacket Refusal(string message, DateTime dateTime, PacketEncoder encoder)
+        => Create(0UL, 0UL, "System", message, dateTime, encoder, ChatChannel.Refusal);
 }

@@ -20,4 +20,10 @@ public enum ChatChannel : byte
     /// carries the sender in CharacterName; the sender's own echo carries the recipient in TargetName as well.
     /// </summary>
     Whisper = 3,
+
+    /// <summary>
+    /// From the server, saying no (#1249): a refusal of what the player asked, which the client shows in its refusal
+    /// banner rather than in the chat. Sent like <see cref="System" /> otherwise.
+    /// </summary>
+    Refusal = 4,
 }

@@ -83,7 +83,7 @@ public class ChatMessageHandlerShould
 
     /// <summary>The answer is a System line, which no character sent, so it carries class 0 (#763).</summary>
     [Fact]
-    public void Answer_an_unknown_command_on_the_system_channel()
+    public void Answer_an_unknown_command_on_the_refusal_channel()
     {
         _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>()).Returns(false);
         var sent = new List<OutboundPacket>();
@@ -93,7 +93,7 @@ public class ChatMessageHandlerShould
 
         using var stream = new MemoryStream(Assert.Single(sent).PayloadMemory.ToArray());
         SChatMessagePacket reply = Serializer.Deserialize<SChatMessagePacket>(stream);
-        Assert.Equal((ChatChannel.System, "Unknown command.", CharacterClass.None), (reply.Channel, reply.Message, reply.CharacterClass));
+        Assert.Equal((ChatChannel.Refusal, "Unknown command.", CharacterClass.None), (reply.Channel, reply.Message, reply.CharacterClass));
     }
 
     /// <summary>#763: a said line from a sender whose instance cannot be found still carries its class.</summary>
@@ -146,7 +146,7 @@ public class ChatMessageHandlerShould
 
         Assert.Empty(neighbour.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
         SChatMessagePacket told = Assert.Single(sender.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
-        Assert.Equal((ChatChannel.System, TooLong), (told.Channel, told.Message));
+        Assert.Equal((ChatChannel.Refusal, TooLong), (told.Channel, told.Message));
 
         // The budget is one message and the refusal used none of it: the next message is said.
         handler.Execute(sender.Connection, MakePacket("after"));

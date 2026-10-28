@@ -22,8 +22,12 @@ internal static class PartyCommandReply
     public static void Send(CommandContext ctx, PartyResult result, string? name)
     {
         PartyReplies.Answer(ctx.Connection, result, name);
-        if (PartyReplies.Describe(result, name) is { } line)
+        if (PartyReplies.Describe(result, name) is not { } line)
+            return;
+        if (result == PartyResult.Ok)
             ctx.Reply(line);
+        else
+            ctx.Refuse(line);
     }
 
     public static bool TryCharacter(CommandContext ctx, out uint id)
@@ -51,7 +55,7 @@ public sealed class InviteCommand(PartyService parties) : ICommand
             return;
         if (args.Length != 1)
         {
-            ctx.Reply("Usage: /invite <name>");
+            ctx.Refuse("Usage: /invite <name>");
             return;
         }
 
@@ -99,7 +103,7 @@ public sealed class KickCommand(PartyService parties) : ICommand
             return;
         if (args.Length != 1)
         {
-            ctx.Reply("Usage: /kick <name>");
+            ctx.Refuse("Usage: /kick <name>");
             return;
         }
 
@@ -120,7 +124,7 @@ public sealed class PromoteCommand(PartyService parties) : ICommand
             return;
         if (args.Length != 1)
         {
-            ctx.Reply("Usage: /promote <name>");
+            ctx.Refuse("Usage: /promote <name>");
             return;
         }
 
@@ -149,7 +153,7 @@ public sealed class PartyExperienceCommand(PartyService parties) : ICommand
 
         if (mode == PartyExperienceMode.Unknown)
         {
-            ctx.Reply("Usage: /partyxp <even|level>");
+            ctx.Refuse("Usage: /partyxp <even|level>");
             return;
         }
 
@@ -175,19 +179,19 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
         // Text that says nothing once stripped and trimmed (#944) is no message, as none is.
         if (ChatText.SaysNothing(text))
         {
-            ctx.Reply("Usage: /p <message>");
+            ctx.Refuse("Usage: /p <message>");
             return;
         }
 
         if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
         {
-            ctx.Reply(ChatRateLimiter.TooFast(retryAfter));
+            ctx.Refuse(ChatRateLimiter.TooFast(retryAfter));
             return;
         }
 
         if (parties.PartyOf(sender.Guid.Id) is not { } party)
         {
-            ctx.Reply(PartyReplies.Describe(PartyResult.NotInParty, null)!);
+            ctx.Refuse(PartyReplies.Describe(PartyResult.NotInParty, null)!);
             return;
         }
 

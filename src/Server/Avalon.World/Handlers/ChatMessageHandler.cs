@@ -33,7 +33,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         // parser, no lookup and no listener, uses none of the rate limit, and only the sender is told.
         if (ChatMessageLimit.Exceeds(message))
         {
-            connection.Send(SChatMessagePacket.System(ChatMessageLimit.TooLong, Now(), PacketEncoder.Shared));
+            connection.Send(SChatMessagePacket.Refusal(ChatMessageLimit.TooLong, Now(), PacketEncoder.Shared));
             return;
         }
 
@@ -41,7 +41,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         {
             if (!commandDispatcher.Dispatch(connection, packet))
             {
-                connection.Send(SChatMessagePacket.System("Unknown command.", Now(),
+                connection.Send(SChatMessagePacket.Refusal("Unknown command.", Now(),
                     PacketEncoder.Shared));
             }
 
@@ -63,7 +63,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         // Before anything is looked up or sent: an over-limit message is not said, and only the sender is told.
         if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
         {
-            connection.Send(SChatMessagePacket.System(ChatRateLimiter.TooFast(retryAfter), Now(),
+            connection.Send(SChatMessagePacket.Refusal(ChatRateLimiter.TooFast(retryAfter), Now(),
                 PacketEncoder.Shared));
             return;
         }

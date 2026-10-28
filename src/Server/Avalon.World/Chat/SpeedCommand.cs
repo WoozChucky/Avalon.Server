@@ -18,13 +18,13 @@ public sealed class SpeedCommand(ILogger<SpeedCommand> logger) : ICommand
             (!float.TryParse(args[0], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out multiplier) ||
              !float.IsFinite(multiplier) || multiplier is < 1f or > 10f))
         {
-            ctx.Reply("Usage: /speed [multiplier 1-10] (no argument or 1 resets)");
+            ctx.Refuse("Usage: /speed [multiplier 1-10] (no argument or 1 resets)");
             return;
         }
 
         if (ctx.Connection.Character is not CharacterEntity character)
         {
-            ctx.Reply("No character selected.");
+            ctx.Refuse("No character selected.");
             return;
         }
 

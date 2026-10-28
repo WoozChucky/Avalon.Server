@@ -121,7 +121,8 @@ public class IgnoreCommandsShould
 
         Run(Ignore(), aren, "/ignore aren");
 
-        Assert.Equal(["You can't ignore yourself."], aren.Lines());
+        // A refusal, on its own channel (#1249): the client shows it in its banner, not in the chat.
+        Assert.Equal(["You can't ignore yourself."], aren.Refusals());
         Assert.Empty(aren.Character.Ignores.Entries);
         Assert.Empty(Lists(aren));
         _repository.DidNotReceiveWithAnyArgs().FindCharacterByNameAsync(default!, default);

@@ -20,13 +20,13 @@ public sealed class UnignoreCommand : ICommand
 
         if (args.Length != 1)
         {
-            ctx.Reply(IgnoreLines.UnignoreUsage);
+            ctx.Refuse(IgnoreLines.UnignoreUsage);
             return;
         }
 
         if (owner.Ignores.FindByName(args[0]) is not { } entry)
         {
-            ctx.Reply(IgnoreLines.NotOnList(args[0].Trim()));
+            ctx.Refuse(IgnoreLines.NotOnList(args[0].Trim()));
             return;
         }
 

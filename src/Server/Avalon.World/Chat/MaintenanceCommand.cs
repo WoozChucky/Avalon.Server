@@ -31,7 +31,13 @@ public sealed class MaintenanceCommand(
         if (args.Length == 1 && string.Equals(args[0], "status", StringComparison.OrdinalIgnoreCase))
         {
             ctx.Then(Task.Run(() => repository.ReadAsync(worldId, CancellationToken.None)),
-                persisted => ctx.Reply(persisted is null ? Unavailable : Describe(persisted)));
+                persisted =>
+                {
+                    if (persisted is null)
+                        ctx.Refuse(Unavailable);
+                    else
+                        ctx.Reply(Describe(persisted));
+                });
             return;
         }
 
@@ -42,7 +48,7 @@ public sealed class MaintenanceCommand(
             enabled = true;
             if (args.Length == 2 && (!int.TryParse(args[1], CultureInfo.InvariantCulture, out minutes) || minutes is < 1 or > 60))
             {
-                ctx.Reply(Usage);
+                ctx.Refuse(Usage);
                 return;
             }
         }
@@ -52,7 +58,7 @@ public sealed class MaintenanceCommand(
         }
         else
         {
-            ctx.Reply(Usage);
+            ctx.Refuse(Usage);
             return;
         }
 
@@ -63,7 +69,7 @@ public sealed class MaintenanceCommand(
             {
                 if (committed is null)
                 {
-                    ctx.Reply(Unavailable);
+                    ctx.Refuse(Unavailable);
                     return;
                 }
 

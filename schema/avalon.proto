@@ -468,6 +468,7 @@ enum ChatChannel {
    ChatChannel_Party = 1;
    ChatChannel_System = 2;
    ChatChannel_Whisper = 3;
+   ChatChannel_Refusal = 4;
 }
 enum CreatureRarity {
    CreatureRarity_Normal = 0;
