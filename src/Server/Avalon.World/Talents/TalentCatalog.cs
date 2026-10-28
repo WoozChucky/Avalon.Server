@@ -233,7 +233,7 @@ public sealed class TalentCatalog
         Walk(_neighbourStarts, _neighbours, startIndex, held, reached[..BitWords], queue);
     }
 
-    /// <summary>"305 talent nodes", or "talent tree refused: the reason".</summary>
+    /// <summary>"335 talent nodes", or "talent tree refused: the reason".</summary>
     public string Describe() => Refusal is null ? $"{Count} talent nodes" : $"talent tree refused: {Refusal}";
 
     private static void Walk(int[] neighbourStarts, int[] neighbours, int startIndex, ReadOnlySpan<ulong> held,

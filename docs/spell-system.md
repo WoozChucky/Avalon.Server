@@ -390,6 +390,13 @@ tick it sweeps its whole step as a segment:
 It ends at `Reach`, at a wall (a caster off the navmesh ends it on its first tick), or on a first hit.
 It never homes and has no target.
 
+**Shaped per character (#1181 part D).** A character's `Reach`, `Radius` and `ArcDegrees` are its own: the capstones
+it holds on the talent tree scale a cone's reach and arc (the arc at most 360°) and a circle's radius, summed per
+ability ([talents](talents.md#shaped-abilities)). The shapes above read them from the cast's metadata, and so does the
+telegraph, so a shaped cone or circle hits and shows as shaped. The metadata is swapped on the character's ability
+only at a talent change, never on a cast already taken: a cast keeps the shape it was queued with. A creature's
+ability is never shaped.
+
 ---
 
 ## 6. Broadcast
@@ -484,6 +491,16 @@ migration `AddTalentTree`. Heavy Strike is the Warrior's starter, linked from th
 Attack with `MaxTargets` 1, so it hits only the nearest hostile in its cone, paced by the weapon. Frostbolt is the
 ability node between the Hunter's and the Wizard's regions. Cleave, the Warrior's basic before the tree, is an
 ability node since `AbilitiesFromTheTree`: not `Basic`, and 6 mana; the four starters are the only basics.
+
+**Capstones (#1181 part D).** A capstone at the end of an ability's branch reshapes that ability for the character
+holding it ([talents](talents.md#shaped-abilities)). `AbilityMetadata` carries the shaped `Reach`, `Radius` and
+`ArcDegrees`, and six init-only fields for the rest: `ProjectileCount` (1 unless shaped, at most 9),
+`ExplosionRadius` (metres), `ExplosionEffectiveness` (%), `SecondHitEffectiveness` (%), `AuraStacksBonus` and
+`AuraDurationPct` (%). `AbilityInfo` sends them as fields 25-30
+([talent protocol](talent-protocol.md#8-capstones-and-keystones)), beside the shaped fields 11-13. Its copy constructor, `AbilityMetadata(AbilityMetadata)`, copies every member and is
+what `Clone()` and the shaping use; nothing on it is settable, so it grants no mod a way to shape an ability. Until
+part D2, only the cone and circle values act: no cast reads the six new fields, so a projectile ability fires one
+projectile, and no hit lands a second time or explodes.
 
 Every cost is mana, for every class (#1181). `SeedIntegrityShould` pins the twenty-one abilities of the old class
 kits (this table's twelve and the nine aura and crowd-control abilities, [auras](auras.md)), what the design fixes of

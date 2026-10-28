@@ -4,24 +4,35 @@ The shared talent tree (#1181): one wheel of nodes every class shares. Each clas
 which grants its single-target starter ability, and every other class ability is a node any class can walk to. This
 page covers the tree as data (Part B1): its tables, the seeded first region, the world's catalog, the client export and
 the public read; and characters on the tree (Part B2): saved talents, points, the select check, abilities from the
-tree, allocation, the talent state, the stats fold and the REST reads; and respec at the Lectern of Paths (Part C):
-refunds, their price, and how a change of the abilities held is bounded. The client's view is the
+tree, allocation, the talent state, the stats fold and the REST reads; respec at the Lectern of Paths (Part C):
+refunds, their price, and how a change of the abilities held is bounded; and capstones and keystones (Part D1): their
+rows, the catalog's checks on them, and the held abilities their capstones shape. The client's view is the
 [talent protocol](talent-protocol.md).
+
+**Part D1 adds no hit, cast or aura code.** A cone's reach and arc and a circle's radius are read from the shaped
+metadata, so the capstones that widen or lengthen a cone or a circle act in play now. Every other modifier (more
+projectiles, an explosion, a second hit, more stacks, a longer aura) is carried on the ability and sent to the client,
+but nothing in the cast, hit or aura code reads it yet. Keystones fold their stat lines (all of Glass Edge, and Steady Hand's two
+`More` lines), but no keystone rule is read: Blood Price, Steady Hand's crit rule and Unbroken do nothing yet. Part D2
+brings the rest ("What Part D2 adds", below).
 
 ## The tables
 
-Six World tables, seeded by the World migration `AddTalentTree` from `TalentSeed`
-(`src/Server/Avalon.Database.World/Seeding/TalentSeed.cs`) and configured in `WorldDbContext` beside the item modifier
-catalog. The domain classes are in `src/Shared/Avalon.Domain/World/Talents.cs`, with no navigations. All six are
-balance tables: they change only through `HasData` plus a generated migration (CLAUDE.md, `ModelDriftShould`).
+Seven World tables, seeded from `TalentSeed` (`src/Server/Avalon.Database.World/Seeding/TalentSeed.cs`) and configured
+in `WorldDbContext` beside the item modifier catalog: the World migration `AddTalentTree` created six and seeded the
+first region, and `AddCapstonesAndKeystones` (Part D1) added `TalentNodes.Keystone`, created `TalentAbilityModifiers`
+and seeded the capstones, keystones and fork groups. The domain classes are in
+`src/Shared/Avalon.Domain/World/Talents.cs`, with no navigations. All seven are balance tables: they change only through
+`HasData` plus a generated migration (CLAUDE.md, `ModelDriftShould`).
 
 | Table | Columns and keys | Checks and keys |
 |---|---|---|
-| `TalentNodes` | `Id` (`integer` key, never generated); `Kind` (`TalentNodeKind`, `smallint`); `Name` (at most 40, nullable); `Angle` and `Radius` (`real`); `ForkGroupId` (nullable) | `CK_TalentNodes_Kind` 1 to 7; `CK_TalentNodes_Name`: a notable, an ability, a capstone and a keystone are named; `CK_TalentNodes_Angle` in (-180, 180]; `CK_TalentNodes_Radius` finite and 0 or more; `CK_TalentNodes_ForkGroup`: only a capstone sits in a fork; `ForkGroupId` a `Restrict` foreign key to `TalentForkGroups` |
+| `TalentNodes` | `Id` (`integer` key, never generated); `Kind` (`TalentNodeKind`, `smallint`); `Name` (at most 40, nullable); `Angle` and `Radius` (`real`); `ForkGroupId` (nullable); `Keystone` (`KeystoneRule`, `smallint`, nullable) | `CK_TalentNodes_Kind` 1 to 7; `CK_TalentNodes_Name`: a notable, an ability, a capstone and a keystone are named; `CK_TalentNodes_Angle` in (-180, 180]; `CK_TalentNodes_Radius` finite and 0 or more; `CK_TalentNodes_ForkGroup`: only a capstone sits in a fork; `CK_TalentNodes_Keystone`: null, or a keystone (`Kind` 6) with a rule from 1 to 3; `ForkGroupId` a `Restrict` foreign key to `TalentForkGroups` |
 | `TalentEdges` | `NodeA`, `NodeB`, key both | `CK_TalentEdges_Order` `NodeA < NodeB`: each undirected edge once, the smaller id first; both `Restrict` foreign keys to `TalentNodes` |
 | `TalentNodeStats` | `NodeId`, `Stat` (`StatType`, `smallint`), `Kind` (`TalentStatKind`, `smallint`), `Value`, `ValueMax` (nullable); key `(NodeId, Stat, Kind)` | `CK_TalentNodeStats_Kind` 1 or 2; `CK_TalentNodeStats_Range` `ValueMax` null or at least `Value`; `Cascade` from the node |
 | `TalentNodeAbilities` | `NodeId` (key), `AbilityId` | unique index on `AbilityId` (an ability is granted by one node at most); `Cascade` from the node; `Restrict` to `AbilityTemplates`, so a linked ability cannot be deleted |
-| `TalentForkGroups` | `Id` (key, never generated) | empty until Part D |
+| `TalentAbilityModifiers` | `NodeId`, `Kind` (`TalentModifierKind`, `smallint`), `AbilityId`, `Value` (`integer`), `Value2` (`integer`, nullable); key `(NodeId, Kind)` | `CK_TalentAbilityModifiers_Kind` 1 to 8; `CK_TalentAbilityModifiers_Value` above 0; `CK_TalentAbilityModifiers_Value2`: set, and above 0, on an `ImpactExplosion` (2) and on no other kind; `Cascade` from the node; `Restrict` to `AbilityTemplates`, so a shaped ability cannot be deleted. Which node may hold a row, and whether it fits its ability, are the catalog's rules (below) |
+| `TalentForkGroups` | `Id` (key, never generated) | nine, one per capstone fork |
 | `TalentClassStarts` | `Class` (`CharacterClass`, `smallint`, key), `NodeId` | `CK_TalentClassStarts_Class` 1 to 4; unique index on `NodeId`; `Restrict` to `TalentNodes` |
 
 - **`TalentNodeKind`** (stored, append-only): `Start` 1 (a class's start: free, never allocated, linked to the class's
@@ -29,40 +40,56 @@ balance tables: they change only through `HasData` plus a generated migration (C
   `Junction` 7 (a hub junction, where a class's spoke meets the hub ring).
 - **`TalentStatKind`** (stored, append-only): `Added` 1 (summed with the gear's lines of the same stat, as a worn item's
   global line is) and `More` 2 (a multiplier of its own, "N % more").
+- **`KeystoneRule`** (stored, append-only, Part D): `LifeCost` 1 (Blood Price: a cost paid from life), `NoCrits` 2
+  (Steady Hand: never a critical hit, heal or tick) and `WardTakesAll` 3 (Unbroken: the ward also takes blight and
+  bleeding, and waits twice as long to recharge). A keystone that only trades a gain for a loss carries stat lines and
+  no rule.
+- **`TalentModifierKind`** (stored, append-only, Part D): how a capstone reshapes its ability. `AddedProjectiles` 1
+  (`Value` more projectiles, in a fan 10° apart), `ImpactExplosion` 2 (a circle of `Value` / 10 metres hit at `Value2` %
+  of the amount, where the projectile ends on a unit), `AreaPct` 3 (a circle's radius, and an explosion's,
+  × (1 + `Value` / 100)), `ConeReachPct` 4 and `ConeArcPct` 5 (a cone's reach or arc × (1 + `Value` / 100), the arc at
+  most 360°), `AuraStacks` 6 (`Value` more stacks of the ability's aura from this caster), `AuraDurationPct` 7 (the
+  aura lasts × (1 + `Value` / 100)) and `SecondHit` 8 (each unit affected hit, or healed, again at `Value` % of the
+  amount).
 - **Stat lines** speak the gear's `StatType` vocabulary. Three stats arrived for the tree: `IncreasedArmor` 56,
   `IncreasedEvasion` 57 and `IncreasedWard` 58 (the global increases of each defence, also on the API contract's
   `StatType` and the wire's `ItemStat`).
-- **The bundle.** `TalentTreeRows` (Domain) holds the six tables' rows. The seed (`TalentSeed.Rows()`), the repository
-  (`ITalentTreeRepository.GetTreeAsync`, each table by its key), the catalog, the export and the API all share it.
+- **The bundle.** `TalentTreeRows` (Domain) holds the seven tables' rows: six positional, and `Modifiers` an init-only
+  property that defaults to none. The seed (`TalentSeed.Rows()`), the repository (`ITalentTreeRepository.GetTreeAsync`,
+  each table by its key, the modifiers by `(NodeId, Kind)`), the catalog, the export and the API all share it.
+  `GetHeldAsync`, the REST character reads' subset, carries no edges, fork groups or modifiers.
 - Ids are plain surrogates. No code finds a node by its id's value: a node is reached by a class start, a link or a
   kind. Characters store the ids they hold (`CharacterTalents`), so an id never changes, and a node added later takes
   the next id above the highest ever used.
 
 ## The seed
 
-`TalentSeed` is the first region of the wheel, without its capstones and keystones: 305 nodes, 345 edges, 286 stat
-lines, 23 ability links and four class starts. The model's `HasData`, the world's no-repository fallback, the export
-and the tests read it.
+`TalentSeed` is the first region of the wheel with its capstones and keystones: 335 nodes, 379 edges, 290 stat lines,
+23 ability links, 26 capstone modifiers, nine fork groups and four class starts. The model's `HasData`, the world's
+no-repository fallback, the export and the tests read it.
 
 - **Ids**, literal, in the design's table order: the Warrior's region 1-73 (start 1), the Hunter's 74-146 (start 74),
   the Wizard's 147-219 (start 147), the Cleric's 220-292 (start 220), and the shared nodes 293-305: the four joints
   (`WH-joint` 293, `HZ-joint` 294, `ZC-joint` 295, `CW-joint` 296), Frostbolt's branch 297-301 and the hub junctions
-  302-305 (`hub-W`, `hub-H`, `hub-Z`, `hub-C`).
+  302-305 (`hub-W`, `hub-H`, `hub-Z`, `hub-C`); then Part D's capstones 306-331 and keystones 332-335.
 - **Labels are source-only keys.** Each row carries the design's label, for example `Ability(6, "WH-A5", "Cleave", Cleave)`:
   `WH-A5` is the Warrior's half-path toward the Hunter, lane A, node 5; `.c1` a node of the branch hanging
-  off it; `Whub-L2` the Warrior's spoke, left route, node 2. A label wires the edges (written as chains of labels),
-  places the node on the wheel and tells the reader which node a row is. It is never stored, exported or sent.
+  off it, `.c6` the branch's lone capstone, `.cx` and `.cy` a fork's two capstones; `Whub-L2` the Warrior's spoke, left
+  route, node 2; `key-WH` the keystone between the Warrior's and the Hunter's hub junctions. A label wires the edges
+  (written as chains of labels), places the node on the wheel and tells the reader which node a row is. It is never
+  stored, exported or sent.
 - **One region** (73 nodes, 84 edges): the start; two half-paths, one toward each neighbouring class, each two lanes
   (A and B) of ten nodes running from the start to the joint the two classes share, the lanes crossing at nodes 3, 6
   and 9; four branches of five small nodes, each hanging off an ability node; and a spoke toward the hub, `S1`-`S6`
   with a left route `L1`-`L3` and a right route `R1`-`R3` between `S3` and `S4`, ending on the class's hub junction.
   The four hub junctions form a ring. Frostbolt, the joint between the Hunter and the Wizard, carries the fifth shared
   branch.
-- **Kinds**: 4 starts, 253 small nodes, 25 notables, 19 ability nodes and 4 junctions. Starts keep their names
-  ("Warrior start"), notables and abilities theirs, and small nodes and junctions have none.
-- **Stat lines**: every line is `Added`. A small node carries one line, a notable one or two, a junction one
-  (`IncreasedMaximumLife` 3). The one ranged line is `Frostfletched`'s "attacks add 2 to 4 cold damage"
-  (`AddedColdDamageToAttacks`, `Value` 2, `ValueMax` 4).
+- **Kinds**: 4 starts, 253 small nodes, 25 notables, 19 ability nodes, 4 junctions, 26 capstones and 4 keystones.
+  Starts keep their names ("Warrior start"), notables, abilities, capstones and keystones theirs, and small nodes and
+  junctions have none.
+- **Stat lines**: a small node carries one line, a notable one or two, a junction one (`IncreasedMaximumLife` 3), a
+  keystone none or two, and a capstone none. Every line is `Added` but the keystones' four `More` lines. The one ranged
+  line is `Frostfletched`'s "attacks add 2 to 4 cold damage" (`AddedColdDamageToAttacks`, `Value` 2, `ValueMax` 4).
 - **Ability links**: each start links its class's starter, and each ability node the ability its name names.
 
   | Node | Label | Ability | | Node | Label | Ability |
@@ -81,6 +108,49 @@ and the tests read it.
   | | | | | 294 | `HZ-joint` | 320 Frostbolt |
 
   Heavy Strike and Frostbolt are new with the tree ([spell system](spell-system.md), §8).
+- **Capstones** (Part D). Each hangs by one edge from the last node of a branch (`.c5`) and shapes the ability that
+  branch hangs from, with one modifier row. Nine branches end in a fork of two capstones (`.cx`, `.cy`), of which a
+  character holds one (`ForkLocked`), and eight in a lone capstone (`.c6`). The fork groups take 1-9 in the order their
+  first capstone appears. Shield Bash, Hush and the four starters have no capstone.
+
+  | Node | Label | Name | Fork | Ability | Modifier (`Kind`, `Value`, `Value2`) |
+  |---:|---|---|---:|---|---|
+  | 306 | `WH-A5.cx` | Wide Arc | 1 | 200 Cleave | `ConeArcPct` 50 |
+  | 307 | `WH-A5.cy` | Long Reach | 1 | 200 Cleave | `ConeReachPct` 40 |
+  | 308 | `WH-B10.c6` | Haemorrhage | – | 203 Rend | `AuraStacks` 2 |
+  | 309 | `WC-B10.cx` | Earthshaker | 2 | 201 Ground Slam | `AreaPct` 40 |
+  | 310 | `WC-B10.cy` | Aftershock | 2 | 201 Ground Slam | `SecondHit` 50 |
+  | 311 | `Whub-L2.c6` | Twin Axes | – | 202 Hurled Axe | `AddedProjectiles` 1 |
+  | 312 | `HW-A5.cx` | Broad Volley | 3 | 222 Scatter Shot | `ConeArcPct` 40 |
+  | 313 | `HW-A5.cy` | Long Volley | 3 | 222 Scatter Shot | `ConeReachPct` 40 |
+  | 314 | `HW-B10.c6` | Twin Arrows | – | 221 Piercing Arrow | `AddedProjectiles` 1 |
+  | 315 | `HZ-A5.c6` | Double Tap | – | 223 Crippling Shot | `SecondHit` 50 |
+  | 316 | `HZ-B10.cx` | Blight Burst | 4 | 224 Binding Shot | `ImpactExplosion` 25, 50 |
+  | 317 | `HZ-B10.cy` | Twin Binding | 4 | 224 Binding Shot | `AddedProjectiles` 1 |
+  | 318 | `ZH-A5.cx` | Glacial Reach | 5 | 212 Frost Fan | `ConeReachPct` 40 |
+  | 319 | `ZH-A5.cy` | Wide Fan | 5 | 212 Frost Fan | `ConeArcPct` 50 |
+  | 320 | `ZH-B10.c6` | Frost Field | – | 214 Frost Bind | `AreaPct` 40 |
+  | 321 | `ZC-A5.c6` | Conflagration | – | 211 Flame Burst | `AreaPct` 40 |
+  | 322 | `ZC-B10.cx` | Wildfire | 6 | 213 Ignite | `AuraDurationPct` 50 |
+  | 323 | `ZC-B10.cy` | Firestorm | 6 | 213 Ignite | `AreaPct` 50 |
+  | 324 | `CZ-A5.c6` | Thunderclap | – | 231 Radiant Pulse | `SecondHit` 50 |
+  | 325 | `CW-A5.cx` | Sanctuary | 7 | 232 Mending Circle | `AreaPct` 40 |
+  | 326 | `CW-A5.cy` | Twice Blessed | 7 | 232 Mending Circle | `SecondHit` 50 |
+  | 327 | `CW-B10.c6` | Enduring Renewal | – | 233 Renew | `AuraDurationPct` 50 |
+  | 328 | `Chub-L2.cx` | Bastion | 8 | 234 Fortify | `AreaPct` 50 |
+  | 329 | `Chub-L2.cy` | Steadfast | 8 | 234 Fortify | `AuraDurationPct` 50 |
+  | 330 | `HZ-joint.cx` | Shatterbolt | 9 | 320 Frostbolt | `AddedProjectiles` 2 |
+  | 331 | `HZ-joint.cy` | Rimeburst | 9 | 320 Frostbolt | `ImpactExplosion` 30, 60 |
+
+  Frost Bind's root (Frozen) and Binding Shot's (Bound) and Crippling Shot's slow (Crippled) are crowd control, so no
+  capstone lengthens or deepens them: Frost Field widens Frost Bind's circle, and Binding Shot's capstones add a
+  projectile or an explosion.
+- **Keystones** (Part D). Each sits inside the hub ring with two edges, one to each hub junction beside it
+  (`hub-W`–`key-WH`–`hub-H`, `hub-H`–`key-HZ`–`hub-Z`, `hub-Z`–`key-ZC`–`hub-C`, `hub-C`–`key-CW`–`hub-W`):
+  332 `key-WH` Blood Price (`LifeCost`); 333 `key-HZ` Glass Edge (no rule; `IncreasedDamage` `More` 30 and
+  `IncreasedMaximumLife` `More` −25); 334 `key-ZC` Steady Hand (`NoCrits`; `IncreasedDamage` `More` 20 and
+  `IncreasedHealing` `More` 20); 335 `key-CW` Unbroken (`WardTakesAll`). Part D's 34 edges are the capstones' 26 and
+  the keystones' 8.
 - **Layout.** Angles in degrees, in (-180, 180], normalised by ±360; radii in layout units. A class's angle θ is -90
   for the Warrior, 0 for the Hunter, 90 for the Wizard and 180 for the Cleric. d is +1 on the half-paths W→H, H→Z,
   Z→C and C→W, and -1 on the others.
@@ -99,8 +169,11 @@ and the tests read it.
   | spoke `S4`-`S6` | θ | 360 − 40(n − 3) |
   | spoke branch `Xhub-L2.ck` | θ − 4 − 4k | 400 |
   | hub junction | θ | 160 |
+  | lone capstone `.c6` | its branch's node 6, by the rules above | its branch's node 6 |
+  | fork capstone `.cx` / `.cy` | its branch's node 6, − 2 / + 2 | its branch's node 6 |
+  | keystone `key-XY` | θ(X) + 45 | 120 |
 
-  Every first-region position is distinct.
+  Every position is distinct (`SeedIntegrityShould`).
 - **Quest talent points** are data in the same migration: `QuestTemplates.RewardTalentPoints`, 1 on quests 3, 7 and
   8, and refused on a repeatable quest ([quests](quests.md)).
 
@@ -109,17 +182,23 @@ and the tests read it.
 `TalentCatalog` (`src/Server/Avalon.World/Talents/TalentCatalog.cs`) is the tree checked whole and immutable
 afterwards.
 
-- **Where it loads.** The Abilities reload area reads the tree rows first, builds the ability catalog, then builds
-  the talent catalog against that ability catalog, off the tick, and publishes both together
+- **Where it loads.** The Abilities reload area reads the tree rows and the aura rows first, builds the ability
+  catalog against those auras, then builds the talent catalog against that ability catalog and the same auras
+  (`TalentCatalog(rows, abilities, auras, loggerFactory)`), off the tick, and publishes both together
   (`AbilitiesPatch(Catalog, Talents)`). So `/reload abilities` (and an ability template edit's reload) re-reads the
-  tree, and a link is never checked against another generation's abilities. There is no `/reload talents`.
-  `StaticData.Talents` is `TalentCatalog.Empty` before the first load. A `StaticData` built without a talent
-  repository (tests) reads `TalentSeed.Rows()`. A reload reports `305 talent nodes`, or `talent tree refused: <reason>`.
+  tree, and a link or a capstone's modifier is never checked against another generation's abilities or auras. There is
+  no `/reload talents`. `StaticData.Talents` is `TalentCatalog.Empty` before the first load. A `StaticData` built
+  without a talent repository (tests) reads `TalentSeed.Rows()`. A reload reports `335 talent nodes`, or
+  `talent tree refused: <reason>`.
 - **The index API.** The nodes sit at dense indices 0 to `Count` − 1 in id order. `TryIndexOf` (a binary search) turns
   an id into an index; `NodeIdAt`, `KindAt`, `NeighboursAt` (ascending), `AbilityAt`, `LinesAt` (by stat, then kind; a
   line without a range has its value at both ends), `ForkPartnerAt` (-1 when none), `StartIndexOf` and `StarterOf`
-  read by index or class. `WalkHeld(startIndex, held, reached, queue)` marks every held node a path of held nodes links
-  to the start, over bit sets of `BitWords` words and a queue the caller owns, so a walk allocates nothing. On a refused
+  read by index or class. Part D adds three, built once with the rest and packed like the neighbours: `KeystoneAt` (a
+  keystone's rule, null elsewhere and on a keystone of stat lines only), `ModifiersAt` (a capstone's rows by kind, as
+  `TalentModifier(Kind, Ability, Value, Value2)`, empty elsewhere) and `ShapersAt` (for a `Start` or `Ability` node,
+  the indices of the capstones whose rows name the ability it links, ascending; empty elsewhere).
+  `WalkHeld(startIndex, held, reached, queue)` marks every held node a path of held nodes links to the start, over bit
+  sets of `BitWords` words and a queue the caller owns, so a walk allocates nothing. On a refused
   or empty tree (`Count` 0, every start index -1) it reaches nothing: it clears `reached` and checks no argument.
 - **What it refuses.** A tree that breaks a rule is refused whole, logged once at Error naming the first problem, in
   this order:
@@ -133,7 +212,12 @@ afterwards.
   4. a node naming a missing fork group; a fork group that does not hold exactly two capstones and nothing else;
   5. a stat line naming a missing node, or one `TalentStatRules.Problem` refuses;
   6. a notable, ability, capstone or keystone without a name;
-  7. a node no walk from the first class's start (the Warrior's) reaches.
+  7. a keystone rule on a node that is not a `Keystone`, or a rule value that is not one;
+  8. each capstone modifier, in row order (the repository's `(NodeId, Kind)` order): one naming a missing node; one on
+     a node that is not a `Capstone`; one naming an ability no `Start` or `Ability` node links; a capstone whose rows
+     name two abilities; then one `TalentModifierRules.Problem` refuses against the ability and its aura (below),
+     prefixed "node N's {Kind} modifier: ";
+  9. a node no walk from the first class's start (the Warrior's) reaches.
 - **A refused tree** holds no nodes (`Count` 0, `IsLoaded` false, `Refusal` the reason). It keeps `StarterOf` for each
   class whose start row names a `Start` node linked to an ability the ability catalog holds, so a bad deploy leaves
   every character its starter.
@@ -146,20 +230,36 @@ afterwards.
   - `More` only on the thirteen offence increases and on increased maximum life and mana;
   - a `ValueMax` only on an added damage line, and at least its `Value`;
   - the stats local to an item (35-44) never, since a node has no item to scale.
+- **`TalentModifierRules`** (`src/Server/Avalon.Combat/TalentModifierRules.cs`, pure, Part D):
+  `Problem(kind, value, value2, ability, aura, explodes)` checks one row against the ability it shapes, that ability's
+  aura from the aura catalog (null when it names none or the catalog does not hold it), and whether any capstone gives
+  the ability an `ImpactExplosion`. In order:
+  - an unknown kind;
+  - a `Value2` on any kind but `ImpactExplosion`, or none on it;
+  - `Value` out of range: 1-8 for `AddedProjectiles` (`MaxAddedProjectiles`, so a cast fires at most 9, each lane an
+    object of its own), 1-100 for `ImpactExplosion` (0.1-10 m) and `AuraStacks`, 1-1000 for the rest; `Value2` 1-1000;
+  - the fit: `AddedProjectiles` needs a `Projectile`; `ImpactExplosion` a `Projectile` that does not pierce and deals
+    direct damage to hostiles; `AreaPct` a `Circle`, or a `Projectile` that explodes; `ConeReachPct` and `ConeArcPct`
+    a `Cone`; `SecondHit` a direct amount (`AbilityRules.HasDirectEffect`); `AuraStacks` and `AuraDurationPct` an aura
+    that is **not crowd control** (`AuraRules.IsCrowdControl`: a stun, a root or a silence in its `Control`, or a slow),
+    refused first as "lengthens or deepens crowd control: its aura N stuns, roots, silences or slows", and then, for
+    `AuraStacks`, an aura that stacks (`AuraStacking.Stack`).
 
 ## The export and the public read
 
 - **The client export.** `dotnet run --project tools/Avalon.Exporter -- talent-catalog` writes
   `schema/talents/talent-catalog-v1.json` (`TalentCatalogExport`) from `TalentSeed.Rows()`, so it needs no database:
-  `nodes` in id order (`id`, `kind`, `name`, `angle`, `radius`, `forkGroupId`, `abilityId`, and `stats` by stat then
-  kind: `stat`, `kind`, `value`, `valueMax`), `edges` by `(a, b)` with `a < b`, `forkGroups` and `classStarts`
-  (`class`, `nodeId`). Enumerations are numbers, listed in its `$comment`; camelCase, indented, `\n`.
-  `TalentCatalogExportShould` fails when the committed file differs from the seed rendered, so a seed change needs a
+  `nodes` in id order (`id`, `kind`, `name`, `angle`, `radius`, `forkGroupId`, `abilityId`, `keystone`, `stats` by stat
+  then kind: `stat`, `kind`, `value`, `valueMax`; and `modifiers` by kind: `kind`, `abilityId`, `value`, `value2`),
+  `edges` by `(a, b)` with `a < b`, `forkGroups` and `classStarts` (`class`, `nodeId`). Enumerations are numbers,
+  listed in its `$comment`; camelCase, indented, `\n`. `TalentCatalogExportShould` fails when the committed file differs from the seed rendered, so a seed change needs a
   re-export ([tooling](tooling.md)).
 - **The public read.** `GET /public/world/{worldId}/talents` (`PublicController.GetTalentTree`, `GetPublicTalentTree`,
   anonymous, `[PublicWorldScoped]`, the tooltips' cache headers) returns `TalentTreeDto`: the world's tree as its World
-  database holds it (`TalentMapping.ToDto`), whether or not the world's catalog accepted it. Every field is a primitive
-  or a contract enum (`TalentNodeKind`, `TalentStatKind`, `StatType`, `CharacterClass`)
+  database holds it (`TalentMapping.ToDto`), whether or not the world's catalog accepted it. Each `TalentNodeDto`
+  carries `Keystone` and `Modifiers` (`TalentAbilityModifierDto`: `Kind`, `AbilityId`, `Value`, `Value2`, by kind).
+  Every field is a primitive or a contract enum (`TalentNodeKind`, `TalentStatKind`, `StatType`, `CharacterClass`,
+  `KeystoneRule`, `TalentModifierKind`)
   ([multi-world API](api-worlds.md#public-routes)).
 
 ## Saved talents
@@ -223,10 +323,11 @@ repository). Back on the tick:
 then the ability each held ability node links, by ascending node id. Nothing else grants one: creation writes no
 ability, and `CharacterCreateInfos.StartingSpells`, `AbilityTemplates.AllowedClasses` and the `CharacterAbilities`
 table are gone ([spell system](spell-system.md), §8). An ability already held keeps its `IAbility`, and with it its
-cooldown and cast timers; a new one is a `GameAbility` that arrives ready. An ability the catalog does not hold (it
-refused it, or a reload removed it) is left out with a Warning. When the ids held are the same, in the same order,
-nothing is built and nothing is allocated, and `Rebuild` returns false. Otherwise the list is rebuilt in place
-("Abilities after a change", below).
+cooldown and cast timers; a new one is a `TreeAbility` (a World-side `GameAbility`) that arrives ready. An ability the
+catalog does not hold (it refused it, or a reload removed it) is left out with a Warning. When the ids held are the
+same, in the same order, and each is shaped as the capstones held shape it, nothing is built and nothing is
+allocated, and `Rebuild` returns false. Otherwise the list is rebuilt in place ("Abilities after a change", below) and
+each held ability is shaped ("Shaped abilities", below).
 
 **Creation** writes no ability: a new character holds no node, so it enters with its starter alone. Its starting items
 are `CharacterCreateItems` rows (class, Bag slot, template), which replaced the packed
@@ -257,7 +358,8 @@ client's view):
 - **On `Ok`.** `TalentAllocation.Allocate` checks every id before it changes anything, holds each node and marks it for
   the save; then `TalentChange.Apply` (World/Talents): the totals rebuilt, `TalentAbilities.Rebuild`, the stats
   refreshed with `KeepShare` (a Warning when there is no class row), the ability list marked owed
-  (`TalentAllocation.AbilitiesOwed`) only when the abilities held changed, and the talent state marked owed. Both are
+  (`TalentAllocation.AbilitiesOwed`) only when the abilities held, or the shape of one, changed, and the talent state
+  marked owed. Both are
   marked in a `finally`: when the refresh throws after the abilities were rebuilt, the new list still reaches the
   client, so it never lacks an ability the server lets it cast, and the window still learns what is held. The tick's
   `TalentFlusher` sends them after every request's result ("Abilities after a change" and "The talent state", below).
@@ -357,6 +459,48 @@ receive queue's standing owner decision, #927, [packet handlers](packet-handlers
 refusal code for it, this part's ruling, approved with its plan ([benchmarks](benchmarks.md), `Apply_ability_change`
 and `Cycle_flushed`).
 
+## Shaped abilities
+
+Part D1: the capstones a character holds shape the abilities it holds, on every talent change and at select, inside
+`TalentAbilities.Rebuild`. Nothing is shaped per tick, per cast or per hit.
+
+- **Summing.** For each held ability, the rows of every held capstone among `ShapersAt` of the node that grants it
+  (the class start for the starter) are added into one `AbilityShaping` (`src/Server/Avalon.Combat/AbilityShaping.cs`,
+  pure): one sum per kind, plus the explosion's radius in tenths and its effectiveness. A refused tree gives none.
+  `AbilityShaping.Apply(metadata)` returns a copy (`new AbilityMetadata(metadata) { … }`, the copy constructor being
+  the one copy list): a cone's `Reach` and `ArcDegrees` (at most 360°) and a circle's `Radius` scaled by their sums,
+  a projectile's `ProjectileCount` 1 plus the added projectiles (at most `MaxProjectiles`, 9; 1 for any other shape),
+  `ExplosionRadius` (tenths / 10, widened by the area sum), and `ExplosionEffectiveness`, `SecondHitEffectiveness`,
+  `AuraStacksBonus` and `AuraDurationPct` as summed. Value equality makes "the same shape" a compare of numbers.
+- **`Base` and the two-shape cache.** A `TreeAbility` keeps its template's unshaped metadata as `Base` and the
+  `AbilityShaping` it holds now as `Shaping`. `Reshape(shaping)` sets its metadata to `Base` when there is no shaping,
+  else to one of the last two shaped copies it built with that shaping, else to a new copy, which drops the older of
+  the two; it returns whether the metadata changed. So taking and refunding a capstone, or switching a fork's sides,
+  allocates nothing once each shape has been seen; a new shape builds one `AbilityMetadata` the first time
+  ([benchmarks](benchmarks.md), `Apply_capstone_change`). `GameAbility.Metadata` stays init-only to everything else:
+  only `TreeAbility` swaps it, through a `private protected` setter, and `AbilityMetadata` itself stays immutable, so
+  no mod can shape an ability. A plain `GameAbility` (only tests and scenarios load those) is never reshaped.
+- **A cast keeps its shape.** A cast's copy (`GameAbility.CloneForCast`) holds the metadata reference it was made
+  with, at queue time, so a swap never reaches a cast in flight: a cast queued before a capstone is taken fires the
+  shape its telegraph showed, and the next cast the new one.
+- **The rebuild.** `Rebuild` first walks the held list against what the tree gives. When the ids match, in order, and
+  each `TreeAbility`'s `Shaping` equals the sum, nothing changes. Otherwise the list is rebuilt in place, then the same
+  walk reshapes every held `TreeAbility`, kept, unparked or new, and `Rebuild` returns true, so `TalentChange.Apply`
+  marks the list owed.
+- **Parking and reloads.** An unparked ability keeps the shape it left with until that walk reshapes it, from its own
+  `Base`, to the shape held now, so no stale shape survives a refund, a fork switch or an ability refunded and taken
+  again. Only one built from the current catalog generation is unparked, so its `Base` is current. A held ability built
+  before a reload keeps its older `Base`, as every held ability keeps its details (Part C); one taken again after the
+  reload is built afresh and shaped from the new template. This is Part C's note answered by reshaping instead of by
+  refusing reuse, which is what keeps a talent change at 0 B.
+- **The list resent.** A change that moves only a shape (a capstone taken or refunded, a fork switched) owes the ability
+  list as a change of the abilities held does; the tick's `TalentFlusher` sends it once, after the request's result.
+  `CharacterAbilitiesSender.Describe` sets the shape on every entry, reused ones included: fields 11-13 carry the shaped
+  reach, radius and arc, and fields 25-30 the rest ([talent protocol](talent-protocol.md#8-capstones-and-keystones)).
+- **What reads the shape.** The cone and circle scripts and the telegraph read `Reach`, `Radius` and `ArcDegrees`
+  from the cast's metadata, so cone and circle capstones act in play. The six new fields are read by nothing but the
+  sender until Part D2.
+
 ## The talent state
 
 `SMSG_TALENT_STATE` (`0x30F1`, `STalentStatePacket { NodeIds, PointsEarned, PointsSpent, RefundPricePerNode }`) is
@@ -366,9 +510,8 @@ while refunds are free. `Create` refills one id list per thread, so a send alloc
 `TalentFlusher.Flush(connection, quests, config)` (World/Characters) runs once per tick for each connection, in the
 post-update `ability_amounts` stage, after `CharacterSheetFlusher` and before `AbilityAmountsFlusher`
 ([instrumentation](instrumentation.md)). It reads two flags and one level. First, when the ability list is owed (a
-talent change changed the abilities held), it sends `SMSG_CHARACTER_ABILITIES` and clears that flag. Then it sends the
-state when the state is owed (an accepted
-allocation or refund, or a turn-in of a quest that pays talent points, which also says "You gained 1 talent point.",
+talent change changed the abilities held, or the shape of one), it sends `SMSG_CHARACTER_ABILITIES` and clears that
+flag. Then it sends the state when the state is owed (an accepted allocation or refund, or a turn-in of a quest that pays talent points, which also says "You gained 1 talent point.",
 [quests](quests.md)) or when the character's level differs from the one the last state was sent at, which catches
 every level-up (anything that grants experience: a kill, a quest, an item) without touching the experience award, and
 with it every change of the refund price. Each flag is cleared, and the level recorded, before its send, so a send
@@ -393,8 +536,10 @@ key, or the maximum life or mana, by `1 + value / 100`. In `Calculate`:
 7. block, crit, movement, the resistances and increased mana regeneration add the tree's.
 
 Auras fold after all of it. Gear's global `IncreasedArmor`, `IncreasedEvasion` and `IncreasedWard` lines count the
-same way (none is seeded). The world folds at select and after every talent change; the saved `CharacterStats` row is
-what the world wrote after folding, so the REST character sheet reads it as it is
+same way (none is seeded). A keystone's `More` lines fold as any node's (Glass Edge's 30 % more damage and 25 % less
+maximum life, Steady Hand's 20 % more damage and healing); `RebuildTotals` sums lines only, so no keystone rule
+reaches the fold or anything else until Part D2. The world folds at select and after every talent change; the saved
+`CharacterStats` row is what the world wrote after folding, so the REST character sheet reads it as it is
 ([inventory and saves](inventory-and-saves.md)).
 
 ## REST reads of a character
@@ -417,24 +562,23 @@ class's start), never the whole tree.
   held ability node's ability by ascending node id, from `CharacterTalents` and the World database's tree rows. Rows
   naming a node the tree lacks are ignored, as the world ignores them until its next select. Each ability's advertised
   amount is built from an attacker whose offence includes the held nodes' lines (`TalentTotals` passed to
-  `CharacterOffence.Of`).
+  `CharacterOffence.Of`). No REST read shapes an ability: `GetHeldAsync` reads no modifiers, a capstone does not change
+  an ability's per-hit amount, and `CharacterAbilityTemplateDto` carries no shape. The shaped values reach the client
+  only in the world's ability list.
 - The character sheet (`/stats`) reads the saved `CharacterStats` row, which already folds the tree.
 
-## What Part D consumes
+## What Part D2 adds
 
-Part D (capstones and keystones) designs its own tasks. Parts B and C give it:
+Part D1 leaves the rows, the catalog's checks and the shaped metadata in place. Part D2, shipped in the same release,
+makes the rest act:
 
-- **`TalentCatalog`'s index API**, `ForkPartnerAt` and the fork rules: `ForkLocked` on allocation, and a refund of
-  the held side of a fork freeing the other.
-- **`TalentRules.Allocate` and `TalentRules.Refund`**, `TalentAllocation` (`Allocate`, `Refund`, the save marks) and
-  `TalentChange.Apply` after either.
-- **The in-place ability rebuild** ("Abilities after a change"). A capstone changes an ability's shaped metadata, so
-  Part D must not unpark an ability across a shape change either, as a parked ability is never taken back across a
-  catalog generation.
-- **Wire and flush:** `TalentResult`, `STalentStatePacket` and `TalentFlusher`, to append to. The next free numbers
-  are `TalentResult` 15 and field 5 of the state packet.
+- **The hit path.** A second hit at `SecondHitEffectiveness` on each unit affected, with its own rolls, only the first
+  landed hit applying the aura; a fan of `ProjectileCount` projectiles 10° apart, a unit affected at most once per
+  cast; and an explosion of `ExplosionRadius` where a projectile ends on a unit, at `ExplosionEffectiveness`, damage
+  only.
+- **Aura factors.** The caster's aura reaching `MaxStacks` plus `AuraStacksBonus`, and lasting × (1 +
+  `AuraDurationPct` / 100), never on crowd control.
+- **The keystone rules.** `KeystoneAt` read into the totals: Blood Price paying costs from life, Steady Hand's crit
+  chance of 0, and Unbroken's ward taking blight and bleeding and recharging half as fast.
 
-## What later parts add
-
-- **Part D, capstones and keystones.** The capstone and keystone rows (ids from 306), their fork groups, the
-  `Keystone` column and `TalentAbilityModifiers`.
+The next free numbers stay `TalentResult` 15 and field 5 of the state packet; `AbilityInfo`'s next is 31.
