@@ -1,0 +1,63 @@
+# PartyMemberPositionDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message PartyMemberPositionDto
+
+variant absent
+  field 1 CharacterId : uint = 0
+  field 2 X : float = 0 (0x00000000)
+  field 3 Z : float = 0 (0x00000000)
+  bytes 0
+
+variant empty
+  field 1 CharacterId : uint = 0
+  field 2 X : float = 0 (0x00000000)
+  field 3 Z : float = 0 (0x00000000)
+  bytes 0
+
+variant populated
+  field 1 CharacterId : uint = 1000000
+  field 2 X : float = -2.25 (0xc0100000)
+  field 3 Z : float = -2.25 (0xc0100000)
+  bytes 14
+    08 c0 84 3d 15 00 00 10 c0 1d 00 00 10 c0
+
+variant maxima
+  field 1 CharacterId : uint = 4294967295
+  field 2 X : float = 3.40282347E+38 (0x7f7fffff)
+  field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 16
+    08 ff ff ff ff 0f 15 ff ff 7f 7f 1d ff ff 7f 7f
+
+variant minima
+  field 1 CharacterId : uint = 0
+  field 2 X : float = -3.40282347E+38 (0xff7fffff)
+  field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+  bytes 10
+    15 ff ff 7f ff 1d ff ff 7f ff
+
+variant varint-edges
+  field 1 CharacterId : uint = 2097152
+  field 2 X : float = 1.17549435E-38 (0x00800000)
+  field 3 Z : float = 1.17549435E-38 (0x00800000)
+  bytes 15
+    08 80 80 80 01 15 00 00 80 00 1d 00 00 80 00
+
+variant float-specials
+  field 1 CharacterId : uint = 1000000
+  field 2 X : float = -Infinity (0xff800000)
+  field 3 Z : float = -0 (0x80000000)
+  bytes 9
+    08 c0 84 3d 15 00 00 80 ff

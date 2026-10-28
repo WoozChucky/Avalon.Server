@@ -30,8 +30,12 @@ Server to client.
 | `SMSG_PARTY_RESULT` | `0x30B1` | `SPartyResultPacket` | 1 `Result` (`PartyResult`), 2 `Name` (optional: the other character involved) |
 | `SMSG_PARTY_ROSTER` | `0x30B2` | `SPartyRosterPacket` | 1 `PartyId`, 2 `ExperienceMode`, 3 `ModeLockedForMs`, 4 `Members` (repeated `PartyMemberDto`) |
 | `SMSG_PARTY_MEMBER_STATUS` | `0x30B3` | `SPartyMemberStatusPacket` | 1 `CharacterId`, 2 `Health`, 3 `MaxHealth`, 4 `Power`, 5 `MaxPower`, 6 `PowerType`, 7 `IsDead` |
+| `SMSG_PARTY_POSITIONS` | `0x30B4` | `SPartyPositionsPacket` | 1 `Positions` (repeated `PartyMemberPositionDto`), #1199, section 4 |
 
 `PartyMemberDto`: 1 `CharacterId`, 2 `Name`, 3 `Class`, 4 `Level`, 5 `IsLeader`, 6 `Online`, 7 `SameInstance`.
+
+`PartyMemberPositionDto`: 1 `CharacterId` (uint32, the roster's id, which is also the id in the member's world-state
+guid), 2 `X` (float), 3 `Z` (float).
 
 **Retired.** The old group packets are gone: `CMSG_GROUP_INVITE_RESULT` (`0x200A`), `SMSG_GROUP_INVITE`
 (`0x300D`) and `SMSG_GROUP_INVITE_RESULT` (`0x300E`). Their values were deleted from `NetworkPacketType`
@@ -130,6 +134,29 @@ power type, and whether it is dead. Power is mana and the power type `Mana` for 
 - Sent afresh (even unchanged) after a join, an instance change, or a member entering the world, so a
   client that just gained a same-instance member gets its values without waiting for a change.
 - A member who is in another instance or offline gets no status; show the roster's entry without pools.
+
+### Far members' positions (#1199)
+
+`SMSG_PARTY_POSITIONS` tells a client where the members of its party stand that its world-state stream does not show:
+the members in **your own instance** whose world object your client does not hold (beyond the interest range, 60 m to
+come into view and 70 m to leave it). It is for the map and minimap.
+
+- **What it lists.** Each entry is one member, its `CharacterId` and where it stands on X/Z (no height, no facing). The
+  packet is the whole list at that moment: replace what you held. Never yourself, never a member whose world object
+  your client holds (it is in the world-state stream), never a member in another instance or offline (the roster's
+  `SameInstance` and `Online` say so), and never anyone outside your party.
+- **When.** About once a second while the list has anyone in it, and at once on the tick a member's world-state remove
+  reaches you. When the last listed member leaves the list (it came into view, left your instance or the party), one
+  empty list follows within a second, then nothing until someone is listed again.
+- **The hand-over.** A member leaves the list on the tick its world-state add is sent to you, and joins it on the tick
+  its remove is sent, in the same tick's packets, after the remove. Draw a member's world object when you hold one, and
+  its last listed position otherwise: there is then never a tick with neither, and never two markers. An add needs no
+  positions packet of its own: the world object takes over, and the next list leaves the member out.
+- **Privacy.** Only members of the same party are sent positions. A character that leaves the party (or is kicked, or
+  the party disbands) gets none from that tick on, and its own position stops going to the others on that tick; the
+  same holds for a member leaving the instance.
+- A client from before it reads an unknown server opcode; it must rule it (accept and drop, or handle) when it
+  re-vendors the schema.
 
 ## 5. Chat
 

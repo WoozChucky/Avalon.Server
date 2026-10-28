@@ -257,6 +257,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly PartyService _parties;
     private readonly TradeService? _trades;
     private readonly ThrottledErrorLog _memberStatusErrors;
+    private readonly ThrottledErrorLog _partyPositionErrors;
     private readonly QuestService? _quests;
     private readonly ThrottledErrorLog _questFlushErrors;
 
@@ -375,6 +376,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _memberStatusErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The party member status flush");
+        _partyPositionErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The party positions flush");
         // #433. Optional here, like the clock above, so the tests that build a WorldServer from a bare provider still do.
         _quests = serviceProvider.GetService<QuestService>();
         _questFlushErrors = new ThrottledErrorLog(_logger,
@@ -1037,6 +1040,19 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         catch (Exception e)
         {
             _memberStatusErrors.Failed(e);
+        }
+
+        // Far party members' positions for the client map (#1199), in the same stage: each member is sent, about once a
+        // second, the members of its party in its instance its view does not hold, and at once on the tick its view let
+        // one go. Only the parties where that can be so are visited. Contained on its own, so a throw costs neither the
+        // pools above nor the stages below.
+        try
+        {
+            _parties.FlushPositions();
+        }
+        catch (Exception e)
+        {
+            _partyPositionErrors.Failed(e);
         }
 
         stageStart = StageDone(stageStart, s_partyStatusStage);

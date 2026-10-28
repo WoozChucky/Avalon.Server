@@ -955,6 +955,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_PARTY_RESULT = 12465;
    NetworkPacketType_SMSG_PARTY_ROSTER = 12466;
    NetworkPacketType_SMSG_PARTY_MEMBER_STATUS = 12467;
+   NetworkPacketType_SMSG_PARTY_POSITIONS = 12468;
    NetworkPacketType_SMSG_QUEST_OFFER = 12480;
    NetworkPacketType_SMSG_QUEST_RESULT = 12481;
    NetworkPacketType_SMSG_QUEST_LOG = 12482;
@@ -1040,6 +1041,11 @@ message PartyMemberDto {
    bool IsLeader = 5;
    bool Online = 6;
    bool SameInstance = 7;
+}
+message PartyMemberPositionDto {
+   uint32 CharacterId = 1;
+   float X = 2;
+   float Z = 3;
 }
 enum PartyResult {
    PartyResult_Unknown = 0;
@@ -1489,6 +1495,9 @@ message SPartyMemberStatusPacket {
    uint32 MaxPower = 5;
    PowerType PowerType = 6;
    bool IsDead = 7;
+}
+message SPartyPositionsPacket {
+   repeated PartyMemberPositionDto Positions = 1;
 }
 message SPartyResultPacket {
    PartyResult Result = 1;

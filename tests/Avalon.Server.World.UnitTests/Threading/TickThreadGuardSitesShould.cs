@@ -173,7 +173,7 @@ public class TickThreadGuardSitesShould
         "PartyService.Invite", "PartyService.HideInviteFrom", "PartyService.Respond", "PartyService.Leave",
         "PartyService.Kick", "PartyService.Promote", "PartyService.SetExperienceMode", "PartyService.Tick",
         "PartyService.StartReturns", "PartyService.ReturnFailed", "PartyService.LevelChanged",
-        "PartyService.FlushMemberStatus",
+        "PartyService.FlushMemberStatus", "PartyService.FlushPositions", "PartyService.MemberLeftView",
         "TradeService.Request", "TradeService.Respond", "TradeService.OfferItem", "TradeService.Cancel",
         "TradeService.Tick", "TradeService.CharacterOffline",
     ];
@@ -211,6 +211,8 @@ public class TickThreadGuardSitesShould
             "PartyService.ReturnFailed" => () => parties.ReturnFailed(1, new InvalidOperationException("return failed")),
             "PartyService.LevelChanged" => () => parties.LevelChanged(connection.Character!),
             "PartyService.FlushMemberStatus" => () => parties.FlushMemberStatus(),
+            "PartyService.FlushPositions" => () => parties.FlushPositions(),
+            "PartyService.MemberLeftView" => () => parties.MemberLeftView(Inventory.TestCharacters.New(1)),
             "TradeService.Request" => () => trades.Request(2, 1),
             "TradeService.Respond" => () => trades.Respond(2, accept: true),
             "TradeService.OfferItem" => () => trades.OfferItem(1, 0, 0),

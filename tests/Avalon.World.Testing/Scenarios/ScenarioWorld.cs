@@ -321,8 +321,8 @@ public sealed class ScenarioWorld : IDisposable
     /// One world tick, in <c>World.Update</c>'s order for the registry: the builds finished since the last tick
     /// published, the parties (in a world with reference data), the trades, then every instance through the registry's tick
     /// snapshot (<c>TickInstances</c>); then, as <c>WorldServer</c> runs them after the world update, the Awakening,
-    /// quest, inventory, sheet and ability-amount flushers, the party members' status and the outbox stage's wake-up,
-    /// followed here by the send thread's pass; then the clock moves on a tick.
+    /// quest, inventory, sheet and ability-amount flushers, the party members' status and positions and the outbox stage's
+    /// wake-up, followed here by the send thread's pass; then the clock moves on a tick.
     /// The ticker contains an instance's throw, as it does in production; here it ends the scenario instead, since a
     /// tick cut short would be measured as a cheap one. So does an error logged to the <see cref="ErrorLog" />.
     /// </summary>
@@ -400,8 +400,10 @@ public sealed class ScenarioWorld : IDisposable
             for (int i = 0; i < _connections.Count; i++)
                 AbilityAmountsFlusher.Flush(_connections[i]);
 
-            // The party members' pools, at most four times a second each, after the flushers as WorldServer sends them.
+            // The party members' pools, at most four times a second each, after the flushers as WorldServer sends them, and
+            // their far members' positions (#1199), about once a second, in the same stage.
             _parties?.FlushMemberStatus();
+            _parties?.FlushPositions();
 
             // The tick's outbox stage, then the send thread's pass, inline on this thread so the gate measures both
             // (#875).
