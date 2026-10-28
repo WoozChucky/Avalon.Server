@@ -179,12 +179,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (target is CharacterEntity { GodMode: true, IsDead: false }) damage = 0;
 
         // #1178: the ward takes what it may (all but blight) before life, and any damage pauses its recharge. The clock is
-        // read only for a target with a ward that took damage: anything else leaves the ward as it is.
+        // read only for a target with a ward that took damage: anything else leaves the ward as it is. A defender holding
+        // Unbroken (#1181 Part D) lets its ward take the whole hit, blight included: one flag read, only with a ward.
         uint absorbed = 0u;
         if (damage > 0 && HasWard(target))
         {
             DateTime now = _time.GetUtcNow().UtcDateTime;
-            absorbed = AbsorbWithWard(target, Math.Min(hit.Absorbable, damage), now);
+            uint absorbable = WardTakesAll(target) ? damage : Math.Min(hit.Absorbable, damage);
+            absorbed = AbsorbWithWard(target, absorbable, now);
             WardDamaged(target, now);
         }
 
@@ -409,6 +411,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         Creature creature => creature.MaxWard > 0,
         _ => false,
     };
+
+    /// <summary>Unbroken (#1181 Part D): a character whose ward takes blight and bleeds too. A creature holds no keystone.</summary>
+    private static bool WardTakesAll(IUnit unit) => unit is CharacterEntity { Talents.Totals.WardTakesAll: true };
 
     /// <summary>
     /// What a unit's ward takes of <paramref name="absorbable" /> (#1178); a unit that is neither a character nor a creature
@@ -700,14 +705,16 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // and what needs positive damage are suppressed.
         uint dealt = target is CharacterEntity { GodMode: true } ? 0u : points;
 
-        // #1178: the ward takes a tick it may (never a bleed's or blight's) before life; any tick pauses its recharge.
-        // Everything else reads the whole tick, the ward's part included.
-        // The clock is read only for a target with a ward that took damage, as for a hit.
+        // #1178: the ward takes a tick it may (never a bleed's or blight's, but for a defender holding Unbroken, #1181
+        // Part D) before life; any tick pauses its recharge. Everything else reads the whole tick, the ward's part included.
+        // The clock and the flag are read only for a target with a ward that took damage, as for a hit.
         uint absorbed = 0u;
         if (dealt > 0 && HasWard(target))
         {
             DateTime now = _time.GetUtcNow().UtcDateTime;
-            absorbed = HitResolver.WardAbsorbs(type, periodic: true) ? AbsorbWithWard(target, dealt, now) : 0u;
+            absorbed = HitResolver.WardAbsorbs(type, periodic: true, WardTakesAll(target))
+                ? AbsorbWithWard(target, dealt, now)
+                : 0u;
             WardDamaged(target, now);
         }
 

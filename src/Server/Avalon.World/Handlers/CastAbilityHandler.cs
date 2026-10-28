@@ -140,7 +140,9 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
 
         var aim = new AbilityAim(facing, point);
 
-        if (!godMode && AbilityCost.Check(caster, meta) == CostCheck.NotEnoughPower)
+        // Blood Price (#1181 Part D): the cost is checked against current life instead of mana.
+        if (!godMode && AbilityCost.Check(caster, meta, caster is CharacterEntity { PaysWithLife: true })
+            == CostCheck.NotEnoughPower)
         {
             Refuse(connection, packet, CastRejectReason.NotEnoughPower);
             return;

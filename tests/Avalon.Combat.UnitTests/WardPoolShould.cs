@@ -20,26 +20,34 @@ public class WardPoolShould
         Assert.Equal(left, ward.Current);
     }
 
-    [Fact]
-    public void Recharge_only_after_the_delay_and_restart_the_delay_on_any_damage()
+    /// <summary>A slow recharge (Unbroken, #1181 Part D) waits twice the delay: 8 s, not 4.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Recharge_only_after_the_delay_and_restart_the_delay_on_any_damage(bool slowRecharge)
     {
+        double delay = slowRecharge ? 8d : 4d;
         WardPool ward = default;
         ward.Reset(100);
         ward.Absorb(30, s_t0);
         Assert.Equal(70u, ward.Current);
 
-        Assert.False(ward.Advance(s_t0.AddSeconds(3.9), s_config));
+        Assert.False(ward.Advance(s_t0.AddSeconds(delay - 0.1), s_config, slowRecharge));
         Assert.Equal(70u, ward.Current);
+        if (slowRecharge)
+        {
+            Assert.False(ward.Advance(s_t0.AddSeconds(4.5), s_config, slowRecharge));
+        }
 
-        Assert.True(ward.Advance(s_t0.AddSeconds(4.5), s_config));
+        Assert.True(ward.Advance(s_t0.AddSeconds(delay + 0.5), s_config, slowRecharge));
         Assert.Equal(95u, ward.Current);
 
         // Damage the ward never saw (blight, a bleed) still restarts the delay.
-        ward.Damaged(s_t0.AddSeconds(4.5));
-        Assert.False(ward.Advance(s_t0.AddSeconds(8), s_config));
+        ward.Damaged(s_t0.AddSeconds(delay + 0.5));
+        Assert.False(ward.Advance(s_t0.AddSeconds((2 * delay) - 0.1), s_config, slowRecharge));
         Assert.Equal(95u, ward.Current);
 
-        Assert.True(ward.Advance(s_t0.AddSeconds(9.5), s_config));
+        Assert.True(ward.Advance(s_t0.AddSeconds((2 * delay) + 1.5), s_config, slowRecharge));
         Assert.Equal(100u, ward.Current);
     }
 

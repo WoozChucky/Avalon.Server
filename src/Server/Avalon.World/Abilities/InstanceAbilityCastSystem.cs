@@ -164,7 +164,8 @@ public class InstanceAbilityCastSystem(
             return false;
 
         bool pays = !free && !IsFree(caster);
-        if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
+        bool fromLife = PaysWithLife(caster);
+        if (pays && AbilityCost.Check(caster, ability.Metadata, fromLife) is var cost and not CostCheck.Payable)
         {
             CombatLog.QueuedCastRefused(_logger, cost, ability.AbilityId);
             return false;
@@ -198,7 +199,7 @@ public class InstanceAbilityCastSystem(
         ability.CastTimeTimer = AbilityPace.CastTime(ability.Metadata, pace);
         if (pays)
         {
-            AbilityCost.Pay(caster, ability.Metadata);
+            AbilityCost.Pay(caster, ability.Metadata, fromLife);
         }
 
         CombatLog.CastQueued(_logger, ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
@@ -216,7 +217,8 @@ public class InstanceAbilityCastSystem(
             return false;
 
         bool pays = !free && !IsFree(caster);
-        if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
+        bool fromLife = PaysWithLife(caster);
+        if (pays && AbilityCost.Check(caster, ability.Metadata, fromLife) is var cost and not CostCheck.Payable)
         {
             CombatLog.InstantCastRefused(_logger, cost, ability.AbilityId);
             return false;
@@ -230,7 +232,7 @@ public class InstanceAbilityCastSystem(
 
         if (pays)
         {
-            AbilityCost.Pay(caster, ability.Metadata);
+            AbilityCost.Pay(caster, ability.Metadata, fromLife);
         }
 
         // #1088: a cast taken ends its caster's arrival protection, before it fires, so it lands as any other caster's.
@@ -705,6 +707,9 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>Creatures and staff characters in god mode do not pay ability costs.</summary>
     private static bool IsFree(IUnit caster) => caster is ICreature or CharacterEntity { GodMode: true };
+
+    /// <summary>A character holding Blood Price (#1181 Part D) checks and pays its costs from current life.</summary>
+    private static bool PaysWithLife(IUnit caster) => caster is CharacterEntity { PaysWithLife: true };
 
     /// <summary>
     /// #770, the choke point every cast passes, whoever sends it: a stunned caster casts nothing, an item's cast included;

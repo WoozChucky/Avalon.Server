@@ -35,7 +35,8 @@ public static class CharacterStatsCalculator
     /// its increased maximum life and mana and its increased armour, evasion and ward join gear's global ones, each
     /// increase scaling the whole rating (gear, attributes and flat lines together); its offence lines and added damage
     /// join gear's sums before <see cref="CharacterOffence.Finish" />; and its More on life or mana multiplies the scaled
-    /// maximum last (<see cref="LocalScaling.More" />). Null, or empty, folds nothing.
+    /// maximum last (<see cref="LocalScaling.More" />). Null, or empty, folds nothing. A tree holding Steady Hand
+    /// (<see cref="TalentTotals.NoCrits" />, #1181 Part D) sets the crit chance to 0 after the auras, so no aura restores it.
     /// </summary>
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<WornItem> worn,
         CombatFormula formula, AuraStatTotals? auras = null, ResonanceCounts? resonance = null,
@@ -105,7 +106,11 @@ public static class CharacterStatsCalculator
             AddedToSpells: addedToSpells,
             IncreasedManaRegenPct: gear.IncreasedManaRegenPct);
 
-        return auras is null ? derived : AuraStats.Fold(derived, auras);
+        DerivedCharacterStats folded = auras is null ? derived : AuraStats.Fold(derived, auras);
+
+        // Steady Hand (#1181 Part D): after the aura fold, so no aura gives the crit chance back. Hits, heals and aura
+        // snapshots all read this, so none needs a check of its own.
+        return tree is { NoCrits: true } ? folded with { CritPct = 0f } : folded;
     }
 
     /// <summary>

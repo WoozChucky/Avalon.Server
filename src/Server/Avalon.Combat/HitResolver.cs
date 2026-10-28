@@ -186,10 +186,11 @@ public static class HitResolver
 
     /// <summary>
     /// Whether a ward may absorb damage of <paramref name="type" /> (#1178): everything but blight, and but physical
-    /// damage over time (a bleed).
+    /// damage over time (a bleed). A defender that <paramref name="takesAll" /> (Unbroken, #1181 Part D,
+    /// <c>KeystoneRule.WardTakesAll</c>) absorbs blight and bleeds as well: everything.
     /// </summary>
-    public static bool WardAbsorbs(DamageType type, bool periodic) =>
-        type != DamageType.Blight && !(periodic && type == DamageType.Physical);
+    public static bool WardAbsorbs(DamageType type, bool periodic, bool takesAll = false) =>
+        takesAll || (type != DamageType.Blight && !(periodic && type == DamageType.Physical));
 
     /// <summary>
     /// A heal: the base, then a crit roll (the one draw). Never dodged, blocked or reduced by armour, and

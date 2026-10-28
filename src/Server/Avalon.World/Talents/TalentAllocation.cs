@@ -30,7 +30,7 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
     /// <summary>Moves on every load and every change of what is held.</summary>
     public int Version { get; private set; }
 
-    /// <summary>The held nodes' stat lines, as of the last <see cref="RebuildTotals" />.</summary>
+    /// <summary>The held nodes' stat lines and keystone rules, as of the last <see cref="RebuildTotals" />.</summary>
     public TalentTotals Totals { get; } = new();
 
     /// <summary>The talent window's state changed since it was last sent: the flusher sends it.</summary>
@@ -124,7 +124,8 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
     }
 
     /// <summary>
-    /// <see cref="Totals" /> rebuilt from every held node the tree holds; a held node it does not hold adds nothing.
+    /// <see cref="Totals" /> rebuilt from every held node the tree holds, its stat lines and its keystone rule (#1181 Part D);
+    /// a held node it does not hold adds nothing.
     /// </summary>
     public void RebuildTotals(TalentCatalog tree)
     {
@@ -137,6 +138,9 @@ public sealed class TalentAllocation(SaveStateTracker save, TickThreadGuard? tic
 
             foreach (TalentLine line in tree.LinesAt(index))
                 Totals.Add(line.Stat, line.Kind, line.Value, line.ValueMax);
+
+            if (tree.KeystoneAt(index) is { } rule)
+                Totals.AddKeystone(rule);
         }
     }
 

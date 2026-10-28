@@ -299,10 +299,13 @@ public partial class CharacterEntity : ICharacter
         _ward.Damaged(now);
     }
 
-    /// <summary>Recharges the ward to what <paramref name="now" /> allows (#1178); <see cref="Update" /> calls it unless dead.</summary>
+    /// <summary>
+    /// Recharges the ward to what <paramref name="now" /> allows (#1178); <see cref="Update" /> calls it unless dead. Unbroken
+    /// (#1181 Part D) doubles the delay before the recharge starts.
+    /// </summary>
     internal void AdvanceWard(DateTime now)
     {
-        if (_ward.Advance(now, _regenConfig))
+        if (_ward.Advance(now, _regenConfig, Talents.Totals.WardTakesAll))
             _dirtyFields |= GameEntityFields.Ward;
     }
 
@@ -425,6 +428,13 @@ public partial class CharacterEntity : ICharacter
     /// Loaded at select; every change marks <see cref="SaveState" />.
     /// </summary>
     public TalentAllocation Talents { get; }
+
+    /// <summary>
+    /// Blood Price (#1181 Part D): this character pays ability costs from current life, not mana
+    /// (<see cref="AbilityCost" />). World-side, never on ICharacter; the cast handler and the cast system pass it to every
+    /// check and payment.
+    /// </summary>
+    internal bool PaysWithLife => Talents.Totals.LifeCost;
 
     /// <summary>
     /// The auras on this character (auras). World-side, never on ICharacter: no mod can add, end or read them. Every

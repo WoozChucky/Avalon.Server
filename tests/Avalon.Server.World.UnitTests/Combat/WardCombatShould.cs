@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -14,6 +15,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
+using Avalon.World.Testing;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
@@ -177,6 +179,38 @@ public class WardCombatShould
         Assert.Equal(character.Health - 20u, character.CurrentHealth);
         _outcomes.Received(1).CharacterDamaged(character, boar, 20u, null,
             new HitReport(HitResult.None, DamageType.Fire, DamageTypeMask.Fire, 0u));
+    }
+
+    /// <summary>
+    /// Unbroken (#1181 Part D) on the hit path: a holder's ward takes blight hits and bleed ticks whole, its flag read per
+    /// hit and per tick, and neither allocates once the encounter exists.
+    /// </summary>
+    [Fact]
+    public void Absorb_blight_and_bleeds_for_an_unbroken_holder_without_allocating()
+    {
+        var clock = new Loot.FixedTimeProvider(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        var combat = new CombatService(new CombatConfig(), new EncounterRegistry(new CombatConfig(), clock), time: clock);
+        CharacterEntity character = TestCharacters.New(1178_102, time: clock);
+        character.ApplyStats(new DerivedCharacterStats(MaxHealth: 500, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
+            Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 0f, MaxWard: 1_000_000), CurrentValues.EnterWorld,
+            TestCombat.Formula);
+        character.Talents.Totals.AddKeystone(KeystoneRule.WardTakesAll);
+        Creature rotter = Boar(DamageType.Blight);
+        PeriodicHit bleed = Tick(character, DamageType.Physical, 10f);
+        double carry = 0d;
+
+        combat.ApplyDamage(rotter, character, 50);
+        combat.ApplyPeriodicDamage(bleed, ref carry, lastTick: false);
+
+        long before = ThreadAllocations.BeforeQuietWindow();
+        for (int i = 0; i < 100; i++)
+        {
+            combat.ApplyDamage(rotter, character, 50);
+            combat.ApplyPeriodicDamage(bleed, ref carry, lastTick: false);
+        }
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal((500u, 1_000_000u - (101u * 60u)), (character.CurrentHealth, character.Ward));
     }
 
     /// <summary>Records the damage each hit hands the script.</summary>
