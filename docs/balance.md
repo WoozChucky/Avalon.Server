@@ -14,7 +14,8 @@ attack speed, cast speed and cooldown recovery), so an element meets its resista
 
 - **Gear is fixed stats.** Each item a gear profile in `balance/scenarios.json` names is worn as one fixed copy of its
   template, made once when the data is loaded (`FixedGear`, `BalanceData.Worn`) and worn by every row. Every number on
-  it sits at the midpoint of its range, `(min + max + 1) / 2`, so a half rounds up. Its base stats (a base's armour,
+  it sits at the midpoint of its range, `min + (max + 1 - min) / 2`: the low end plus half the width, rounded down,
+  so a half rounds up, below zero too ([-3, -1] gives -2). Its base stats (a base's armour,
   evasion, ward or block, or a weapon's damage range and attack time) come from its template's `ItemTemplateBaseStats`
   rows, a unique's from its named base's. Its modifiers are one per modifier the template links
   (`ItemModifierCatalog.LinkedTo`): the base's implicit first, then a unique's own. Each stat line sits at its

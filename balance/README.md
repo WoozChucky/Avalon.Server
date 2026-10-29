@@ -77,7 +77,8 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
   carries it; a cast never pauses it.
 - **Gear is fixed stats.** Each item a gear profile names is worn as one fixed copy (`FixedGear`), made once and worn
   by every row: its base stats (armour, evasion, ward, block, or a weapon's damage range and attack time) and its
-  linked modifiers (a base's implicit, a unique's own), every value at the midpoint of its range, `(min + max + 1) / 2`.
+  linked modifiers (a base's implicit, a unique's own), every value at the midpoint of its range,
+  `min + (max + 1 - min) / 2`: the low end plus half the width, rounded down, so a half rounds up, below zero too.
   It is the copy the world makes of an item that rolls no affix (its plain roll, base stats and implicit only) under
   a random that always lands mid-range. No affix, rarity or item level is rolled.
 - **Ward** is modelled on both sides through the server's `WardPool`: full at the start of a fight, in front of health,

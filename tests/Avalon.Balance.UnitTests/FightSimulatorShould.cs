@@ -258,6 +258,7 @@ public class FightSimulatorShould
     [InlineData(200u, null, null, 3)]   // Cleave: a cone, no cap
     [InlineData(200u, null, 2, 2)]      // Cleave capped by coneHits
     [InlineData(200u, 1, 2, 1)]         // Cleave capped by both: the lower, its MaxTargets
+    [InlineData(200u, 2, 1, 1)]         // Cleave capped by both: the lower, the coneHits
     [InlineData(201u, null, null, 3)]   // Ground Slam: a circle, no cap
     [InlineData(201u, 2, null, 2)]      // Ground Slam capped by its MaxTargets
     [InlineData(221u, null, null, 3)]   // Piercing Arrow
