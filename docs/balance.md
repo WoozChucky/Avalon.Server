@@ -4,23 +4,51 @@ The balance simulator library and tool, and the in-cluster service that runs it 
 
 ## Balance Simulator
 
-**Paused (#1183).** The simulator is paused during the itemization and build overhaul (#1182). It keeps compiling, and
-no new mechanic is mirrored into it: where a shared `Avalon.Combat` function changed, it calls the new one exactly as
-the world does. Its parity guards (`SimulatorParityShould`, `CreatureKitParityShould`) and the balance tests that stop
-holding are skipped with `BalancePause.Reason`, never deleted. Until the re-sync (#1183) the API's `/balance` endpoints
-serve a mix, not the old maths: what it takes from the shared `Avalon.Combat` maths is the new maths, the class-neutral
-stats and defences (evasion from Agility, no class base dodge or block, armour from Strength, the formula's life per
-Stamina and base crit for every class, the creatures' evasion seed) and the offence model of #1178 (each hit's typed
-parts and each heal from `OffenceMath`, the offence block from `CharacterStatsCalculator`, cooldowns and cast times from
-`AbilityPace` over the three speeds), so an element meets its resistance there; but it has no ward, and nothing in it
-was re-checked against the new numbers. Since the bases of #1179 (part A) replaced the old equipment, the gear sets in
-`balance/scenarios.json` name item ids that still exist: the Cleric's starter set (items 51-55) and forest set (27-31)
-are gone, so the Cleric wears the cloth sets, 41-45 and 17-21, beside its maces (35 and 8). Every set is now a base
-under its old id, with no attributes, worn as a copy with no base stats and no modifiers; the simulator rolls neither.
-Since #1179 (part B2) a base's defence (plate armour, leather evasion, cloth ward, a shield's armour and block) and a
-weapon's damage range and attack time are its copy's base stats, not columns or lines of its template, so until the
-re-sync its sets give no defence and every simulated character attacks with the formula's unarmed range and pace
-(`WeaponDamage.Of`, as the world does for a main hand that rolled no damage).
+**What the simulator mirrors (#1183).** The simulator runs the world's combat core. Every number in a fight comes from
+the shared `Avalon.Combat` and `Avalon.Domain` code the world server runs, and the bookkeeping it keeps itself is held
+to the world's by `SimulatorParityShould`. That covers the class-neutral stats and defences (evasion from Agility, no
+class base dodge or block, armour from Strength, the formula's life per Stamina and base crit for every class, the
+creatures' evasion seed) and the offence model of #1178 (each hit's typed parts and each heal from `OffenceMath`, the
+offence block from `CharacterStatsCalculator`, cooldowns and cast times from `AbilityPace` over the three speeds:
+attack speed, cast speed and cooldown recovery), so an element meets its resistance. It also covers these:
+
+- **Gear is fixed stats.** Each item a gear profile in `balance/scenarios.json` names is worn as one fixed copy of its
+  template, made once when the data is loaded (`FixedGear`, `BalanceData.Worn`) and worn by every row. Every number on
+  it sits at the midpoint of its range, `(min + max + 1) / 2`, so a half rounds up. Its base stats (a base's armour,
+  evasion, ward or block, or a weapon's damage range and attack time) come from its template's `ItemTemplateBaseStats`
+  rows, a unique's from its named base's. Its modifiers are one per modifier the template links
+  (`ItemModifierCatalog.LinkedTo`): the base's implicit first, then a unique's own. Each stat line sits at its
+  midpoint, and a line's second value, where it has one, is never below its first. Its damage type is
+  `WornItem.DamageTypeOf`. That copy is the world's plain roll (`ItemRoller.RollPlain`, a copy that rolls no affix,
+  only its base stats and implicit) under a random that always lands mid-range, and `SimulatorParityShould` holds it
+  to that. No affix, rarity or item level is rolled, since rolled gear is outside the model. The profiles name bases;
+  the Cleric wears the cloth sets (41-45 and 17-21) beside its maces (35 and 8).
+- **A ward on both sides.** A ward is a pool in front of health (#1178). A player's and a creature's are the world's
+  `WardPool`: full when the unit enters the fight, keeping its share when a stats refresh or an aura fold moves its
+  maximum, and empty at death. A direct hit gives the ward what the hit lets it absorb (`HitDamage.Absorbable`,
+  everything but the hit's blight part), pauses its recharge and takes the rest from health, as
+  `CombatService.ResolveHit` does. An aura's tick meets the ward only when `HitResolver.WardAbsorbs` allows the tick's
+  type, so never blight and never physical damage over time (a bleed), and any tick pauses the recharge. The recharge
+  runs on the fight's clock with the default regeneration settings (`RegenConfiguration`). A row's damage dealt and
+  taken count what the ward absorbed plus the health removed.
+- **Aura ticks take their source's type.** An aura is typed when it is placed, as `AuraSystem.Apply` types it: its
+  ability's damage type, else the caster's base type (`HitResolver.TypeOf`). Each tick resolves from the aura's
+  snapshot (`HitResolver.ResolvePeriodic` and `ResolvePeriodicHeal`), so a fire aura meets fire resistance and a ward,
+  and a bleed meets armour and passes the ward.
+- **Target limits.** The pack stands in the nearest-first order of the world's hit queries. A circle hits the first
+  living creatures up to its `MaxTargets`, a cone the same and at most the scenario's `coneHits`, and a projectile the
+  first creature, or, when it pierces, every creature up to its `MaxTargets`. A `MaxTargets` of 0 sets no limit.
+- **The item rows are checked as the world checks them.** When the data is loaded, before any row runs, each item
+  template is held to the rules the world's items area holds it to: its links against its rarity
+  (`ItemModifierCatalog.RarityRefusal`), its base stats against its kind (`ItemBaseStatRules.Problem`), and a unique's
+  named base (`ItemBaseStatRules.NamedBaseProblem`). The modifier catalog is built with the shared
+  `ItemModifierCatalog`, and a row it would log and leave out stops the run. A modifier line whose range runs
+  backwards, or whose second range is set at one end only, is refused too, since the world could not roll it. Each
+  refusal is a `seed` issue in the world's words, so an override that makes a row invalid stops the run before it
+  starts, never midway.
+
+The next part of #1183 is builds: characters as talent allocations, with their stat lines, abilities, capstone shapes
+and keystone rules.
 
 The simulator is a library with a thin tool on top. `Avalon.Balance.Core` (`src/Server/`) is the simulator, grader and
 run contract; it references `Avalon.Combat` and `Avalon.Domain` only, no `Avalon.World`, no `Avalon.Database*`, no EF,
@@ -74,18 +102,18 @@ the rarity's crit and block chances (#1145) through `CreatureTemplateRules.Valid
 an override the world would refuse is refused here too, and the overrides reach them like any column. The four crowd-control abilities (204, 214, 224, 235) are
 in no rotation in `balance/rotations.json`.
 
-**A simulated character holds its class's starter alone while the simulator is paused (#1181, #1183).** Since the
-talent tree, a new character holds only the ability its class start links, and every other ability is a node it walks
-to; the simulator models no allocation, so `BalanceData.KitOf` returns the starter alone, through the start's link in
-the seed's `TalentClassStarts` and `TalentNodeAbilities` (Heavy Strike, Spark Bolt, Quick Shot, Smite), and a rotation
-entry naming any other ability is refused when the rotation is compiled (`RotationFile.Compile`: "is not in the
-class's kit"). So the checked-in `balance/rotations.json` names each class's starter alone, one entry with no condition,
-and the workbench runs; the re-sync writes the real rotations. Whether an ability is a class ability (`granted`, for the
-ability and aura rules) is read from the same links. The Balance Service's run tests (`RunQueueShould`,
-`RunEndpointsShould`, `ExportEndpointsShould`, `WireMappingShould`) run on a fixture rotation, each class casting the
-first ability of its kit as the seed gives it (`BalanceTestHost.FixtureHost`), so neither the checked-in rotations nor
-the seed's kits can stop them. The simulator tests that script several abilities of a kit or pin the simulation's
-numbers are skipped with `BalancePause.Reason` until the re-sync, never deleted.
+**A simulated character holds its class's starter alone (#1181).** Since the talent tree, a new character holds only
+the ability its class start links, and every other ability is a node it walks to. Until builds land (the next part of
+#1183) the simulator models no allocation, so `BalanceData.KitOf` returns the starter alone, through the start's link
+in the seed's `TalentClassStarts` and `TalentNodeAbilities` (Heavy Strike, Spark Bolt, Quick Shot, Smite), and a
+rotation entry naming any other ability is refused when the rotation is compiled (`RotationFile.Compile`: "is not in
+the class's kit"). So the checked-in `balance/rotations.json` names each class's starter alone, one entry with no
+condition. Whether an ability is a class ability (`granted`, for the ability and aura rules) is read from the same
+links. The Balance Service's run tests (`RunQueueShould`, `RunEndpointsShould`, `ExportEndpointsShould`,
+`WireMappingShould`) run on a fixture rotation, each class casting the first ability of its kit as the seed gives it
+(`BalanceTestHost.FixtureHost`), so neither the checked-in rotations nor the seed's kits can stop them. A simulator
+test that scripts more than the starter gives the character those abilities directly (`TestData.Holding` in the
+balance unit tests; the world's parity tests add each `SimAbility` themselves).
 
 ## Balance Service
 
