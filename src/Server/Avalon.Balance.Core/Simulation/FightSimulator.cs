@@ -265,9 +265,9 @@ public sealed class FightSimulator
     }
 
     /// <summary>
-    /// As AbilityEffect.Apply for each unit the shape affects: the direct amount when Effects has one, then the aura. A
-    /// Hostile ability that deals no damage still rolls whether it lands (#1164); a dodged hit applies no aura, with or
-    /// without damage, unless the ability is Unavoidable; and a hit that kills ends every aura its target held.
+    /// As AbilityEffect.Apply for each unit the shape affects: the direct amount when Effects has one (its ward first, B-R6),
+    /// then the aura. A Hostile ability that deals no damage still rolls whether it lands (#1164); a dodged hit applies no
+    /// aura, with or without damage, unless the ability is Unavoidable; and a hit that kills ends every aura its target held.
     /// </summary>
     private void FirePlayer(SimPlayer player, SimAbility ability)
     {
@@ -289,9 +289,9 @@ public sealed class FightSimulator
         {
             if (direct)
             {
-                (uint damage, HitResult result) = CombatRules.Damage(player, target, ability, _formula, _rng);
-                Add(_dealt, m.Name, CombatRules.HitCreature(target, damage));
-                if ((result & HitResult.Dodged) != HitResult.None)
+                HitDamage hit = CombatRules.Damage(player, target, ability, _formula, _rng);
+                Add(_dealt, m.Name, CombatRules.Land(target, hit, Now.UtcDateTime).Total);   // a dodged hit (0) lands nothing
+                if ((hit.Result & HitResult.Dodged) != HitResult.None)
                     continue;
 
                 if (target.IsDead)
@@ -310,20 +310,23 @@ public sealed class FightSimulator
     }
 
     /// <summary>
-    /// Everyone is in melee: circles and cones reach every living creature (a cone up to coneHits), a projectile the
-    /// first, or all when it pierces. Only a target the server would roll against is returned: CombatService returns
-    /// before any draw for a corpse or an invulnerable creature (Hostility never offers the latter), so a seeded run
-    /// draws the server's sequence. Creatures walking home are not modelled: in melee nobody leashes.
+    /// Everyone is in melee, the pack in the nearest-first order of the world's hit queries (B-R8): a circle takes the
+    /// first living creatures up to its MaxTargets, as AbilityEffect.ApplyToAll; a cone the same, and at most the
+    /// scenario's coneHits; a projectile the first, or when it pierces every one up to its MaxTargets, as
+    /// ProjectileAbilityScript ends on its MaxTargets-th. A MaxTargets of 0 is no cap. Only a target the server would roll
+    /// against is returned: CombatService returns before any draw for a corpse or an invulnerable creature (Hostility
+    /// never offers the latter), so a seeded run draws the server's sequence. Creatures walking home are not modelled: in
+    /// melee nobody leashes.
     /// </summary>
     private List<SimCreature> TargetsOf(AbilityMetadata m)
     {
-        IEnumerable<SimCreature> living = Creatures.Where(c => !c.IsDead && !c.Template.Invulnerable);
-        return m.Shape switch
-        {
-            AbilityShape.Cone when _coneHits is { } cap => living.Take(cap).ToList(),
-            AbilityShape.Projectile when !m.Pierce => living.Take(1).ToList(),
-            _ => living.ToList(),
-        };
+        int cap = m.MaxTargets > 0 ? m.MaxTargets : int.MaxValue;
+        if (m.Shape == AbilityShape.Cone && _coneHits is { } coneHits)
+            cap = Math.Min(cap, coneHits);
+        else if (m.Shape == AbilityShape.Projectile && !m.Pierce)
+            cap = 1;
+
+        return [.. Creatures.Where(c => !c.IsDead && !c.Template.Invulnerable).Take(cap)];
     }
 
     private void FireCreature(SimCreature creature, SimAbility ability)
@@ -334,9 +337,9 @@ public sealed class FightSimulator
 
         if (AbilityRules.HasDirectEffect(m.Effects, m.Affects))
         {
-            (uint damage, HitResult result) = CombatRules.Damage(creature, Player, ability, _formula, _rng);
-            Add(_taken, $"{creature.Template.Name}: {ability.Name}", CombatRules.HitPlayer(Player, damage));
-            if ((result & HitResult.Dodged) != HitResult.None)
+            HitDamage hit = CombatRules.Damage(creature, Player, ability, _formula, _rng);
+            Add(_taken, $"{creature.Template.Name}: {ability.Name}", CombatRules.Land(Player, hit, Now.UtcDateTime).Total);
+            if ((hit.Result & HitResult.Dodged) != HitResult.None)
                 return;
 
             if (Player.IsDead)
@@ -358,8 +361,9 @@ public sealed class FightSimulator
     /// <summary>
     /// As AuraSystem.Apply for an ability's aura: the copy held is renewed (stacked when its row allows), else a new one
     /// is added; the snapshot comes from the caster now, its base damage roll drawn from the fight's random right after
-    /// the hit's draws, where the server draws it. A dead target gets none. The server's cap on auras per unit is never
-    /// reached here: no fight holds that many kinds of aura.
+    /// the hit's draws, where the server draws it, and its ticks typed as the ability's hit is, else the caster's base
+    /// type (B-R7). A dead target gets none. The server's cap on auras per unit is never reached here: no fight holds that
+    /// many kinds of aura.
     /// </summary>
     private void ApplyAura(SimUnit caster, SimUnit target, SimAbility ability)
     {
@@ -371,7 +375,8 @@ public sealed class FightSimulator
 
         SimAura? held = target.Auras.FirstOrDefault(a => a.Template.Id.Value == aura.Id.Value
             && (!AuraRules.KeysByCaster(aura.Stacking) || ReferenceEquals(a.Caster, caster)));
-        AuraSnapshot snapshot = AuraRules.Snapshot(aura, caster.Attack, ability.Metadata, DamageType.Physical, _rng);
+        AuraSnapshot snapshot = AuraRules.Snapshot(aura, caster.Attack, ability.Metadata,
+            HitResolver.TypeOf(ability.Metadata.DamageType, caster.Attack), _rng);
         var schedule = AuraSchedule.Start(Now, aura.DurationMs, aura.TickIntervalMs);
 
         if (held is not null)
@@ -436,9 +441,10 @@ public sealed class FightSimulator
     }
 
     /// <summary>
-    /// One tick, as CombatService.ApplyPeriodicDamage and ApplyPeriodicHeal: one crit roll, armour on damage, never a
-    /// dodge or a block; only the whole points of the amount and the aura's carry are dealt or healed
-    /// (AuraRules.TakeTick). No tick gives power (#1181).
+    /// One tick, as CombatService.ApplyPeriodicDamage and ApplyPeriodicHeal, resolved from the aura's own snapshot (B-R7):
+    /// one crit roll, the mitigation of the snapshot's type on damage, never a dodge or a block; only the whole points of
+    /// the amount and the aura's carry are dealt or healed (AuraRules.TakeTick), a damage tick meeting the ward as its type
+    /// allows (B-R6). No tick gives power (#1181).
     /// </summary>
     private void PeriodicTick(SimUnit unit, SimAura aura, bool lastTick)
     {
@@ -448,23 +454,16 @@ public sealed class FightSimulator
         {
             case AuraPeriodicKind.Damage:
             {
-                (double damage, _) = HitResolver.ResolvePeriodic(aura.Snapshot.Attacker, unit.Defence, DamageType.Physical,
-                    amount, _formula, _rng);
+                (double damage, _) = HitResolver.ResolvePeriodic(aura.Snapshot, unit.Defence, amount, _formula, _rng);
                 uint points = AuraRules.TakeTick(damage, ref carry, lastTick);
-                if (unit is SimPlayer player)
-                {
-                    Add(_taken, aura.Template.Name, CombatRules.HitPlayer(player, points));
-                }
-                else
-                {
-                    Add(_dealt, aura.Template.Name, CombatRules.HitCreature((SimCreature)unit, points));
-                }
+                uint lost = CombatRules.LandTick(unit, points, aura.Snapshot.Type, Now.UtcDateTime).Total;
+                Add(unit is SimPlayer ? _taken : _dealt, aura.Template.Name, lost);
 
                 break;
             }
             case AuraPeriodicKind.Heal when unit is SimPlayer player:
             {
-                (double heal, _) = HitResolver.ResolvePeriodicHeal(aura.Snapshot.Attacker, amount, _formula, _rng);
+                (double heal, _) = HitResolver.ResolvePeriodicHeal(aura.Snapshot, amount, _formula, _rng);
                 _healing += CombatRules.HealPlayer(player, AuraRules.TakeTick(heal, ref carry, lastTick));
                 break;
             }
@@ -494,9 +493,9 @@ public sealed class FightSimulator
             return;
 
         if (unit is SimPlayer player && _data is not null)
-            player.ApplyAuraStats(_data);
+            player.ApplyAuraStats(_data, Now.UtcDateTime);
         else if (unit is SimCreature creature)
-            creature.ApplyAuraStats();
+            creature.ApplyAuraStats(Now.UtcDateTime);
     }
 
     // ---- 3. creature scripts (CreatureCombatScript: cooldowns first, then a choice) ----

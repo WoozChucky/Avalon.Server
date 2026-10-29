@@ -12,39 +12,54 @@ namespace Avalon.Balance.UnitTests;
 
 public class SeedLoadShould
 {
-    [Fact]
-    public void Reproduce_a_level_one_warrior_with_no_gear()
-    {
-        DerivedCharacterStats warrior = TestData.Seeded.CharacterStats(CharacterClass.Warrior, 1, []);
-
-        Assert.Equal(240u, warrior.MaxHealth);     // 130 + 22 x 5
-        Assert.Equal(80.5f, warrior.Offence.Increased(OffenceStat.PhysicalAttack));   // 23 x 3.5
-        Assert.Equal(180u, warrior.MaxPower);      // 100 + 20 x 4
-    }
-
-    [Fact(Skip = BalancePause.Reason)]
-    public void Give_cleave_a_base_of_25_point_8_for_that_warrior()
+    /// <summary>
+    /// A level-1 Warrior bare and in the checked-in forest profile (B-R4: each piece a fixed copy at the midpoint of its
+    /// ranges): the class row sets its mana, Strength its physical attack, Stamina its health, and the gear its armour and
+    /// its weapon, bare the unarmed one. Forest's physical attack is (23 + 2) x 3.5, the Barkplate Legguards' Strength
+    /// implicit 2 at its midpoint; its weapon's attack time and least damage are the midpoints of item 7's ranges.
+    /// </summary>
+    [Theory]
+    [InlineData("none", 80.5f, 240u, 2u, 816u, 3u)]      // 23 x 3.5; 130 + 22 x 5; 23 x 0.1, truncated
+    [InlineData("forest", 87.5f, 258u, 59u, 700u, 6u)]
+    public void Reproduce_a_level_one_warrior(string gear, float physicalAttack, uint maxHealth, uint armor, uint attackTimeMs,
+        uint weaponMin)
     {
         BalanceData data = TestData.Seeded;
-        AbilityTemplate cleave = data.KitOf(CharacterClass.Warrior).Single(a => a.Id.Value == 200);
+        DerivedCharacterStats warrior = data.CharacterStats(CharacterClass.Warrior, 1, TestData.Gear(gear, CharacterClass.Warrior));
+
+        Assert.Equal(180u, warrior.MaxPower);      // 100 + 20 x 4
+        Assert.Equal(physicalAttack, warrior.Offence.Increased(OffenceStat.PhysicalAttack));
+        Assert.Equal((maxHealth, armor, attackTimeMs, weaponMin),
+            (warrior.MaxHealth, warrior.Armor, warrior.Weapon.AttackTimeMs, warrior.Weapon.Min1));
+    }
+
+    [Fact]
+    public void Give_cleave_its_base_for_a_level_one_warrior()
+    {
+        BalanceData data = TestData.Seeded;
+        AbilityTemplate cleave = data.Abilities[new AbilityId(200)];
         AttackerCombat attacker = data.CharacterStats(CharacterClass.Warrior, 1, []).AttackerAt(1);
 
         AbilityMetadata metadata = AbilityMetadataMapper.From(cleave);
         double min = OffenceMath.DirectBase(attacker, metadata, RollEnds.Low).Total;
         double max = OffenceMath.DirectBase(attacker, metadata, RollEnds.High).Total;
 
-        Assert.Equal(25.8, min, precision: 4);
-        Assert.Equal(25.8, max, precision: 4);
+        Assert.Equal(17.05725, min, precision: 4);   // 3 x 3.15 x 1.805
+        Assert.Equal(34.1145, max, precision: 4);    // 6 x 3.15 x 1.805
     }
 
     [Fact]
-    public void Load_every_seeded_ability_and_refuse_none()
+    public void Load_every_seeded_ability_and_item_row_and_refuse_none()
     {
         BalanceData data = TestData.Seeded;
 
         Assert.Empty(data.RefusedAbilities);
         foreach (uint id in new uint[] { 200, 201, 202, 210, 211, 212, 220, 221, 222, 230, 231, 232, 300, 316 })
             Assert.True(data.Abilities.TryGetValue(new AbilityId(id), out _), $"ability {id}");
+
+        Assert.Equal(data.Tables.ItemModifiers.Count, data.ItemModifiers.Count);
+        foreach (IGrouping<ulong, ItemTemplateModifier> links in data.Tables.ItemTemplateModifiers.GroupBy(l => l.TemplateId.Value))
+            Assert.True(data.ItemModifiers.LinkedTo(new ItemTemplateId(links.Key)).Count == links.Count(), $"item {links.Key}");
     }
 
     [Fact]

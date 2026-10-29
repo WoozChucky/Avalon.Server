@@ -78,6 +78,9 @@ public class OverridesShould
     [InlineData("""{ "Item.1.AllowedClasses": 1 }""", "cannot be overridden")]
     [InlineData("""{ "CombatFormula.1.ArmorBase": 1 }""", "CombatFormula has one row and takes no key")]
     [InlineData("""{ "Ability": 1 }""", "is not Table.key.Column")]
+    [InlineData("""{ "ItemModifierStat.16.0.Stat": 9999 }""", "9999 is no StatType")]
+    [InlineData("""{ "Item.112.Rarity": 258 }""", "258 does not fit a ItemRarity column")]   // a byte: never wrapped to 2
+    [InlineData("""{ "ItemTemplateBaseStat.7.4.Min": 1 }""", "no ItemTemplateBaseStat row '7.4'")]
     public void Stop_naming_the_override(string json, string message)
     {
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => Apply(json));
@@ -113,17 +116,18 @@ public class OverridesShould
         Assert.Equal(20u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
     }
 
-    [Fact]
-    public void Stop_on_an_override_the_server_would_refuse()
+    [Theory]
+    [InlineData("""{ "Ability.200.Reach": -1 }""", "ability 200 'Cleave'")]
+    [InlineData("""{ "CombatFormula.ArmorCap": 2 }""", "ArmorCap")]
+    [InlineData("""{ "ItemTemplateBaseStat.7.DamageMin.Min": 999 }""", "item 7 '")]
+    [InlineData("""{ "Item.112.Rarity": "Magic" }""", "item 112 'Hearthstone Ring': a Magic template links no modifier")]
+    [InlineData("""{ "ItemModifierStat.16.0.Min": 999 }""", "modifier 16 line 0: its range 999-")]
+    public void Stop_on_an_override_the_server_would_refuse(string json, string message)
     {
-        (SeedTables tables, _) = Apply("""{ "Ability.200.Reach": -1 }""");
+        (SeedTables tables, _) = Apply(json);
 
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => BalanceData.From(tables));
-        Assert.Contains("ability 200 'Cleave'", error.Message, StringComparison.Ordinal);
-
-        (SeedTables formula, _) = Apply("""{ "CombatFormula.ArmorCap": 2 }""");
-        Assert.Contains("ArmorCap", Assert.Throws<InvalidDataException>(() => BalanceData.From(formula)).Message,
-            StringComparison.Ordinal);
+        Assert.Contains(message, error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using Avalon.Balance.Data;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
@@ -18,14 +19,21 @@ using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Items;
+using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Reload;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
@@ -40,9 +48,16 @@ public class SimulatorParityShould
 {
     private const int Seed = 672;
     private const ushort Level = 3;
-    private static readonly ulong[] s_forestWarrior = [7, 12, 13, 14, 15, 16];
     private static readonly Lazy<BalanceData> s_seededData = new(() => BalanceData.From(SeedSource.Load()));
+    private static readonly Lazy<ScenarioFile> s_scenarios = new(() => ConfigFileStore.Load(
+        Path.Combine(TownNavmesh.RepositoryRoot, "balance", "scenarios.json"), ConfigFiles.ParseScenarios));
     private static BalanceData Data => s_seededData.Value;
+
+    /// <summary>The checked-in forest profile's Warrior gear (balance/scenarios.json).</summary>
+    private static ulong[] ForestWarrior => WarriorGear("forest");
+
+    /// <summary>A checked-in gear profile's Warrior gear; "none" is no gear.</summary>
+    private static ulong[] WarriorGear(string profile) => s_scenarios.Value.GearFor(profile, CharacterClass.Warrior);
 
     /// <summary>
     /// Close enough to the warrior (at the origin) that Hurled Axe hits on its first step whatever its speed (9 m/s, 0.15 m
@@ -54,22 +69,58 @@ public class SimulatorParityShould
         Enumerable.Range(0, EquipmentSlots.FirstReserved).Select(s => (byte)s).First(s => EquipmentSlots.TypeOf(s) == item.Slot);
 
     private static MapInstanceClient RealWarrior(MapInstance instance, uint id, params AbilityTemplate[] abilities) =>
-        RealWarrior(instance, id, null, abilities);
+        RealWarrior(instance, id, ForestWarrior, null, abilities);
 
     private static MapInstanceClient RealWarrior(MapInstance instance, uint id, TimeProvider? time,
-        params AbilityTemplate[] abilities)
+        params AbilityTemplate[] abilities) =>
+        RealWarrior(instance, id, ForestWarrior, time, abilities);
+
+    private static MapInstanceClient RealWarrior(MapInstance instance, uint id, ulong[] gear, TimeProvider? time,
+        params AbilityTemplate[] abilities) =>
+        RealCharacter(instance, id, CharacterClass.Warrior, gear, time, abilities);
+
+    /// <summary>
+    /// A level-3 character of <paramref name="class" /> wearing <paramref name="gear" />, each piece the simulator's fixed
+    /// copy of it (B-R4): its base stats and modifiers loaded as the copy's rows under the instance id the equipment holds,
+    /// then a stats refresh.
+    /// </summary>
+    private static MapInstanceClient RealCharacter(MapInstance instance, uint id, CharacterClass @class, ulong[] gear,
+        TimeProvider? time, params AbilityTemplate[] abilities)
     {
-        MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id, time: time));   // a Warrior
+        MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id, time: time));
+        warrior.Character.Data!.Class = @class;
         warrior.Character.PowerType = PowerType.Mana;
         warrior.Character.Level = Level;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
-        warrior.Character.Container(InventoryType.Equipment)
-            .Load(s_forestWarrior.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i)).ToArray());
+        InventoryItem[] worn = [.. gear.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i))];
+        warrior.Character.ItemModifiers.Load([.. worn.Select(i => CopyOf(i, Data.Worn(i.TemplateId.Value)))]);
+        warrior.Character.Container(InventoryType.Equipment).Load(worn);
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, Data.Tables.ClassLevelStats,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         warrior.Character.Spells.Load(abilities.Select(a => (IAbility)AbilityTestData.Game(a)).ToArray());
         return warrior;
+    }
+
+    /// <summary>
+    /// The rows of the fixed copy <paramref name="copy" /> under the instance <paramref name="item" /> names, as a load reads
+    /// them: its base stats, and copies of its modifiers (the simulator's cached copy is never handed to the store).
+    /// </summary>
+    private static ItemInstance CopyOf(InventoryItem item, WornItem copy)
+    {
+        ItemInstanceId id = item.InstanceId;
+        List<ItemInstanceBaseStat> baseStats = [];
+        foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
+            baseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = id, Stat = stat, Value = value });
+
+        return new ItemInstance
+        {
+            Identified = true,
+            Id = id,
+            TemplateId = item.TemplateId,
+            BaseStats = baseStats,
+            Modifiers = [.. (copy.Modifiers ?? []).Select(m => m.CopyAs(Guid.CreateVersion7(), id, m.Ordinal, imprinted: false))],
+        };
     }
 
     private static Creature RealBoar(MapInstance instance, uint id, SimCreature twin, Vector3? position = null)
@@ -89,6 +140,9 @@ public class SimulatorParityShould
             CritPct = twin.Derived.CritPct,
             Evasion = twin.Derived.Evasion,
             BlockPct = twin.Derived.BlockPct,
+            DamageType = twin.Template.DamageType,
+            Resistances = twin.Derived.Resistances,
+            BaseWard = twin.Derived.Ward,   // fills the ward, as CreatureSpawner's
             BaseAttackTime = twin.Template.BaseAttackTime,
             AttackSpeedCap = Data.Combat.Formula.AttackSpeedCap,
             CastSpeedCap = Data.Combat.Formula.CastSpeedCap,
@@ -110,13 +164,15 @@ public class SimulatorParityShould
                 ?.GetValue(unit)
             ?? throw new InvalidOperationException($"{unit.GetType().Name}.{property} is not there"));
 
-    [Fact(Skip = BalancePause.Reason)]
-    public void Derive_the_same_character_stats_as_a_stats_refresh()
+    [Theory]
+    [InlineData("none")]
+    [InlineData("forest")]
+    public void Derive_the_same_character_stats_as_a_stats_refresh(string gear)
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
-        MapInstanceClient real = RealWarrior(instance, 6760_101, Row(200));
+        MapInstanceClient real = RealWarrior(instance, 6760_101, WarriorGear(gear), null, Row(200));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, WarriorGear(gear).Select(Data.Worn));
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
@@ -126,11 +182,62 @@ public class SimulatorParityShould
     }
 
     /// <summary>
+    /// B-R4's fixed copy is the world's plain roll (ItemRoller.RollPlain) under a random that always lands mid-range: every
+    /// seeded item template, uniques included, over the seed's item rows and the catalog the World database's read builds,
+    /// must come out of both with the same base stats and the same modifiers, line for line. One line, the first of the
+    /// implicit item 7 (the forest Warrior's weapon) links, is given each row's range on both sides: a middle that is a
+    /// half, and a range below zero, whose half rounds up as well ([-3, -1] gives -2, never -1).
+    /// </summary>
+    [Theory]
+    [InlineData(2, 5)]
+    [InlineData(-3, -1)]
+    public async Task Make_the_same_fixed_copy_as_a_plain_roll_at_the_midpoint(int lineMin, int lineMax)
+    {
+        SeedTables simSeed = SeedSource.Load();
+        int implicitId = simSeed.ItemTemplateModifiers.Where(l => l.TemplateId.Value == 7).MinBy(l => l.Index)!.ModifierId;
+        ItemModifierStat simLine = simSeed.ItemModifierStats.Single(l => l.ModifierId == implicitId && l.Index == 0);
+        (simLine.Min, simLine.Max) = (lineMin, lineMax);
+        var data = BalanceData.From(simSeed);
+
+        SeedTables seed = SeedSource.Load();
+        ILookup<ulong, ItemTemplateBaseStat> ranges = seed.ItemTemplateBaseStats.ToLookup(r => r.TemplateId.Value);
+        foreach (ItemTemplate template in seed.ItemTemplates)
+            template.BaseStats = [.. ranges[template.Id.Value]];
+
+        ItemModifierCatalog catalog = await ItemModifierRepositories.SeededCatalog();
+        ItemModifierStat worldLine = catalog.Find(implicitId)!.Stats.Single(l => l.Index == 0);
+        (worldLine.Min, worldLine.Max) = (lineMin, lineMax);
+        var items = new ItemsPatch(seed.ItemTemplates, catalog);
+        var roller = new ItemRoller(new MidpointRandom(), new ItemIdAllocator(), Options.Create(new GameConfiguration()));
+        Assert.Contains(seed.ItemTemplates, t => t.Rarity == ItemRarity.Unique);
+
+        foreach (ulong id in seed.ItemTemplates.Select(t => t.Id.Value).Order())
+        {
+            ItemTemplate? kept = items.Find(new ItemTemplateId(id));
+            Assert.True(kept is not null, $"item {id} is left out of the world's items area");
+            RolledItem rolled = roller.RollPlain(kept, 1, items);
+            WornItem worn = data.Worn(id);
+
+            Assert.Equal((id, rolled.BaseStats), (id, worn.BaseStats));
+            List<ItemInstanceModifier> copied = worn.Modifiers ?? [];
+            Assert.Equal(Ids(id, rolled.Modifiers), Ids(id, copied));
+            Assert.Equal(Lines(id, rolled.Modifiers), Lines(id, copied));
+        }
+
+        static List<(ulong Item, byte Ordinal, int ModifierId)> Ids(ulong item, List<ItemInstanceModifier> modifiers) =>
+            [.. modifiers.OrderBy(m => m.Ordinal).Select(m => (item, m.Ordinal, m.ModifierId))];
+
+        static List<(ulong Item, int ModifierId, StatType Stat, int Value, int? Value2)> Lines(ulong item,
+            List<ItemInstanceModifier> modifiers) =>
+            [.. modifiers.OrderBy(m => m.Ordinal).SelectMany(m => m.Values.Select(v => (item, m.ModifierId, v.Stat, v.Value, v.Value2)))];
+    }
+
+    /// <summary>
     /// The creature mapping is written twice, in Creature (Combat, Defence, from the fields CreatureSpawner copies)
     /// and in DerivedCreatureStats (Attacker, Defence, which the simulator fights with). Every hostile seeded
     /// template, spawned by the real spawner at its lowest and its highest level, must fight as its twin does.
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Spawn_every_hostile_creature_with_the_combat_the_simulator_derives()
     {
         Assert.NotEmpty(Data.HostileTemplates);
@@ -150,22 +257,31 @@ public class SimulatorParityShould
                 Assert.Equal(real.Health, sim.Health);
                 Assert.Equal(Internal<CasterPace>(real, "Pace"), sim.Pace);
                 Assert.Equal(real.SwingInterval, sim.SwingInterval);
+                Assert.Equal(real.MaxWard, sim.MaxWard);
             }
         }
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    /// <summary>
+    /// Cleave on a level-3 boar, sixty times, through the real combat service and the simulator's B-R6 landing: the same
+    /// health, ward and mana after every hit. Both sides read one clock, moved 5 s between hits (the 4 s recharge delay
+    /// and half the 2 s recharge), so a ward on the boar would drain, pause and recharge as the world's does.
+    /// </summary>
+    [Fact]
     public void Deal_the_same_cleave_damage_and_mana_hit_for_hit()
     {
-        using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
-        MapInstanceClient real = RealWarrior(instance, 6760_111, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var clock = new FakeTimeProvider(s_clockStart);
+        using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)), time: clock);
+        MapInstanceClient real = RealWarrior(instance, 6760_111, clock, Row(200));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        simWarrior.Abilities.Add(new SimAbility(Row(200)));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         Creature realBoar = RealBoar(instance, 6760_911, simBoar);
         IAbility realCleave = real.Character.Spells[new Avalon.Common.ValueObjects.AbilityId(200)]!;
         SimAbility simCleave = simWarrior.Ability(200);
         var simRng = new CombatRandom(new Random(Seed));
+        Assert.Equal(realBoar.MaxWard, simBoar.MaxWard);
 
         for (int hit = 0; hit < 60; hit++)
         {
@@ -173,40 +289,58 @@ public class SimulatorParityShould
             simWarrior.CurrentPower = 0;
             uint realBefore = realBoar.CurrentHealth;
             uint simBefore = simBoar.CurrentHealth;
+            DateTime now = s_clockStart.UtcDateTime + TimeSpan.FromSeconds(5 * hit);
 
             instance.CombatService.ApplyDamage(real.Character, realBoar, realCleave);
-            (uint damage, _) = CombatRules.Damage(simWarrior, simBoar, simCleave, Data.Combat.Formula, simRng);
-            CombatRules.HitCreature(simBoar, damage);
+            CombatRules.Land(simBoar, CombatRules.Damage(simWarrior, simBoar, simCleave, Data.Combat.Formula, simRng), now);
 
-            Assert.Equal(realBefore - realBoar.CurrentHealth, simBefore - simBoar.CurrentHealth);
-            Assert.Equal(real.Character.CurrentPower, simWarrior.CurrentPower);
+            Assert.Equal((hit, realBefore - realBoar.CurrentHealth), (hit, simBefore - simBoar.CurrentHealth));
+            Assert.Equal((hit, realBoar.Ward), (hit, simBoar.Ward));
+            Assert.Equal((hit, real.Character.CurrentPower), (hit, simWarrior.CurrentPower));
+            clock.Advance(TimeSpan.FromSeconds(5));
         }
     }
 
-    [Fact(Skip = BalancePause.Reason)]
-    public void Take_the_same_gore_damage_and_mana_hit_for_hit()
+    /// <summary>
+    /// A boar's hit on a character in its class's forest gear, sixty times, through the real combat service and the
+    /// simulator's B-R6 landing: the same health and the same ward after every hit. Health is refilled each hit, the ward
+    /// is not, and both clocks move 5 s between hits (the 4 s recharge delay and half the 2 s recharge), so the ward drains,
+    /// pauses and recharges as the world's does. A Warrior's forest gear carries a small ward (5); a Wizard's cloth ward
+    /// takes Gore (physical) and none of Rotting Burst (blight).
+    /// </summary>
+    [Theory]
+    [InlineData(CharacterClass.Warrior, 300u)]
+    [InlineData(CharacterClass.Wizard, 300u)]
+    [InlineData(CharacterClass.Wizard, 307u)]
+    public void Take_the_same_gore_damage_and_mana_hit_for_hit(CharacterClass @class, uint ability)
     {
-        using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
-        MapInstanceClient real = RealWarrior(instance, 6760_121, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var clock = new FakeTimeProvider(s_clockStart);
+        using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)), time: clock);
+        ulong[] gear = s_scenarios.Value.GearFor("forest", @class);
+        MapInstanceClient real = RealCharacter(instance, 6760_121, @class, gear, clock);
+        var simPlayer = SimPlayer.Create(Data, @class, Level, gear.Select(Data.Worn));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         Creature realBoar = RealBoar(instance, 6760_921, simBoar);
-        IAbility realGore = AbilityTestData.Game(Row(300));
+        IAbility realHit = AbilityTestData.Game(Row(ability));
+        var simHit = new SimAbility(Row(ability));
         var simRng = new CombatRandom(new Random(Seed));
+        Assert.Equal(real.Character.MaxWard, simPlayer.MaxWard);
 
         for (int hit = 0; hit < 60; hit++)
         {
             real.Character.CurrentHealth = real.Character.Health;
             real.Character.CurrentPower = 0;
-            simWarrior.CurrentHealth = simWarrior.Health;
-            simWarrior.CurrentPower = 0;
+            simPlayer.CurrentHealth = simPlayer.Health;
+            simPlayer.CurrentPower = 0;
+            DateTime now = s_clockStart.UtcDateTime + TimeSpan.FromSeconds(5 * hit);
 
-            instance.CombatService.ApplyDamage(realBoar, real.Character, realGore);
-            (uint damage, _) = CombatRules.Damage(simBoar, simWarrior, simBoar.Basic!, Data.Combat.Formula, simRng);
-            CombatRules.HitPlayer(simWarrior, damage);
+            instance.CombatService.ApplyDamage(realBoar, real.Character, realHit);
+            CombatRules.Land(simPlayer, CombatRules.Damage(simBoar, simPlayer, simHit, Data.Combat.Formula, simRng), now);
 
-            Assert.Equal(real.Character.CurrentHealth, simWarrior.CurrentHealth);
-            Assert.Equal(real.Character.CurrentPower, simWarrior.CurrentPower);
+            Assert.Equal((hit, real.Character.CurrentHealth), (hit, simPlayer.CurrentHealth));
+            Assert.Equal((hit, real.Character.Ward), (hit, simPlayer.Ward));
+            Assert.Equal((hit, real.Character.CurrentPower), (hit, simPlayer.CurrentPower));
+            clock.Advance(TimeSpan.FromSeconds(5));
         }
     }
 
@@ -218,14 +352,20 @@ public class SimulatorParityShould
     /// projectile) hits in the cast system's script pass, and the boar stands inside its first step, so the tick it
     /// lands on is the simulator's.
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Land_cleave_and_hurled_axe_on_the_same_ticks_through_the_cast_system()
     {
         var clock = new FakeTimeProvider(s_clockStart);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             random: new CombatRandom(new Random(Seed)), time: clock);
-        MapInstanceClient real = RealWarrior(instance, 6760_151, clock, Row(200), Row(202));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        // The test clock's tick is 0.0166667 s against the simulator's 1/60 s, so a cooldown that ends exactly on a tick
+        // boundary ends a tick sooner on the server: Hurled Axe's 3 s are 180 ticks, whatever the order or the start. A
+        // pendant's 1 % cooldown recovery (item 147) moves every expiry off the boundary (2.97 s, 178.2 ticks), so the
+        // exchange never meets such a tie.
+        ulong[] gear = [.. ForestWarrior, 147];
+        MapInstanceClient real = RealWarrior(instance, 6760_151, gear, clock, Row(200), Row(202));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, gear.Select(Data.Worn));
+        simWarrior.Abilities.AddRange([new SimAbility(Row(200)), new SimAbility(Row(202))]);
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_951, simBoar, s_pointBlank);
         CompiledRotationEntry[] rotation = [new(202, []), new(200, [])];
@@ -252,7 +392,7 @@ public class SimulatorParityShould
     /// kept in combat every tick (MarkCombat, as each hit would); without that its combat tag would lapse 5 s after the
     /// last hit and the out-of-combat rate would apply.
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Keep_regenerating_mana_through_a_wind_up_as_a_character_entity()
     {
         const uint StartMana = 40;
@@ -277,6 +417,7 @@ public class SimulatorParityShould
         real.Character.CurrentPower = StartMana;
 
         var simWizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        simWizard.Abilities.Add(new SimAbility(Row(211)));
         simWizard.CurrentPower = StartMana;
         Assert.True(simWizard.Power >= StartMana, $"a level-1 Wizard holds {simWizard.Power} Mana");
         SimCreature simBoar = PassiveBoar(1);
@@ -321,23 +462,24 @@ public class SimulatorParityShould
         MaxStacks = 3,
     };
 
-    private static AbilityTemplate TestRend(SpellEffect effects = SpellEffect.Damage) => new()
-    {
-        Id = new Avalon.Common.ValueObjects.AbilityId(9203),
-        Name = "Test Rend",
-        ScriptName = "ConeAbilityScript",
-        Shape = AbilityShape.Cone,
-        AimMode = AbilityAimMode.Movement,
-        Reach = 2.5f,
-        ArcDegrees = 90f,
-        Cooldown = 6000,
-        Effects = effects,
-        Tags = AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area,
-        DamageType = DamageType.Physical,
-        DamageEffectiveness = 202f,
-        AuraId = new Avalon.Common.ValueObjects.AuraId(9901),
-        ThreatMultiplier = 1f,
-    };
+    private static AbilityTemplate TestRend(SpellEffect effects = SpellEffect.Damage,
+        DamageType type = DamageType.Physical) => new()
+        {
+            Id = new Avalon.Common.ValueObjects.AbilityId(9203),
+            Name = "Test Rend",
+            ScriptName = "ConeAbilityScript",
+            Shape = AbilityShape.Cone,
+            AimMode = AbilityAimMode.Movement,
+            Reach = 2.5f,
+            ArcDegrees = 90f,
+            Cooldown = 6000,
+            Effects = effects,
+            Tags = AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area,
+            DamageType = type,
+            DamageEffectiveness = 202f,
+            AuraId = new Avalon.Common.ValueObjects.AuraId(9901),
+            ThreatMultiplier = 1f,
+        };
 
     /// <summary>
     /// Auras: a Warrior casting a bleeding cone through the real handler, cast system and aura system, against the
@@ -346,28 +488,33 @@ public class SimulatorParityShould
     /// and its refresh, on the same ticks. The instance's clock is moved to each tick's simulated time, as the
     /// simulator's is. The simulator never falls behind (it steps every server tick), so the server's catch-up after a
     /// stall is not exercised here. Without Damage the cone deals nothing but still rolls whether it lands on the boar
-    /// (#1164): a dodge draw missing on either side would move every later roll and part the bleeds.
+    /// (#1164): a dodge draw missing on either side would move every later roll and part the bleeds. The ticks take Rend's
+    /// type (B-R7): a physical bleed meets the boar's armour and passes its ward, yet pauses the ward's recharge, so the
+    /// next cone finds the ward as the first left it; a fire bleed meets the boar's fire resistance and its ward.
     /// </summary>
-    [Theory(Skip = BalancePause.Reason)]
-    [InlineData(SpellEffect.Damage)]
-    [InlineData(SpellEffect.Debuff)]
-    public async Task Bleed_the_same_as_the_aura_system_tick_for_tick(SpellEffect effects)
+    [Theory]
+    [InlineData(SpellEffect.Damage, DamageType.Physical)]
+    [InlineData(SpellEffect.Debuff, DamageType.Physical)]
+    [InlineData(SpellEffect.Damage, DamageType.Fire)]
+    public async Task Bleed_the_same_as_the_aura_system_tick_for_tick(SpellEffect effects, DamageType type)
     {
         var clock = new FakeTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            abilities: () => [TestRend(effects: effects)], auras: () => [TestBleed()]));
+            abilities: () => [TestRend(effects, type)], auras: () => [TestBleed()]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
-        MapInstanceClient real = RealWarrior(instance, 6760_171, clock, TestRend(effects: effects));
+        MapInstanceClient real = RealWarrior(instance, 6760_171, clock, TestRend(effects, type));
 
         SeedTables seed = SeedSource.Load();
         seed.AuraTemplates.Add(TestBleed());
-        seed.AbilityTemplates.Add(TestRend(effects: effects));
+        seed.AbilityTemplates.Add(TestRend(effects, type));
+        seed.CreatureTemplates.Single(t => t.Id.Value == 4).WardModifier = 1f;   // a boar with a ward on both sides
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
-        simWarrior.Abilities.Add(new SimAbility(TestRend(effects: effects)));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
+        simWarrior.Abilities.Add(new SimAbility(TestRend(effects, type)));
         Assert.True(simWarrior.Attack.Weapon.Max1 > 0, "the Warrior has no main hand to roll");
-        SimCreature simBoar = PassiveBoar(Level);
+        SimCreature simBoar = PassiveBoar(Level, data);
+        Assert.True(simBoar.MaxWard > 0, "the boar has no ward");
         Creature realBoar = RealBoar(instance, 6760_971, simBoar);
         CompiledRotationEntry[] rotation = [new(9203, [])];
         var fight = new FightSimulator(Data.Combat.Formula, simWarrior, [simBoar], rotation,
@@ -403,7 +550,7 @@ public class SimulatorParityShould
     /// Warrior's health and mana compared after every tick for 10 s: the hit and its draws, the poison's roll right
     /// after them, each tick's crit roll, the Warrior's armour, the carry, and the mana no tick gives (#1181).
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public async Task Poison_from_a_creatures_natural_damage_the_same_as_the_aura_system_tick_for_tick()
     {
         // Seed rolls the bottom of the boar's range for the poison, which a roll left out would match; this one does not.
@@ -436,7 +583,7 @@ public class SimulatorParityShould
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(PoisonSeed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_191, clock, Row(200));
 
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
         var simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         foreach (SimAbility special in simBoar.Specials) special.CooldownLeft = 1_000f;   // only Gore, once
@@ -488,7 +635,7 @@ public class SimulatorParityShould
     /// Auras: a bleeding cone, whose hits and bleed ticks give no mana (#1181), through the real handler, cast system
     /// and aura system against the simulator, the boar's health and the Warrior's mana compared after every tick for 15 s.
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public async Task Gain_no_mana_from_a_bleeding_cone_or_its_ticks_as_the_aura_system()
     {
         var clock = new FakeTimeProvider(s_clockStart);
@@ -502,7 +649,7 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend());
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
         simWarrior.Abilities.Add(new SimAbility(TestRend()));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_972, simBoar);
@@ -529,7 +676,7 @@ public class SimulatorParityShould
     /// after every tick for 20 s: each heal tick (its crit roll and the fraction of a point carried), the refresh on each
     /// recast, and the Mana it costs. The Cleric is kept in combat every tick, as the simulator's continuous fight is.
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public async Task Heal_over_time_the_same_as_the_aura_system_tick_for_tick()
     {
         AbilityTemplate renew = Row(233);
@@ -557,6 +704,7 @@ public class SimulatorParityShould
         real.Character.Spells.Load([AbilityTestData.Game(renew)]);
 
         var simCleric = SimPlayer.Create(Data, CharacterClass.Cleric, Level, []);
+        simCleric.Abilities.Add(new SimAbility(renew));
         Assert.Equal(real.Character.Health, simCleric.Health);
         Assert.Equal(real.Character.CurrentPower, simCleric.CurrentPower);
         real.Character.CurrentHealth = simCleric.CurrentHealth = simCleric.Health / 2;
@@ -591,7 +739,7 @@ public class SimulatorParityShould
     }
 
     /// <summary>Auras: a percentage armour and a flat crit aura fold into the same derived stats on the server and in the simulator.</summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Fold_a_stat_aura_into_the_same_stats_as_a_stats_refresh()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
@@ -618,9 +766,9 @@ public class SimulatorParityShould
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, Data.Combat.Formula));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
         sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0)));
-        sim.ApplyAuraStats(Data);
+        sim.ApplyAuraStats(Data, s_clockStart.UtcDateTime);
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
@@ -634,11 +782,13 @@ public class SimulatorParityShould
 
     /// <summary>
     /// A level-<paramref name="level" /> Thornback Boar that never swings, with the health to outlast every exchange, its
-    /// base maximum the same as RealBoar's, so a stat aura folds its health as the server's does.
+    /// base maximum the same as RealBoar's, so a stat aura folds its health as the server's does. From
+    /// <paramref name="data" /> when given (a test's own seed), else the seed.
     /// </summary>
-    private static SimCreature PassiveBoar(ushort level)
+    private static SimCreature PassiveBoar(ushort level, BalanceData? data = null)
     {
-        var boar = SimCreature.Create(Data, Data.Creature(4), level, 0);
+        data ??= Data;
+        var boar = SimCreature.Create(data, data.Creature(4), level, 0);
         boar.Health = boar.CurrentHealth = boar.BaseMaxHealth = 1_000_000;
         foreach (SimAbility a in boar.Abilities) a.CooldownLeft = 1_000f;   // the real boar's script never casts
         return boar;
@@ -731,14 +881,15 @@ public class SimulatorParityShould
         return casts;
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Set_the_same_cooldown_when_cleave_fires()
     {
         var clock = new FakeTimeProvider(s_clockStart);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_131, clock, Row(200));
         real.Character.LastCastStartTime = clock.GetUtcNow().UtcDateTime.AddSeconds(-1);
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        sim.Abilities.Add(new SimAbility(Row(200)));
 
         handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = 200 });
 
@@ -746,7 +897,7 @@ public class SimulatorParityShould
         Assert.Equal(cleave.CooldownTimer, CombatRules.CooldownAfterFire(sim, sim.Ability(200)));
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Swing_on_the_same_interval_as_a_spawned_creature()
     {
         var sim = SimCreature.Create(Data, Data.Creature(4), Level, 0);
@@ -756,10 +907,10 @@ public class SimulatorParityShould
         Assert.Equal(real.SwingInterval, CombatRules.CooldownAfterFire(sim, sim.Basic!));
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Regenerate_the_same_mana_in_combat_as_a_character_entity()
     {
-        // The simulated Wizard casts Arcane Bolt (instant and free) at a boar that never swings.
+        // The simulated Wizard casts Spark Bolt (instant and free) at a boar that never swings.
         var sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         sim.CurrentPower = 10;
         var dummy = SimCreature.Create(Data, Data.Creature(4), 1, 0);
@@ -840,5 +991,16 @@ public class SimulatorParityShould
         IWorld world = Substitute.For<IWorld>();
         world.Data.Returns(data);
         return new CreatureSpawner(NullLoggerFactory.Instance, world);
+    }
+
+    /// <summary>
+    /// A loot random that lands mid-range: of an integer range the low end plus half its width, rounded down, as a draw
+    /// offset from the low end would (so below zero too: -2 of [-3, 0)); 0.5 of a double.
+    /// </summary>
+    private sealed class MidpointRandom : ILootRandom
+    {
+        public double NextDouble() => 0.5;
+
+        public long NextInt64(long minInclusive, long maxExclusive) => minInclusive + (maxExclusive - minInclusive) / 2;
     }
 }

@@ -232,7 +232,7 @@ public static class HtmlReport
           .Append(V(r.WinRatePct)).Append(" % win</summary><div class=\"scroll\">");
         sb.Append("<p>Health ").Append(s.Health).Append(" &middot; power ").Append(s.Power).Append(" &middot; armour ").Append(s.Armor)
           .Append(" &middot; crit ").Append(V(s.CritPct)).Append(" % &middot; evasion ").Append(s.Evasion)
-          .Append(" &middot; block ").Append(V(s.BlockPct)).Append(" %</p>");
+          .Append(" &middot; block ").Append(V(s.BlockPct)).Append(" % &middot; ward ").Append(s.MaxWard).Append("</p>");
         sb.Append("<table><tr><th>Ability</th><th>Per hit</th></tr>");
         foreach (AbilityLine a in s.Abilities)
             sb.Append("<tr><td>").Append(E(a.Name)).Append("</td><td>").Append(a.Min).Append('-').Append(a.Max).Append(' ').Append(E(a.Kind)).Append("</td></tr>");

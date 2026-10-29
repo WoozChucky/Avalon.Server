@@ -1,15 +1,11 @@
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 
 namespace Avalon.Balance.Core;
 
 public sealed class SimPlayer : SimUnit
 {
-    /// <summary>The default regeneration settings, as the server's appsettings carry them.</summary>
-    private static readonly RegenConfiguration s_regen = new();
-
     public required CharacterClass Class { get; init; }
 
     /// <summary>Its derived stats, its auras folded in (set again whenever an aura with modifiers changes).</summary>
@@ -21,8 +17,8 @@ public sealed class SimPlayer : SimUnit
     /// <summary>As CharacterEntity.Pace: its speeds, each capped, and its main hand's attack time, from its derived stats.</summary>
     public CasterPace Pace { get; private set; }
 
-    /// <summary>The templates it wears, which every stats refresh reads again.</summary>
-    public IReadOnlyList<ItemTemplate> Worn { get; private init; } = [];
+    /// <summary>The fixed copies it wears (B-R4), which every stats refresh reads again.</summary>
+    public IReadOnlyList<WornItem> Worn { get; private init; } = [];
 
     public SimAbility Ability(uint id) =>
         Abilities.FirstOrDefault(a => a.Id == id)
@@ -38,9 +34,9 @@ public sealed class SimPlayer : SimUnit
 
     /// <summary>
     /// As the server's stats refresh after an aura change (CharacterStatsRefresh with KeepShare): the stats again with
-    /// the auras folded in, mana and health keeping their share.
+    /// the auras folded in, mana, health and the ward keeping their share.
     /// </summary>
-    public void ApplyAuraStats(BalanceData data)
+    public void ApplyAuraStats(BalanceData data, DateTime now)
     {
         uint oldHealth = Health;
         uint oldPower = Power ?? 0;
@@ -55,12 +51,13 @@ public sealed class SimPlayer : SimUnit
         CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, next.MaxHealth);
         Power = next.MaxPower;
         CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, next.MaxPower);
+        SetWardMax(next.MaxWard, now);
     }
 
-    /// <summary>A character entering the world: full health and full mana, every class on mana (#1181).</summary>
-    public static SimPlayer Create(BalanceData data, CharacterClass characterClass, ushort level, IEnumerable<ItemTemplate> worn)
+    /// <summary>A character entering the world: full health, full mana (every class on mana, #1181) and a full ward.</summary>
+    public static SimPlayer Create(BalanceData data, CharacterClass characterClass, ushort level, IEnumerable<WornItem> worn)
     {
-        var wearing = worn.ToList();
+        List<WornItem> wearing = [.. worn];
         DerivedCharacterStats stats = data.CharacterStats(characterClass, level, wearing);
         var player = new SimPlayer
         {
@@ -79,6 +76,7 @@ public sealed class SimPlayer : SimUnit
             Power = stats.MaxPower,
             CurrentPower = stats.MaxPower,
         };
+        player.ResetWard(stats.MaxWard);
         player.Abilities.AddRange(data.KitOf(characterClass).Select(t => new SimAbility(t)));
         return player;
     }

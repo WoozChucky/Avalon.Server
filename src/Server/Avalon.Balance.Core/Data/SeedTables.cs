@@ -22,6 +22,16 @@ public sealed class SeedTables
     public required List<TalentNodeAbility> TalentNodeAbilities { get; init; }
     /// <summary>The talent tree's class starts (#1181): where each class starts, whose link is its starter.</summary>
     public required List<TalentClassStart> TalentClassStarts { get; init; }
+    /// <summary>The bases' base-stat ranges (#1179), one row per stat a template's kind carries.</summary>
+    public required List<ItemTemplateBaseStat> ItemTemplateBaseStats { get; init; }
+    /// <summary>The modifier catalog's groups (#1179): each modifier's kind, name and Resonance theme.</summary>
+    public required List<ItemModifierGroup> ItemModifierGroups { get; init; }
+    /// <summary>The modifier catalog's rows (#1179): affix tiers, implicits and uniques' own modifiers.</summary>
+    public required List<ItemModifier> ItemModifiers { get; init; }
+    /// <summary>The modifier catalog's stat lines (#1179), each a range a copy rolls within.</summary>
+    public required List<ItemModifierStat> ItemModifierStats { get; init; }
+    /// <summary>The modifiers each template links (#1179): a base's implicit, a unique's own modifier.</summary>
+    public required List<ItemTemplateModifier> ItemTemplateModifiers { get; init; }
 
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> s_columns = new();
 
@@ -45,6 +55,11 @@ public sealed class SeedTables
         AuraStatModifiers = CloneRows(AuraStatModifiers),
         TalentNodeAbilities = CloneRows(TalentNodeAbilities),
         TalentClassStarts = CloneRows(TalentClassStarts),
+        ItemTemplateBaseStats = CloneRows(ItemTemplateBaseStats),
+        ItemModifierGroups = CloneRows(ItemModifierGroups),
+        ItemModifiers = CloneRows(ItemModifiers),
+        ItemModifierStats = CloneRows(ItemModifierStats),
+        ItemTemplateModifiers = CloneRows(ItemTemplateModifiers),
     };
 
     private static List<T> CloneRows<T>(List<T> rows) where T : class, new()

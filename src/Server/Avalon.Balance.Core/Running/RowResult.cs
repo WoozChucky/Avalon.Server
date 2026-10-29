@@ -17,7 +17,8 @@ public sealed record Distribution(double P10, double Median, double P90)
 
 public sealed record AbilityLine(string Name, string Kind, uint Min, uint Max);
 
-public sealed record PlayerSnapshot(uint Health, uint Power, uint Armor, float CritPct, uint Evasion, float BlockPct, IReadOnlyList<AbilityLine> Abilities);
+public sealed record PlayerSnapshot(uint Health, uint Power, uint Armor, float CritPct, uint Evasion, float BlockPct, uint MaxWard,
+    IReadOnlyList<AbilityLine> Abilities);
 
 /// <summary>
 /// One row's runs, aggregated: win rate over all runs; fight length over all runs (a loss counts its length, a

@@ -53,11 +53,12 @@ public sealed class SimCreature : SimUnit
         ?? (Basic is { Ready: true } basic ? basic : null);
 
     /// <summary>
-    /// As Creature.ApplyAuraStats: its attack, defence and speeds with its auras folded in; its maximum health
-    /// <see cref="BaseMaxHealth" /> with its health aura on top, at least 1, its health keeping its share. A corpse's
-    /// health, and one with no base, is never changed.
+    /// As Creature.ApplyAuraStats: its attack, defence and speeds with its auras folded in; its ward's maximum its derived
+    /// ward with its ward aura on top, the ward keeping its share; its maximum health <see cref="BaseMaxHealth" /> with its
+    /// health aura on top, at least 1, its health keeping its share. A corpse's health, and one with no base, is never
+    /// changed.
     /// </summary>
-    public void ApplyAuraStats()
+    public void ApplyAuraStats(DateTime now)
     {
         AuraStatTotals totals = AuraTotals();
         Attack = AuraStats.Fold(Derived.Attacker, totals);
@@ -65,6 +66,7 @@ public sealed class SimCreature : SimUnit
         AttackSpeedPct = AuraStats.Apply(0f, totals, AuraStat.AttackSpeed);
         CastSpeedPct = AuraStats.Apply(0f, totals, AuraStat.CastSpeed);
         CooldownRecoveryPct = AuraStats.Apply(0f, totals, AuraStat.CooldownRecovery);
+        SetWardMax(AuraStats.Apply(Derived.Ward, totals, AuraStat.MaxWard), now);
 
         if (BaseMaxHealth == 0 || CurrentHealth == 0)
             return;
@@ -78,7 +80,7 @@ public sealed class SimCreature : SimUnit
     }
 
     /// <summary>
-    /// A creature as CreatureSpawner builds it, with the abilities its script's kit loads (CreatureAbilities.Load):
+    /// A creature as CreatureSpawner builds it, its ward full, with the abilities its script's kit loads (CreatureAbilities.Load):
     /// an id the catalog lacks is left out, as there.
     /// </summary>
     public static SimCreature Create(BalanceData data, CreatureTemplate template, ushort level, int index)
@@ -112,6 +114,7 @@ public sealed class SimCreature : SimUnit
             BaseMaxHealth = derived.Health,
             PowerType = PowerType.None,
         };
+        creature.ResetWard(derived.Ward);
         if (basic is not null) creature.Abilities.Add(basic);
         creature.Abilities.AddRange(specials);
         return creature;
