@@ -431,23 +431,24 @@ public class SimulatorParityShould
         MaxStacks = 3,
     };
 
-    private static AbilityTemplate TestRend(SpellEffect effects = SpellEffect.Damage) => new()
-    {
-        Id = new Avalon.Common.ValueObjects.AbilityId(9203),
-        Name = "Test Rend",
-        ScriptName = "ConeAbilityScript",
-        Shape = AbilityShape.Cone,
-        AimMode = AbilityAimMode.Movement,
-        Reach = 2.5f,
-        ArcDegrees = 90f,
-        Cooldown = 6000,
-        Effects = effects,
-        Tags = AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area,
-        DamageType = DamageType.Physical,
-        DamageEffectiveness = 202f,
-        AuraId = new Avalon.Common.ValueObjects.AuraId(9901),
-        ThreatMultiplier = 1f,
-    };
+    private static AbilityTemplate TestRend(SpellEffect effects = SpellEffect.Damage,
+        DamageType type = DamageType.Physical) => new()
+        {
+            Id = new Avalon.Common.ValueObjects.AbilityId(9203),
+            Name = "Test Rend",
+            ScriptName = "ConeAbilityScript",
+            Shape = AbilityShape.Cone,
+            AimMode = AbilityAimMode.Movement,
+            Reach = 2.5f,
+            ArcDegrees = 90f,
+            Cooldown = 6000,
+            Effects = effects,
+            Tags = AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area,
+            DamageType = type,
+            DamageEffectiveness = 202f,
+            AuraId = new Avalon.Common.ValueObjects.AuraId(9901),
+            ThreatMultiplier = 1f,
+        };
 
     /// <summary>
     /// Auras: a Warrior casting a bleeding cone through the real handler, cast system and aura system, against the
@@ -456,28 +457,33 @@ public class SimulatorParityShould
     /// and its refresh, on the same ticks. The instance's clock is moved to each tick's simulated time, as the
     /// simulator's is. The simulator never falls behind (it steps every server tick), so the server's catch-up after a
     /// stall is not exercised here. Without Damage the cone deals nothing but still rolls whether it lands on the boar
-    /// (#1164): a dodge draw missing on either side would move every later roll and part the bleeds.
+    /// (#1164): a dodge draw missing on either side would move every later roll and part the bleeds. The ticks take Rend's
+    /// type (B-R7): a physical bleed meets the boar's armour and passes its ward, yet pauses the ward's recharge, so the
+    /// next cone finds the ward as the first left it; a fire bleed meets the boar's fire resistance and its ward.
     /// </summary>
-    [Theory(Skip = BalancePause.Reason)]
-    [InlineData(SpellEffect.Damage)]
-    [InlineData(SpellEffect.Debuff)]
-    public async Task Bleed_the_same_as_the_aura_system_tick_for_tick(SpellEffect effects)
+    [Theory]
+    [InlineData(SpellEffect.Damage, DamageType.Physical)]
+    [InlineData(SpellEffect.Debuff, DamageType.Physical)]
+    [InlineData(SpellEffect.Damage, DamageType.Fire)]
+    public async Task Bleed_the_same_as_the_aura_system_tick_for_tick(SpellEffect effects, DamageType type)
     {
         var clock = new FakeTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            abilities: () => [TestRend(effects: effects)], auras: () => [TestBleed()]));
+            abilities: () => [TestRend(effects, type)], auras: () => [TestBleed()]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
-        MapInstanceClient real = RealWarrior(instance, 6760_171, clock, TestRend(effects: effects));
+        MapInstanceClient real = RealWarrior(instance, 6760_171, clock, TestRend(effects, type));
 
         SeedTables seed = SeedSource.Load();
         seed.AuraTemplates.Add(TestBleed());
-        seed.AbilityTemplates.Add(TestRend(effects: effects));
+        seed.AbilityTemplates.Add(TestRend(effects, type));
+        seed.CreatureTemplates.Single(t => t.Id.Value == 4).WardModifier = 1f;   // a boar with a ward on both sides
         var data = BalanceData.From(seed);
         var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
-        simWarrior.Abilities.Add(new SimAbility(TestRend(effects: effects)));
+        simWarrior.Abilities.Add(new SimAbility(TestRend(effects, type)));
         Assert.True(simWarrior.Attack.Weapon.Max1 > 0, "the Warrior has no main hand to roll");
-        SimCreature simBoar = PassiveBoar(Level);
+        SimCreature simBoar = PassiveBoar(Level, data);
+        Assert.True(simBoar.MaxWard > 0, "the boar has no ward");
         Creature realBoar = RealBoar(instance, 6760_971, simBoar);
         CompiledRotationEntry[] rotation = [new(9203, [])];
         var fight = new FightSimulator(Data.Combat.Formula, simWarrior, [simBoar], rotation,
@@ -513,7 +519,7 @@ public class SimulatorParityShould
     /// Warrior's health and mana compared after every tick for 10 s: the hit and its draws, the poison's roll right
     /// after them, each tick's crit roll, the Warrior's armour, the carry, and the mana no tick gives (#1181).
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public async Task Poison_from_a_creatures_natural_damage_the_same_as_the_aura_system_tick_for_tick()
     {
         // Seed rolls the bottom of the boar's range for the poison, which a roll left out would match; this one does not.
@@ -744,11 +750,13 @@ public class SimulatorParityShould
 
     /// <summary>
     /// A level-<paramref name="level" /> Thornback Boar that never swings, with the health to outlast every exchange, its
-    /// base maximum the same as RealBoar's, so a stat aura folds its health as the server's does.
+    /// base maximum the same as RealBoar's, so a stat aura folds its health as the server's does. From
+    /// <paramref name="data" /> when given (a test's own seed), else the seed.
     /// </summary>
-    private static SimCreature PassiveBoar(ushort level)
+    private static SimCreature PassiveBoar(ushort level, BalanceData? data = null)
     {
-        var boar = SimCreature.Create(Data, Data.Creature(4), level, 0);
+        data ??= Data;
+        var boar = SimCreature.Create(data, data.Creature(4), level, 0);
         boar.Health = boar.CurrentHealth = boar.BaseMaxHealth = 1_000_000;
         foreach (SimAbility a in boar.Abilities) a.CooldownLeft = 1_000f;   // the real boar's script never casts
         return boar;

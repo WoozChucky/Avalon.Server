@@ -249,6 +249,29 @@ public class FightSimulatorShould
         Assert.Equal(living, Draws(withCorpse: true));
     }
 
+    /// <summary>
+    /// B-R8, in the melee model: a cone or a circle takes the nearest living creatures up to its MaxTargets (Heavy Strike's
+    /// 1), a cone also up to the scenario's coneHits; a projectile the first, or every one when it pierces.
+    /// </summary>
+    [Theory]
+    [InlineData(319u, null, 1)]   // Heavy Strike: a cone, MaxTargets 1
+    [InlineData(200u, null, 3)]   // Cleave: a cone, no cap
+    [InlineData(200u, 2, 2)]      // Cleave capped by coneHits
+    [InlineData(221u, null, 3)]   // Piercing Arrow
+    [InlineData(202u, null, 1)]   // Hurled Axe
+    public void Reach_as_many_creatures_as_the_shape_and_its_max_targets_allow(uint ability, int? coneHits, int damaged)
+    {
+        SimCreature[] pack = [Dummy(4, 0), Dummy(4, 1), Dummy(4, 2)];
+        foreach (SimCreature c in pack) Hold(c);
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []).Holding(Data, ability);
+        var fight = new FightSimulator(Data.Combat.Formula, warrior, pack, Rotation(ability), CombatRandom.Steady,
+            coneHits);
+
+        fight.Tick();
+
+        Assert.Equal(damaged, pack.Count(c => c.CurrentHealth < c.Health));
+    }
+
     [Fact]
     public void Land_a_projectile_after_a_wind_up_that_completes_on_the_same_tick()
     {

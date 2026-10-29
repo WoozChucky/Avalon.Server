@@ -40,7 +40,7 @@ public class AuraSimulationShould
         MaxStacks = 1,
     };
 
-    private static AbilityTemplate Rend() => new()
+    private static AbilityTemplate Rend(DamageType type = DamageType.Physical) => new()
     {
         Id = new AbilityId(9203),
         Name = "Test Rend",
@@ -53,12 +53,13 @@ public class AuraSimulationShould
         Effects = SpellEffect.Damage,
         DamageEffectiveness = 202f,
         AuraId = new AuraId(9901),
-        DamageType = DamageType.Physical,
+        DamageType = type,
         ThreatMultiplier = 1f,
         Tags = AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area,
     };
 
-    private static BalanceData Data(AuraTemplate? bleed = null, Action<SeedTables>? change = null)
+    private static BalanceData Data(AuraTemplate? bleed = null, Action<SeedTables>? change = null,
+        DamageType rendType = DamageType.Physical)
     {
         SeedTables seed = TestData.Seed();
         change?.Invoke(seed);
@@ -66,7 +67,7 @@ public class AuraSimulationShould
         seed.AuraTemplates.Add(Ward());
         seed.AuraStatModifiers.Add(new AuraStatModifier
         { AuraId = new AuraId(9905), Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = 50f });
-        seed.AbilityTemplates.Add(Rend());
+        seed.AbilityTemplates.Add(Rend(rendType));
         return BalanceData.From(seed);
     }
 
@@ -132,15 +133,54 @@ public class AuraSimulationShould
     /// One application of a bleed worth 23.5 over 4 ticks (no armour, no scaling, no crit): the carry gives 5, 6, 6, 7,
     /// the last tick rounding what is left, so the ticks add up to the total rounded.
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Carry_the_fraction_of_a_point_from_tick_to_tick()
     {
         AuraTemplate bleed = Bleed();
         bleed.PeriodicBase = 23.5f;
         bleed.PeriodicEffectiveness = 0f;
-        BalanceData data = Data(bleed, seed => seed.CreatureBaseStats.ForEach(row => row.Armor = 0));
+        BalanceData data = Data(bleed, seed =>
+        {
+            seed.CreatureBaseStats.ForEach(row => row.Armor = 0);
+            seed.CombatFormulas[0].IncreasedPhysicalAttackPerStrength = 0f;
+        });
         (FightSimulator fight, SimCreature boar) = Fight(data);
         Assert.Equal(0u, boar.Defence.Armor);
+
+        Assert.Equal([5u, 6u, 6u, 7u], BleedTicks(fight, boar));
+        Assert.Empty(boar.Auras);
+    }
+
+    /// <summary>
+    /// B-R7: a bleed's ticks take the type of the ability that placed it, as AuraSystem.Apply snapshots it. A bleed worth
+    /// 24 over 4 ticks (no armour, no scaling, no crit) deals 6 a tick from a physical Rend, and from a fire Rend 3 a tick
+    /// into a boar resisting half of all fire.
+    /// </summary>
+    [Theory]
+    [InlineData(DamageType.Physical, 0f, 6u)]
+    [InlineData(DamageType.Fire, 50f, 3u)]
+    public void Mitigate_each_tick_by_its_source_abilitys_type(DamageType type, float fireResistance, uint perTick)
+    {
+        AuraTemplate bleed = Bleed();
+        bleed.PeriodicBase = 24f;
+        bleed.PeriodicEffectiveness = 0f;
+        BalanceData data = Data(bleed, seed =>
+        {
+            seed.CombatFormulas[0].IncreasedPhysicalAttackPerStrength = 0f;
+            seed.CreatureBaseStats.ForEach(row => row.Armor = 0);
+            seed.CreatureTemplates.Single(t => t.Id.Value == 4).FireResistance = fireResistance;
+        }, rendType: type);
+        (FightSimulator fight, SimCreature boar) = Fight(data);
+
+        Assert.Equal([perTick, perTick, perTick, perTick], BleedTicks(fight, boar));
+    }
+
+    /// <summary>
+    /// Each health loss of <paramref name="boar" /> over 12 s after Rend's own hit on tick 0: Rend is held after it, so
+    /// every loss is one of its bleed's ticks.
+    /// </summary>
+    private static List<uint> BleedTicks(FightSimulator fight, SimCreature boar)
+    {
         var ticks = new List<uint>();
         uint health = 0;
         bool cast = false;
@@ -165,8 +205,7 @@ public class AuraSimulationShould
             }
         }
 
-        Assert.Equal([5u, 6u, 6u, 7u], ticks);
-        Assert.Empty(boar.Auras);
+        return ticks;
     }
 
     /// <summary>A second Rend within the bleed adds a stack and starts its time over, with a fresh carry; the cap holds.</summary>

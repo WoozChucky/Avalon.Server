@@ -2,6 +2,7 @@ using Avalon.Balance.Core;
 using Avalon.Balance.Data;
 using Avalon.Combat;
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 
 namespace Avalon.Balance.UnitTests;
@@ -26,6 +27,21 @@ internal static class TestData
     {
         ItemTemplateBaseStat row = Seeded.Tables.ItemTemplateBaseStats.Single(r => r.TemplateId.Value == item && r.Stat == stat);
         return FixedGear.Midpoint(row.Min, row.Max);
+    }
+
+    /// <summary>
+    /// <paramref name="player" />, given each of <paramref name="abilities" /> it does not hold yet (B-R9): until builds
+    /// land, a test hands a character its abilities directly.
+    /// </summary>
+    public static SimPlayer Holding(this SimPlayer player, BalanceData data, params uint[] abilities)
+    {
+        foreach (uint id in abilities)
+        {
+            if (player.Abilities.All(a => a.Id != id))
+                player.Abilities.Add(new SimAbility(data.Abilities[new AbilityId(id)]));
+        }
+
+        return player;
     }
 
     /// <summary>The checked-in balance files, freshly parsed so a test may change them.</summary>
