@@ -367,8 +367,8 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     /// <summary>
     /// The character moved to another instance (World.TransferPlayer): its requests end, both sides told they expired, and
     /// an open trade closes with <see cref="TradeResult.LeftInstance" /> to the character and <see cref="TradeResult.Left" />
-    /// to its partner, whoever started the move (a portal, a teleport, a town return, a respawn). A completing trade is
-    /// left to its outcome.
+    /// to its partner, whoever started the move (a portal, a teleport, a town return). A completing trade is left to its
+    /// outcome.
     /// </summary>
     public void InstanceChanged(IWorldConnection connection)
     {

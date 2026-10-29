@@ -110,7 +110,7 @@ player it is sent to: "this player" is the recipient, "the other player" the par
 | 39 | `SaveFailed` | The trade's save was refused or failed: nothing moved (on `SMSG_TRADE_CLOSED`). |
 | 40 | `Error` | The server failed while handling the request; nothing is known to have changed. Also a trade whose save could not even start (on `SMSG_TRADE_CLOSED`). |
 | 41 | `TargetNpcWindowOpen` | An accept while the requester has a shop or the bank open: the request stays open until it closes. |
-| 42 | `LeftInstance` | You moved to another map or instance (a portal, a teleport, a town return, a respawn). |
+| 42 | `LeftInstance` | This player moved to another map or instance: a portal, a teleport, a town return (on `SMSG_TRADE_CLOSED`). |
 
 `Name` on an answer: the requested player's name on the answer to `CMSG_TRADE_REQUEST` whenever that player is online
 (whatever the result); none on the answers to the other requests. On an unasked result it names the other player (see
@@ -252,8 +252,9 @@ already landed.
 
 `SMSG_TRADE_CLOSED` ends the window; nothing moved unless `Result` is `Ok`. Its `Result` is, to each player:
 - `Cancelled` to the one who cancelled, `CancelledByPartner` to the other;
-- `OutOfRange`, `EnteredCombat`, `Died`, `Left`, `NpcWindowOpened` to both (checked every tick, and at once when a shop
-  or the bank opens);
+- `OutOfRange`, `EnteredCombat`, `Died`, `NpcWindowOpened` to both (checked every tick, and at once when a shop or the
+  bank opens); `Left` to both only from the tick's backstop, for two traders found in different instances, which the
+  instance change below always closes first;
 - `LeftInstance` to the one who changed map or instance, whoever started the move, and `Left` to the other (#1256);
 - `Left` to the other player when one logs out or disconnects (the leaver is told nothing);
 - `Ok` or `SaveFailed` at the end of completing (4.5); `Error` if the save could not start.
