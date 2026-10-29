@@ -11,7 +11,7 @@ namespace Avalon.World.Scripts.Abilities;
 /// <summary>
 /// What a circle and a cone share (#1238): each resolves once, inside its <c>Prepare</c>, and is finished when that
 /// returns, so it never runs, is never a world object and its guid reaches no view. Pooled per instance as projectiles are
-/// (<see cref="AbilityScriptPool" />), so a warm circle or cone cast allocates nothing.
+/// (<see cref="AbilityScriptPool" />), so a warm circle or cone cast allocates nothing, and free again as it fires.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,8 +29,9 @@ namespace Avalon.World.Scripts.Abilities;
 /// </para>
 /// <para>
 /// <b>No constructor services.</b> A pooled type is built by the factory it registered with
-/// (<c>InstanceAbilityCastSystem.NewPool</c>), which passes the four cast arguments and nothing from the container, so a
-/// constructor service added to a circle or a cone fails to compile there rather than at a cast.
+/// (<c>InstanceAbilityCastSystem.NewPool</c>), which passes the four cast arguments and nothing from the container, and the
+/// pool refuses, as the cast system is built, a circle or a cone with any constructor besides its one public constructor
+/// taking those four (<see cref="AbilityScriptPool.Pools{T}" />).
 /// </para>
 /// </remarks>
 public abstract class AreaAbilityScript : PooledAbilityScript

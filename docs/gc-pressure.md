@@ -418,11 +418,13 @@ figure fell by a third ([benchmarks](benchmarks.md)). A script handed back past 
 (`world.ability_scripts.pool_drops`).
 
 Circles and cones joined the same pool with #1238 (`CircleAbilityScript` and `ConeAbilityScript` derive from the
-World-side `AreaAbilityScript`): each finishes inside its `Prepare`, so it is retired as it fires, keeps no hit set,
+World-side `AreaAbilityScript`): each finishes inside its `Prepare`, so it is retired as it fires and, since no view
+ever holds its guid, free again at once (registered `seenByViews: false`, where a projectile waits two view rounds); it
+keeps no hit set,
 writes a new id into its own guid wrapper each cast and shares two state boxes. Before, each cast built its script, its
 cast copy, its guid and two boxes (272 B in Release, 304 B in Debug). A warm cone or circle cast, instant or queued,
 allocates nothing (`AbilityCastAllocationShould`, `AreaCastBenchmarks`), and the four forest scenarios' committed figures
-fell by 11 to 18 % ([benchmarks](benchmarks.md#pooled-circles-and-cones--areacastbenchmarkscs-1238)). Two hazards came
+fell by 12 to 19 % ([benchmarks](benchmarks.md#pooled-circles-and-cones--areacastbenchmarkscs-1238)). Two hazards came
 with it:
 
 - **The dodge wait's held hits.** A queued hostile circle or cone defers its hits on players (`PendingHit`) for up to six
@@ -433,10 +435,13 @@ with it:
   arena to know the script in flight; a held hit is now whole on its own, whichever script made it. Warm, the copies
   allocate nothing; the free list never holds more than the most hits ever held at once.
 - **No container services.** The pool builds each type with the factory it registered with, passing the four cast
-  arguments and nothing from the container, where the activator binds constructor services. Every pooled type is a
-  shipped script whose one constructor takes the four alone (the seed names only the three shape scripts,
-  `AbilityScriptConstructibilityShould`); a constructor service added to one would fail to compile in its registration
-  (`InstanceAbilityCastSystem.NewPool`), not at a cast; such a type would have to leave the pool, for the activator.
+  arguments and nothing from the container, where the activator binds constructor services. So registration
+  (`AbilityScriptPool.Pools<T>`, from `InstanceAbilityCastSystem.NewPool`) refuses, with an exception as the cast system
+  is built, a type with any constructor besides one public constructor taking `(IAbility, IUnit, AbilityAim,
+  IAbilityArena)`: a second constructor taking a service, even marked `[ActivatorUtilitiesConstructor]`, would compile
+  and pass `AbilityScriptConstructibilityShould` (which builds through the activator), while pooled casts went on calling
+  the first and ran without the service. Every pooled type today is a shipped script with that one constructor (the seed
+  names only the three shape scripts); a script that needs a service stays out of the pool, for the activator.
 
 ---
 

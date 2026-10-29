@@ -452,7 +452,8 @@ go of all of it when the script goes back, so a pooled script keeps nothing aliv
 running list is retired, and is free again only after two whole view rounds (`IAbilityArena.ViewRound`, which
 `MapInstance` counts up after each broadcast tick's decision of every view completes, never for one client's own
 decision, about 200 ms); one never prepared (a queued cast that ends
-without firing) goes back at once. A circle or a cone finishes inside its `Prepare`, so it is retired as it fires; it
+without firing) goes back at once. A circle or a cone finishes inside its `Prepare`, so it is retired as it fires, and,
+since no view ever holds its guid, is free again at once (registered `seenByViews: false`); it
 keeps no hit set, writes a new id into its own guid wrapper each cast, as a projectile does, and fires the shape its
 copy was made with at the cast's start, a capstone's included (Wide Arc, Long Reach, a wider circle).
 **Nothing may hold a script's copy past its cast**, since the pool clears it when the script goes back and makes it
@@ -469,8 +470,10 @@ the cap is left to the collector and counted (`world.ability_scripts.pool_drops`
 [instrumentation](instrumentation.md)), since the next cast of its type builds one anew. The queue entries
 (`AbilityInstance`) and the running list's entries (`ActiveScript`) are reused too, for every cast. **The pool gives no
 container services:** each type is built by the factory it registered with (`InstanceAbilityCastSystem.NewPool`), with
-the four cast arguments alone, so a pooled type declares no constructor service (each pooled type is a shipped script
-whose one constructor takes the four; one that declared a service would not compile in its registration).
+the four cast arguments alone, so registration (`AbilityScriptPool.Pools<T>`) refuses, with an exception as the cast
+system is built, a type with any constructor besides one public constructor taking `(IAbility, IUnit, AbilityAim,
+IAbilityArena)`; a second, service-taking constructor marked `[ActivatorUtilitiesConstructor]` would otherwise be the
+activator's choice while pooled casts called the first without the service.
 **Never pooled:** a script for an ability that is not a `GameAbility` or for a script name that answers another type,
 one built outside a pool (the activator's, a test's), and a script whose `Prepare`, `Update` or `State` threw, which is left to the collector with what it holds. On
 the modding API, `AbilityScript`'s `Caster`, `Aim` and `Ability` are virtual getters with a protected parameterless

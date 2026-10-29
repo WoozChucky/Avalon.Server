@@ -812,8 +812,8 @@ public class InstanceAbilityCastSystem(
         if (!running)
         {
             // Finished in Prepare, it never runs: a pooled script goes back now (#1181 Part D), any other is let go. Every
-            // circle and cone ends here (#1238), its held hits keeping copies of their own. A fan whose first lane ended
-            // there fires no other: its set of hit units went back with it.
+            // circle and cone ends here (#1238), free again at once since no view holds its guid, its held hits keeping
+            // copies of their own. A fan whose first lane ended there fires no other: its set of hit units went back with it.
             _pool.Retire(script);
             CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
             return;
@@ -914,19 +914,20 @@ public class InstanceAbilityCastSystem(
         script is PooledAbilityScript pooled ? pooled.CastCopy : ability;
 
     /// <summary>
-    /// The pool of this instance's scripts, keyed by type: projectiles (#1181 Part D), circles and cones (#1238). Each type
-    /// is built by its factory here with the four cast arguments and no container service, so a pooled type that declared
-    /// one would not compile here.
+    /// The pool of this instance's scripts, keyed by type: projectiles (#1181 Part D), seen by views, and circles and cones
+    /// (#1238), whose guid no view holds. Each type is built by its factory here with the four cast arguments and no
+    /// container service, and the pool refuses, as this cast system is built, a type with any constructor besides the one
+    /// taking those four (<see cref="AbilityScriptPool.Pools{T}" />).
     /// </summary>
     private static AbilityScriptPool NewPool(IAbilityArena arena)
     {
         var pool = new AbilityScriptPool(arena);
         pool.Pools<ProjectileAbilityScript>(static (owner, own, caster, aim, at) =>
-            new ProjectileAbilityScript(own, caster, aim, at) { Pool = owner });
+            new ProjectileAbilityScript(own, caster, aim, at) { Pool = owner }, seenByViews: true);
         pool.Pools<CircleAbilityScript>(static (owner, own, caster, aim, at) =>
-            new CircleAbilityScript(own, caster, aim, at) { Pool = owner });
+            new CircleAbilityScript(own, caster, aim, at) { Pool = owner }, seenByViews: false);
         pool.Pools<ConeAbilityScript>(static (owner, own, caster, aim, at) =>
-            new ConeAbilityScript(own, caster, aim, at) { Pool = owner });
+            new ConeAbilityScript(own, caster, aim, at) { Pool = owner }, seenByViews: false);
         return pool;
     }
 

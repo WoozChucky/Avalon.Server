@@ -19,7 +19,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <summary>
 /// One cone or circle cast through the real cast path (#1238), as <c>AbilityCastAllocationShould</c> pins it: a god-mode
 /// Wizard at the town instance's entry casts through <see cref="MapInstance.RunInstantAbility" /> at three boars 6 m
-/// north, at 0° and ±10°, then the world ticks through the two view rounds after which the pool frees the script.
+/// north, at 0° and ±10°, then the world ticks through three broadcast periods (each cast's broadcasts; the script itself
+/// is free again as it fires, since no view holds a circle's or a cone's guid).
 /// <see cref="Fire_cone" /> is Frost Fan (212, a 60° cone, 6 m), <see cref="Fire_circle" /> Flame Burst (211, a 3 m circle
 /// on the aim point); each strikes all three boars. <see cref="Hold_circle_hit" /> is a boar's telegraphed Bramble Nova
 /// (315, queued, 1.2 s) on a player 2 m off, whose hit the dodge wait holds for the player's one-way delay (2 ticks at the
@@ -125,7 +126,7 @@ public class AreaCastBenchmarks
         Creature right = Boar(boar, at, 10f, Distance);
         _aim = new AbilityAim(new Vector3(0f, 0f, 1f), centre.Position);
 
-        // The two view rounds the pool waits for, and a broadcast period more.
+        // Three broadcast periods and two ticks, the length the rows were first measured with.
         _ticks = 3 * BroadcastSchedule.Slots + 2;
 
         int taken = WarmUp();

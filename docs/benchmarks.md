@@ -2784,8 +2784,8 @@ committed rows were lowered** with the scenario's first entry ([the allocation g
 What pooling circles and cones saves a cast ([skill system](spell-system.md#5-the-three-shapes), §5): each instance's
 `AbilityScriptPool` now keeps `CircleAbilityScript` and `ConeAbilityScript` beside its projectiles, and the dodge wait's
 held hits keep a copy of the ability of their own, from a free list, instead of the script's copy, which the pool clears.
-The rows, each one cast through the real cast path and ticked through the two view rounds after which the pool frees the
-script, as `AbilityCastAllocationShould` pins them:
+The rows, each one cast through the real cast path and ticked through three broadcast periods, as
+`AbilityCastAllocationShould` pins them:
 
 - `Fire_cone`: a god-mode Wizard at the town instance's entry casts Frost Fan (212, a 60° cone, 6 m) through
   `MapInstance.RunInstantAbility` at three boars 6 m north, at 0° and ±10°;
@@ -2838,9 +2838,21 @@ creatures' cones and circles), at up to 272 B each in Release, about 1,773, 1,77
 1,710, 1,709, 1,487 and 1,326 B, are 32 to 64 B per window under that, the pool's own growth in the measured minute (9,
 9, 6 and 7 circle and cone scripts made as the forests reach a busier moment than their warm-up had, their free stacks
 and the retire queue grown, and 0 to 3 held-hit copies): a run with every instance's pool filled beforehand, also not
-committed, read `forest-combat` at 7,595 B, 97 B under the committed figure. No other row moved (`town-social` 728 B,
-the rest 0); the four rows were regenerated in Release, and Debug passes the gate on them too ([the allocation
+committed, read `forest-combat` at 7,595 B, 97 B under that figure. No other row moved (`town-social` 728 B, the rest
+0); the four rows were regenerated in Release, and Debug passes the gate on them too ([the allocation
 gate](#the-allocation-gate)).
+
+**Free as they fire (the review round).** Circles and cones were first retired as projectiles are, each waiting two
+view rounds (about 200 ms) in the retire queue before the pool could hand it out again, though no view ever holds a
+circle's or a cone's guid. They are now registered `seenByViews: false` and free again as they fire, so an instance needs
+only as many as fire inside one another's hits, not every one cast in the last 200 ms, and the retire queue holds
+projectiles alone. That trims the pool's growth in the measured minute: the four rows read 7,636, 7,702, 10,406 and
+10,199 B per window (56, 57, 16 and 24 B under the figures above; Release, the gate's own run and the scenario runner
+read the same), now 7 to 16 B per window from the estimate of casts times 272 B. Each was inside the gate's tolerance
+(1 % and 256 B) and gave no improvement notice, but the four rows were regenerated once more, at `806895920`, so a later
+change cannot spend the saving unseen; no other row moved. The rows above read the same 0 B: `AbilityCastAllocationShould`
+passes in Debug and Release, and the benchmark rows were not run again, since their measured casts already allocated
+nothing and the change only frees a script earlier.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -5209,12 +5221,13 @@ with the committed figure, in every build (Debug and Release, see below) and for
   smallest, 24 B, is 1,440 B per window).
   `town-doodads` reads 0 from its first entry (doodads S1, 2026-10-18), its row added alone, with no other row
   regenerated: a view decision over 40 doodads, half of them gated, allocates nothing.
-  `forest-combat`, `forest-awakening`, `forest-resonance` and `forest-capstones` read 7,692, 7,759, 10,422 and 10,223 B
-  per window since #1238 pooled circles and cones (at `8efa94489`; 9,402, 9,468, 11,909 and 11,549 B before), those four
+  `forest-combat`, `forest-awakening`, `forest-resonance` and `forest-capstones` read 7,636, 7,702, 10,406 and 10,199 B
+  per window since #1238 pooled circles and cones (at `806895920`; 9,402, 9,468, 11,909 and 11,549 B before), those four
   rows alone regenerated, in Release, every other row unmoved (`town-social` 728 B, the rest 0): each is the same fight,
   whose circle and cone casts (391, 391, 335 and 300 in the measured minute) no longer build their script, copy, guid
-  and boxes (272 B each in Release), less the pool's growth in that minute, 32 to 64 B per window ([Pooled circles and
-  cones](#pooled-circles-and-cones--areacastbenchmarkscs-1238)). The figures below are the rows' history.
+  and boxes (272 B each in Release), less the pool's growth in that minute, 7 to 16 B per window. #1238's first commit
+  read 7,692, 7,759, 10,422 and 10,223 B, when circles and cones still waited out two view rounds before reuse ([Pooled
+  circles and cones](#pooled-circles-and-cones--areacastbenchmarkscs-1238)). The figures below are the rows' history.
   `forest-capstones` read 11,549 B per window from part D2's final fixes, its row alone regenerated, every other row
   inside its tolerance unregenerated: the fight gained its warriors' opener, a Rend shaped with both aura factors,
   because the scenario ran no aura factor before; the factors themselves cost 0 B (a run with the same Rend unshaped
