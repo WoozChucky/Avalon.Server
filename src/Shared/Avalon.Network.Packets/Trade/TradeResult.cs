@@ -96,7 +96,10 @@ public enum TradeResult : byte
     /// <summary>A player died, which ends the trade.</summary>
     Died = 29,
 
-    /// <summary>A player left the map, the instance or the world, which ends the trade.</summary>
+    /// <summary>
+    /// The other player left the map, the instance or the world, which ends the trade. The player who moved is told
+    /// <see cref="LeftInstance" />.
+    /// </summary>
     Left = 30,
 
     /// <summary>A player opened a shop, bank or other NPC window, which ends the trade.</summary>
@@ -131,4 +134,7 @@ public enum TradeResult : byte
 
     /// <summary>The other player has a shop, bank or other NPC window open: an accept is refused until it closes.</summary>
     TargetNpcWindowOpen = 41,
+
+    /// <summary>You moved to another map or instance, which ends the trade; the other player is told <see cref="Left" />.</summary>
+    LeftInstance = 42,
 }

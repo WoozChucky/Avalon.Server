@@ -366,7 +366,9 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
 
     /// <summary>
     /// The character moved to another instance (World.TransferPlayer): its requests end, both sides told they expired, and
-    /// an open trade closes with <see cref="TradeResult.Left" /> to both. A completing trade is left to its outcome.
+    /// an open trade closes with <see cref="TradeResult.LeftInstance" /> to the character and <see cref="TradeResult.Left" />
+    /// to its partner, whoever started the move (a portal, a teleport, a town return, a respawn). A completing trade is
+    /// left to its outcome.
     /// </summary>
     public void InstanceChanged(IWorldConnection connection)
     {
@@ -377,7 +379,11 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
         uint id = character.Guid.Id;
         EndRequestsOf(id, tellSelf: true);
         if (_tradeOf.TryGetValue(id, out Trade? trade) && trade.State == TradeState.Open)
-            Close(trade, TradeResult.Left, TradeResult.Left);
+        {
+            bool first = trade.First.Character.Guid.Id == id;
+            Close(trade, first ? TradeResult.LeftInstance : TradeResult.Left,
+                first ? TradeResult.Left : TradeResult.LeftInstance);
+        }
     }
 
     /// <summary>
