@@ -43,7 +43,7 @@ public sealed class SimPlayer : SimUnit
         DerivedCharacterStats next = data.CharacterStats(Class, Level, Worn, AuraTotals());
 
         Stats = next;
-        ManaRegen = ManaRegenRates.Of(Regen, next.MaxPower, next.IncreasedManaRegenPct);
+        ManaRegen = ManaRegenRates.Of(s_regen, next.MaxPower, next.IncreasedManaRegenPct);
         Attack = next.AttackerAt(Level);
         Defence = next.Defence;
         Pace = CasterPace.From(next.Offence, next.Weapon.AttackTimeMs / 1000f, data.Combat.Formula);
@@ -65,7 +65,7 @@ public sealed class SimPlayer : SimUnit
             Class = characterClass,
             Stats = stats,
             Worn = wearing,
-            ManaRegen = ManaRegenRates.Of(Regen, stats.MaxPower, stats.IncreasedManaRegenPct),
+            ManaRegen = ManaRegenRates.Of(s_regen, stats.MaxPower, stats.IncreasedManaRegenPct),
             Attack = stats.AttackerAt(level),
             Defence = stats.Defence,
             Pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, data.Combat.Formula),

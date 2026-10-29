@@ -44,12 +44,15 @@ public sealed class PendingCast(SimUnit caster, SimAbility ability, float timeLe
 /// </summary>
 public abstract class SimUnit : IUnit
 {
-    /// <summary>The default regeneration settings, as the server's appsettings carry them: mana rates and the ward's recharge.</summary>
-    public static readonly RegenConfiguration Regen = new();
+    /// <summary>
+    /// The default regeneration settings, as the server's appsettings carry them: mana rates and the ward's recharge. Held
+    /// within the simulator's units, as the object's settings can be written.
+    /// </summary>
+    private protected static readonly RegenConfiguration s_regen = new();
 
     // Its ward (#1178, B-R6), in front of its health, over the world's WardPool: filled at create, its share kept when a
-    // stats refresh or an aura fold moves its maximum, emptied at death. Advanced only when a hit meets it, as the
-    // recharge is a function of the last damage alone.
+    // stats refresh or an aura fold moves its maximum, emptied at death. Advanced only when a hit meets it or its maximum
+    // moves, as the recharge is a function of the last damage alone and the world has advanced it by then.
     private WardPool _ward;
 
     public required string Name { get; init; }
@@ -66,8 +69,16 @@ public abstract class SimUnit : IUnit
     /// <summary>Fills the ward at <paramref name="max" />: a character entering the world, a creature's spawn.</summary>
     public void ResetWard(uint max) => _ward.Reset(max);
 
-    /// <summary>A new maximum from a stats refresh or an aura fold: the ward keeps its share (WardPool.SetMax).</summary>
-    public void SetWardMax(uint max, DateTime now) => _ward.SetMax(max, now);
+    /// <summary>
+    /// A new maximum from a stats refresh or an aura fold: the ward, recharged to <paramref name="now" /> when alive (the
+    /// world advances it every tick, so its share is taken of the recharged value), keeps its share (WardPool.SetMax).
+    /// </summary>
+    public void SetWardMax(uint max, DateTime now)
+    {
+        if (!IsDead)
+            _ward.Advance(now, s_regen, slowRecharge: WardTakesAll);
+        _ward.SetMax(max, now);
+    }
 
     /// <summary>
     /// The ward takes what it can of <paramref name="absorbable" />, after recharging to <paramref name="now" />, and pauses
@@ -79,7 +90,7 @@ public abstract class SimUnit : IUnit
         if (IsDead || _ward.Max == 0 || absorbable == 0)
             return 0;
 
-        _ward.Advance(now, Regen, slowRecharge: WardTakesAll);
+        _ward.Advance(now, s_regen, slowRecharge: WardTakesAll);
         return _ward.Absorb(absorbable, now);
     }
 
@@ -89,7 +100,7 @@ public abstract class SimUnit : IUnit
         if (IsDead || _ward.Max == 0)
             return;
 
-        _ward.Advance(now, Regen, slowRecharge: WardTakesAll);
+        _ward.Advance(now, s_regen, slowRecharge: WardTakesAll);
         _ward.Damaged(now);
     }
 

@@ -53,6 +53,8 @@ public class CombatRulesShould
     /// <summary>
     /// B-R6: a direct hit on a creature meets its ward first, for what the hit lets the ward absorb (all but its blight
     /// share), and health loses the rest; a dodged hit (0) takes nothing. What the hit cost is the ward's part plus the health.
+    /// Any hit pauses the recharge, even one the ward does not meet: a blight point 3 s later leaves the ward as it was 2 s
+    /// after that, short of the 4 s delay, when the next point it can absorb meets it.
     /// </summary>
     [Theory]
     [InlineData(10u, 0u, 10u, 0u, 10u)]
@@ -67,12 +69,17 @@ public class CombatRulesShould
         boar.ResetWard(ward);
         uint health = boar.CurrentHealth;
 
+        DateTime start = FightSimulator.Epoch.UtcDateTime;
         WardedLoss loss = CombatRules.Land(boar,
-            new HitDamage(total, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, absorbable), FightSimulator.Epoch.UtcDateTime);
+            new HitDamage(total, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, absorbable), start);
 
         Assert.Equal(wardAfter, boar.Ward);
         Assert.Equal(healthLost, health - boar.CurrentHealth);
         Assert.Equal(total, loss.Total);   // the boar outlives every row
+
+        CombatRules.Land(boar, new HitDamage(1, HitResult.None, DamageType.Blight, DamageTypeMask.Blight, 0), start.AddSeconds(3));
+        CombatRules.Land(boar, new HitDamage(1, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 1), start.AddSeconds(5));
+        Assert.Equal(wardAfter == 0 ? 0u : wardAfter - 1, boar.Ward);
     }
 
     /// <summary>#1181: a hit on the player takes health and leaves its mana alone.</summary>
@@ -98,7 +105,8 @@ public class CombatRulesShould
         Assert.True(@class != CharacterClass.Wizard || player.Ward > 0, "a Wizard in cloth carries a ward");
         player.CurrentPower = 60;
 
-        CombatRules.Land(player, new HitDamage(100_000, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 100_000),
+        // All blight, so the ward absorbs none of it: only death empties it.
+        CombatRules.Land(player, new HitDamage(100_000, HitResult.None, DamageType.Blight, DamageTypeMask.Blight, 0),
             FightSimulator.Epoch.UtcDateTime);
 
         Assert.True(player.IsDead);
