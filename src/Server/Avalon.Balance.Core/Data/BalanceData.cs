@@ -16,12 +16,15 @@ public sealed record CombatData(CombatFormula Formula);
 /// </summary>
 public sealed class BalanceData
 {
+    private readonly IReadOnlyDictionary<ulong, WornItem> _worn;
+
     private BalanceData(SeedTables tables, IReadOnlyDictionary<AuraId, AuraTemplate> auras,
         IReadOnlyDictionary<AbilityId, AbilityTemplate> abilities, IReadOnlyList<string> refusedAbilities, CombatData combat,
-        ItemModifierCatalog itemModifiers, CreatureStatDeriver creatureStats)
+        ItemModifierCatalog itemModifiers, IReadOnlyDictionary<ulong, WornItem> worn, CreatureStatDeriver creatureStats)
     {
         Tables = tables;
         ItemModifiers = itemModifiers;
+        _worn = worn;
         Auras = auras;
         Abilities = abilities;
         RefusedAbilities = refusedAbilities;
@@ -101,13 +104,16 @@ public sealed class BalanceData
 
         CombatFormula formula = CombatDataRules.Build(tables.CombatFormulas);
         ItemModifierCatalog itemModifiers = ItemModifierCatalogOf(tables);
-        CheckItemTemplates(tables, itemModifiers);
+        IReadOnlyDictionary<ulong, ItemTemplate> bases = CheckItemTemplates(tables, itemModifiers);
+        // Gear is fixed stats (B-R4): each template's one copy, made once here and worn by every row.
+        var worn = tables.ItemTemplates.ToDictionary(t => t.Id.Value,
+            t => FixedGear.Of(t, NamedBase(t, bases), itemModifiers));
         CreatureTemplateRules.Validate(tables.CreatureTemplates);
         CreatureTemplateRules.ValidateRarities(tables.CreatureRarityModifiers);
         var creatureStats = new CreatureStatDeriver(tables.CreatureBaseStats, tables.CreatureRarityModifiers,
             NullLoggerFactory.Instance);
 
-        return new BalanceData(tables, auras, abilities, refused, new CombatData(formula), itemModifiers, creatureStats);
+        return new BalanceData(tables, auras, abilities, refused, new CombatData(formula), itemModifiers, worn, creatureStats);
     }
 
     /// <summary>
@@ -139,7 +145,8 @@ public sealed class BalanceData
     /// kind, and its named base, a unique's among the templates that are not unique. A template the world would leave out
     /// stops the run, every one named.
     /// </summary>
-    private static void CheckItemTemplates(SeedTables tables, ItemModifierCatalog modifiers)
+    /// <returns>The templates that are not unique, by id: the bases a unique may name.</returns>
+    private static IReadOnlyDictionary<ulong, ItemTemplate> CheckItemTemplates(SeedTables tables, ItemModifierCatalog modifiers)
     {
         ILookup<ulong, ItemTemplateBaseStat> baseStats = tables.ItemTemplateBaseStats.ToLookup(r => r.TemplateId.Value);
         foreach (ItemTemplate template in tables.ItemTemplates)
@@ -153,7 +160,7 @@ public sealed class BalanceData
         {
             bool unique = template.Rarity == ItemRarity.Unique;
             IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(template.Id);
-            ItemTemplate? named = unique && template.BaseTemplateId is { } id ? bases.GetValueOrDefault(id.Value) : null;
+            ItemTemplate? named = NamedBase(template, bases);
             string? reason = (unique && linked.Count == 0
                                  ? null
                                  : ItemModifierCatalog.RarityRefusal(template.Rarity, template.BaseKind, linked))
@@ -163,19 +170,23 @@ public sealed class BalanceData
                 refused.Add($"item {template.Id.Value} '{template.Name}': {reason}");
         }
 
-        if (refused.Count > 0)
-            throw new InvalidDataException("The item templates refused: " + string.Join("; ", refused));
+        return refused.Count == 0
+            ? bases
+            : throw new InvalidDataException("The item templates refused: " + string.Join("; ", refused));
     }
 
+    /// <summary>A unique's named base among <paramref name="bases" />, as the world's items area finds it; null for any other template.</summary>
+    private static ItemTemplate? NamedBase(ItemTemplate template, IReadOnlyDictionary<ulong, ItemTemplate> bases) =>
+        template.Rarity == ItemRarity.Unique && template.BaseTemplateId is { } id ? bases.GetValueOrDefault(id.Value) : null;
+
     /// <param name="auras">What the character's auras add, folded in as the server's stats refresh folds them; none when null.</param>
-    public DerivedCharacterStats CharacterStats(CharacterClass characterClass, ushort level, IEnumerable<ItemTemplate> worn,
+    /// <param name="worn">The fixed copies worn (<see cref="Worn" />), read as the server's stats refresh reads a character's items.</param>
+    public DerivedCharacterStats CharacterStats(CharacterClass characterClass, ushort level, IReadOnlyList<WornItem> worn,
         AuraStatTotals? auras = null)
     {
         ClassLevelStat row = Tables.ClassLevelStats.FirstOrDefault(r => r.Class == characterClass && r.Level == level)
             ?? throw new InvalidDataException($"ClassLevelStat {characterClass} level {level} is not seeded");
-        // The simulator is paused (#1183): its gear is templates alone, each a copy with no base stats and no modifiers.
-        List<WornItem> items = [.. worn.Select(t => new WornItem(t, default, null, t.DamageType))];
-        return CharacterStatsCalculator.Calculate(row, items, Combat.Formula, auras);
+        return CharacterStatsCalculator.Calculate(row, worn, Combat.Formula, auras);
     }
 
     /// <summary>
@@ -193,6 +204,14 @@ public sealed class BalanceData
             : throw new InvalidDataException(
                 $"{characterClass} starts with ability {link.AbilityId.Value}, which the catalog does not hold");
     }
+
+    /// <summary>
+    /// The one copy of item <paramref name="id" /> the simulator wears (B-R4, <see cref="FixedGear" />): every base stat
+    /// and modifier value at the midpoint of its range. Made once, in <see cref="From" />; shared by every row and never
+    /// changed.
+    /// </summary>
+    public WornItem Worn(ulong id) =>
+        _worn.TryGetValue(id, out WornItem copy) ? copy : throw new InvalidDataException($"Item {id} is not seeded");
 
     public ItemTemplate Item(ulong id) =>
         Tables.ItemTemplates.FirstOrDefault(t => t.Id.Value == id)

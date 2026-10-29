@@ -13,7 +13,7 @@ public class CombatRulesShould
     private static BalanceData Data => TestData.Seeded;
 
     private static SimPlayer Warrior(ushort level = 1, params ulong[] gear) =>
-        SimPlayer.Create(Data, CharacterClass.Warrior, level, gear.Select(Data.Item));
+        SimPlayer.Create(Data, CharacterClass.Warrior, level, gear.Select(Data.Worn));
 
     private static SimCreature Boar(ushort level = 1) => SimCreature.Create(Data, Data.Creature(4), level, 0);
 
@@ -125,14 +125,20 @@ public class CombatRulesShould
         Assert.Equal(10f, CombatRules.CooldownAfterFire(boar, boar.Specials.Single()));   // Trample, 10 s
     }
 
-    [Fact(Skip = BalancePause.Reason)]
-    public void Divide_a_characters_cooldown_by_its_haste()
+    /// <summary>
+    /// #1178: an attack waits its weapon's time over the attack speed. Bare, the Warrior's fist; in the forest profile,
+    /// the fixed copy of its sword (item 7) at the midpoint of its range. Agility 20 x 0.1 % attack speed either way.
+    /// </summary>
+    [Theory]
+    [InlineData("none")]
+    [InlineData("forest")]
+    public void Wait_an_attacks_weapon_time_over_attack_speed(string gear)
     {
-        SimPlayer warrior = Warrior(1, 7);   // Bramblesteel Sword: 3 % haste
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, TestData.Gear(gear, CharacterClass.Warrior));
+        int attackMs = gear == "none" ? 816 : TestData.MidpointOf(7, ItemBaseStat.AttackTime);
 
-        // #1178: haste became attack speed; this is the compile fix alone (#1183: skipped, never edited to pass).
-        Assert.Equal(3f, warrior.Pace.AttackSpeedPct);
-        Assert.Equal(0.8f / 1.03f, CombatRules.CooldownAfterFire(warrior, warrior.Ability(200)), precision: 5);
+        Assert.Equal(2f, warrior.Pace.AttackSpeedPct, precision: 4);
+        Assert.Equal(attackMs / 1000f / 1.02f, CombatRules.CooldownAfterFire(warrior, warrior.Ability(319)), precision: 5);
     }
 
     [Fact]

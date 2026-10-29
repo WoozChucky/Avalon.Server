@@ -1,6 +1,5 @@
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 
 namespace Avalon.Balance.Core;
@@ -21,8 +20,8 @@ public sealed class SimPlayer : SimUnit
     /// <summary>As CharacterEntity.Pace: its speeds, each capped, and its main hand's attack time, from its derived stats.</summary>
     public CasterPace Pace { get; private set; }
 
-    /// <summary>The templates it wears, which every stats refresh reads again.</summary>
-    public IReadOnlyList<ItemTemplate> Worn { get; private init; } = [];
+    /// <summary>The fixed copies it wears (B-R4), which every stats refresh reads again.</summary>
+    public IReadOnlyList<WornItem> Worn { get; private init; } = [];
 
     public SimAbility Ability(uint id) =>
         Abilities.FirstOrDefault(a => a.Id == id)
@@ -58,9 +57,9 @@ public sealed class SimPlayer : SimUnit
     }
 
     /// <summary>A character entering the world: full health and full mana, every class on mana (#1181).</summary>
-    public static SimPlayer Create(BalanceData data, CharacterClass characterClass, ushort level, IEnumerable<ItemTemplate> worn)
+    public static SimPlayer Create(BalanceData data, CharacterClass characterClass, ushort level, IEnumerable<WornItem> worn)
     {
-        var wearing = worn.ToList();
+        List<WornItem> wearing = [.. worn];
         DerivedCharacterStats stats = data.CharacterStats(characterClass, level, wearing);
         var player = new SimPlayer
         {

@@ -1,5 +1,8 @@
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
+using Avalon.Combat;
+using Avalon.Common;
+using Avalon.Domain.World;
 
 namespace Avalon.Balance.UnitTests;
 
@@ -13,6 +16,17 @@ internal static class TestData
 
     /// <summary>A private copy of the seed tables: a test may override it freely.</summary>
     public static SeedTables Seed() => s_seedCache.Value.Clone();
+
+    /// <summary>The fixed copies a class wears in a checked-in gear profile ("none" is no gear).</summary>
+    public static IReadOnlyList<WornItem> Gear(string profile, CharacterClass characterClass) =>
+        [.. Config().Scenarios.GearFor(profile, characterClass).Select(Seeded.Worn)];
+
+    /// <summary>The midpoint of a seeded item's base-stat range, as its fixed copy holds it.</summary>
+    public static int MidpointOf(ulong item, ItemBaseStat stat)
+    {
+        ItemTemplateBaseStat row = Seeded.Tables.ItemTemplateBaseStats.Single(r => r.TemplateId.Value == item && r.Stat == stat);
+        return FixedGear.Midpoint(row.Min, row.Max);
+    }
 
     /// <summary>The checked-in balance files, freshly parsed so a test may change them.</summary>
     public static BalanceConfig Config()

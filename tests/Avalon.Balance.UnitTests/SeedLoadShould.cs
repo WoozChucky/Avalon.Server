@@ -12,29 +12,45 @@ namespace Avalon.Balance.UnitTests;
 
 public class SeedLoadShould
 {
-    [Fact]
-    public void Reproduce_a_level_one_warrior_with_no_gear()
-    {
-        DerivedCharacterStats warrior = TestData.Seeded.CharacterStats(CharacterClass.Warrior, 1, []);
-
-        Assert.Equal(240u, warrior.MaxHealth);     // 130 + 22 x 5
-        Assert.Equal(80.5f, warrior.Offence.Increased(OffenceStat.PhysicalAttack));   // 23 x 3.5
-        Assert.Equal(180u, warrior.MaxPower);      // 100 + 20 x 4
-    }
-
-    [Fact(Skip = BalancePause.Reason)]
-    public void Give_cleave_a_base_of_25_point_8_for_that_warrior()
+    /// <summary>
+    /// A level-1 Warrior bare and in the checked-in forest profile (B-R4: each piece a fixed copy at the midpoint of its
+    /// ranges): the class row sets its mana, Strength its physical attack, the gear its armour and its weapon.
+    /// </summary>
+    [Theory]
+    [InlineData("none", 80.5f)]     // 23 x 3.5
+    [InlineData("forest", 87.5f)]   // (23 + 2) x 3.5: the Barkplate Legguards' Strength implicit, 2 at its midpoint
+    public void Reproduce_a_level_one_warrior(string gear, float physicalAttack)
     {
         BalanceData data = TestData.Seeded;
-        AbilityTemplate cleave = data.KitOf(CharacterClass.Warrior).Single(a => a.Id.Value == 200);
+        DerivedCharacterStats warrior = data.CharacterStats(CharacterClass.Warrior, 1, TestData.Gear(gear, CharacterClass.Warrior));
+
+        Assert.Equal(180u, warrior.MaxPower);      // 100 + 20 x 4
+        Assert.Equal(physicalAttack, warrior.Offence.Increased(OffenceStat.PhysicalAttack));
+        if (gear == "none")
+        {
+            Assert.Equal(240u, warrior.MaxHealth);     // 130 + 22 x 5
+            Assert.Equal(816u, warrior.Weapon.AttackTimeMs);
+            return;
+        }
+
+        Assert.True(warrior.Armor > 2, $"armour {warrior.Armor}");   // none's: 23 x 0.1, truncated
+        Assert.Equal(TestData.MidpointOf(7, ItemBaseStat.AttackTime), (int)warrior.Weapon.AttackTimeMs);
+        Assert.Equal(TestData.MidpointOf(7, ItemBaseStat.DamageMin), (int)warrior.Weapon.Min1);
+    }
+
+    [Fact]
+    public void Give_cleave_its_base_for_a_level_one_warrior()
+    {
+        BalanceData data = TestData.Seeded;
+        AbilityTemplate cleave = data.Abilities[new AbilityId(200)];
         AttackerCombat attacker = data.CharacterStats(CharacterClass.Warrior, 1, []).AttackerAt(1);
 
         AbilityMetadata metadata = AbilityMetadataMapper.From(cleave);
         double min = OffenceMath.DirectBase(attacker, metadata, RollEnds.Low).Total;
         double max = OffenceMath.DirectBase(attacker, metadata, RollEnds.High).Total;
 
-        Assert.Equal(25.8, min, precision: 4);
-        Assert.Equal(25.8, max, precision: 4);
+        Assert.Equal(17.05725, min, precision: 4);   // 3 x 3.15 x 1.805
+        Assert.Equal(34.1145, max, precision: 4);    // 6 x 3.15 x 1.805
     }
 
     [Fact]

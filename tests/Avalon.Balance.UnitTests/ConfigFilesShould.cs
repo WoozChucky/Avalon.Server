@@ -73,15 +73,25 @@ public class ConfigFilesShould
     }
 
     /// <summary>
-    /// #1179 retired the Uncommon rarity: the forest profile is now the tier-2 bases, Common, which part A drops from no
-    /// table. What the profile should be is re-thought with the simulator (#1183); until then the body only compiles.
+    /// #1179 retired the Uncommon rarity: the forest profile is the tier-2 bases, each a Common base the simulator wears as
+    /// its fixed copy (#1183), and none of them a starter piece.
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
-    public void Take_the_forest_profile_from_uncommon_drops()
+    [Fact]
+    public void Take_the_forest_profile_from_common_bases()
     {
         BalanceData data = TestData.Seeded;
+        ScenarioFile scenarios = CheckedInScenarios();
         foreach (CharacterClass c in CharacterClasses.Playable)
-            Assert.All(CheckedInScenarios().GearFor("forest", c), id => Assert.Equal(ItemRarity.Common, data.Item(id).Rarity));
+        {
+            ulong[] starter = scenarios.GearFor("starter", c);
+            Assert.All(scenarios.GearFor("forest", c), id =>
+            {
+                ItemTemplate item = data.Item(id);
+                Assert.Equal(ItemRarity.Common, item.Rarity);
+                Assert.NotNull(item.BaseKind);
+                Assert.DoesNotContain(id, starter);
+            });
+        }
     }
 
     [Fact]

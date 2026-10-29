@@ -1,6 +1,5 @@
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Domain.World;
 
 namespace Avalon.Balance.Core;
 
@@ -107,7 +106,7 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
     private RowResult RunRow(RowKey key, RunPlan plan, IReadOnlyList<CompiledRotationEntry> rotation, CancellationToken ct)
     {
         Scenario scenario = plan.Scenarios.First(s => string.Equals(s.Id, key.Scenario, StringComparison.Ordinal));
-        ItemTemplate[] worn = scenarios.GearFor(key.Gear, key.Class).Select(data.Item).ToArray();
+        WornItem[] worn = [.. scenarios.GearFor(key.Gear, key.Class).Select(data.Worn)];
 
         var fights = new List<FightResult>(plan.Runs);
         for (int run = 0; run < plan.Runs; run++)
@@ -151,7 +150,7 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
             .ToDictionary(g => g.Key, g => g.Sum(kv => (double)kv.Value) / fights.Count, StringComparer.Ordinal);
 
     /// <summary>The player's derived stats and each ability's per-hit amount (AbilityAmounts, as the client is told).</summary>
-    private PlayerSnapshot Snapshot(RowKey key, IReadOnlyList<ItemTemplate> worn)
+    private PlayerSnapshot Snapshot(RowKey key, IReadOnlyList<WornItem> worn)
     {
         var player = SimPlayer.Create(data, key.Class, key.Level, worn);
         DerivedCharacterStats s = player.Stats;

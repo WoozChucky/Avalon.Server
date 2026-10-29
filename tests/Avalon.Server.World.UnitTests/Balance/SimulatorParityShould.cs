@@ -4,6 +4,7 @@ using Avalon.Balance.Data;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
@@ -18,14 +19,21 @@ using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Items;
+using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Reload;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
@@ -40,9 +48,16 @@ public class SimulatorParityShould
 {
     private const int Seed = 672;
     private const ushort Level = 3;
-    private static readonly ulong[] s_forestWarrior = [7, 12, 13, 14, 15, 16];
     private static readonly Lazy<BalanceData> s_seededData = new(() => BalanceData.From(SeedSource.Load()));
+    private static readonly Lazy<ScenarioFile> s_scenarios = new(() => ConfigFileStore.Load(
+        Path.Combine(TownNavmesh.RepositoryRoot, "balance", "scenarios.json"), ConfigFiles.ParseScenarios));
     private static BalanceData Data => s_seededData.Value;
+
+    /// <summary>The checked-in forest profile's Warrior gear (balance/scenarios.json).</summary>
+    private static ulong[] ForestWarrior => WarriorGear("forest");
+
+    /// <summary>A checked-in gear profile's Warrior gear; "none" is no gear.</summary>
+    private static ulong[] WarriorGear(string profile) => s_scenarios.Value.GearFor(profile, CharacterClass.Warrior);
 
     /// <summary>
     /// Close enough to the warrior (at the origin) that Hurled Axe hits on its first step whatever its speed (9 m/s, 0.15 m
@@ -54,22 +69,52 @@ public class SimulatorParityShould
         Enumerable.Range(0, EquipmentSlots.FirstReserved).Select(s => (byte)s).First(s => EquipmentSlots.TypeOf(s) == item.Slot);
 
     private static MapInstanceClient RealWarrior(MapInstance instance, uint id, params AbilityTemplate[] abilities) =>
-        RealWarrior(instance, id, null, abilities);
+        RealWarrior(instance, id, ForestWarrior, null, abilities);
 
     private static MapInstanceClient RealWarrior(MapInstance instance, uint id, TimeProvider? time,
+        params AbilityTemplate[] abilities) =>
+        RealWarrior(instance, id, ForestWarrior, time, abilities);
+
+    /// <summary>
+    /// A level-3 Warrior wearing <paramref name="gear" />, each piece the simulator's fixed copy of it (B-R4): its base
+    /// stats and modifiers loaded as the copy's rows under the instance id the equipment holds, then a stats refresh.
+    /// </summary>
+    private static MapInstanceClient RealWarrior(MapInstance instance, uint id, ulong[] gear, TimeProvider? time,
         params AbilityTemplate[] abilities)
     {
         MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id, time: time));   // a Warrior
         warrior.Character.PowerType = PowerType.Mana;
         warrior.Character.Level = Level;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
-        warrior.Character.Container(InventoryType.Equipment)
-            .Load(s_forestWarrior.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i)).ToArray());
+        InventoryItem[] worn = [.. gear.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i))];
+        warrior.Character.ItemModifiers.Load([.. worn.Select(i => CopyOf(i, Data.Worn(i.TemplateId.Value)))]);
+        warrior.Character.Container(InventoryType.Equipment).Load(worn);
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, Data.Tables.ClassLevelStats,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         warrior.Character.Spells.Load(abilities.Select(a => (IAbility)AbilityTestData.Game(a)).ToArray());
         return warrior;
+    }
+
+    /// <summary>
+    /// The rows of the fixed copy <paramref name="copy" /> under the instance <paramref name="item" /> names, as a load reads
+    /// them: its base stats, and copies of its modifiers (the simulator's cached copy is never handed to the store).
+    /// </summary>
+    private static ItemInstance CopyOf(InventoryItem item, WornItem copy)
+    {
+        ItemInstanceId id = item.InstanceId;
+        List<ItemInstanceBaseStat> baseStats = [];
+        foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
+            baseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = id, Stat = stat, Value = value });
+
+        return new ItemInstance
+        {
+            Identified = true,
+            Id = id,
+            TemplateId = item.TemplateId,
+            BaseStats = baseStats,
+            Modifiers = [.. (copy.Modifiers ?? []).Select(m => m.CopyAs(Guid.CreateVersion7(), id, m.Ordinal, imprinted: false))],
+        };
     }
 
     private static Creature RealBoar(MapInstance instance, uint id, SimCreature twin, Vector3? position = null)
@@ -110,19 +155,58 @@ public class SimulatorParityShould
                 ?.GetValue(unit)
             ?? throw new InvalidOperationException($"{unit.GetType().Name}.{property} is not there"));
 
-    [Fact(Skip = BalancePause.Reason)]
-    public void Derive_the_same_character_stats_as_a_stats_refresh()
+    [Theory]
+    [InlineData("none")]
+    [InlineData("forest")]
+    public void Derive_the_same_character_stats_as_a_stats_refresh(string gear)
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
-        MapInstanceClient real = RealWarrior(instance, 6760_101, Row(200));
+        MapInstanceClient real = RealWarrior(instance, 6760_101, WarriorGear(gear), null, Row(200));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, WarriorGear(gear).Select(Data.Worn));
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
         Assert.Equal(Internal<ManaRegenRates>(real.Character, "ManaRegen"), sim.ManaRegen);
         Assert.Equal(Internal<AttackerCombat>(real.Character, "Combat"), sim.Attack);
         Assert.Equal(Internal<DefenderCombat>(real.Character, "Defence"), sim.Defence);
+    }
+
+    /// <summary>
+    /// B-R4's fixed copy is the world's plain roll (ItemRoller.RollPlain) under a random that always lands mid-range:
+    /// every gear-profile item, over the seed's item rows and the catalog the World database's read builds, must come
+    /// out of both with the same base stats and the same modifiers, line for line.
+    /// </summary>
+    [Fact]
+    public async Task Make_the_same_fixed_copy_as_a_plain_roll_at_the_midpoint()
+    {
+        SeedTables seed = SeedSource.Load();
+        ILookup<ulong, ItemTemplateBaseStat> ranges = seed.ItemTemplateBaseStats.ToLookup(r => r.TemplateId.Value);
+        foreach (ItemTemplate template in seed.ItemTemplates)
+            template.BaseStats = [.. ranges[template.Id.Value]];
+
+        var items = new ItemsPatch(seed.ItemTemplates, await ItemModifierRepositories.SeededCatalog());
+        var roller = new ItemRoller(new MidpointRandom(), new ItemIdAllocator(), Options.Create(new GameConfiguration()));
+        ulong[] ids = [.. s_scenarios.Value.GearProfiles.Values.SelectMany(p => p.Values).SelectMany(g => g).Distinct().Order()];
+        Assert.NotEmpty(ids);
+
+        foreach (ulong id in ids)
+        {
+            RolledItem rolled = roller.RollPlain(items.Find(new ItemTemplateId(id))!, 1, items);
+            WornItem worn = Data.Worn(id);
+
+            Assert.Equal((id, rolled.BaseStats), (id, worn.BaseStats));
+            List<ItemInstanceModifier> copied = worn.Modifiers ?? [];
+            Assert.Equal(Ids(id, rolled.Modifiers), Ids(id, copied));
+            Assert.Equal(Lines(id, rolled.Modifiers), Lines(id, copied));
+        }
+
+        static List<(ulong Item, byte Ordinal, int ModifierId)> Ids(ulong item, List<ItemInstanceModifier> modifiers) =>
+            [.. modifiers.OrderBy(m => m.Ordinal).Select(m => (item, m.Ordinal, m.ModifierId))];
+
+        static List<(ulong Item, int ModifierId, StatType Stat, int Value, int? Value2)> Lines(ulong item,
+            List<ItemInstanceModifier> modifiers) =>
+            [.. modifiers.OrderBy(m => m.Ordinal).SelectMany(m => m.Values.Select(v => (item, m.ModifierId, v.Stat, v.Value, v.Value2)))];
     }
 
     /// <summary>
@@ -159,7 +243,7 @@ public class SimulatorParityShould
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_111, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         Creature realBoar = RealBoar(instance, 6760_911, simBoar);
@@ -188,7 +272,7 @@ public class SimulatorParityShould
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
         MapInstanceClient real = RealWarrior(instance, 6760_121, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         Creature realBoar = RealBoar(instance, 6760_921, simBoar);
         IAbility realGore = AbilityTestData.Game(Row(300));
@@ -225,7 +309,7 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             random: new CombatRandom(new Random(Seed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_151, clock, Row(200), Row(202));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_951, simBoar, s_pointBlank);
         CompiledRotationEntry[] rotation = [new(202, []), new(200, [])];
@@ -364,7 +448,7 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend(effects: effects));
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
         simWarrior.Abilities.Add(new SimAbility(TestRend(effects: effects)));
         Assert.True(simWarrior.Attack.Weapon.Max1 > 0, "the Warrior has no main hand to roll");
         SimCreature simBoar = PassiveBoar(Level);
@@ -436,7 +520,7 @@ public class SimulatorParityShould
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(PoisonSeed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_191, clock, Row(200));
 
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
         var simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         foreach (SimAbility special in simBoar.Specials) special.CooldownLeft = 1_000f;   // only Gore, once
@@ -502,7 +586,7 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend());
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
         simWarrior.Abilities.Add(new SimAbility(TestRend()));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_972, simBoar);
@@ -618,7 +702,7 @@ public class SimulatorParityShould
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, Data.Combat.Formula));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
         sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0)));
         sim.ApplyAuraStats(Data);
 
@@ -738,7 +822,7 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_131, clock, Row(200));
         real.Character.LastCastStartTime = clock.GetUtcNow().UtcDateTime.AddSeconds(-1);
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
 
         handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = 200 });
 
@@ -840,5 +924,13 @@ public class SimulatorParityShould
         IWorld world = Substitute.For<IWorld>();
         world.Data.Returns(data);
         return new CreatureSpawner(NullLoggerFactory.Instance, world);
+    }
+
+    /// <summary>A loot random that lands mid-range: <c>(lo + hi) / 2</c> of an integer range, 0.5 of a double.</summary>
+    private sealed class MidpointRandom : ILootRandom
+    {
+        public double NextDouble() => 0.5;
+
+        public long NextInt64(long minInclusive, long maxExclusive) => (minInclusive + maxExclusive) / 2;
     }
 }

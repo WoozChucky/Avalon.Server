@@ -6,7 +6,7 @@ namespace Avalon.Balance.Core;
 public static class FightFactory
 {
     /// <summary>One run's fight: the player, then the pack drawn in order from <paramref name="random" />, which then rolls the combat.</summary>
-    public static FightSimulator Create(BalanceData data, Scenario scenario, RowKey key, IReadOnlyList<ItemTemplate> worn,
+    public static FightSimulator Create(BalanceData data, Scenario scenario, RowKey key, IReadOnlyList<WornItem> worn,
         IReadOnlyList<CompiledRotationEntry> rotation, Random random)
     {
         var player = SimPlayer.Create(data, key.Class, key.Level, worn);

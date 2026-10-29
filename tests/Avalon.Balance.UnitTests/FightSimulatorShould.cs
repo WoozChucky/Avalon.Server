@@ -41,7 +41,7 @@ public class FightSimulatorShould
         {
             var random = new Random(672);
             SimCreature[] pack = [SimCreature.Create(Data, Data.Creature(5), 2, 0), SimCreature.Create(Data, Data.Creature(7), 3, 1)];
-            var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, new ulong[] { 7, 12, 13 }.Select(Data.Item));
+            var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, new ulong[] { 7, 12, 13 }.Select(Data.Worn));
             var fight = new FightSimulator(Data.Combat.Formula, warrior, pack, Rotation(201, 202, 200), new CombatRandom(random));
             return JsonSerializer.Serialize(fight.Run());
         }
@@ -139,7 +139,7 @@ public class FightSimulatorShould
     {
         SimCreature dummy = Dummy();
         Hold(dummy);
-        FightSimulator fight = Fight(SimPlayer.Create(Data, CharacterClass.Warrior, 1, [Data.Item(7)]), Rotation(200), dummy);
+        FightSimulator fight = Fight(SimPlayer.Create(Data, CharacterClass.Warrior, 1, [Data.Worn(7)]), Rotation(200), dummy);
         RunFor(fight, 3);
 
         double[] casts = fight.Result().Casts.Where(c => c.AbilityId == 200).Select(c => c.StartSeconds).ToArray();
@@ -197,7 +197,7 @@ public class FightSimulatorShould
     public void Win_when_every_creature_is_dead_and_record_what_happened()
     {
         var boar = SimCreature.Create(Data, Data.Creature(4), 1, 0);
-        FightResult result = Fight(SimPlayer.Create(Data, CharacterClass.Warrior, 1, new ulong[] { 7, 12, 13, 14, 15, 16 }.Select(Data.Item).ToArray()),
+        FightResult result = Fight(SimPlayer.Create(Data, CharacterClass.Warrior, 1, new ulong[] { 7, 12, 13, 14, 15, 16 }.Select(Data.Worn).ToArray()),
             Rotation(201, 202, 200), boar).Run();
 
         Assert.True(result.Won);
