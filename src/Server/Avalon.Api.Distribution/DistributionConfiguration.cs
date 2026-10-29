@@ -24,6 +24,15 @@ public sealed class DistributionConfiguration
 
     public string SecretAccessKey { get; set; } = "";
 
+    /// <summary>
+    /// The crash worker's internal notice endpoint (#1252), e.g. <c>http://avalon-crashes-worker:8080/internal/crash/notice</c>.
+    /// Empty: an upload-complete notice is accepted and passed nowhere, and the worker's poll finds the report.
+    /// </summary>
+    public string CrashNoticeUrl { get; set; } = "";
+
+    /// <summary>How long a notice waits for the worker before giving up on it.</summary>
+    public int CrashNoticeTimeoutMs { get; set; } = 1000;
+
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(Endpoint) && !string.IsNullOrWhiteSpace(PublicUrl) &&
         !string.IsNullOrWhiteSpace(Bucket) && !string.IsNullOrWhiteSpace(AccessKeyId) &&

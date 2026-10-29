@@ -59,6 +59,7 @@ metadata/dumps are rejected before tools.
 | Bound | First-release value |
 | --- | --- |
 | Poll / backfill reservation | 60 seconds / at least one quarter of discovery work |
+| Upload notices (#1252) | `POST /internal/crash/notice` `{key}` on 8080, from `networkPolicy.noticePeers` only: the worker HEADs the object (the proof of the upload, which the API cannot see) and queues it at once; 64 waiting, extras left to the poll |
 | Concurrent reports / converters | 1 / 1 |
 | Report lease / heartbeat / attempt | 10 minutes / 30 seconds / 8 minutes |
 | Converter wall / CPU | 120 / 90 seconds |

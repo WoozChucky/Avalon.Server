@@ -75,10 +75,15 @@ public static class CrashWorkerRegistration
         builder.Services.AddSingleton<CrashDiscovery>();
         builder.Services.AddSingleton<ICrashWorkerRuntime, CrashWorkerRuntime>();
         builder.Services.AddHostedService<CrashWorkerService>();
+        builder.Services.AddSingleton<CrashNotices>();
+        builder.Services.AddHostedService<CrashNoticeService>();
         builder.Services.AddHealthChecks().AddCheck<CrashHealthCheck>("crash_ready").AddCheck<CrashLoopHealthCheck>("crash_loop", tags: ["live"]);
         configure?.Invoke(builder);
         WebApplication app = builder.Build();
         app.MapDefaultEndpoints();
+        // Upload-complete notices from the API (#1252), on the internal port only the chart's noticePeers reach.
+        app.MapPost("/internal/crash/notice", (CrashNoticeRequest request, CrashNotices notices) =>
+            notices.Offer(request.Key) ? Results.Accepted() : Results.BadRequest());
         return app;
     }
 

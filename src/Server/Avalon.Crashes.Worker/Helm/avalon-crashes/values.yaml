@@ -40,6 +40,9 @@ networkPolicy:
   dnsPeers: []
   # Approved monitoring peers; include node probe CIDRs if required by the cluster CNI.
   healthPeers: []
+  # Who may POST /internal/crash/notice (#1252): the API's distribution pods. Empty: no notices arrive, the poll finds
+  # every report.
+  noticePeers: []
 # OTLP gRPC; privacy filtering is enforced by the worker host. No arbitrary resource attributes.
 otel:
   endpoint: ""

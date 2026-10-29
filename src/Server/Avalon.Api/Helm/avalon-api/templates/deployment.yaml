@@ -297,6 +297,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" $ }}
                   key: distribution-secret-key
+            {{- with $.Values.distribution.crashNoticeUrl }}
+            - name: Application__Distribution__CrashNoticeUrl
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- /* Access tokens are ES256 only (#801): only identity holds the private key and the game-auth host key, both required; every service checks tokens with the public keys. */}}
