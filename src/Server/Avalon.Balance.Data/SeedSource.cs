@@ -23,6 +23,11 @@ public static class SeedSource
             AuraStatModifiers = reader.Rows<AuraStatModifier>(),
             TalentNodeAbilities = reader.Rows<TalentNodeAbility>(),
             TalentClassStarts = reader.Rows<TalentClassStart>(),
+            ItemTemplateBaseStats = reader.Rows<ItemTemplateBaseStat>(),
+            ItemModifierGroups = reader.Rows<ItemModifierGroup>(),
+            ItemModifiers = reader.Rows<ItemModifier>(),
+            ItemModifierStats = reader.Rows<ItemModifierStat>(),
+            ItemTemplateModifiers = reader.Rows<ItemTemplateModifier>(),
         };
     }
 }

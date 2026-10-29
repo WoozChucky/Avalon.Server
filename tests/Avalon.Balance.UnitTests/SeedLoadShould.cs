@@ -38,13 +38,17 @@ public class SeedLoadShould
     }
 
     [Fact]
-    public void Load_every_seeded_ability_and_refuse_none()
+    public void Load_every_seeded_ability_and_item_row_and_refuse_none()
     {
         BalanceData data = TestData.Seeded;
 
         Assert.Empty(data.RefusedAbilities);
         foreach (uint id in new uint[] { 200, 201, 202, 210, 211, 212, 220, 221, 222, 230, 231, 232, 300, 316 })
             Assert.True(data.Abilities.TryGetValue(new AbilityId(id), out _), $"ability {id}");
+
+        Assert.Equal(data.Tables.ItemModifiers.Count, data.ItemModifiers.Count);
+        foreach (IGrouping<ulong, ItemTemplateModifier> links in data.Tables.ItemTemplateModifiers.GroupBy(l => l.TemplateId.Value))
+            Assert.True(data.ItemModifiers.LinkedTo(new ItemTemplateId(links.Key)).Count == links.Count(), $"item {links.Key}");
     }
 
     [Fact]

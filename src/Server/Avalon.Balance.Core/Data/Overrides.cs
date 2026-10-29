@@ -70,6 +70,19 @@ public static class Overrides
                 ? t.AuraStatModifiers.FirstOrDefault(m => Text(m.AuraId.Value) == aura && m.Stat == stat)
                 : null,
             t => t.AuraStatModifiers.Select(m => ($"{Text(m.AuraId.Value)}.{m.Stat}", (object)m))),
+        // A base's base-stat ranges (#1179), keyed by template and stat, as the table keys them.
+        ["ItemTemplateBaseStat"] = new(typeof(ItemTemplateBaseStat), ["TemplateId", "Stat"],
+            (t, k) => k.Split('.') is [var template, var s] && Enum.TryParse(s, false, out ItemBaseStat stat)
+                ? t.ItemTemplateBaseStats.FirstOrDefault(r => Text(r.TemplateId.Value) == template && r.Stat == stat)
+                : null,
+            t => t.ItemTemplateBaseStats.Select(r => ($"{Text(r.TemplateId.Value)}.{r.Stat}", (object)r))),
+        // A modifier's stat lines (#1179), keyed by modifier and line index, as the table keys them.
+        ["ItemModifierStat"] = new(typeof(ItemModifierStat), ["ModifierId", "Index"],
+            (t, k) => k.Split('.') is [var modifier, var index]
+                ? t.ItemModifierStats.FirstOrDefault(r =>
+                    r.ModifierId.ToString(CultureInfo.InvariantCulture) == modifier && Text(r.Index) == index)
+                : null,
+            t => t.ItemModifierStats.Select(r => ($"{r.ModifierId.ToString(CultureInfo.InvariantCulture)}.{Text(r.Index)}", (object)r))),
     };
 
     public static OverrideReport Apply(SeedTables tables, JsonElement root)

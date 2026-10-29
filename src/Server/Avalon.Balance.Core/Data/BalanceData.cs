@@ -18,9 +18,10 @@ public sealed class BalanceData
 {
     private BalanceData(SeedTables tables, IReadOnlyDictionary<AuraId, AuraTemplate> auras,
         IReadOnlyDictionary<AbilityId, AbilityTemplate> abilities, IReadOnlyList<string> refusedAbilities, CombatData combat,
-        CreatureStatDeriver creatureStats)
+        ItemModifierCatalog itemModifiers, CreatureStatDeriver creatureStats)
     {
         Tables = tables;
+        ItemModifiers = itemModifiers;
         Auras = auras;
         Abilities = abilities;
         RefusedAbilities = refusedAbilities;
@@ -33,6 +34,12 @@ public sealed class BalanceData
     }
 
     public SeedTables Tables { get; }
+
+    /// <summary>
+    /// The item modifier catalog (#1179) the world would build from the same rows: every modifier with its group and stat
+    /// lines, and each template's links. No weights are read: the simulator rolls no affix.
+    /// </summary>
+    public ItemModifierCatalog ItemModifiers { get; }
 
     /// <summary>The aura templates that passed the server's checks, by id, each with its stat modifiers attached.</summary>
     public IReadOnlyDictionary<AuraId, AuraTemplate> Auras { get; }
@@ -93,12 +100,71 @@ public sealed class BalanceData
             throw new InvalidDataException("The ability catalog refused: " + string.Join("; ", refused));
 
         CombatFormula formula = CombatDataRules.Build(tables.CombatFormulas);
+        ItemModifierCatalog itemModifiers = ItemModifierCatalogOf(tables);
+        CheckItemTemplates(tables, itemModifiers);
         CreatureTemplateRules.Validate(tables.CreatureTemplates);
         CreatureTemplateRules.ValidateRarities(tables.CreatureRarityModifiers);
         var creatureStats = new CreatureStatDeriver(tables.CreatureBaseStats, tables.CreatureRarityModifiers,
             NullLoggerFactory.Instance);
 
-        return new BalanceData(tables, auras, abilities, refused, new CombatData(formula), creatureStats);
+        return new BalanceData(tables, auras, abilities, refused, new CombatData(formula), itemModifiers, creatureStats);
+    }
+
+    /// <summary>
+    /// The modifier catalog, built as the world's read builds it: each modifier given its group and its stat lines in index
+    /// order, then the shared <see cref="ItemModifierCatalog" />. A row it would log and leave out stops the run. Only the
+    /// rows given are written, each a copy wherever a run reads it.
+    /// </summary>
+    private static ItemModifierCatalog ItemModifierCatalogOf(SeedTables tables)
+    {
+        var groups = tables.ItemModifierGroups.ToDictionary(g => g.Id);
+        ILookup<int, ItemModifierStat> lines = tables.ItemModifierStats.ToLookup(l => l.ModifierId);
+        foreach (ItemModifier modifier in tables.ItemModifiers)
+        {
+            // A modifier whose group is not seeded keeps none, which the catalog refuses by name.
+            modifier.Group = groups.GetValueOrDefault(modifier.GroupId)!;
+            modifier.Stats = [.. lines[modifier.Id].OrderBy(l => l.Index)];
+        }
+
+        var refusals = new RefusalLog();
+        var catalog = new ItemModifierCatalog(tables.ItemModifiers, tables.ItemTemplateModifiers, refusals);
+        return refusals.Errors.Count == 0
+            ? catalog
+            : throw new InvalidDataException("The item modifier catalog refused: " + string.Join("; ", refusals.Errors));
+    }
+
+    /// <summary>
+    /// Each item template given its base-stat rows in stat order, then held to the rules the world's items area holds it
+    /// to (ItemsPatch.Build): its links against its rarity (a unique that links nothing aside), its base stats against its
+    /// kind, and its named base, a unique's among the templates that are not unique. A template the world would leave out
+    /// stops the run, every one named.
+    /// </summary>
+    private static void CheckItemTemplates(SeedTables tables, ItemModifierCatalog modifiers)
+    {
+        ILookup<ulong, ItemTemplateBaseStat> baseStats = tables.ItemTemplateBaseStats.ToLookup(r => r.TemplateId.Value);
+        foreach (ItemTemplate template in tables.ItemTemplates)
+            template.BaseStats = [.. baseStats[template.Id.Value].OrderBy(r => r.Stat)];
+
+        var bases = tables.ItemTemplates
+            .Where(t => t.Rarity != ItemRarity.Unique)
+            .ToDictionary(t => t.Id.Value);
+        List<string> refused = [];
+        foreach (ItemTemplate template in tables.ItemTemplates.OrderBy(t => t.Id.Value))
+        {
+            bool unique = template.Rarity == ItemRarity.Unique;
+            IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(template.Id);
+            ItemTemplate? named = unique && template.BaseTemplateId is { } id ? bases.GetValueOrDefault(id.Value) : null;
+            string? reason = (unique && linked.Count == 0
+                                 ? null
+                                 : ItemModifierCatalog.RarityRefusal(template.Rarity, template.BaseKind, linked))
+                             ?? ItemBaseStatRules.Problem(template)
+                             ?? ItemBaseStatRules.NamedBaseProblem(template, named);
+            if (reason is not null)
+                refused.Add($"item {template.Id.Value} '{template.Name}': {reason}");
+        }
+
+        if (refused.Count > 0)
+            throw new InvalidDataException("The item templates refused: " + string.Join("; ", refused));
     }
 
     /// <param name="auras">What the character's auras add, folded in as the server's stats refresh folds them; none when null.</param>

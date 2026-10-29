@@ -113,17 +113,16 @@ public class OverridesShould
         Assert.Equal(20u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
     }
 
-    [Fact]
-    public void Stop_on_an_override_the_server_would_refuse()
+    [Theory]
+    [InlineData("""{ "Ability.200.Reach": -1 }""", "ability 200 'Cleave'")]
+    [InlineData("""{ "CombatFormula.ArmorCap": 2 }""", "ArmorCap")]
+    [InlineData("""{ "ItemTemplateBaseStat.7.DamageMin.Min": 999 }""", "item 7 '")]
+    public void Stop_on_an_override_the_server_would_refuse(string json, string message)
     {
-        (SeedTables tables, _) = Apply("""{ "Ability.200.Reach": -1 }""");
+        (SeedTables tables, _) = Apply(json);
 
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => BalanceData.From(tables));
-        Assert.Contains("ability 200 'Cleave'", error.Message, StringComparison.Ordinal);
-
-        (SeedTables formula, _) = Apply("""{ "CombatFormula.ArmorCap": 2 }""");
-        Assert.Contains("ArmorCap", Assert.Throws<InvalidDataException>(() => BalanceData.From(formula)).Message,
-            StringComparison.Ordinal);
+        Assert.Contains(message, error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
