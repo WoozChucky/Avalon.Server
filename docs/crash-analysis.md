@@ -46,13 +46,20 @@ it is not an identity startup or global health dependency.
 
 Only `dump.dmp`, `meta.json` and optional `log-tail.txt` are accepted. ZIP download
 and total expanded input are each at most 4 MiB; metadata is 4 KiB and log tail
-64 KiB. Existing client schema 1 metadata is sufficient. Client#459 is unnecessary:
-no new metadata or client rollout is required. Unsafe ZIP names, links, duplicate
-entries, CRC/range errors and malformed metadata/dumps are rejected before tools.
+64 KiB. `meta.json` is schema 1 or 2. Schema 2 (Client#459, #1252) adds what the client
+knew: `gpuVendorId` and `gpuDeviceId` (u32), `gpuName` (at most 128 printable characters),
+`driverVersion` (at most 32 of `[0-9A-Za-z.+-]`, stored as `VulkanDriverVersion`, apart from
+the dump-derived `GpuDriverVersion`) and `lastState` (`boot`, `menu`, `loading` or
+`in-world`). Each is optional: a malformed one is dropped, never a reason to refuse the
+report. `gpu_name` and `vulkan_driver_version` are columns, so a group's detail breaks
+its reports down `ByGpu` beside `ByGpuDriver`; reports without them read `unknown`.
+Unsafe ZIP names, links, duplicate entries, CRC/range errors and malformed
+metadata/dumps are rejected before tools.
 
 | Bound | First-release value |
 | --- | --- |
 | Poll / backfill reservation | 60 seconds / at least one quarter of discovery work |
+| Upload notices (#1252) | `POST /internal/crash/notice` `{key}` on 8080, reachable from `networkPolicy.noticePeers` and, since they share the port, `healthPeers`; at most 512 bytes. The worker HEADs the object (the proof of the upload, which the API cannot see) and queues it at once, only when the poll would (never paused, nor before the database and tools are ready); 64 waiting, extras left to the poll |
 | Concurrent reports / converters | 1 / 1 |
 | Report lease / heartbeat / attempt | 10 minutes / 30 seconds / 8 minutes |
 | Converter wall / CPU | 120 / 90 seconds |

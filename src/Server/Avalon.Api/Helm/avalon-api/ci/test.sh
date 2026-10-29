@@ -138,6 +138,9 @@ grep -A1 "name: Application__Distribution__Bucket" <<<"$dist" | grep -q '"avalon
 grep -A1 "name: Application__Distribution__Region" <<<"$dist" | grep -q '"garage"'                                 || { echo "distribution region missing"; exit 1; }
 grep -A1 "name: Application__Distribution__AccessKeyId" <<<"$dist" | grep -q '"GKabc"'                             || { echo "distribution key id missing"; exit 1; }
 grep -A4 "name: Application__Distribution__SecretAccessKey" <<<"$dist" | grep -q "key: distribution-secret-key"    || { echo "distribution secret must come from the Secret"; exit 1; }
+! grep -q "Application__Distribution__CrashNoticeUrl" <<<"$dist"                                 || { echo "crash notice url rendered without being set (#1252)"; exit 1; }
+notice=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set distribution.endpoint=http://garage.distribution.svc:3900 --set distribution.publicUrl=https://dist.example --set distribution.accessKeyId=GKabc --set distribution.crashNoticeUrl=http://worker:8080/internal/crash/notice)
+grep -A1 "name: Application__Distribution__CrashNoticeUrl" <<<"$notice" | grep -q "http://worker:8080/internal/crash/notice" || { echo "crash notice url missing"; exit 1; }
 # With a world configured, so the inline secret is the only thing refused.
 if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set distribution.secretAccessKey=leak >/dev/null 2>&1; then
   echo "existingSecret + inline distribution.secretAccessKey must fail"; exit 1

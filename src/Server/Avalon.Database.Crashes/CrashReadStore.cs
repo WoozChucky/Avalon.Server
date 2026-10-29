@@ -73,6 +73,10 @@ public sealed class CrashReadStore(IDbContextFactory<CrashesDbContext> factory) 
             .GroupBy(x => new { Module = x.GpuDriverModule ?? "unknown", Version = x.GpuDriverVersion ?? "unknown", Source = x.GpuDriverSource ?? "unknown" })
             .OrderBy(x => x.Key.Module).ThenBy(x => x.Key.Version).ThenBy(x => x.Key.Source)
             .Select(x => new CrashGpuDriverCount(x.Key.Module, x.Key.Version, x.Key.Source, x.LongCount())).ToArrayAsync(ct);
+        CrashGpuCount[] gpus = await retained
+            .GroupBy(x => new { Name = x.GpuName ?? "unknown", Driver = x.VulkanDriverVersion ?? "unknown" })
+            .OrderBy(x => x.Key.Name).ThenBy(x => x.Key.Driver)
+            .Select(x => new CrashGpuCount(x.Key.Name, x.Key.Driver, x.LongCount())).ToArrayAsync(ct);
         CrashOsBuildCount[] os = await retained.GroupBy(x => x.OsBuild ?? "unknown")
             .OrderBy(x => x.Key).Select(x => new CrashOsBuildCount(x.Key, x.LongCount())).ToArrayAsync(ct);
         CrashReportSummary[] reports = await retained.OrderByDescending(x => x.ReceivedAt).ThenBy(x => x.Id)
@@ -88,7 +92,10 @@ public sealed class CrashReadStore(IDbContextFactory<CrashesDbContext> factory) 
         await snapshot.CommitAsync(ct);
         return new(summary, notes, now, now.AddDays(-RetentionDays), now, summary.RetainedReportCount,
             latest?.Id, latest?.ReceivedAt, crashingThread, latest?.QualityFlags,
-            versions, drivers, os, new(reports, reportsPage, reportsPageSize, summary.RetainedReportCount));
+            versions, drivers, os, new(reports, reportsPage, reportsPageSize, summary.RetainedReportCount))
+        {
+            ByGpu = gpus,
+        };
     }
 
     public async Task<CrashReportDetail?> GetReportAsync(CrashReportId id, DateTimeOffset now, CancellationToken ct)

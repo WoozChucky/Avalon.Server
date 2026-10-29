@@ -78,7 +78,7 @@ public sealed class CrashArchiveReaderShould : IDisposable
             "log" => CrashFixture.Archive(log: new byte[65537]),
             "expanded" => CrashFixture.Archive(dump: CrashFixture.Dump(4 * 1024 * 1024 - Encoding.UTF8.GetByteCount(CrashFixture.Metadata) + 1), compression: CompressionLevel.SmallestSize),
             "download" => new byte[4 * 1024 * 1024 + 1],
-            "schema" => CrashFixture.Archive(metadata: CrashFixture.Metadata.Replace("\"schema\":1", "\"schema\":2", StringComparison.Ordinal)),
+            "schema" => CrashFixture.Archive(metadata: CrashFixture.Metadata.Replace("\"schema\":1", "\"schema\":3", StringComparison.Ordinal)),
             "jsonDuplicate" => CrashFixture.Archive(metadata: CrashFixture.Metadata.Replace("\"schema\":1", "\"schema\":1,\"schema\":1", StringComparison.Ordinal)),
             "uintOverflow" => CrashFixture.Archive(metadata: CrashFixture.Metadata.Replace("3221225477", "4294967296", StringComparison.Ordinal)),
             "negative" => CrashFixture.Archive(metadata: CrashFixture.Metadata.Replace("3221225477", "-1", StringComparison.Ordinal)),
@@ -121,6 +121,28 @@ public sealed class CrashArchiveReaderShould : IDisposable
         CrashInputException error = await Assert.ThrowsAsync<CrashInputException>(() => Read(archive));
         Assert.Equal(expected, error.Code);
         Assert.False(File.Exists(Path.Combine(_directory, "dump.dmp")));
+    }
+
+    /// <summary>
+    /// Client#459: schema 2 adds the GPU and the game's last state, each optional and bounded. A malformed one is
+    /// dropped and the report still read: a bad optional field is never a reason to lose a crash.
+    /// </summary>
+    [Theory]
+    [InlineData(",\"gpuVendorId\":4318,\"gpuDeviceId\":9860,\"gpuName\":\"NVIDIA GeForce RTX 4090\",\"driverVersion\":\"581.57\",\"lastState\":\"in-world\"",
+        4318u, 9860u, "NVIDIA GeForce RTX 4090", "581.57", "in-world")]
+    [InlineData("", null, null, null, null, null)]
+    [InlineData(",\"gpuVendorId\":-1,\"gpuDeviceId\":\"9860\",\"gpuName\":\"bad\\u0001name\",\"driverVersion\":\"581/57\",\"lastState\":\"combat\"",
+        null, null, null, null, null)]
+    [InlineData(",\"gpuName\":\"Intel(R) Arc(TM) A770 Graphics\",\"lastState\":\"loading\"",
+        null, null, "Intel(R) Arc(TM) A770 Graphics", null, "loading")]
+    public async Task Should_read_schema_two_and_drop_malformed_optional_fields(
+        string extra, uint? vendor, uint? device, string? name, string? driver, string? state)
+    {
+        string metadata = CrashFixture.Metadata.Replace("\"schema\":1", "\"schema\":2", StringComparison.Ordinal)
+            .Replace("}", extra + "}", StringComparison.Ordinal);
+        CrashMetadata read = (await Read(CrashFixture.Archive(metadata: metadata))).Metadata;
+        Assert.Equal((2, vendor, device, name, driver, state),
+            (read.Schema, read.GpuVendorId, read.GpuDeviceId, read.GpuName, read.VulkanDriverVersion, read.LastState));
     }
 
     [Fact]

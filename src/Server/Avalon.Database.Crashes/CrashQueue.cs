@@ -375,6 +375,9 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
             report.GpuDriverVersion = driver?.Version;
             report.GpuDriverSource = driver is null ? "unknown" : "loaded_module";
         }
+        // The client's own word for its GPU (schema 2), beside the dump-derived driver.
+        report.GpuName = analysis.Metadata.GpuName;
+        report.VulkanDriverVersion = analysis.Metadata.VulkanDriverVersion;
         report.Stack = stack;
         report.StackSchemaVersion = analysis.SchemaVersion;
         report.QualityFlags = analysis.Quality;
@@ -409,6 +412,8 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
         report.GpuDriverModule = null;
         report.GpuDriverVersion = null;
         report.GpuDriverSource = null;
+        report.GpuName = null;
+        report.VulkanDriverVersion = null;
         report.Stack = null;
         report.StackSchemaVersion = null;
         report.QualityFlags = CrashQualityFlags.None;

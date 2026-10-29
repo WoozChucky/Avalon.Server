@@ -2,7 +2,13 @@ namespace Avalon.Crashes;
 
 public sealed record StoredCrashObject(string Key, string ETag, long Size, DateTimeOffset LastModified);
 
-public sealed record CrashMetadata(int Schema, string Exe, string Version, string GitHash, uint ExceptionCode, string ExceptionAddress, uint ThreadId, DateTimeOffset Time);
+/// <summary>
+/// A report's <c>meta.json</c>. Schema 2 (Client#459) adds what the client knew of its GPU (the Vulkan device it
+/// rendered with, and its driver as the client words it, apart from the dump's <c>GpuDriverVersion</c>) and the game's
+/// last state; each is optional and null when absent or malformed.
+/// </summary>
+public sealed record CrashMetadata(int Schema, string Exe, string Version, string GitHash, uint ExceptionCode, string ExceptionAddress, uint ThreadId, DateTimeOffset Time,
+    uint? GpuVendorId = null, uint? GpuDeviceId = null, string? GpuName = null, string? VulkanDriverVersion = null, string? LastState = null);
 
 public sealed record CrashInput(string DumpPath, CrashMetadata Metadata, string? LogTail, RuntimeIdentity Runtime, CrashQualityFlags Quality)
 {

@@ -343,6 +343,10 @@ distribution:
   region: garage
   accessKeyId: ""
   secretAccessKey: ""
+  # The crash worker's internal notice endpoint (#1252), e.g. http://avalon-crashes-worker:8080/internal/crash/notice.
+  # Empty: an upload-complete notice is accepted and goes nowhere; the worker's poll finds every report. The worker
+  # chart's networkPolicy.noticePeers must admit this release's pods for it to arrive.
+  crashNoticeUrl: ""
 
 # Mandatory store verification credentials. Only a reference is accepted; Helm never holds the publisher key.
 storeAuthentication:

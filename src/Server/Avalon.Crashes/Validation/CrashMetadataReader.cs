@@ -20,7 +20,7 @@ internal static class CrashMetadataReader
                     throw Invalid();
             }
             int schema = Required(fields, "schema").GetInt32();
-            if (schema != 1)
+            if (schema is not (1 or 2))
                 throw new CrashInputException(CrashFailureCode.UnsupportedSchema);
             string exe = Text(fields, "exe");
             string version = Text(fields, "version");
@@ -45,7 +45,18 @@ internal static class CrashMetadataReader
             string time = Text(fields, "time");
             if (!DateTimeOffset.TryParseExact(time, "yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTimeOffset timestamp))
                 throw Invalid();
-            return new CrashMetadata(schema, exe, version, gitHash.ToLowerInvariant(), code, "0x" + numeric.ToString("x16", CultureInfo.InvariantCulture), thread, timestamp);
+            var metadata = new CrashMetadata(schema, exe, version, gitHash.ToLowerInvariant(), code, "0x" + numeric.ToString("x16", CultureInfo.InvariantCulture), thread, timestamp);
+            if (schema == 1)
+                return metadata;
+            // Schema 2's optional fields (Client#459): a malformed one is dropped, never a reason to lose the report.
+            return metadata with
+            {
+                GpuVendorId = OptionalUInt(fields, "gpuVendorId"),
+                GpuDeviceId = OptionalUInt(fields, "gpuDeviceId"),
+                GpuName = OptionalText(fields, "gpuName", MaxGpuName, c => c is >= ' ' and <= '~'),
+                VulkanDriverVersion = OptionalText(fields, "driverVersion", MaxDriverVersion, c => char.IsAsciiLetterOrDigit(c) || c is '.' or '+' or '-'),
+                LastState = OptionalText(fields, "lastState", MaxState, _ => true) is { } state && s_states.Contains(state) ? state : null,
+            };
         }
         catch (JsonException)
         {
@@ -60,6 +71,24 @@ internal static class CrashMetadataReader
             throw Invalid();
         }
     }
+
+    private const int MaxGpuName = 128;
+    private const int MaxDriverVersion = 32;
+    private const int MaxState = 16;
+
+    /// <summary>What the game was doing (Client#459); the editor's reports are never uploaded, so it has no word.</summary>
+    private static readonly HashSet<string> s_states = new(StringComparer.Ordinal) { "boot", "menu", "loading", "in-world" };
+
+    private static uint? OptionalUInt(Dictionary<string, JsonElement> fields, string name) =>
+        fields.TryGetValue(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number && value.TryGetUInt32(out uint read)
+            ? read
+            : null;
+
+    private static string? OptionalText(Dictionary<string, JsonElement> fields, string name, int maxLength, Func<char, bool> allowed) =>
+        fields.TryGetValue(name, out JsonElement value) && value.ValueKind == JsonValueKind.String
+            && value.GetString() is { Length: > 0 } text && text.Length <= maxLength && text.All(allowed)
+                ? text
+                : null;
 
     private static JsonElement Required(Dictionary<string, JsonElement> fields, string name)
     {

@@ -48,6 +48,17 @@ public sealed class DistributionApi : IApiService
         services.AddMemoryCache();
         services.AddSingleton<ClientDistributionService>();
         services.AddSingleton<CrashReportService>();
+        if (CrashNoticeOptions.From(distribution) is { } notice)
+        {
+            services.AddSingleton(notice);
+            services.AddHttpClient(CrashNoticeOptions.HttpClientName);
+            services.AddSingleton<ICrashNoticeForwarder, HttpCrashNoticeForwarder>();
+        }
+        else
+        {
+            services.AddSingleton<ICrashNoticeForwarder, UnconfiguredCrashNoticeForwarder>();
+        }
+        services.AddSingleton<CrashNoticeService>();
         services.AddCrashReportRateLimiting();
 
         services.AddSingleton<IExceptionProblemMapper, DistributionProblemMapper>();

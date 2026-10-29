@@ -15,6 +15,11 @@ spec:
   ingress:
     - from: {{ toYaml $.Values.networkPolicy.healthPeers | nindent 8 }}
       ports: [{protocol: TCP, port: 8080}]
+    {{- with $.Values.networkPolicy.noticePeers }}
+    # Upload-complete notices (#1252) from the API's distribution pods, on the same port.
+    - from: {{ toYaml . | nindent 8 }}
+      ports: [{protocol: TCP, port: 8080}]
+    {{- end }}
   {{- else }}
   ingress: []
   {{- end }}

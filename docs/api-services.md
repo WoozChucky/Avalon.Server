@@ -463,6 +463,14 @@ key or requested by the endpoint. The API never receives the ZIP bytes. Configur
 expiration on the bucket before enabling client uploads; setting the bucket name alone does not
 configure retention. See the local setup instructions below in `development-setup.md`.
 
+After its PUT, a client may send anonymous `POST /client/crash/uploaded` with `{key}` (#1252, at most 512
+bytes, its own limiter of ten per source IP per hour). A key shaped like a slot this API issues
+(`<version>/<yyyy-MM-dd>/<32 hex>.zip`), dated today or yesterday in UTC, answers 202 whether or not it
+is passed on, so the answer says nothing about what exists; anything else answers 400. When
+`Application:Distribution:CrashNoticeUrl` (`distribution.crashNoticeUrl`, empty by default) names the crash
+worker's internal endpoint, the key is POSTed there with a `CrashNoticeTimeoutMs` (1000) bound, and a
+failure is swallowed: the worker's poll finds the report anyway.
+
 ### Route registration
 
 1. Put the action in the library of the service that owns its path by the manifest. A new controller in a service's

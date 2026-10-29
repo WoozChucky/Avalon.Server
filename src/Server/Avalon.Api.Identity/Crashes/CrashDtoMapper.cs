@@ -35,7 +35,8 @@ public static class CrashDtoMapper
         detail.ByOsBuild.Select(c => new CrashOsBuildCountDto(c.Build, c.Count)).ToArray(),
         new CrashReportPageDto(detail.Reports.Items.Select(r => new CrashReportSummaryDto(r.Id.Value, Utc(r.ReceivedAt),
             Utc(r.ExpiresAt), r.Version, r.ExceptionCode, Quality(r.Quality), r.CrashingModule)).ToArray(),
-            detail.Reports.Page, detail.Reports.PageSize, detail.Reports.Total));
+            detail.Reports.Page, detail.Reports.PageSize, detail.Reports.Total),
+        detail.ByGpu.Select(c => new CrashGpuCountDto(c.Name, c.DriverVersion, c.Count)).ToArray());
 
     public static CrashReportDto Report(CrashReportDetail report) => new(report.Id.Value, EnumName(report.Status),
         report.Reason is { } reason ? EnumName(reason) : null, Utc(report.ReceivedAt), Utc(report.ExpiresAt), Utc(report.ProcessedAt),
@@ -52,7 +53,9 @@ public static class CrashDtoMapper
         analysis.Threads.Select(Thread).ToArray(),
         analysis.Modules.Select(m => new CrashModuleDto(m.Name, m.ImageKey, m.PdbName, m.PdbKey, m.Version, m.BaseAddress, m.Size, m.SymbolsAvailable)).ToArray(),
         new CrashMetadataDto(analysis.Metadata.Schema, analysis.Metadata.Exe, analysis.Metadata.Version, analysis.Metadata.GitHash,
-            analysis.Metadata.ExceptionCode, analysis.Metadata.ExceptionAddress, analysis.Metadata.ThreadId, Utc(analysis.Metadata.Time)),
+            analysis.Metadata.ExceptionCode, analysis.Metadata.ExceptionAddress, analysis.Metadata.ThreadId, Utc(analysis.Metadata.Time),
+            analysis.Metadata.GpuVendorId, analysis.Metadata.GpuDeviceId, analysis.Metadata.GpuName,
+            analysis.Metadata.VulkanDriverVersion, analysis.Metadata.LastState),
         Quality(analysis.Quality, analysis.Threads.Any(HasUnknownTrust)),
         new CrashProcessorDto(analysis.Processor.StackwalkVersion, analysis.Processor.ConverterVersion, analysis.Processor.CacheVersion));
 

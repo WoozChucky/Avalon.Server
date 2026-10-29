@@ -68,7 +68,7 @@ public sealed class CrashReadStoreBacklogShould(ITestOutputHelper output) : IAsy
         Assert.Equal(90, detail.RetainedReportCount);
         Assert.Equal(25, detail.Reports.Items.Count);
         CapturedQuery[] groupQueries = probe.Queries.ToArray();
-        Assert.Equal(10, groupQueries.Length);
+        Assert.Equal(11, groupQueries.Length);   // the client's GPU breakdown (#1252) is the eleventh
         var text = new StringBuilder("# Task 10 actual PostgreSQL query plans\n\nSynthetic fixture: 1,000 groups; 100,000 processed reports over 100 days; 90,000 unexpired, 10,000 expired; four versions, mixed status/regression/driver/OS buckets. Migrated disposable database on localhost port 56449. No production data. UUID literals are sanitized. All queries are the actual intercepted read-store SQL with cloned parameter bindings. No planner options changed.\n\n");
         await using var connection = new NpgsqlConnection(db.Database.GetConnectionString());
         await connection.OpenAsync();
