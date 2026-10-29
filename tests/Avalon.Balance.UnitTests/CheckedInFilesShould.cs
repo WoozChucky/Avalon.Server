@@ -21,7 +21,7 @@ public class CheckedInFilesShould
         Assert.Equal(expected, File.ReadAllText(Path.Combine(Root, "balance", file)));
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Give_the_command_lines_csv_for_a_small_fixed_run()
     {
         var request = new RunRequest(null, null,

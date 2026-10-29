@@ -88,7 +88,7 @@ public class BalanceRunnerShould
             Assert.InRange(FightFactory.CreatureLevel(wolf, 1, scenarios.Find("forest-real"), random), 2, 4));
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Record_win_rate_percentiles_and_a_stat_snapshot()
     {
         BalanceRunner runner = Runner();
@@ -97,7 +97,7 @@ public class BalanceRunnerShould
         Assert.Equal(new RowKey(CharacterClass.Warrior, 3, "forest", "normal-1"), row.Key);
         Assert.InRange(row.WinRatePct, 0, 100);
         Assert.True(row.FightSeconds.P10 <= row.FightSeconds.Median && row.FightSeconds.Median <= row.FightSeconds.P90);
-        Assert.Equal(5, row.Snapshot.Abilities.Count);
-        Assert.True(row.DamageDealtPerRun.ContainsKey("Ground Slam"));
+        Assert.Single(row.Snapshot.Abilities);   // its starter alone until builds land (#1183)
+        Assert.True(row.DamageDealtPerRun.ContainsKey("Heavy Strike"));
     }
 }

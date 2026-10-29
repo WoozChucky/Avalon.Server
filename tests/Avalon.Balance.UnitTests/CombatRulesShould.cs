@@ -39,15 +39,16 @@ public class CombatRulesShould
         Assert.Equal(ManaRegenRates.Of(new RegenConfiguration(), wizard.Power!.Value, 0f), wizard.ManaRegen);
     }
 
-    [Fact(Skip = BalancePause.Reason)]
+    /// <summary>Steady rolls the minimum and never evades, crits or blocks; a level-1 boar has no armour.</summary>
+    [Fact]
     public void Deal_cleave_through_the_real_resolver()
     {
-        SimPlayer warrior = Warrior();
+        SimPlayer warrior = Warrior().Holding(Data, 200);
         SimCreature boar = Boar(1);   // level 1: armour 0
 
         uint damage = CombatRules.Damage(warrior, boar, warrior.Ability(200), Data.Combat.Formula, CombatRandom.Steady).Total;
 
-        Assert.Equal(25u, damage);    // floor(25.8)
+        Assert.Equal(17u, damage);    // floor(17.05725)
     }
 
     /// <summary>
@@ -114,8 +115,8 @@ public class CombatRulesShould
         Assert.Equal(0u, player.Ward);   // death empties the ward (B-R6)
     }
 
-    [Fact(Skip = BalancePause.Reason)]
-    public void Cap_a_creatures_haste_for_cast_times_and_cooldowns()
+    [Fact]
+    public void Cap_a_creatures_speeds_for_cast_times_cooldowns_and_swings()
     {
         CreatureTemplate alpha = Data.Creature(8);   // Bramblemaw Alpha: Howling Roar winds up for 1 s
         var hasty = new SimCreature
@@ -123,7 +124,6 @@ public class CombatRulesShould
             Name = "hasty",
             Template = alpha,
             Derived = Data.CreatureStats.Derive(alpha, 1),
-            // #1178: the one haste became three speeds; this is the compile fix alone (#1183: skipped, never edited to pass).
             AttackSpeedCap = 50f,
             CastSpeedCap = 50f,
             CooldownRecoveryCap = 50f,
