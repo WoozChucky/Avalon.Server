@@ -395,9 +395,9 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 
 ## GC-015 — An ability script, and its cast's objects, built for every cast
 
-**Status:** Resolved for projectiles (#1181 part D, the owner's decision of 2026-10-28); circles and cones open (#1238).  
+**Status:** Resolved: projectiles (#1181 part D, the owner's decision of 2026-10-28), circles and cones (#1238).  
 **Severity:** Medium  
-**File:** `src/Server/Avalon.World/Abilities/AbilityScriptPool.cs`, `InstanceAbilityCastSystem.cs`
+**File:** `src/Server/Avalon.World/Abilities/AbilityScriptPool.cs`, `InstanceAbilityCastSystem.cs`, `PendingHits.cs`
 
 ### Problem
 
@@ -413,13 +413,35 @@ part A2): a projectile is taken from it, bound to the cast (`PooledAbilityScript
 wrapper for the flight before (its id is new every flight). Its hit set comes from the same pool, a fan's lanes share
 one, its two states are boxes every projectile shares, and the queue and running-list entries are reused. Each type
 keeps at most `InstanceAbilityCastSystem.PooledScripts` (256) scripts. A warm projectile cast, a fan's included,
-allocates nothing (`ProjectileCastAllocationShould`, `ProjectileCastBenchmarks`), and `forest-combat`'s committed
-figure fell by a third ([benchmarks](benchmarks.md)). A circle's or a cone's script is still built per cast (224 B),
-until #1238 moves it onto the same pool. That move is more than a registration and the two resets: a queued hostile
-circle or cone holds the hits it defers for the dodge wait (`PendingHit`) with the script's own copy of the ability,
-which the pool clears when the script goes back, so a held hit must first keep the id and metadata it reads; and the
-pool's factory takes no DI services, so a pooled type declares none. A script handed back past the cap is counted
+allocates nothing (`AbilityCastAllocationShould`, `ProjectileCastBenchmarks`), and `forest-combat`'s committed
+figure fell by a third ([benchmarks](benchmarks.md)). A script handed back past the cap is counted
 (`world.ability_scripts.pool_drops`).
+
+Circles and cones joined the same pool with #1238 (`CircleAbilityScript` and `ConeAbilityScript` derive from the
+World-side `AreaAbilityScript`): each finishes inside its `Prepare`, so it is retired as it fires and, since no view
+ever holds its guid, free again at once (registered `seenByViews: false`, where a projectile waits two view rounds); it
+keeps no hit set,
+writes a new id into its own guid wrapper each cast and shares two state boxes. Before, each cast built its script, its
+cast copy, its guid and two boxes (272 B in Release, 304 B in Debug). A warm cone or circle cast, instant or queued,
+allocates nothing (`AbilityCastAllocationShould`, `AreaCastBenchmarks`), and the four forest scenarios' committed figures
+fell by 12 to 19 % ([benchmarks](benchmarks.md#pooled-circles-and-cones--areacastbenchmarkscs-1238)). Two hazards came
+with it:
+
+- **The dodge wait's held hits.** A queued hostile circle or cone defers its hits on players (`PendingHit`) for up to six
+  ticks, and the pool clears the script's copy of the ability as it fires, then makes it again for the next cast. So a
+  held hit no longer holds the script's copy: `PendingHits` keeps a copy of its own per hit, taken from its free copies
+  (`GameAbility.CopyFrom`) and cleared and freed once the hit lands, is dodged or is dropped. Chosen over keeping the
+  script out of its pool until its hits resolve, which would tie the pool's lifetimes to the dodge wait's and need the
+  arena to know the script in flight; a held hit is now whole on its own, whichever script made it. Warm, the copies
+  allocate nothing; the free list never holds more than the most hits ever held at once.
+- **No container services.** The pool builds each type with the factory it registered with, passing the four cast
+  arguments and nothing from the container, where the activator binds constructor services. So registration
+  (`AbilityScriptPool.Pools<T>`, from `InstanceAbilityCastSystem.NewPool`) refuses, with an exception as the cast system
+  is built, a type with any constructor besides one public constructor taking `(IAbility, IUnit, AbilityAim,
+  IAbilityArena)`: a second constructor taking a service, even marked `[ActivatorUtilitiesConstructor]`, would compile
+  and pass `AbilityScriptConstructibilityShould` (which builds through the activator), while pooled casts went on calling
+  the first and ran without the service. Every pooled type today is a shipped script with that one constructor (the seed
+  names only the three shape scripts); a script that needs a service stays out of the pool, for the activator.
 
 ---
 
@@ -441,4 +463,4 @@ pool's factory takes no DI services, so a pooled type declares none. A script ha
 | 12 | ~~GC-010~~ | ~~`Activator.CreateInstance` per packet dispatch~~ | ~~Medium~~ |
 | 13 | ~~GC-011~~ | ~~`ServerBase.CallListener` reflection `new[]` per call~~ | ~~Medium~~ |
 | 14 | GC-014 | LINQ `ToList()` in remove packet | Low |
-| 15 | GC-015 | Ability script built per cast (projectiles pooled; circles and cones open, #1238) | Medium |
+| 15 | ~~GC-015~~ | ~~Ability script built per cast (projectiles, #1181; circles and cones, #1238)~~ | ~~Medium~~ |

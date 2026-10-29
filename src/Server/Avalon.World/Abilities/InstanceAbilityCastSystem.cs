@@ -154,9 +154,9 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>
     /// The dodge wait's hits (#1082): the instance adds to them (<see cref="IAbilityArena.TryDeferHit" />), this resolves
-    /// them each tick and drops a leaving unit's.
+    /// them each tick and drops a leaving unit's. Public for the tests, whose arena holds hits in it.
     /// </summary>
-    internal PendingHits PendingHits => _pendingHits;
+    public PendingHits PendingHits => _pendingHits;
 
     public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, bool forItem = false)
     {
@@ -811,8 +811,9 @@ public class InstanceAbilityCastSystem(
 
         if (!running)
         {
-            // Finished in Prepare, it never runs: a pooled script goes back now (#1181 Part D), any other is let go. A fan
-            // whose first lane ended there fires no other: its set of hit units went back with it.
+            // Finished in Prepare, it never runs: a pooled script goes back now (#1181 Part D), any other is let go. Every
+            // circle and cone ends here (#1238), free again at once since no view holds its guid, its held hits keeping
+            // copies of their own. A fan whose first lane ended there fires no other: its set of hit units went back with it.
             _pool.Retire(script);
             CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
             return;
@@ -912,12 +913,21 @@ public class InstanceAbilityCastSystem(
     private static IAbility CopyOf(AbilityScript script, IAbility ability) =>
         script is PooledAbilityScript pooled ? pooled.CastCopy : ability;
 
-    /// <summary>The pool of this instance's scripts, keyed by type: projectiles today (#1181 Part D).</summary>
+    /// <summary>
+    /// The pool of this instance's scripts, keyed by type: projectiles (#1181 Part D), seen by views, and circles and cones
+    /// (#1238), whose guid no view holds. Each type is built by its factory here with the four cast arguments and no
+    /// container service, and the pool refuses, as this cast system is built, a type with any constructor besides the one
+    /// taking those four (<see cref="AbilityScriptPool.Pools{T}" />).
+    /// </summary>
     private static AbilityScriptPool NewPool(IAbilityArena arena)
     {
         var pool = new AbilityScriptPool(arena);
         pool.Pools<ProjectileAbilityScript>(static (owner, own, caster, aim, at) =>
-            new ProjectileAbilityScript(own, caster, aim, at) { Pool = owner });
+            new ProjectileAbilityScript(own, caster, aim, at) { Pool = owner }, seenByViews: true);
+        pool.Pools<CircleAbilityScript>(static (owner, own, caster, aim, at) =>
+            new CircleAbilityScript(own, caster, aim, at) { Pool = owner }, seenByViews: false);
+        pool.Pools<ConeAbilityScript>(static (owner, own, caster, aim, at) =>
+            new ConeAbilityScript(own, caster, aim, at) { Pool = owner }, seenByViews: false);
         return pool;
     }
 

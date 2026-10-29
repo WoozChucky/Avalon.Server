@@ -1,6 +1,8 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Abilities;
@@ -42,8 +44,20 @@ internal sealed class TestArena : IAbilityArena
     public IUnit? HitRewindExempt { get; set; }
     public AbilityFootprint? DodgeFootprint { get; set; }
 
-    /// <summary>Never holds a hit: every hit lands as it is made.</summary>
-    public bool TryDeferHit(IUnit caster, IAbility ability, IUnit target) => false;
+    /// <summary>
+    /// Where the dodge wait holds a hostile telegraph's hits on players (#1082), due <c>Wait</c> ticks on: the cast system's
+    /// own list and its world tick count. Unset, it holds no hit, and every hit lands as it is made.
+    /// </summary>
+    public (PendingHits Hits, WorldTicks Ticks, int Wait)? Holds { get; set; }
+
+    public bool TryDeferHit(IUnit caster, IAbility ability, IUnit target)
+    {
+        if (Holds is not { } holds || DodgeFootprint is not { } footprint || target is not ICharacter character)
+            return false;
+
+        holds.Hits.Add(new PendingHit(caster, ability, character, footprint, holds.Ticks.Completed + holds.Wait));
+        return true;
+    }
     public ICombatService CombatService { get; } = Substitute.For<ICombatService>();
     public IMapNavigator Navigator { get; } = Substitute.For<IMapNavigator>();
     public List<(Vector3 Origin, Vector3? Direction, Vector3? Centre)> Fired { get; } = [];
@@ -53,8 +67,12 @@ internal sealed class TestArena : IAbilityArena
     /// <summary>How every hostile hit is answered; Landed unless a test says otherwise.</summary>
     public HitOutcome NextOutcome { get; set; } = HitOutcome.Landed;
 
-    /// <summary>Every aura application asked for, in order.</summary>
-    public List<(IUnit Caster, IUnit Target, IAbility Ability)> AurasApplied { get; } = [];
+    /// <summary>
+    /// Every aura application asked for, in order, with its ability's id and metadata as they were then: a pooled script's
+    /// copy is cleared when the script goes back, on the tick it fired, and made again for its next cast (#1238).
+    /// </summary>
+    public List<(IUnit Caster, IUnit Target, IAbility Ability, AbilityId Id, AbilityMetadata Metadata)> AurasApplied { get; } =
+        [];
 
     /// <summary>Every hostile hit's shaping, in order (#1181 Part D).</summary>
     public List<HitShaping> Shapings { get; } = [];
@@ -80,15 +98,20 @@ internal sealed class TestArena : IAbilityArena
     public void HealForAbility(IUnit caster, IUnit target, IAbility ability, float amountPct) =>
         HealsDone.Add((target, amountPct));
 
-    public void ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability) => AurasApplied.Add((caster, target, ability));
+    public void ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability) =>
+        AurasApplied.Add((caster, target, ability, ability.AbilityId, ability.Metadata));
 
     /// <summary>Every fired broadcast's whole footprint and the cast id in flight then, in order (#648).</summary>
     public List<(AbilityFootprint Footprint, uint CastId)> FiredFootprints { get; } = [];
+
+    /// <summary>The ability every fired broadcast named, in order: a script's own copy (#1238).</summary>
+    public List<IAbility> FiredAbilities { get; } = [];
 
     public void BroadcastAbilityFired(IUnit caster, IAbility ability, AbilityFootprint footprint)
     {
         Fired.Add((footprint.Origin, footprint.Direction, footprint.Centre));
         FiredFootprints.Add((footprint, _castInFlight));
+        FiredAbilities.Add(ability);
     }
 
     private uint _castInFlight;
