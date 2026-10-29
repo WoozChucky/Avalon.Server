@@ -76,7 +76,10 @@ public static class CombatRules
         return new WardedLoss(absorbed, LoseHealth(target, points - absorbed, now));
     }
 
-    /// <summary>What passed the ward, taken from health; death empties the ward, as CharacterEntity's at its death.</summary>
+    /// <summary>
+    /// What passed the ward, taken from health. Death empties the ward on both sides: a player's as CharacterEntity's
+    /// IsDead does, a creature's as Creature's CurrentHealth does on reaching 0.
+    /// </summary>
     private static uint LoseHealth(SimUnit target, uint damage, DateTime now)
     {
         uint lost = target switch

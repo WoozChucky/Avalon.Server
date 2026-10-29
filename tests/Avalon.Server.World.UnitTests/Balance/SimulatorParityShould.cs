@@ -280,8 +280,9 @@ public class SimulatorParityShould
     /// <summary>
     /// A boar's hit on a character in its class's forest gear, sixty times, through the real combat service and the
     /// simulator's B-R6 landing: the same health and the same ward after every hit. Health is refilled each hit, the ward
-    /// is not, and both clocks move 1 s between hits, so the ward empties, pauses and recharges as the world's does. A
-    /// Warrior in plate has no ward; a Wizard's cloth ward takes Gore (physical) and none of Rotting Burst (blight).
+    /// is not, and both clocks move 5 s between hits (the 4 s recharge delay and half the 2 s recharge), so the ward drains,
+    /// pauses and recharges as the world's does. A Warrior's forest gear carries a small ward (5); a Wizard's cloth ward
+    /// takes Gore (physical) and none of Rotting Burst (blight).
     /// </summary>
     [Theory]
     [InlineData(CharacterClass.Warrior, 300u)]
@@ -307,7 +308,7 @@ public class SimulatorParityShould
             real.Character.CurrentPower = 0;
             simPlayer.CurrentHealth = simPlayer.Health;
             simPlayer.CurrentPower = 0;
-            DateTime now = s_clockStart.UtcDateTime + TimeSpan.FromSeconds(hit);
+            DateTime now = s_clockStart.UtcDateTime + TimeSpan.FromSeconds(5 * hit);
 
             instance.CombatService.ApplyDamage(realBoar, real.Character, realHit);
             CombatRules.Land(simPlayer, CombatRules.Damage(simBoar, simPlayer, simHit, Data.Combat.Formula, simRng), now);
@@ -315,7 +316,7 @@ public class SimulatorParityShould
             Assert.Equal((hit, real.Character.CurrentHealth), (hit, simPlayer.CurrentHealth));
             Assert.Equal((hit, real.Character.Ward), (hit, simPlayer.Ward));
             Assert.Equal((hit, real.Character.CurrentPower), (hit, simPlayer.CurrentPower));
-            clock.Advance(TimeSpan.FromSeconds(1));
+            clock.Advance(TimeSpan.FromSeconds(5));
         }
     }
 
