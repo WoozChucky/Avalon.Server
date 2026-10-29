@@ -106,7 +106,7 @@ public sealed class BalanceData
         CombatFormula formula = CombatDataRules.Build(tables.CombatFormulas);
         ItemModifierCatalog itemModifiers = ItemModifierCatalogOf(tables);
         IReadOnlyDictionary<ulong, ItemTemplate> bases = CheckItemTemplates(tables, itemModifiers);
-        // Gear is fixed stats (B-R4): each template's one copy, made once here and worn by every row.
+        // Gear is fixed stats (B-R4): each template's one copy, made once here; Worn hands each row modifiers of its own.
         var worn = tables.ItemTemplates.ToDictionary(t => t.Id.Value,
             t => FixedGear.Of(t, NamedBase(t, bases), itemModifiers));
         CreatureTemplateRules.Validate(tables.CreatureTemplates);
@@ -164,9 +164,9 @@ public sealed class BalanceData
 
     /// <summary>
     /// Each item template given its base-stat rows in stat order, then held to the rules the world's items area holds it
-    /// to (ItemsPatch.Build): its links against its rarity (a unique that links nothing aside), its base stats against its
-    /// kind, and its named base, a unique's among the templates that are not unique. A template the world would leave out
-    /// stops the run, every one named.
+    /// to (ItemsPatch.Build), in its order: every template that is not unique first, its links against its rarity, its
+    /// base stats against its kind; then each unique, the same way (one that links nothing aside), and its named base
+    /// among the templates the first pass kept. A template the world would leave out stops the run, every one named.
     /// </summary>
     /// <returns>The templates that are not unique, by id: the bases a unique may name.</returns>
     private static IReadOnlyDictionary<ulong, ItemTemplate> CheckItemTemplates(SeedTables tables, ItemModifierCatalog modifiers)
@@ -175,27 +175,34 @@ public sealed class BalanceData
         foreach (ItemTemplate template in tables.ItemTemplates)
             template.BaseStats = [.. baseStats[template.Id.Value].OrderBy(r => r.Stat)];
 
-        var bases = tables.ItemTemplates
-            .Where(t => t.Rarity != ItemRarity.Unique)
-            .ToDictionary(t => t.Id.Value);
-        List<string> refused = [];
-        foreach (ItemTemplate template in tables.ItemTemplates.OrderBy(t => t.Id.Value))
+        var refused = new SortedDictionary<ulong, string>();
+        void Judge(ItemTemplate template, string? reason)
         {
-            bool unique = template.Rarity == ItemRarity.Unique;
-            IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(template.Id);
-            ItemTemplate? named = NamedBase(template, bases);
-            string? reason = (unique && linked.Count == 0
-                                 ? null
-                                 : ItemModifierCatalog.RarityRefusal(template.Rarity, template.BaseKind, linked))
-                             ?? ItemBaseStatRules.Problem(template)
-                             ?? ItemBaseStatRules.NamedBaseProblem(template, named);
             if (reason is not null)
-                refused.Add($"item {template.Id.Value} '{template.Name}': {reason}");
+                refused[template.Id.Value] = $"item {template.Id.Value} '{template.Name}': {reason}";
+        }
+
+        foreach (ItemTemplate template in tables.ItemTemplates.Where(t => t.Rarity != ItemRarity.Unique))
+        {
+            Judge(template, ItemModifierCatalog.RarityRefusal(template.Rarity, template.BaseKind, modifiers.LinkedTo(template.Id))
+                            ?? ItemBaseStatRules.Problem(template)
+                            ?? ItemBaseStatRules.NamedBaseProblem(template, null));
+        }
+
+        var bases = tables.ItemTemplates
+            .Where(t => t.Rarity != ItemRarity.Unique && !refused.ContainsKey(t.Id.Value))
+            .ToDictionary(t => t.Id.Value);
+        foreach (ItemTemplate unique in tables.ItemTemplates.Where(t => t.Rarity == ItemRarity.Unique))
+        {
+            IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(unique.Id);
+            Judge(unique, (linked.Count == 0 ? null : ItemModifierCatalog.RarityRefusal(unique.Rarity, unique.BaseKind, linked))
+                          ?? ItemBaseStatRules.Problem(unique)
+                          ?? ItemBaseStatRules.NamedBaseProblem(unique, NamedBase(unique, bases)));
         }
 
         return refused.Count == 0
             ? bases
-            : throw new InvalidDataException("The item templates refused: " + string.Join("; ", refused));
+            : throw new InvalidDataException("The item templates refused: " + string.Join("; ", refused.Values));
     }
 
     /// <summary>A unique's named base among <paramref name="bases" />, as the world's items area finds it; null for any other template.</summary>
@@ -229,12 +236,14 @@ public sealed class BalanceData
     }
 
     /// <summary>
-    /// The one copy of item <paramref name="id" /> the simulator wears (B-R4, <see cref="FixedGear" />): every base stat
-    /// and modifier value at the midpoint of its range. Made once, in <see cref="From" />; shared by every row and never
-    /// changed.
+    /// The copy of item <paramref name="id" /> the simulator wears (B-R4, <see cref="FixedGear" />): every base stat and
+    /// modifier value at the midpoint of its range. Made once, in <see cref="From" />; each call hands out modifiers of
+    /// its own, so no caller can change what another row wears.
     /// </summary>
     public WornItem Worn(ulong id) =>
-        _worn.TryGetValue(id, out WornItem copy) ? copy : throw new InvalidDataException($"Item {id} is not seeded");
+        _worn.TryGetValue(id, out WornItem copy)
+            ? copy with { Modifiers = copy.Modifiers?.ConvertAll(m => m.CopyAs(m.Id, m.ItemInstanceId, m.Ordinal, m.Imprinted)) }
+            : throw new InvalidDataException($"Item {id} is not seeded");
 
     public ItemTemplate Item(ulong id) =>
         Tables.ItemTemplates.FirstOrDefault(t => t.Id.Value == id)

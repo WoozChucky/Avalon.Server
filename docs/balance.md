@@ -44,8 +44,8 @@ attack speed, cast speed and cooldown recovery), so an element meets its resista
   named base (`ItemBaseStatRules.NamedBaseProblem`). The modifier catalog is built with the shared
   `ItemModifierCatalog`, and a row it would log and leave out stops the run. A modifier line whose range runs
   backwards, or whose second range is set at one end only, is refused too, since the world could not roll it. Each
-  refusal is a `seed` issue in the world's words, so an override that makes a row invalid stops the run before it
-  starts, never midway.
+  refusal is a `seed` issue, in the world's words but for the line ranges, which only the simulator checks, so an
+  override that makes a row invalid stops the run before it starts, never midway.
 
 The next part of #1183 is builds: characters as talent allocations, with their stat lines, abilities, capstone shapes
 and keystone rules.

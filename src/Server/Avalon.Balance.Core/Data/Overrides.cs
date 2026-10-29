@@ -165,9 +165,11 @@ public static class Overrides
         {
             if (target.IsEnum)
             {
+                // A number must fit the enum's underlying type first: ToObject would wrap it (258 to 2 for a byte enum).
                 object value = json.ValueKind == JsonValueKind.String
                     ? Enum.Parse(target, json.GetString()!, ignoreCase: false)
-                    : Enum.ToObject(target, json.GetInt64());
+                    : Enum.ToObject(target, System.Convert.ChangeType(Whole(json), Enum.GetUnderlyingType(target),
+                        CultureInfo.InvariantCulture));
                 return Defined(target, value)
                     ? value
                     : throw new InvalidDataException($"Override '{key}': {json.GetRawText()} is no {target.Name}");
@@ -180,10 +182,7 @@ public static class Overrides
             if (target == typeof(byte) || target == typeof(short) || target == typeof(ushort) || target == typeof(int)
                 || target == typeof(uint) || target == typeof(long) || target == typeof(ulong))
             {
-                decimal number = json.GetDecimal();
-                if (number != decimal.Truncate(number))
-                    throw new OverflowException();
-                return System.Convert.ChangeType(number, target, CultureInfo.InvariantCulture);
+                return System.Convert.ChangeType(Whole(json), target, CultureInfo.InvariantCulture);
             }
         }
         catch (Exception e) when (e is FormatException or OverflowException or InvalidOperationException or ArgumentException)
@@ -192,6 +191,13 @@ public static class Overrides
         }
 
         throw new InvalidDataException($"Override '{key}': a {target.Name} column cannot be overridden");
+    }
+
+    /// <summary>A whole JSON number; a fraction does not fit any integer column (ChangeType would round it).</summary>
+    private static decimal Whole(JsonElement json)
+    {
+        decimal number = json.GetDecimal();
+        return number == decimal.Truncate(number) ? number : throw new OverflowException();
     }
 
     /// <summary>

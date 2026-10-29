@@ -182,27 +182,41 @@ public class SimulatorParityShould
     }
 
     /// <summary>
-    /// B-R4's fixed copy is the world's plain roll (ItemRoller.RollPlain) under a random that always lands mid-range:
-    /// every gear-profile item, over the seed's item rows and the catalog the World database's read builds, must come
-    /// out of both with the same base stats and the same modifiers, line for line.
+    /// B-R4's fixed copy is the world's plain roll (ItemRoller.RollPlain) under a random that always lands mid-range: every
+    /// seeded item template, uniques included, over the seed's item rows and the catalog the World database's read builds,
+    /// must come out of both with the same base stats and the same modifiers, line for line. One line, the first of the
+    /// implicit item 7 (the forest Warrior's weapon) links, is given each row's range on both sides: a middle that is a
+    /// half, and a range below zero, whose half rounds up as well ([-3, -1] gives -2, never -1).
     /// </summary>
-    [Fact]
-    public async Task Make_the_same_fixed_copy_as_a_plain_roll_at_the_midpoint()
+    [Theory]
+    [InlineData(2, 5)]
+    [InlineData(-3, -1)]
+    public async Task Make_the_same_fixed_copy_as_a_plain_roll_at_the_midpoint(int lineMin, int lineMax)
     {
+        SeedTables simSeed = SeedSource.Load();
+        int implicitId = simSeed.ItemTemplateModifiers.Where(l => l.TemplateId.Value == 7).MinBy(l => l.Index)!.ModifierId;
+        ItemModifierStat simLine = simSeed.ItemModifierStats.Single(l => l.ModifierId == implicitId && l.Index == 0);
+        (simLine.Min, simLine.Max) = (lineMin, lineMax);
+        var data = BalanceData.From(simSeed);
+
         SeedTables seed = SeedSource.Load();
         ILookup<ulong, ItemTemplateBaseStat> ranges = seed.ItemTemplateBaseStats.ToLookup(r => r.TemplateId.Value);
         foreach (ItemTemplate template in seed.ItemTemplates)
             template.BaseStats = [.. ranges[template.Id.Value]];
 
-        var items = new ItemsPatch(seed.ItemTemplates, await ItemModifierRepositories.SeededCatalog());
+        ItemModifierCatalog catalog = await ItemModifierRepositories.SeededCatalog();
+        ItemModifierStat worldLine = catalog.Find(implicitId)!.Stats.Single(l => l.Index == 0);
+        (worldLine.Min, worldLine.Max) = (lineMin, lineMax);
+        var items = new ItemsPatch(seed.ItemTemplates, catalog);
         var roller = new ItemRoller(new MidpointRandom(), new ItemIdAllocator(), Options.Create(new GameConfiguration()));
-        ulong[] ids = [.. s_scenarios.Value.GearProfiles.Values.SelectMany(p => p.Values).SelectMany(g => g).Distinct().Order()];
-        Assert.NotEmpty(ids);
+        Assert.Contains(seed.ItemTemplates, t => t.Rarity == ItemRarity.Unique);
 
-        foreach (ulong id in ids)
+        foreach (ulong id in seed.ItemTemplates.Select(t => t.Id.Value).Order())
         {
-            RolledItem rolled = roller.RollPlain(items.Find(new ItemTemplateId(id))!, 1, items);
-            WornItem worn = Data.Worn(id);
+            ItemTemplate? kept = items.Find(new ItemTemplateId(id));
+            Assert.True(kept is not null, $"item {id} is left out of the world's items area");
+            RolledItem rolled = roller.RollPlain(kept, 1, items);
+            WornItem worn = data.Worn(id);
 
             Assert.Equal((id, rolled.BaseStats), (id, worn.BaseStats));
             List<ItemInstanceModifier> copied = worn.Modifiers ?? [];
@@ -896,7 +910,7 @@ public class SimulatorParityShould
     [Fact]
     public void Regenerate_the_same_mana_in_combat_as_a_character_entity()
     {
-        // The simulated Wizard casts Arcane Bolt (instant and free) at a boar that never swings.
+        // The simulated Wizard casts Spark Bolt (instant and free) at a boar that never swings.
         var sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         sim.CurrentPower = 10;
         var dummy = SimCreature.Create(Data, Data.Creature(4), 1, 0);
@@ -979,11 +993,14 @@ public class SimulatorParityShould
         return new CreatureSpawner(NullLoggerFactory.Instance, world);
     }
 
-    /// <summary>A loot random that lands mid-range: <c>(lo + hi) / 2</c> of an integer range, 0.5 of a double.</summary>
+    /// <summary>
+    /// A loot random that lands mid-range: of an integer range the low end plus half its width, rounded down, as a draw
+    /// offset from the low end would (so below zero too: -2 of [-3, 0)); 0.5 of a double.
+    /// </summary>
     private sealed class MidpointRandom : ILootRandom
     {
         public double NextDouble() => 0.5;
 
-        public long NextInt64(long minInclusive, long maxExclusive) => (minInclusive + maxExclusive) / 2;
+        public long NextInt64(long minInclusive, long maxExclusive) => minInclusive + (maxExclusive - minInclusive) / 2;
     }
 }

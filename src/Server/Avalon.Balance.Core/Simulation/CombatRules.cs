@@ -113,7 +113,7 @@ public static class CombatRules
     /// A hit on the player, as CombatService.Hit: health lost is at most what it had; mana is left alone (#1181).
     /// Returns the health lost.
     /// </summary>
-    public static uint HitPlayer(SimPlayer target, uint damage)
+    private static uint HitPlayer(SimPlayer target, uint damage)
     {
         if (target.IsDead)
             return 0;
@@ -128,7 +128,7 @@ public static class CombatRules
     /// A hit on a creature, as CombatService, and an aura's damage tick on one, as CombatService.ApplyPeriodicDamage: the
     /// creature loses at most its health; no hit gives power (#1181). Returns the health taken.
     /// </summary>
-    public static uint HitCreature(SimCreature target, uint damage)
+    private static uint HitCreature(SimCreature target, uint damage)
     {
         uint before = target.CurrentHealth;
         if (before == 0)

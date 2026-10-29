@@ -88,11 +88,13 @@ public class CombatRulesShould
     public void Take_the_health_a_hit_takes_and_leave_the_mana()
     {
         SimPlayer warrior = Warrior();
+        warrior.ResetWard(0);   // the class's own ward would take the first points
         warrior.CurrentPower = 60;
 
-        uint lost = CombatRules.HitPlayer(warrior, 48);
+        WardedLoss loss = CombatRules.Land(warrior,
+            new HitDamage(48, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 48), FightSimulator.Epoch.UtcDateTime);
 
-        Assert.Equal(48u, lost);
+        Assert.Equal(new WardedLoss(0, 48), loss);
         Assert.Equal(60u, warrior.CurrentPower);
     }
 

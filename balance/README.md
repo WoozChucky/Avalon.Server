@@ -61,11 +61,14 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
 ## What the simulator models, and what it does not
 
 - Every number comes from the server's code, the rules in `Avalon.Combat`: `CharacterStatsCalculator`,
-  `CreatureStatDeriver`, `HitResolver`, `Haste`, `AbilityCost`, `AbilityAmounts`, `ManaRegenRates` (the mana
-  regeneration rates), `PowerRegen`, `PowerPool` (mana gains), `HealRules` (a heal's cap) and `WardPool` (the ward);
-  the data checks (`AbilityRules`, `CombatDataRules`, `CreatureTemplateRules`, and `Avalon.Domain`'s
-  `ItemBaseStatRules` and `ItemModifierCatalog`) are shared the same way. Only the order of events in a tick is the
-  simulator's own, and `SimulatorParityShould` (World unit tests) pins it against `CombatService` and the cast system.
+  `CreatureStatDeriver`, `HitResolver`, `AbilityPace` (cooldowns and cast times over a `CasterPace`), `AbilityCost`,
+  `AbilityAmounts`, `ManaRegenRates` (the mana regeneration rates), `PowerRegen`, `PowerPool` (mana gains),
+  `HealRules` (a heal's cap) and `WardPool` (the ward); the data checks (`AbilityRules`, `CombatDataRules`,
+  `CreatureTemplateRules`, and `Avalon.Domain`'s `ItemBaseStatRules` and `ItemModifierCatalog`) are shared the same
+  way. Three things are the simulator's own: the order of events in a tick, the fixed copy of each item (`FixedGear`)
+  and the ward's handling around a hit or a tick (`CombatRules.Land` and `LandTick`). `SimulatorParityShould` (World
+  unit tests) pins each against the world: the order against `CombatService` and the cast system, the copies against
+  the world's item roll at the midpoint, and the ward against `CombatService`'s hits and aura ticks.
 - **Creature kits are a table.** `CreatureKits.ByScript` in Core lists each script's basic, specials and ranged-only
   specials, because Core does not read `Avalon.World`'s scripts. A new or changed creature script needs its row
   updated; `CreatureKitParityShould` (World unit tests) fails when the table and the scripts differ.

@@ -12,10 +12,11 @@ namespace Avalon.Balance.Core;
 public static class FixedGear
 {
     /// <summary>
-    /// The middle of [<paramref name="min" />, <paramref name="max" />], a half rounded up: what a uniform draw of the range
-    /// returns when its random lands mid-range (<c>(lo + hiExclusive) / 2</c> of <c>NextInt64(min, max + 1)</c>).
+    /// The middle of [<paramref name="min" />, <paramref name="max" />], a half rounded up, below zero too ([-3, -1] gives -2,
+    /// [-4, -1] gives -2): what a uniform draw of the range returns when its random lands mid-range, the low end plus half
+    /// the width of <c>NextInt64(min, max + 1)</c>, rounded down.
     /// </summary>
-    public static int Midpoint(int min, int max) => (int)(((long)min + max + 1) / 2);
+    public static int Midpoint(int min, int max) => (int)(min + ((long)max + 1 - min) / 2);
 
     /// <summary>
     /// The fixed copy of <paramref name="template" />. <paramref name="named" /> is a unique's named base, which gives it its

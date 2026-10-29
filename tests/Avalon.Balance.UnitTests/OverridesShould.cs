@@ -79,6 +79,7 @@ public class OverridesShould
     [InlineData("""{ "CombatFormula.1.ArmorBase": 1 }""", "CombatFormula has one row and takes no key")]
     [InlineData("""{ "Ability": 1 }""", "is not Table.key.Column")]
     [InlineData("""{ "ItemModifierStat.16.0.Stat": 9999 }""", "9999 is no StatType")]
+    [InlineData("""{ "Item.112.Rarity": 258 }""", "258 does not fit a ItemRarity column")]   // a byte: never wrapped to 2
     [InlineData("""{ "ItemTemplateBaseStat.7.4.Min": 1 }""", "no ItemTemplateBaseStat row '7.4'")]
     public void Stop_naming_the_override(string json, string message)
     {
