@@ -1,4 +1,5 @@
 using Avalon.Crashes.Persistence;
+using Avalon.Crashes.Worker.Diagnostics;
 using Avalon.Crashes.Worker.Discovery;
 using Avalon.Crashes.Worker.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,16 +19,25 @@ public class CrashNoticesShould
     private const string Missing = "0.4.1/2026-10-29/456789abcdef0123456789abcdef0123.zip";
 
     [Fact]
-    public async Task Queue_an_uploaded_report_and_ignore_one_the_bucket_does_not_hold()
+    public async Task Queue_an_uploaded_report_and_ignore_one_the_bucket_does_not_hold_or_a_paused_worker()
     {
         var stored = new StoredCrashObject(Key, "\"etag\"", 2048, s_now.AddMinutes(-1));
         var queue = new Queue();
-        var service = new CrashNoticeService(new CrashNotices(), new Objects(stored), queue, new FakeTimeProvider(s_now),
-            NullLogger<CrashNoticeService>.Instance);
+        CrashNoticeService service = Service(stored, queue, paused: false);
 
         Assert.True(await service.QueueAsync(Key, CancellationToken.None));
         Assert.False(await service.QueueAsync(Missing, CancellationToken.None));
+        // Paused discovers nothing, as the poll does not: the rollout and the rollback depend on it.
+        Assert.False(await Service(stored, queue, paused: true).QueueAsync(Key, CancellationToken.None));
         Assert.Equal([stored], queue.Seen);
+    }
+
+    private static CrashNoticeService Service(StoredCrashObject stored, Queue queue, bool paused)
+    {
+        var clock = new FakeTimeProvider(s_now);
+        var state = new CrashWorkerState(clock) { Paused = paused, ToolsReady = true };
+        state.Purged(state.DatabaseGeneration);   // the database ready, as after the first purge
+        return new CrashNoticeService(new CrashNotices(), new Objects(stored), queue, state, clock, NullLoggerFactory.Instance);
     }
 
     [Fact]

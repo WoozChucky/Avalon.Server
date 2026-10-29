@@ -19,7 +19,9 @@ public sealed class CrashNoticeService(ICrashNoticeForwarder forwarder, TimeProv
             return false;
         try
         {
-            await forwarder.ForwardAsync(key, ct);
+            // Bounded by the forwarder's own timeout, not by the caller's connection: a client that hangs up at once
+            // still gets its report seen sooner.
+            await forwarder.ForwardAsync(key, CancellationToken.None);
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
@@ -73,13 +75,33 @@ public sealed class UnconfiguredCrashNoticeForwarder : ICrashNoticeForwarder
     public Task ForwardAsync(string key, CancellationToken ct) => Task.CompletedTask;
 }
 
+/// <summary>Where notices go and how long one may take: only these two, never the store's credentials.</summary>
+public sealed record CrashNoticeOptions(Uri Url, TimeSpan Timeout)
+{
+    public const string HttpClientName = "crash-notice";
+
+    /// <summary>
+    /// The options a configuration names, or null for none (no URL). A URL that is set but not absolute http(s) is a
+    /// mistake, refused at startup rather than silently ignored; the timeout is held to 100..5000 ms.
+    /// </summary>
+    public static CrashNoticeOptions? From(DistributionConfiguration configuration)
+    {
+        if (string.IsNullOrWhiteSpace(configuration.CrashNoticeUrl))
+            return null;
+        if (!Uri.TryCreate(configuration.CrashNoticeUrl, UriKind.Absolute, out Uri? url) || url.Scheme is not ("http" or "https"))
+            throw new InvalidOperationException("Application:Distribution:CrashNoticeUrl must be an absolute http(s) URL.");
+        return new CrashNoticeOptions(url, TimeSpan.FromMilliseconds(Math.Clamp(configuration.CrashNoticeTimeoutMs, 100, 5000)));
+    }
+}
+
 /// <summary>POSTs the key to the worker's internal notice endpoint, bounded by a short timeout.</summary>
-public sealed class HttpCrashNoticeForwarder(HttpClient http, DistributionConfiguration configuration) : ICrashNoticeForwarder
+public sealed class HttpCrashNoticeForwarder(IHttpClientFactory clients, CrashNoticeOptions options) : ICrashNoticeForwarder
 {
     public async Task ForwardAsync(string key, CancellationToken ct)
     {
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        bounded.CancelAfter(TimeSpan.FromMilliseconds(configuration.CrashNoticeTimeoutMs));
-        using HttpResponseMessage response = await http.PostAsJsonAsync(new Uri(configuration.CrashNoticeUrl), new { key }, bounded.Token);
+        bounded.CancelAfter(options.Timeout);
+        using HttpClient http = clients.CreateClient(CrashNoticeOptions.HttpClientName);
+        using HttpResponseMessage response = await http.PostAsJsonAsync(options.Url, new { key }, bounded.Token);
     }
 }

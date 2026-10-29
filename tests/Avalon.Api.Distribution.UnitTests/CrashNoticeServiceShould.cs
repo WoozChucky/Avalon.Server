@@ -45,6 +45,19 @@ public class CrashNoticeServiceShould
     }
 
     [Fact]
+    public void Refuse_a_notice_url_set_wrong_at_startup_and_hold_its_timeout_in_bounds()
+    {
+        Assert.Null(CrashNoticeOptions.From(new DistributionConfiguration()));
+        Assert.Throws<InvalidOperationException>(() => CrashNoticeOptions.From(new DistributionConfiguration { CrashNoticeUrl = "worker:8080" }));
+        CrashNoticeOptions options = CrashNoticeOptions.From(new DistributionConfiguration
+        {
+            CrashNoticeUrl = "http://worker:8080/internal/crash/notice",
+            CrashNoticeTimeoutMs = -5,
+        })!;
+        Assert.Equal(TimeSpan.FromMilliseconds(100), options.Timeout);
+    }
+
+    [Fact]
     public async Task Answer_a_well_formed_key_alike_when_the_worker_cannot_be_reached()
     {
         _forwarder.ForwardAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).ThrowsAsync(new HttpRequestException());

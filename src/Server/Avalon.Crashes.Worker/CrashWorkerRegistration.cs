@@ -7,6 +7,7 @@ using Avalon.Crashes.Worker.Processing;
 using Avalon.Crashes.Worker.Storage;
 using Avalon.Crashes.Worker.Symbols;
 using Avalon.Database.Crashes;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -83,7 +84,8 @@ public static class CrashWorkerRegistration
         app.MapDefaultEndpoints();
         // Upload-complete notices from the API (#1252), on the internal port only the chart's noticePeers reach.
         app.MapPost("/internal/crash/notice", (CrashNoticeRequest request, CrashNotices notices) =>
-            notices.Offer(request.Key) ? Results.Accepted() : Results.BadRequest());
+            notices.Offer(request.Key) ? Results.Accepted() : Results.BadRequest())
+            .WithMetadata(new RequestSizeLimitAttribute(512));
         return app;
     }
 

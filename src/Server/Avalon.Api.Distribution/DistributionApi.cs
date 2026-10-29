@@ -48,10 +48,11 @@ public sealed class DistributionApi : IApiService
         services.AddMemoryCache();
         services.AddSingleton<ClientDistributionService>();
         services.AddSingleton<CrashReportService>();
-        services.AddSingleton(distribution);
-        if (Uri.TryCreate(distribution.CrashNoticeUrl, UriKind.Absolute, out Uri? noticeUrl) && noticeUrl.Scheme is "http" or "https")
+        if (CrashNoticeOptions.From(distribution) is { } notice)
         {
-            services.AddHttpClient<ICrashNoticeForwarder, HttpCrashNoticeForwarder>();
+            services.AddSingleton(notice);
+            services.AddHttpClient(CrashNoticeOptions.HttpClientName);
+            services.AddSingleton<ICrashNoticeForwarder, HttpCrashNoticeForwarder>();
         }
         else
         {

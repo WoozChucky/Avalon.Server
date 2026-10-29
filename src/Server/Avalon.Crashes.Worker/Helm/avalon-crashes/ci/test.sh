@@ -51,11 +51,15 @@ assert not any(x["kind"] in ["Ingress","IngressRoute","Secret","PersistentVolume
 policies=[x for x in items if x and x["kind"]=="NetworkPolicy"]
 assert len(policies)==2
 cleanup=next(x for x in policies if x["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]=="cleanup")
+worker=next(x for x in policies if x["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]=="worker")
+assert len(worker["spec"]["ingress"])==1,"worker admits more than its health peers by default (notices are opt-in, #1252)"
 assert cleanup["spec"]["ingress"]==[]
 assert len(cleanup["spec"]["egress"])==2,"cleanup permits more than PostgreSQL and DNS"
 assert {port["port"] for rule in cleanup["spec"]["egress"] for port in rule["ports"]}=={5432,53}
 print("worker chart isolation checks passed")
 '
+notice=$(helm template t . -f ci/test-values.yaml --set 'networkPolicy.noticePeers[0].podSelector.matchLabels.app=api-distribution')
+grep -q "app: api-distribution" <<<"$notice" || { echo "noticePeers not admitted to the worker"; exit 1; }
 paused=$(helm template t . -f ci/test-values.yaml --set paused=true)
 grep -q -- '--paused' <<<"$paused"
 for setting in replicaCount=2 retentionDays=91 storage.bucket=symbols symbols.convertedBucket=symbols storage.endpoint=http://garage.example.test; do
