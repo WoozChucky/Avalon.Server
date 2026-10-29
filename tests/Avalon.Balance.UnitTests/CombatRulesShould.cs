@@ -3,6 +3,7 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Xunit;
 
@@ -44,22 +45,34 @@ public class CombatRulesShould
         SimPlayer warrior = Warrior();
         SimCreature boar = Boar(1);   // level 1: armour 0
 
-        (uint damage, _) = CombatRules.Damage(warrior, boar, warrior.Ability(200), Data.Combat.Formula, CombatRandom.Steady);
+        uint damage = CombatRules.Damage(warrior, boar, warrior.Ability(200), Data.Combat.Formula, CombatRandom.Steady).Total;
 
         Assert.Equal(25u, damage);    // floor(25.8)
     }
 
-    /// <summary>A hit on a creature takes the health it deals, and a dodged one (0) takes nothing.</summary>
+    /// <summary>
+    /// B-R6: a direct hit on a creature meets its ward first, for what the hit lets the ward absorb (all but its blight
+    /// share), and health loses the rest; a dodged hit (0) takes nothing. What the hit cost is the ward's part plus the health.
+    /// </summary>
     [Theory]
-    [InlineData(10u)]
-    [InlineData(0u)]
-    public void Take_the_health_a_hit_on_a_creature_deals(uint damage)
+    [InlineData(10u, 0u, 10u, 0u, 10u)]
+    [InlineData(0u, 0u, 0u, 0u, 0u)]
+    [InlineData(30u, 20u, 30u, 0u, 10u)]
+    [InlineData(30u, 50u, 30u, 20u, 0u)]
+    [InlineData(30u, 50u, 10u, 40u, 20u)]   // a blight share
+    [InlineData(30u, 50u, 0u, 50u, 30u)]    // all blight
+    public void Take_the_health_a_hit_on_a_creature_deals(uint total, uint ward, uint absorbable, uint wardAfter, uint healthLost)
     {
         SimCreature boar = Boar();
+        boar.ResetWard(ward);
         uint health = boar.CurrentHealth;
 
-        Assert.Equal(damage, CombatRules.HitCreature(boar, damage));
-        Assert.Equal(health - damage, boar.CurrentHealth);
+        WardedLoss loss = CombatRules.Land(boar,
+            new HitDamage(total, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, absorbable), FightSimulator.Epoch.UtcDateTime);
+
+        Assert.Equal(wardAfter, boar.Ward);
+        Assert.Equal(healthLost, health - boar.CurrentHealth);
+        Assert.Equal(total, loss.Total);   // the boar outlives every row
     }
 
     /// <summary>#1181: a hit on the player takes health and leaves its mana alone.</summary>
@@ -75,19 +88,22 @@ public class CombatRulesShould
         Assert.Equal(60u, warrior.CurrentPower);
     }
 
-    /// <summary>#1181: the hit that kills leaves the mana as it was, for every class.</summary>
+    /// <summary>#1181: the hit that kills leaves the mana as it was, for every class, and empties the ward (B-R6).</summary>
     [Theory]
     [InlineData(CharacterClass.Warrior)]
     [InlineData(CharacterClass.Wizard)]
     public void Keep_mana_on_the_hit_that_kills(CharacterClass @class)
     {
-        var player = SimPlayer.Create(Data, @class, 1, []);
+        var player = SimPlayer.Create(Data, @class, 1, TestData.Gear("forest", @class));
+        Assert.True(@class != CharacterClass.Wizard || player.Ward > 0, "a Wizard in cloth carries a ward");
         player.CurrentPower = 60;
 
-        CombatRules.HitPlayer(player, 100_000);
+        CombatRules.Land(player, new HitDamage(100_000, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 100_000),
+            FightSimulator.Epoch.UtcDateTime);
 
         Assert.True(player.IsDead);
         Assert.Equal(60u, player.CurrentPower);
+        Assert.Equal(0u, player.Ward);   // death empties the ward (B-R6)
     }
 
     [Fact(Skip = BalancePause.Reason)]

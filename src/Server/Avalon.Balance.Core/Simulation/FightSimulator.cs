@@ -265,9 +265,9 @@ public sealed class FightSimulator
     }
 
     /// <summary>
-    /// As AbilityEffect.Apply for each unit the shape affects: the direct amount when Effects has one, then the aura. A
-    /// Hostile ability that deals no damage still rolls whether it lands (#1164); a dodged hit applies no aura, with or
-    /// without damage, unless the ability is Unavoidable; and a hit that kills ends every aura its target held.
+    /// As AbilityEffect.Apply for each unit the shape affects: the direct amount when Effects has one (its ward first, B-R6),
+    /// then the aura. A Hostile ability that deals no damage still rolls whether it lands (#1164); a dodged hit applies no
+    /// aura, with or without damage, unless the ability is Unavoidable; and a hit that kills ends every aura its target held.
     /// </summary>
     private void FirePlayer(SimPlayer player, SimAbility ability)
     {
@@ -289,9 +289,9 @@ public sealed class FightSimulator
         {
             if (direct)
             {
-                (uint damage, HitResult result) = CombatRules.Damage(player, target, ability, _formula, _rng);
-                Add(_dealt, m.Name, CombatRules.HitCreature(target, damage));
-                if ((result & HitResult.Dodged) != HitResult.None)
+                HitDamage hit = CombatRules.Damage(player, target, ability, _formula, _rng);
+                Add(_dealt, m.Name, CombatRules.Land(target, hit, Now.UtcDateTime).Total);   // a dodged hit (0) lands nothing
+                if ((hit.Result & HitResult.Dodged) != HitResult.None)
                     continue;
 
                 if (target.IsDead)
@@ -334,9 +334,9 @@ public sealed class FightSimulator
 
         if (AbilityRules.HasDirectEffect(m.Effects, m.Affects))
         {
-            (uint damage, HitResult result) = CombatRules.Damage(creature, Player, ability, _formula, _rng);
-            Add(_taken, $"{creature.Template.Name}: {ability.Name}", CombatRules.HitPlayer(Player, damage));
-            if ((result & HitResult.Dodged) != HitResult.None)
+            HitDamage hit = CombatRules.Damage(creature, Player, ability, _formula, _rng);
+            Add(_taken, $"{creature.Template.Name}: {ability.Name}", CombatRules.Land(Player, hit, Now.UtcDateTime).Total);
+            if ((hit.Result & HitResult.Dodged) != HitResult.None)
                 return;
 
             if (Player.IsDead)
@@ -438,7 +438,7 @@ public sealed class FightSimulator
     /// <summary>
     /// One tick, as CombatService.ApplyPeriodicDamage and ApplyPeriodicHeal: one crit roll, armour on damage, never a
     /// dodge or a block; only the whole points of the amount and the aura's carry are dealt or healed
-    /// (AuraRules.TakeTick). No tick gives power (#1181).
+    /// (AuraRules.TakeTick), a damage tick meeting the ward as its type allows (B-R6). No tick gives power (#1181).
     /// </summary>
     private void PeriodicTick(SimUnit unit, SimAura aura, bool lastTick)
     {
@@ -451,14 +451,8 @@ public sealed class FightSimulator
                 (double damage, _) = HitResolver.ResolvePeriodic(aura.Snapshot.Attacker, unit.Defence, DamageType.Physical,
                     amount, _formula, _rng);
                 uint points = AuraRules.TakeTick(damage, ref carry, lastTick);
-                if (unit is SimPlayer player)
-                {
-                    Add(_taken, aura.Template.Name, CombatRules.HitPlayer(player, points));
-                }
-                else
-                {
-                    Add(_dealt, aura.Template.Name, CombatRules.HitCreature((SimCreature)unit, points));
-                }
+                uint lost = CombatRules.LandTick(unit, points, aura.Snapshot.Type, Now.UtcDateTime).Total;
+                Add(unit is SimPlayer ? _taken : _dealt, aura.Template.Name, lost);
 
                 break;
             }
@@ -494,9 +488,9 @@ public sealed class FightSimulator
             return;
 
         if (unit is SimPlayer player && _data is not null)
-            player.ApplyAuraStats(_data);
+            player.ApplyAuraStats(_data, Now.UtcDateTime);
         else if (unit is SimCreature creature)
-            creature.ApplyAuraStats();
+            creature.ApplyAuraStats(Now.UtcDateTime);
     }
 
     // ---- 3. creature scripts (CreatureCombatScript: cooldowns first, then a choice) ----

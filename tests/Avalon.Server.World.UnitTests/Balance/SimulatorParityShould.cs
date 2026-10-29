@@ -75,14 +75,20 @@ public class SimulatorParityShould
         params AbilityTemplate[] abilities) =>
         RealWarrior(instance, id, ForestWarrior, time, abilities);
 
-    /// <summary>
-    /// A level-3 Warrior wearing <paramref name="gear" />, each piece the simulator's fixed copy of it (B-R4): its base
-    /// stats and modifiers loaded as the copy's rows under the instance id the equipment holds, then a stats refresh.
-    /// </summary>
     private static MapInstanceClient RealWarrior(MapInstance instance, uint id, ulong[] gear, TimeProvider? time,
-        params AbilityTemplate[] abilities)
+        params AbilityTemplate[] abilities) =>
+        RealCharacter(instance, id, CharacterClass.Warrior, gear, time, abilities);
+
+    /// <summary>
+    /// A level-3 character of <paramref name="class" /> wearing <paramref name="gear" />, each piece the simulator's fixed
+    /// copy of it (B-R4): its base stats and modifiers loaded as the copy's rows under the instance id the equipment holds,
+    /// then a stats refresh.
+    /// </summary>
+    private static MapInstanceClient RealCharacter(MapInstance instance, uint id, CharacterClass @class, ulong[] gear,
+        TimeProvider? time, params AbilityTemplate[] abilities)
     {
-        MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id, time: time));   // a Warrior
+        MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id, time: time));
+        warrior.Character.Data!.Class = @class;
         warrior.Character.PowerType = PowerType.Mana;
         warrior.Character.Level = Level;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
@@ -134,6 +140,9 @@ public class SimulatorParityShould
             CritPct = twin.Derived.CritPct,
             Evasion = twin.Derived.Evasion,
             BlockPct = twin.Derived.BlockPct,
+            DamageType = twin.Template.DamageType,
+            Resistances = twin.Derived.Resistances,
+            BaseWard = twin.Derived.Ward,   // fills the ward, as CreatureSpawner's
             BaseAttackTime = twin.Template.BaseAttackTime,
             AttackSpeedCap = Data.Combat.Formula.AttackSpeedCap,
             CastSpeedCap = Data.Combat.Formula.CastSpeedCap,
@@ -214,7 +223,7 @@ public class SimulatorParityShould
     /// and in DerivedCreatureStats (Attacker, Defence, which the simulator fights with). Every hostile seeded
     /// template, spawned by the real spawner at its lowest and its highest level, must fight as its twin does.
     /// </summary>
-    [Fact(Skip = BalancePause.Reason)]
+    [Fact]
     public void Spawn_every_hostile_creature_with_the_combat_the_simulator_derives()
     {
         Assert.NotEmpty(Data.HostileTemplates);
@@ -234,6 +243,7 @@ public class SimulatorParityShould
                 Assert.Equal(real.Health, sim.Health);
                 Assert.Equal(Internal<CasterPace>(real, "Pace"), sim.Pace);
                 Assert.Equal(real.SwingInterval, sim.SwingInterval);
+                Assert.Equal(real.MaxWard, sim.MaxWard);
             }
         }
     }
@@ -259,38 +269,53 @@ public class SimulatorParityShould
             uint simBefore = simBoar.CurrentHealth;
 
             instance.CombatService.ApplyDamage(real.Character, realBoar, realCleave);
-            (uint damage, _) = CombatRules.Damage(simWarrior, simBoar, simCleave, Data.Combat.Formula, simRng);
-            CombatRules.HitCreature(simBoar, damage);
+            CombatRules.Land(simBoar, CombatRules.Damage(simWarrior, simBoar, simCleave, Data.Combat.Formula, simRng),
+                DateTime.UtcNow);
 
             Assert.Equal(realBefore - realBoar.CurrentHealth, simBefore - simBoar.CurrentHealth);
             Assert.Equal(real.Character.CurrentPower, simWarrior.CurrentPower);
         }
     }
 
-    [Fact(Skip = BalancePause.Reason)]
-    public void Take_the_same_gore_damage_and_mana_hit_for_hit()
+    /// <summary>
+    /// A boar's hit on a character in its class's forest gear, sixty times, through the real combat service and the
+    /// simulator's B-R6 landing: the same health and the same ward after every hit. Health is refilled each hit, the ward
+    /// is not, and both clocks move 1 s between hits, so the ward empties, pauses and recharges as the world's does. A
+    /// Warrior in plate has no ward; a Wizard's cloth ward takes Gore (physical) and none of Rotting Burst (blight).
+    /// </summary>
+    [Theory]
+    [InlineData(CharacterClass.Warrior, 300u)]
+    [InlineData(CharacterClass.Wizard, 300u)]
+    [InlineData(CharacterClass.Wizard, 307u)]
+    public void Take_the_same_gore_damage_and_mana_hit_for_hit(CharacterClass @class, uint ability)
     {
-        using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
-        MapInstanceClient real = RealWarrior(instance, 6760_121, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        var clock = new FakeTimeProvider(s_clockStart);
+        using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)), time: clock);
+        ulong[] gear = s_scenarios.Value.GearFor("forest", @class);
+        MapInstanceClient real = RealCharacter(instance, 6760_121, @class, gear, clock);
+        var simPlayer = SimPlayer.Create(Data, @class, Level, gear.Select(Data.Worn));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         Creature realBoar = RealBoar(instance, 6760_921, simBoar);
-        IAbility realGore = AbilityTestData.Game(Row(300));
+        IAbility realHit = AbilityTestData.Game(Row(ability));
+        var simHit = new SimAbility(Row(ability));
         var simRng = new CombatRandom(new Random(Seed));
+        Assert.Equal(real.Character.MaxWard, simPlayer.MaxWard);
 
         for (int hit = 0; hit < 60; hit++)
         {
             real.Character.CurrentHealth = real.Character.Health;
             real.Character.CurrentPower = 0;
-            simWarrior.CurrentHealth = simWarrior.Health;
-            simWarrior.CurrentPower = 0;
+            simPlayer.CurrentHealth = simPlayer.Health;
+            simPlayer.CurrentPower = 0;
+            DateTime now = s_clockStart.UtcDateTime + TimeSpan.FromSeconds(hit);
 
-            instance.CombatService.ApplyDamage(realBoar, real.Character, realGore);
-            (uint damage, _) = CombatRules.Damage(simBoar, simWarrior, simBoar.Basic!, Data.Combat.Formula, simRng);
-            CombatRules.HitPlayer(simWarrior, damage);
+            instance.CombatService.ApplyDamage(realBoar, real.Character, realHit);
+            CombatRules.Land(simPlayer, CombatRules.Damage(simBoar, simPlayer, simHit, Data.Combat.Formula, simRng), now);
 
-            Assert.Equal(real.Character.CurrentHealth, simWarrior.CurrentHealth);
-            Assert.Equal(real.Character.CurrentPower, simWarrior.CurrentPower);
+            Assert.Equal((hit, real.Character.CurrentHealth), (hit, simPlayer.CurrentHealth));
+            Assert.Equal((hit, real.Character.Ward), (hit, simPlayer.Ward));
+            Assert.Equal((hit, real.Character.CurrentPower), (hit, simPlayer.CurrentPower));
+            clock.Advance(TimeSpan.FromSeconds(1));
         }
     }
 
@@ -704,7 +729,7 @@ public class SimulatorParityShould
 
         var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
         sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0)));
-        sim.ApplyAuraStats(Data);
+        sim.ApplyAuraStats(Data, s_clockStart.UtcDateTime);
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);

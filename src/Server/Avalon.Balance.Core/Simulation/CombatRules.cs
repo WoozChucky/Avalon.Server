@@ -5,10 +5,17 @@ using Avalon.World.Public.Abilities;
 
 namespace Avalon.Balance.Core;
 
+/// <summary>What a hit or a tick cost its target (B-R6): what its ward absorbed, and the health it lost.</summary>
+public readonly record struct WardedLoss(uint Absorbed, uint Health)
+{
+    /// <summary>The whole loss, the ward's part included, as the fight's damage totals count it.</summary>
+    public uint Total => Absorbed + Health;
+}
+
 /// <summary>
 /// The server's hit, heal and speed rules, applied to simulated units. Every number comes from the World functions; only
-/// the bookkeeping CombatService does around them (who loses health) is here, and the parity test pins it against
-/// CombatService.
+/// the bookkeeping CombatService does around them (the ward first, then who loses health) is here, and the parity test
+/// pins it against CombatService.
 /// </summary>
 public static class CombatRules
 {
@@ -16,13 +23,71 @@ public static class CombatRules
     /// An ability's hit, as CombatService's: the ability's own base (OffenceMath.DirectBase, its rolls first), then evasion
     /// (none for an Unavoidable ability, #1164), crit, block, mitigation. The draw order is HitResolver's.
     /// </summary>
-    public static (uint Damage, HitResult Result) Damage(SimUnit attacker, SimUnit target, SimAbility ability,
-        CombatFormula formula, ICombatRandom rng)
+    public static HitDamage Damage(SimUnit attacker, SimUnit target, SimAbility ability, CombatFormula formula,
+        ICombatRandom rng)
     {
         AbilityMetadata m = ability.Metadata;
         DamageParts parts = OffenceMath.DirectBase(attacker.Attack, m, rng);
-        HitDamage hit = HitResolver.ResolveDamage(attacker.Attack, target.Defence, parts, formula, rng, IsUnavoidable(m));
-        return (hit.Total, hit.Result);
+        return HitResolver.ResolveDamage(attacker.Attack, target.Defence, parts, formula, rng, IsUnavoidable(m));
+    }
+
+    /// <summary>
+    /// A direct hit landing, as CombatService.ResolveHit (B-R6): on a target with a ward, the ward takes what the hit lets
+    /// it absorb (all of it with <see cref="SimUnit.WardTakesAll" />, else its share that is not blight) and its recharge
+    /// pauses; health loses the rest. A hit that kills empties the ward. Nothing lands on the dead.
+    /// </summary>
+    public static WardedLoss Land(SimUnit target, in HitDamage hit, DateTime now)
+    {
+        if (target.IsDead)
+            return default;
+
+        uint total = hit.Total;
+        uint absorbed = 0;
+        if (total > 0 && target.MaxWard > 0)
+        {
+            uint absorbable = target.WardTakesAll ? total : Math.Min(hit.Absorbable, total);
+            absorbed = target.AbsorbWithWard(absorbable, now);
+            target.WardDamaged(now);
+        }
+
+        return new WardedLoss(absorbed, LoseHealth(target, total - absorbed, now));
+    }
+
+    /// <summary>
+    /// An aura's damage tick landing, as CombatService.ApplyPeriodicDamage (B-R6): on a target with a ward, the ward takes
+    /// the tick only when HitResolver.WardAbsorbs allows its <paramref name="type" /> (never a bleed's or blight's, but
+    /// with <see cref="SimUnit.WardTakesAll" />), and any tick pauses its recharge; health loses the rest. A tick that kills
+    /// empties the ward.
+    /// </summary>
+    public static WardedLoss LandTick(SimUnit target, uint points, DamageType type, DateTime now)
+    {
+        if (target.IsDead)
+            return default;
+
+        uint absorbed = 0;
+        if (points > 0 && target.MaxWard > 0)
+        {
+            absorbed = HitResolver.WardAbsorbs(type, periodic: true, target.WardTakesAll)
+                ? target.AbsorbWithWard(points, now)
+                : 0u;
+            target.WardDamaged(now);
+        }
+
+        return new WardedLoss(absorbed, LoseHealth(target, points - absorbed, now));
+    }
+
+    /// <summary>What passed the ward, taken from health; death empties the ward, as CharacterEntity's at its death.</summary>
+    private static uint LoseHealth(SimUnit target, uint damage, DateTime now)
+    {
+        uint lost = target switch
+        {
+            SimPlayer player => HitPlayer(player, damage),
+            SimCreature creature => HitCreature(creature, damage),
+            _ => 0u,
+        };
+        if (target.IsDead)
+            target.EmptyWard(now);
+        return lost;
     }
 
     /// <summary>
