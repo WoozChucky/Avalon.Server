@@ -31,6 +31,8 @@ public class TradeWorldHooksShould
             await world.LeaveWorldAsync(a.Connection);
 
         Assert.Equal(TradeResult.Left, b.Closed().Single().Result);
+        // The trader who moved is told so; one who left the world has no window left to tell.
+        Assert.Equal(how == "transfer" ? [TradeResult.LeftInstance] : [], a.Closed().Select(p => p.Result));
         Assert.False(a.Character.Locks.Any);
         Assert.Null(w.Trades.TradeOf(b.Id));
     }

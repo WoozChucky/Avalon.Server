@@ -1781,6 +1781,7 @@ enum TradeResult {
    TradeResult_SaveFailed = 39;
    TradeResult_Error = 40;
    TradeResult_TargetNpcWindowOpen = 41;
+   TradeResult_LeftInstance = 42;
 }
 message TradeSideDto {
    uint64 Gold = 1;

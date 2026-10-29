@@ -270,7 +270,8 @@ public class TradeServiceShould
         { "b enters combat", TradeResult.EnteredCombat, TradeResult.EnteredCombat },
         { "a opens a shop", TradeResult.NpcWindowOpened, TradeResult.NpcWindowOpened },
         { "a leaves the world", TradeResult.Unknown, TradeResult.Left },
-        { "a changes instance", TradeResult.Left, TradeResult.Left },
+        { "a changes instance", TradeResult.LeftInstance, TradeResult.Left },
+        { "b changes instance", TradeResult.Left, TradeResult.LeftInstance },
     };
 
     [Theory]
@@ -317,6 +318,10 @@ public class TradeServiceShould
             case "a changes instance":
                 a.Character.InstanceId = Guid.NewGuid();
                 w.Trades.InstanceChanged(a.Connection);
+                break;
+            case "b changes instance":
+                b.Character.InstanceId = Guid.NewGuid();
+                w.Trades.InstanceChanged(b.Connection);
                 break;
         }
 
