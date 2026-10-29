@@ -153,13 +153,13 @@ public class AuraSimulationShould
 
     /// <summary>
     /// B-R7: a bleed's ticks take the type of the ability that placed it, as AuraSystem.Apply snapshots it. A bleed worth
-    /// 24 over 4 ticks (no armour, no scaling, no crit) deals 6 a tick from a physical Rend, and from a fire Rend 3 a tick
-    /// into a boar resisting half of all fire.
+    /// 24 over 4 ticks (no armour, no scaling, no crit) into a boar resisting half of all fire deals 6 a tick from a
+    /// physical Rend, which the fire resistance does not touch, and 3 a tick from a fire Rend.
     /// </summary>
     [Theory]
-    [InlineData(DamageType.Physical, 0f, 6u)]
-    [InlineData(DamageType.Fire, 50f, 3u)]
-    public void Mitigate_each_tick_by_its_source_abilitys_type(DamageType type, float fireResistance, uint perTick)
+    [InlineData(DamageType.Physical, 6u)]
+    [InlineData(DamageType.Fire, 3u)]
+    public void Mitigate_each_tick_by_its_source_abilitys_type(DamageType type, uint perTick)
     {
         AuraTemplate bleed = Bleed();
         bleed.PeriodicBase = 24f;
@@ -168,7 +168,7 @@ public class AuraSimulationShould
         {
             seed.CombatFormulas[0].IncreasedPhysicalAttackPerStrength = 0f;
             seed.CreatureBaseStats.ForEach(row => row.Armor = 0);
-            seed.CreatureTemplates.Single(t => t.Id.Value == 4).FireResistance = fireResistance;
+            seed.CreatureTemplates.Single(t => t.Id.Value == 4).FireResistance = 50f;
         }, rendType: type);
         (FightSimulator fight, SimCreature boar) = Fight(data);
 

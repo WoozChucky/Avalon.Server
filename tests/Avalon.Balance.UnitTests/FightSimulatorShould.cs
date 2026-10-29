@@ -2,6 +2,7 @@ using System.Text.Json;
 using Avalon.Balance.Core;
 using Avalon.Combat;
 using Avalon.Common;
+using Avalon.Domain.World;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;
@@ -150,7 +151,7 @@ public class FightSimulatorShould
         wizard.CurrentPower = 10;
         SimCreature dummy = Dummy();
         Hold(dummy);
-        FightSimulator fight = Fight(wizard, Rotation(210), dummy);   // Arcane Bolt: instant and free
+        FightSimulator fight = Fight(wizard, Rotation(210), dummy);   // Spark Bolt: instant and free
 
         RunFor(fight, 1 - Tick / 2);    // sixty ticks: one second's whole points, the fraction carried
         Assert.Equal(10u + (uint)Math.Floor(rate + 1e-3), wizard.CurrentPower);
@@ -249,19 +250,29 @@ public class FightSimulatorShould
 
     /// <summary>
     /// B-R8, in the melee model: a cone or a circle takes the nearest living creatures up to its MaxTargets (Heavy Strike's
-    /// 1), a cone also up to the scenario's coneHits; a projectile the first, or every one when it pierces.
+    /// 1), a cone also up to the scenario's coneHits; a projectile the first, or when it pierces every one up to its
+    /// MaxTargets. A row's maxTargets replaces the seeded one (null keeps it), on the ability's own copy of its row.
     /// </summary>
     [Theory]
-    [InlineData(319u, null, 1)]   // Heavy Strike: a cone, MaxTargets 1
-    [InlineData(200u, null, 3)]   // Cleave: a cone, no cap
-    [InlineData(200u, 2, 2)]      // Cleave capped by coneHits
-    [InlineData(221u, null, 3)]   // Piercing Arrow
-    [InlineData(202u, null, 1)]   // Hurled Axe
-    public void Reach_as_many_creatures_as_the_shape_and_its_max_targets_allow(uint ability, int? coneHits, int damaged)
+    [InlineData(319u, null, null, 1)]   // Heavy Strike: a cone, MaxTargets 1
+    [InlineData(200u, null, null, 3)]   // Cleave: a cone, no cap
+    [InlineData(200u, null, 2, 2)]      // Cleave capped by coneHits
+    [InlineData(200u, 1, 2, 1)]         // Cleave capped by both: the lower, its MaxTargets
+    [InlineData(201u, null, null, 3)]   // Ground Slam: a circle, no cap
+    [InlineData(201u, 2, null, 2)]      // Ground Slam capped by its MaxTargets
+    [InlineData(221u, null, null, 3)]   // Piercing Arrow
+    [InlineData(221u, 2, null, 2)]      // Piercing Arrow ending on its MaxTargets-th
+    [InlineData(202u, null, null, 1)]   // Hurled Axe
+    public void Reach_as_many_creatures_as_the_shape_and_its_max_targets_allow(uint ability, int? maxTargets, int? coneHits,
+        int damaged)
     {
         SimCreature[] pack = [Dummy(4, 0), Dummy(4, 1), Dummy(4, 2)];
         foreach (SimCreature c in pack) Hold(c);
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []).Holding(Data, ability);
+        AbilityTemplate row = TestData.Seed().AbilityTemplates.Single(a => a.Id.Value == ability);
+        row.MaxTargets = maxTargets ?? row.MaxTargets;
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        warrior.Abilities.RemoveAll(a => a.Id == ability);   // Heavy Strike is its starter
+        warrior.Abilities.Add(new SimAbility(row));
         var fight = new FightSimulator(Data.Combat.Formula, warrior, pack, Rotation(ability), CombatRandom.Steady,
             coneHits);
 
@@ -278,7 +289,7 @@ public class FightSimulatorShould
         alpha.Abilities.First(a => a.Id == 310).CooldownLeft = 0f;   // Howling Roar, 1 s wind-up: the only thing it may choose
         var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
         wizard.Health = wizard.CurrentHealth = 1_000_000;
-        SimAbility bolt = wizard.Ability(210);   // Arcane Bolt: an instant projectile
+        SimAbility bolt = wizard.Ability(210);   // Spark Bolt: an instant projectile
         bolt.CooldownLeft = 1_000f;
         FightSimulator fight = Fight(wizard, Rotation(210), alpha);
 

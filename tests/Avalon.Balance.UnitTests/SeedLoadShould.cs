@@ -14,28 +14,23 @@ public class SeedLoadShould
 {
     /// <summary>
     /// A level-1 Warrior bare and in the checked-in forest profile (B-R4: each piece a fixed copy at the midpoint of its
-    /// ranges): the class row sets its mana, Strength its physical attack, the gear its armour and its weapon.
+    /// ranges): the class row sets its mana, Strength its physical attack, Stamina its health, and the gear its armour and
+    /// its weapon, bare the unarmed one. Forest's physical attack is (23 + 2) x 3.5, the Barkplate Legguards' Strength
+    /// implicit 2 at its midpoint; its weapon's attack time and least damage are the midpoints of item 7's ranges.
     /// </summary>
     [Theory]
-    [InlineData("none", 80.5f)]     // 23 x 3.5
-    [InlineData("forest", 87.5f)]   // (23 + 2) x 3.5: the Barkplate Legguards' Strength implicit, 2 at its midpoint
-    public void Reproduce_a_level_one_warrior(string gear, float physicalAttack)
+    [InlineData("none", 80.5f, 240u, 2u, 816u, 3u)]      // 23 x 3.5; 130 + 22 x 5; 23 x 0.1, truncated
+    [InlineData("forest", 87.5f, 258u, 59u, 700u, 6u)]
+    public void Reproduce_a_level_one_warrior(string gear, float physicalAttack, uint maxHealth, uint armor, uint attackTimeMs,
+        uint weaponMin)
     {
         BalanceData data = TestData.Seeded;
         DerivedCharacterStats warrior = data.CharacterStats(CharacterClass.Warrior, 1, TestData.Gear(gear, CharacterClass.Warrior));
 
         Assert.Equal(180u, warrior.MaxPower);      // 100 + 20 x 4
         Assert.Equal(physicalAttack, warrior.Offence.Increased(OffenceStat.PhysicalAttack));
-        if (gear == "none")
-        {
-            Assert.Equal(240u, warrior.MaxHealth);     // 130 + 22 x 5
-            Assert.Equal(816u, warrior.Weapon.AttackTimeMs);
-            return;
-        }
-
-        Assert.True(warrior.Armor > 2, $"armour {warrior.Armor}");   // none's: 23 x 0.1, truncated
-        Assert.Equal(TestData.MidpointOf(7, ItemBaseStat.AttackTime), (int)warrior.Weapon.AttackTimeMs);
-        Assert.Equal(TestData.MidpointOf(7, ItemBaseStat.DamageMin), (int)warrior.Weapon.Min1);
+        Assert.Equal((maxHealth, armor, attackTimeMs, weaponMin),
+            (warrior.MaxHealth, warrior.Armor, warrior.Weapon.AttackTimeMs, warrior.Weapon.Min1));
     }
 
     [Fact]
