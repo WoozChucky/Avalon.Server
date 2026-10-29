@@ -78,6 +78,8 @@ public class OverridesShould
     [InlineData("""{ "Item.1.AllowedClasses": 1 }""", "cannot be overridden")]
     [InlineData("""{ "CombatFormula.1.ArmorBase": 1 }""", "CombatFormula has one row and takes no key")]
     [InlineData("""{ "Ability": 1 }""", "is not Table.key.Column")]
+    [InlineData("""{ "ItemModifierStat.16.0.Stat": 9999 }""", "9999 is no StatType")]
+    [InlineData("""{ "ItemTemplateBaseStat.7.4.Min": 1 }""", "no ItemTemplateBaseStat row '7.4'")]
     public void Stop_naming_the_override(string json, string message)
     {
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => Apply(json));
@@ -117,6 +119,8 @@ public class OverridesShould
     [InlineData("""{ "Ability.200.Reach": -1 }""", "ability 200 'Cleave'")]
     [InlineData("""{ "CombatFormula.ArmorCap": 2 }""", "ArmorCap")]
     [InlineData("""{ "ItemTemplateBaseStat.7.DamageMin.Min": 999 }""", "item 7 '")]
+    [InlineData("""{ "Item.112.Rarity": "Magic" }""", "item 112 'Hearthstone Ring': a Magic template links no modifier")]
+    [InlineData("""{ "ItemModifierStat.16.0.Min": 999 }""", "modifier 16 line 0: its range 999-")]
     public void Stop_on_an_override_the_server_would_refuse(string json, string message)
     {
         (SeedTables tables, _) = Apply(json);

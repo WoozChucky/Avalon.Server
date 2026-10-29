@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
@@ -132,12 +133,34 @@ public sealed class BalanceData
             modifier.Stats = [.. lines[modifier.Id].OrderBy(l => l.Index)];
         }
 
+        // The ranges a copy rolls within (simulator side: no world rule holds a line's range, but the world's roll throws on
+        // one that runs backwards), so an override cannot make a line the world could not roll.
+        List<string> badLines = [.. tables.ItemModifierStats
+            .OrderBy(l => l.ModifierId).ThenBy(l => l.Index)
+            .Select(l => LineProblem(l) is { } problem ? $"modifier {l.ModifierId} line {l.Index}: {problem}" : null)
+            .OfType<string>()];
+        if (badLines.Count > 0)
+            throw new InvalidDataException("The item modifier catalog refused: " + string.Join("; ", badLines));
+
         var refusals = new RefusalLog();
         var catalog = new ItemModifierCatalog(tables.ItemModifiers, tables.ItemTemplateModifiers, refusals);
         return refusals.Errors.Count == 0
             ? catalog
             : throw new InvalidDataException("The item modifier catalog refused: " + string.Join("; ", refusals.Errors));
     }
+
+    /// <summary>
+    /// Why a modifier line's ranges cannot be rolled, or null when they can: each runs from its minimum up to its maximum,
+    /// and the second range is set whole or not at all.
+    /// </summary>
+    private static string? LineProblem(ItemModifierStat line) => line switch
+    {
+        { Min: var min, Max: var max } when min > max => $"its range {min}-{max} runs past its maximum",
+        { Min2: null, Max2: not null } or { Min2: not null, Max2: null } =>
+            $"its second range {line.Min2?.ToString(CultureInfo.InvariantCulture) ?? "null"}-{line.Max2?.ToString(CultureInfo.InvariantCulture) ?? "null"} is set at one end only",
+        { Min2: { } min2, Max2: { } max2 } when min2 > max2 => $"its second range {min2}-{max2} runs past its maximum",
+        _ => null,
+    };
 
     /// <summary>
     /// Each item template given its base-stat rows in stat order, then held to the rules the world's items area holds it

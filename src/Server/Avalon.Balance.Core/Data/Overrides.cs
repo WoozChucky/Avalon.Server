@@ -42,7 +42,7 @@ public static class Overrides
             (t, k) => t.AbilityTemplates.FirstOrDefault(a => Text(a.Id.Value) == k),
             t => t.AbilityTemplates.Select(a => (Text(a.Id.Value), (object)a))),
         ["ClassLevelStat"] = new(typeof(ClassLevelStat), ["Class", "Level"],
-            (t, k) => k.Split('.') is [var c, var l] && Enum.TryParse(c, false, out CharacterClass cls)
+            (t, k) => k.Split('.') is [var c, var l] && Named(c, out CharacterClass cls)
                 ? t.ClassLevelStats.FirstOrDefault(r => r.Class == cls && Text(r.Level) == l)
                 : null,
             t => t.ClassLevelStats.Select(r => ($"{r.Class}.{Text(r.Level)}", (object)r))),
@@ -52,7 +52,7 @@ public static class Overrides
             (t, k) => t.CreatureBaseStats.FirstOrDefault(r => Text(r.Level) == k),
             t => t.CreatureBaseStats.Select(r => (Text(r.Level), (object)r))),
         ["CreatureRarityModifiers"] = new(typeof(CreatureRarityModifier), ["Rarity"],
-            (t, k) => Enum.TryParse(k, false, out CreatureRarity r) ? t.CreatureRarityModifiers.FirstOrDefault(m => m.Rarity == r) : null,
+            (t, k) => Named(k, out CreatureRarity r) ? t.CreatureRarityModifiers.FirstOrDefault(m => m.Rarity == r) : null,
             t => t.CreatureRarityModifiers.Select(m => (m.Rarity.ToString(), (object)m))),
         ["CreatureTemplate"] = new(typeof(CreatureTemplate), ["Id"],
             (t, k) => t.CreatureTemplates.FirstOrDefault(c => Text(c.Id.Value) == k),
@@ -66,13 +66,13 @@ public static class Overrides
             (t, k) => t.AuraTemplates.FirstOrDefault(a => Text(a.Id.Value) == k),
             t => t.AuraTemplates.Select(a => (Text(a.Id.Value), (object)a))),
         ["AuraStatModifier"] = new(typeof(AuraStatModifier), ["AuraId", "Stat"],
-            (t, k) => k.Split('.') is [var aura, var s] && Enum.TryParse(s, false, out AuraStat stat)
+            (t, k) => k.Split('.') is [var aura, var s] && Named(s, out AuraStat stat)
                 ? t.AuraStatModifiers.FirstOrDefault(m => Text(m.AuraId.Value) == aura && m.Stat == stat)
                 : null,
             t => t.AuraStatModifiers.Select(m => ($"{Text(m.AuraId.Value)}.{m.Stat}", (object)m))),
         // A base's base-stat ranges (#1179), keyed by template and stat, as the table keys them.
         ["ItemTemplateBaseStat"] = new(typeof(ItemTemplateBaseStat), ["TemplateId", "Stat"],
-            (t, k) => k.Split('.') is [var template, var s] && Enum.TryParse(s, false, out ItemBaseStat stat)
+            (t, k) => k.Split('.') is [var template, var s] && Named(s, out ItemBaseStat stat)
                 ? t.ItemTemplateBaseStats.FirstOrDefault(r => Text(r.TemplateId.Value) == template && r.Stat == stat)
                 : null,
             t => t.ItemTemplateBaseStats.Select(r => ($"{Text(r.TemplateId.Value)}.{r.Stat}", (object)r))),
@@ -165,9 +165,12 @@ public static class Overrides
         {
             if (target.IsEnum)
             {
-                return json.ValueKind == JsonValueKind.String
+                object value = json.ValueKind == JsonValueKind.String
                     ? Enum.Parse(target, json.GetString()!, ignoreCase: false)
                     : Enum.ToObject(target, json.GetInt64());
+                return Defined(target, value)
+                    ? value
+                    : throw new InvalidDataException($"Override '{key}': {json.GetRawText()} is no {target.Name}");
             }
 
             if (target == typeof(bool)) return json.GetBoolean();
@@ -206,6 +209,25 @@ public static class Overrides
         return target.IsEnum || target == typeof(bool) || target == typeof(string) || target == typeof(float)
             || target == typeof(double) || target == typeof(byte) || target == typeof(short) || target == typeof(ushort)
             || target == typeof(int) || target == typeof(uint) || target == typeof(long) || target == typeof(ulong);
+    }
+
+    /// <summary>A key's enum part, by its exact name only: a number, even one that names a value, is no key.</summary>
+    private static bool Named<TEnum>(string text, out TEnum value) where TEnum : struct, Enum =>
+        Enum.TryParse(text, ignoreCase: false, out value) && string.Equals(value.ToString(), text, StringComparison.Ordinal);
+
+    /// <summary>Whether an enum value is one the type defines: a named value, or for a flags type a set of named bits.</summary>
+    private static bool Defined(Type type, object value)
+    {
+        if (Enum.IsDefined(type, value))
+            return true;
+        if (!type.IsDefined(typeof(FlagsAttribute), inherit: false))
+            return false;
+
+        ulong bits = System.Convert.ToUInt64(value, CultureInfo.InvariantCulture);
+        ulong known = 0;
+        foreach (object named in Enum.GetValues(type))
+            known |= System.Convert.ToUInt64(named, CultureInfo.InvariantCulture);
+        return (bits & ~known) == 0;
     }
 
     private static string Text(ulong value) => value.ToString(CultureInfo.InvariantCulture);
