@@ -443,7 +443,7 @@ public class FightSimulatorShould
         RunFor(fight, 1);   // a 0.5 s cast, then a 2 s cooldown: one Frostbolt
 
         Assert.Single(fight.Result().Casts, c => c.AbilityId == 320);
-        Assert.True(pack[0].CurrentHealth < pack[0].Health);
+        Assert.True(burstHit < pack[0].Health - pack[0].CurrentHealth);   // the burst is a share of the first hit
         Assert.True(burstHit > 0);
         foreach (SimCreature burst in pack[1..])
         {
