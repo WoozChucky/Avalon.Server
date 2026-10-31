@@ -56,7 +56,7 @@ Client → server. Sent on every ability click (basic attack included). Fire-and
 
 ### `CTargetUnitPacket` (`CMSG_TARGET_UNIT = 0x2102`, encrypted, TCP)
 
-Client → server. Sent when the player changes their current target. The server stores `TargetGuid` on `IWorldConnection.CurrentTargetGuid` and uses it to decide which encounter's threat list (if any) to broadcast back via `SThreatListPacket`.
+Client → server. Sent when the player changes their current target. The server stores `TargetGuid` on `IWorldConnection.CurrentTargetGuid` and uses it to decide which encounter's threat list (if any) to broadcast back via `SThreatListPacket`. The target must be a unit the client was told of (an `SMSG_WORLD_STATE_ADD` it has had no `SMSG_WORLD_STATE_REMOVE` for since), or itself: any other guid clears the stored target, as `null` does, and the earlier target's list stops (#1269). There is no reply.
 
 | Field | Proto # | Type | Notes |
 |---|---|---|---|
@@ -99,7 +99,7 @@ Server → all clients in the instance. Triggers revive animation, snaps positio
 
 ### `SThreatListPacket` (`SMSG_THREAT_LIST = 0x3109`, encrypted, TCP)
 
-Server → single client. Sent only to the connection whose `CurrentTargetGuid` (set via `CTargetUnitPacket`) is the hostile creature in question, AND only when the top-attacker's threat share moved by more than ~5 %, AND throttled to ~250 ms per (connection, target) pair.
+Server → single client. Sent only to the connection whose `CurrentTargetGuid` (set via `CTargetUnitPacket`) is the hostile creature in question, AND only while that creature is in the client's view (#1269), AND only when the top-attacker's threat share moved by more than ~5 %, AND throttled to ~250 ms per (connection, target) pair. A target that leaves the view keeps the stored selection, but its list stops until it is back in view, when the first list is sent at once, as for a new target.
 
 | Field | Proto # | Type | Notes |
 |---|---|---|---|
@@ -251,6 +251,8 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 ## 6. Threat HUD
 
 - Send `CTargetUnitPacket` on target acquisition / change / clear. Without it, the server will not send `SThreatListPacket` for any target.
+- Target only a unit the server has told the client of. A guid the client does not hold clears the server's stored target, so no list comes for it.
+- Lists stop while the target is out of the client's view (after its `SMSG_WORLD_STATE_REMOVE`) and resume when it is back in view; the last list received is stale meanwhile.
 - Subscribe to `SThreatListPacket`. Each packet is a complete snapshot of the threat list for the targeted hostile — replace, do not merge.
 - Render `ThreatPercent` per attacker. Highlight the local player's row when they are top of the list (i.e. they have aggro on this target).
 - The server already throttles broadcasts to ~250 ms; matching the UI redraw cadence to ~250 ms is sufficient — no client-side rate-limiting needed.

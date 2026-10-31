@@ -9,7 +9,8 @@ using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
-using NSubstitute;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -153,24 +154,64 @@ public class InterestReplicationShould
         Assert.Empty(Sequence(farther));
     }
 
-    [Fact]
-    public void Still_send_the_threat_list_for_a_target_out_of_view()
+    /// <summary>#1269: a target is stored only when the client holds it; anything else clears the earlier one.</summary>
+    [Theory]
+    [InlineData("near", true)]
+    [InlineData("far", false)]       // 100 m: never added
+    [InlineData("self", true)]
+    [InlineData("unknown", false)]   // no unit has the guid
+    [InlineData("none", false)]      // null clears, as before
+    public void Accept_a_target_only_when_its_client_holds_it(string target, bool kept)
     {
         using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient watcher = JoinAt(instance, 593_191, Vector3.zero);
+        MapInstanceClient watcher = JoinAt(instance, 593_195, Vector3.zero);
+        Creature near = AddCreature(instance, 593_995, new Vector3(10f, 0f, 0f));
+        Creature far = AddCreature(instance, 593_996, new Vector3(0f, 0f, 100f));
+        Ticks(instance, 2);
+        var handler = new TargetUnitHandler(NullLogger<TargetUnitHandler>.Instance);
+        handler.Execute(watcher.Connection, new CTargetUnitPacket { TargetGuid = near.Guid.RawValue });
+
+        ulong? asked = target switch
+        {
+            "near" => near.Guid.RawValue,
+            "far" => far.Guid.RawValue,
+            "self" => watcher.Character.Guid.RawValue,
+            "unknown" => new ObjectGuid(ObjectType.Creature, 593_997).RawValue,
+            _ => null,
+        };
+        handler.Execute(watcher.Connection, new CTargetUnitPacket { TargetGuid = asked });
+
+        Assert.Equal(kept ? asked : null, watcher.Connection.CurrentTargetGuid);
+    }
+
+    /// <summary>#1269: the mirror stops while its target is out of view, though the throttle has passed, and resumes.</summary>
+    [Fact]
+    public void Mirror_the_threat_list_only_while_its_target_is_in_view()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero));
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), time: clock);
+        MapInstanceClient watcher = JoinAt(instance, 593_196, Vector3.zero);
         Creature creature = AddCreature(instance, 593_991, new Vector3(1f, 0f, 0f));
         creature.Script = new MapInstanceAbilityCastShould.WoundScript(creature);
         instance.CombatService.ApplyDamage(watcher.Character, creature, 10);
         Ticks(instance, 2);
-        Assert.Contains(watcher.Added(), s => s.Guid == creature.Guid.RawValue);
+
+        watcher.Connection.CurrentTargetGuid = creature.Guid.RawValue;
+        Ticks(instance, 1);
+        Assert.NotEmpty(watcher.Read<SThreatListPacket>(NetworkPacketType.SMSG_THREAT_LIST));
+
         watcher.Character.Position = new Vector3(500f, 0f, 0f);
-        Ticks(instance, 5);   // removed on the broadcast, tick 7 (#981)
+        Ticks(instance, 6);   // removed on the broadcast (#981)
         Assert.Contains(creature.Guid.RawValue, watcher.Removed());
 
-        // Targeted only now, from out of view: the first threat list for a new target is always sent.
-        watcher.Connection.CurrentTargetGuid.Returns(creature.Guid.RawValue);
+        watcher.Sent.Clear();
+        clock.Advance(TimeSpan.FromMilliseconds(300));   // past the 250 ms throttle
         Ticks(instance, 1);
+        Assert.Empty(watcher.Read<SThreatListPacket>(NetworkPacketType.SMSG_THREAT_LIST));
+        Assert.Equal(creature.Guid.RawValue, watcher.Connection.CurrentTargetGuid);   // the client's choice stands
 
+        watcher.Character.Position = Vector3.zero;
+        Ticks(instance, 6);   // back in view on the next broadcast
         Assert.NotEmpty(watcher.Read<SThreatListPacket>(NetworkPacketType.SMSG_THREAT_LIST));
     }
 

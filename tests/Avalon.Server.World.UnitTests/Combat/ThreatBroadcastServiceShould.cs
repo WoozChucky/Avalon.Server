@@ -1,10 +1,13 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Combat;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using NSubstitute;
 
@@ -20,6 +23,7 @@ public class ThreatBroadcastServiceShould
         SeedEncounter(env.combat, attacker, env.hostile, threat: 50f);
 
         IWorldConnection conn = StubConnection(currentTarget: env.hostileGuid.RawValue);
+        Sees(conn, env.hostile);
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 
@@ -35,6 +39,7 @@ public class ThreatBroadcastServiceShould
         SeedEncounter(env.combat, attacker, env.hostile, threat: 50f);
 
         IWorldConnection conn = StubConnection(currentTarget: env.hostileGuid.RawValue);
+        Sees(conn, env.hostile);
         var creatures = new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile };
 
         env.svc.Tick(new[] { conn }, creatures, env.combat);
@@ -54,6 +59,7 @@ public class ThreatBroadcastServiceShould
         SeedEncounter(env.combat, attackerB, env.hostile, threat: 1f);   // A is the top by ~99 %
 
         IWorldConnection conn = StubConnection(currentTarget: env.hostileGuid.RawValue);
+        Sees(conn, env.hostile);
         var creatures = new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile };
 
         env.svc.Tick(new[] { conn }, creatures, env.combat);   // baseline — first send
@@ -75,6 +81,7 @@ public class ThreatBroadcastServiceShould
         SeedEncounter(env.combat, attacker, env.hostile, threat: 50f);
 
         IWorldConnection conn = StubConnection(currentTarget: env.hostileGuid.RawValue);
+        Sees(conn, env.hostile);
         var creatures = new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile };
 
         env.svc.Tick(new[] { conn }, creatures, env.combat);
@@ -92,6 +99,7 @@ public class ThreatBroadcastServiceShould
         SeedEncounter(env.combat, attacker, env.hostile, threat: 50f);
 
         IWorldConnection conn = StubConnection(currentTarget: null);
+        Sees(conn, env.hostile);
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 
@@ -105,6 +113,7 @@ public class ThreatBroadcastServiceShould
         // Note: creatures dict is empty — the creature has despawned but the client still
         // holds a stale target guid. Service must skip cleanly and clear its internal state.
         IWorldConnection conn = StubConnection(currentTarget: env.hostileGuid.RawValue);
+        Sees(conn, env.hostile);
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature>(), env.combat);
 
@@ -118,6 +127,7 @@ public class ThreatBroadcastServiceShould
         TestEnv env = BuildEnvironment();
 
         IWorldConnection conn = StubConnection(currentTarget: env.hostileGuid.RawValue);
+        Sees(conn, env.hostile);
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 
@@ -132,7 +142,8 @@ public class ThreatBroadcastServiceShould
         SeedEncounter(env.combat, attacker, env.hostile, threat: 50f);
 
         IWorldConnection conn = StubConnection(currentTarget: env.hostileGuid.RawValue);
-        conn.Character!.IsDead.Returns(true);
+        Sees(conn, env.hostile);
+        ((CharacterEntity)conn.Character!).IsDead = true;
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 
@@ -154,6 +165,7 @@ public class ThreatBroadcastServiceShould
         SeedEncounter(env.combat, attacker, hostile2, threat: 70f);
 
         IWorldConnection conn = StubConnection(currentTarget: env.hostileGuid.RawValue);
+        Sees(conn, env.hostile, hostile2);
         var creatures = new Dictionary<ObjectGuid, ICreature>
         {
             [env.hostileGuid] = env.hostile,
@@ -228,11 +240,18 @@ public class ThreatBroadcastServiceShould
     private static IWorldConnection StubConnection(ulong? currentTarget)
     {
         IWorldConnection conn = Substitute.For<IWorldConnection>();
-        ICharacter character = Substitute.For<ICharacter>();
-        character.IsDead.Returns(false);
-        conn.Character.Returns(character);
+        conn.Character.Returns(TestCharacters.New(1_269));
         conn.CurrentTargetGuid.Returns(currentTarget);
         return conn;
+    }
+
+    /// <summary>Decides the view of <paramref name="conn" />'s character with <paramref name="creatures" /> beside it, so they are in it (#1269).</summary>
+    private static void Sees(IWorldConnection conn, params ICreature[] creatures)
+    {
+        var entity = (CharacterEntity)conn.Character!;
+        entity.CharacterGameState.Update(entity.Guid, entity.Position, new InterestRange(50f, 10f),
+            creatures.ToDictionary(c => c.Guid), new Dictionary<ObjectGuid, ICharacter>(), [],
+            new Dictionary<ObjectGuid, GameEntityFields>());
     }
 
 }

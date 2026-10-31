@@ -4,8 +4,11 @@ using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Testing;
 using NSubstitute;
 
@@ -42,6 +45,9 @@ public class CombatTickAllocationShould
         var connection = new QuietConnection(player) { CurrentTargetGuid = creature.Guid.RawValue };
         var connections = new Dictionary<ObjectGuid, IWorldConnection> { [player.Guid] = connection };
         var creatures = new Dictionary<ObjectGuid, ICreature> { [creature.Guid] = creature };
+        // The threat list is mirrored only for a target in the player's view (#1269).
+        player.CharacterGameState.Update(player.Guid, player.Position, new InterestRange(50f, 10f), creatures,
+            new Dictionary<ObjectGuid, ICharacter>(), [], new Dictionary<ObjectGuid, GameEntityFields>());
 
         // Warm up: the first broadcast sends; the clock stands still, so every later one is throttled.
         for (int i = 0; i < 2; i++)

@@ -17,7 +17,7 @@ namespace Avalon.World.Parties;
 /// <remarks>
 /// <para>
 /// <b>Who is listed</b> is the replication state, never a distance of its own: a member is in a viewer's list exactly
-/// while the viewer's <see cref="CharacterCharacterGameState.Knows" /> says its client was not told of it, as of the
+/// while the viewer's <see cref="CharacterCharacterGameState.Knows(Avalon.Common.ObjectGuid)" /> says its client was not told of it, as of the
 /// view's last decision. The flush runs after the world update, so a member leaves the list on the tick its world-state
 /// add is sent and joins it on the tick its remove is sent; the remove makes the viewer due at once
 /// (<see cref="LeftView" />), so the client never goes a tick without either. A viewer whose view is owed a decision

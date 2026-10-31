@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Serialization;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -19,9 +20,14 @@ namespace Avalon.World.Combat;
 /// always sends the first packet for a new (connection, target) pair regardless of
 /// throttling so the client never starts with stale UI.
 ///
+/// A list is mirrored only while its target is in the viewer's view, as of the last decision of
+/// that view (<see cref="CharacterCharacterGameState.Knows(ulong)"/>, #1269): a target that has left
+/// it keeps the client's selection but gets no list until it is back, when the first is sent as for
+/// a new pair.
+///
 /// State is keyed by <see cref="IWorldConnection"/>. Entries are dropped as soon as the
-/// player loses their target, the target leaves combat, or the target is no longer present
-/// on the instance — preventing leaks on disconnect-via-no-target paths.
+/// player loses their target, the target leaves combat or the viewer's view, or the target is no
+/// longer present on the instance — preventing leaks on disconnect-via-no-target paths.
 /// </summary>
 public sealed class ThreatBroadcastService
 {
@@ -67,13 +73,20 @@ public sealed class ThreatBroadcastService
     private void TickConnection(IWorldConnection conn, IReadOnlyDictionary<ObjectGuid, ICreature> creatures,
         ICombatService combatService, DateTime now)
     {
-        if (conn.Character is null || conn.Character.IsDead)
+        if (conn.Character is not CharacterEntity { IsDead: false } viewer)
         {
             _state.Remove(conn);
             return;
         }
 
         if (conn.CurrentTargetGuid is not { } rawTargetGuid)
+        {
+            _state.Remove(conn);
+            return;
+        }
+
+        // Only a target the client holds (#1269), asked by its raw guid, before any ObjectGuid is built for it.
+        if (!viewer.CharacterGameState.Knows(rawTargetGuid))
         {
             _state.Remove(conn);
             return;

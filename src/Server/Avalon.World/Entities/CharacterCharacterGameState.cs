@@ -296,11 +296,17 @@ public class CharacterCharacterGameState
     /// decision of its view (auras, a doodad's cast bar): what it holds, which since #981 can be up to a broadcast period
     /// behind what is in range. One lookup, in the tracker of the guid's kind.
     /// </summary>
-    public bool Knows(ObjectGuid guid) => guid.Type switch
+    public bool Knows(ObjectGuid guid) => Knows(guid.RawValue);
+
+    /// <summary>
+    /// <see cref="Knows(ObjectGuid)" /> for a raw guid, as a client sends it (a target, #1269), so asking builds no
+    /// <see cref="ObjectGuid" />.
+    /// </summary>
+    public bool Knows(ulong rawGuid) => ObjectGuid.TypeOf(rawGuid) switch
     {
-        ObjectType.Doodad => _doodadTrackingSystem.IsTracked(guid),
-        ObjectType.Creature => _creatureTrackingSystem.IsTracked(guid),
-        _ => _characterTrackingSystem.IsTracked(guid),
+        ObjectType.Doodad => _doodadTrackingSystem.IsTracked(rawGuid),
+        ObjectType.Creature => _creatureTrackingSystem.IsTracked(rawGuid),
+        _ => _characterTrackingSystem.IsTracked(rawGuid),
     };
 
     /// <summary>

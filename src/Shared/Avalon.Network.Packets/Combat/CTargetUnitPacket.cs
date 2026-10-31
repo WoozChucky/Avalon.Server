@@ -10,6 +10,8 @@ namespace Avalon.Network.Packets.Combat;
 /// Client→Server: signals the player's current target selection (or clears it when null).
 /// The world server stores this on <c>IWorldConnection.CurrentTargetGuid</c> and uses it to
 /// determine which encounter's threat list to broadcast back via <c>SThreatListPacket</c>.
+/// The target must be a unit the client was told of and not told is gone: any other guid clears
+/// the stored target, as null does (#1269). No reply is sent.
 /// </summary>
 [ProtoContract]
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_TARGET_UNIT)]

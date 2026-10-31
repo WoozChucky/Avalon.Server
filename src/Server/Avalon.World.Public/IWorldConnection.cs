@@ -147,9 +147,10 @@ public interface IWorldConnection : IConnection
 
     /// <summary>
     ///     Raw <c>ObjectGuid</c> of the unit the player is currently targeting, or <c>null</c>
-    ///     when no target is selected. Updated by <c>CMSG_TARGET_UNIT</c>; read by
-    ///     <c>ThreatBroadcastService</c> to decide which encounter's threat list to mirror back
-    ///     to this client via <c>SThreatListPacket</c>.
+    ///     when no target is selected. Updated by <c>CMSG_TARGET_UNIT</c>, which stores only a unit
+    ///     the client holds and clears it otherwise (#1269); read by <c>ThreatBroadcastService</c>
+    ///     to decide which encounter's threat list to mirror back to this client via
+    ///     <c>SThreatListPacket</c>, while that unit is in the client's view.
     /// </summary>
     ulong? CurrentTargetGuid { get; set; }
 
