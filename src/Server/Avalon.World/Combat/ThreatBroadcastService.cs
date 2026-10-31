@@ -35,6 +35,10 @@ public sealed class ThreatBroadcastService
     private readonly TimeProvider _time;
     private readonly Dictionary<IWorldConnection, BroadcastState> _state = new();
 
+    // The key a selected creature is looked up by, rewritten for each lookup: ObjectGuid is a class, and one built per
+    // connection per tick was an allocation every tick for a target that gets no list. Tick thread only, never stored.
+    private readonly ObjectGuid _creatureKey = new();
+
     /// <param name="time">The instance's clock, the one the rest of the world times by (#614).</param>
     public ThreatBroadcastService(CombatConfig config, TimeProvider? time = null)
     {
@@ -85,24 +89,25 @@ public sealed class ThreatBroadcastService
             return;
         }
 
-        // Only a target the client holds (#1269), asked by its raw guid, before any ObjectGuid is built for it.
+        // Threat lists are only meaningful for hostile creatures. Player-on-player threat
+        // is out of scope for V1 and creatures are the only ObjectType that can be a hostile.
+        // Asked of the raw guid, as the view is below: no ObjectGuid is built for a target (#1269).
+        if (ObjectGuid.TypeOf(rawTargetGuid) != ObjectType.Creature)
+        {
+            _state.Remove(conn);
+            return;
+        }
+
+        // Only a target the client holds (#1269).
         if (!viewer.CharacterGameState.Knows(rawTargetGuid))
         {
             _state.Remove(conn);
             return;
         }
 
-        // ObjectGuid is a class: reuse the guid of the target this connection was last sent about
-        // while it is still the one selected, so a steady tick allocates no key.
-        ObjectGuid targetGuid = _state.TryGetValue(conn, out BroadcastState last)
-                                && last.Target.Guid.RawValue == rawTargetGuid
-            ? last.Target.Guid
-            : new ObjectGuid(rawTargetGuid);
-
-        // Threat lists are only meaningful for hostile creatures. Player-on-player threat
-        // is out of scope for V1 and creatures are the only ObjectType that can be a hostile.
-        if (targetGuid.Type != ObjectType.Creature ||
-            !creatures.TryGetValue(targetGuid, out ICreature? creature))
+        // The view holds this guid, so it is a creature's, whose id fits the key; the check keeps any other out.
+        _creatureKey.Set(ObjectType.Creature, (uint)rawTargetGuid);
+        if (_creatureKey.RawValue != rawTargetGuid || !creatures.TryGetValue(_creatureKey, out ICreature? creature))
         {
             _state.Remove(conn);
             return;
@@ -153,7 +158,7 @@ public sealed class ThreatBroadcastService
             };
         }
 
-        conn.Send(SThreatListPacket.Create(targetGuid, entries, PacketEncoder.Shared));
+        conn.Send(SThreatListPacket.Create(creature.Guid, entries, PacketEncoder.Shared));
         _state[conn] = new BroadcastState(creature, now, topPercent);
     }
 
