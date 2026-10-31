@@ -99,7 +99,6 @@ public class ThreatBroadcastServiceShould
         SeedEncounter(env.combat, attacker, env.hostile, threat: 50f);
 
         IWorldConnection conn = StubConnection(currentTarget: null);
-        Sees(conn, env.hostile);
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 

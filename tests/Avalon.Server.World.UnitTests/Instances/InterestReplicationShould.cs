@@ -167,9 +167,11 @@ public class InterestReplicationShould
         MapInstanceClient watcher = JoinAt(instance, 593_195, Vector3.zero);
         Creature near = AddCreature(instance, 593_995, new Vector3(10f, 0f, 0f));
         Creature far = AddCreature(instance, 593_996, new Vector3(0f, 0f, 100f));
+        Creature first = AddCreature(instance, 593_992, new Vector3(-10f, 0f, 0f));   // in view, and no row's guid
         Ticks(instance, 2);
         var handler = new TargetUnitHandler(NullLogger<TargetUnitHandler>.Instance);
-        handler.Execute(watcher.Connection, new CTargetUnitPacket { TargetGuid = near.Guid.RawValue });
+        handler.Execute(watcher.Connection, new CTargetUnitPacket { TargetGuid = first.Guid.RawValue });
+        Assert.Equal(first.Guid.RawValue, watcher.Connection.CurrentTargetGuid);
 
         ulong? asked = target switch
         {
