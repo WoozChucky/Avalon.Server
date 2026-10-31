@@ -130,7 +130,8 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
         }
     }
 
-    public Guid Id => throw new NotSupportedException();
+    /// <summary>A connection id of its own, for the log lines a handler writes (the movement budget's warning, #1267).</summary>
+    public Guid Id { get; } = Guid.NewGuid();
     public Task? ExecuteTask => throw new NotSupportedException();
     public string RemoteEndPoint => throw new NotSupportedException();
     /// <summary>The character's account, as the connection was admitted with it: the chat lines carry it.</summary>

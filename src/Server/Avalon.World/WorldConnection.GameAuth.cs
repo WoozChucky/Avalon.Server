@@ -57,6 +57,13 @@ public partial class WorldConnection
     // The tick's time as of this connection's last lease check (#977); none before the first. Tick only, as the check is.
     private TickTime _leaseCheckedAt;
 
+    /// <summary>
+    /// The tick's monotonic time (#977) on <paramref name="clock" />, as this connection's lease check was given it at the
+    /// start of the tick: what a handler that refills by time reads (the movement budget, #1267), so the clock is read
+    /// once per tick, not once per packet. Before the first check, or on another clock, the clock is read now. Tick only.
+    /// </summary>
+    internal long TickTimestamp(TimeProvider clock) => _leaseCheckedAt.On(clock).Timestamp;
+
     // The lease that check found not due at _leaseCheckedAt, so active then (#977); null when it found none, or ended
     // it. Within the tick a renewal cannot shorten it and the time does not move, so only a revocation can end it.
     private GameSessionLease? _leaseNotDueAtCheck;

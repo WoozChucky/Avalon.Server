@@ -589,6 +589,9 @@ public class CharacterLeaveShould : IDisposable
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
 
+            // The game settings, the defaults: the input handler reads its movement budget (#1267) from them.
+            if (serviceType == typeof(IOptions<GameConfiguration>)) return Options.Create(new GameConfiguration());
+
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))
                 return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);

@@ -286,6 +286,9 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>The world the instances belong to, as a packet handler is given it: its registry is the real one here.</summary>
     public IWorld Host => _world;
 
+    /// <summary>The game settings the world was made with, as a packet handler is given them.</summary>
+    public IOptions<GameConfiguration> GameOptions => Options.Create(_world.Configuration);
+
     /// <summary>
     /// The quest service every instance of a world with reference data tells of its kills, and <see cref="Tick()" />
     /// flushes, as production's; null in a world without reference data. Tick thread only.
@@ -960,6 +963,25 @@ public sealed class ScenarioWorld : IDisposable
                 throw new InvalidOperationException(
                     $"{scenario}: player {i} was sent no packet during the measured windows. A scenario that stops " +
                     "sending measures cheaper than it is and would pass the allocation gate as an improvement.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Throws when any connection's character had an input answered standing over its movement budget (#1267), at any
+    /// time since it joined: a scenario's players send one input a tick on the world's clock, so a refusal means a
+    /// scenario began sending faster than its clock (a shorter tick, a second input a tick), and its walkers would quietly
+    /// stand, measuring less than walking does. One read of a flag per connection, outside any measured tick.
+    /// </summary>
+    public void RequireNoInputOverBudget(string scenario)
+    {
+        for (int i = 0; i < _connections.Count; i++)
+        {
+            if (_connections[i].Character is CharacterEntity { Movement.Warned: true })
+            {
+                throw new InvalidOperationException(
+                    $"{scenario}: player {i} sent an input over its movement budget, which was answered standing. The " +
+                    "scenario sends faster than its clock runs, so its players stand where they should walk.");
             }
         }
     }

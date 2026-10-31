@@ -1,24 +1,42 @@
+using System.Diagnostics.Metrics;
 using Avalon.Common.Mathematics;
+using Avalon.Common.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.World.Auras;
+using Avalon.World.Characters;
+using Avalon.World.Configuration;
+using Avalon.World.Entities;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.World.Handlers;
 
 [PacketHandler(NetworkPacketType.CMSG_PLAYER_INPUT)]
 public class PlayerInputHandler(
     ILogger<PlayerInputHandler> logger,
-    IWorld world)
+    IWorld world,
+    TimeProvider clock,
+    IOptions<GameConfiguration> game)
     : WorldPacketHandler<CPlayerInputPacket>
 {
-    private const float TickDt = 1f / 60f;
+    private const float TickDt = MovementBudget.StepSeconds;
+
+    private static readonly Counter<long> s_overBudget = DiagnosticsConfig.World.Meter.CreateCounter<long>(
+        "world.movement.inputs_over_budget", "{inputs}",
+        "Player inputs over the movement budget (#1267): sent faster than server time allows, answered standing");
+
+    // The steps a character's movement budget holds, from Game:Movement:InputCatchUp, read once.
+    private readonly int _budgetCap = MovementBudget.CapFor(game.Value.Movement.InputCatchUp);
+
+    // The steps a second of server time earns, from Game:Movement:ClockDriftAllowancePercent, read once.
+    private readonly double _refillRate = MovementBudget.RefillRateFor(game.Value.Movement.ClockDriftAllowancePercent);
 
     public override void Execute(IWorldConnection connection, CPlayerInputPacket packet)
     {
@@ -40,6 +58,27 @@ public class PlayerInputHandler(
         // reads only.
         if (!ControlGates.CanMove(ch))
         {
+            Hold(connection, ch, packet);
+            return;
+        }
+
+        // #1267: every input that may move spends one step of the character's movement budget, which server time
+        // refills (plus the clock drift allowance), so a client sending inputs faster than time passes moves no faster
+        // than one sending at the tick rate. One over the budget is answered standing, as a held one is, and keeps
+        // arrival protection, since it takes no step. Counted every time, logged once per character. The time is the
+        // tick's, read once per tick by the lease check; a connection that is not a WorldConnection (a scenario's, a
+        // test's) reads the clock. A character that is not an entity (a test double) is not budgeted.
+        if (ch is CharacterEntity entity && !entity.Movement.TrySpend(
+                connection is WorldConnection ticked ? ticked.TickTimestamp(clock) : clock.GetTimestamp(),
+                clock, _budgetCap, _refillRate))
+        {
+            s_overBudget.Add(1);
+            if (!entity.Movement.Warned)
+            {
+                entity.Movement.Warned = true;
+                HighRatePacketLog.MovementOverBudget(logger, entity.Name, connection.Id);
+            }
+
             Hold(connection, ch, packet);
             return;
         }
