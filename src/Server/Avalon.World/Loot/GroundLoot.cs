@@ -6,7 +6,7 @@ namespace Avalon.World.Loot;
 
 /// <summary>
 /// A drop lying on the ground in one instance: a stack of one item template, a copy the drop rolled, or a pile of gold.
-/// Immutable once placed.
+/// Immutable once placed, but for the cell its store files it in.
 /// </summary>
 /// <remarks>
 /// Never persisted, and not an ItemInstance. A copy the drop rolled (#1179, <see cref="Rolled" />) was made whole at the
@@ -45,4 +45,10 @@ public sealed class GroundLoot
     public DateTime FreeForAllAt { get; init; }
 
     public bool IsGold => ItemTemplateId is null;
+
+    // The store's bookkeeping (#1269): the cell the drop is filed in, -1 for none, and its neighbours in that cell's list.
+    // Written by GroundLootStore only, as it adds and removes the drop; what the drop is never changes.
+    internal int Cell { get; set; } = -1;
+    internal GroundLoot? NextInCell { get; set; }
+    internal GroundLoot? PreviousInCell { get; set; }
 }

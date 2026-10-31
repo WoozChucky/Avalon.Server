@@ -8,9 +8,9 @@ namespace Avalon.World.Loot;
 public static class LootDropMapper
 {
     /// <summary>
-    /// <paramref name="drop" /> on the wire, its modifiers and base stats in lists of their own: for a snapshot, built
-    /// once for every connection it is sent to. FreeForAllAt goes out as UTC ticks, the clock SPingPacket.ServerTimestamp
-    /// carries.
+    /// <paramref name="drop" /> on the wire, in a message of its own with its modifiers and base stats in lists of their
+    /// own; the instance refills kept messages instead (<see cref="Fill" />). FreeForAllAt goes out as UTC ticks, the clock
+    /// SPingPacket.ServerTimestamp carries.
     /// </summary>
     /// <param name="data">Gives an item drop that did not roll its template's item level.</param>
     public static LootDropDto ToDto(GroundLoot drop, StaticData data)

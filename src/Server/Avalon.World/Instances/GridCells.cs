@@ -32,6 +32,9 @@ internal readonly struct GridCells
         Rows = rows;
     }
 
+    /// <summary>One cell holding everything: the cells of a store built with no layout.</summary>
+    public static GridCells One { get; } = new(0f, 0f, 1f, 1, 1);
+
     /// <summary>How many cells there are.</summary>
     public int Count => Columns * Rows;
 

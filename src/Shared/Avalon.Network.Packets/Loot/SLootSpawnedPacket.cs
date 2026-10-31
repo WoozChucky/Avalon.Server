@@ -5,9 +5,9 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Loot;
 
 /// <summary>
-/// Drops that appeared on the ground: every drop of one kill, sent to everyone in the instance, or
-/// every drop already there, sent to a character entering it. Every player sees every drop,
-/// whoever owns it.
+/// Drops entering the client's view (#1269), whoever owns them: a kill's or a doodad's within the interest radius, those
+/// in view when the client enters the instance, and those coming into view as the client or its view moves. It may name a
+/// drop the client was told of before and let go of since; the client keeps one of each guid.
 /// </summary>
 /// <remarks>
 /// Two things the client has to handle itself:

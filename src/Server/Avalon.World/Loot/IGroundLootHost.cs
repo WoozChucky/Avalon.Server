@@ -12,6 +12,9 @@ public interface IGroundLootHost
     /// <summary>The drops on this instance's ground.</summary>
     GroundLootStore Drops { get; }
 
-    /// <summary>Sends one SLootDespawnedPacket with these guids to everyone in the instance.</summary>
+    /// <summary>
+    /// Tells the clients that hold the drops (#1269) that they were picked up: one SLootDespawnedPacket each, naming those
+    /// of these guids it holds, and the drops leave each such view.
+    /// </summary>
     void BroadcastLootDespawned(IReadOnlyList<ObjectGuid> lootGuids);
 }

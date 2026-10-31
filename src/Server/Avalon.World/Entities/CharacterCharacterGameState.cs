@@ -4,6 +4,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Doodads;
 using Avalon.World.Instances;
+using Avalon.World.Loot;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -71,6 +72,14 @@ public class CharacterCharacterGameState
     /// did before #981, rather than leaving it in an empty world until the instance's next broadcast.
     /// </summary>
     internal bool ScanOwed { get; private set; } = true;
+
+    /// <summary>
+    /// The drops on the ground the client has been told of (#1269), decided by the same interest rule on the same cadence,
+    /// by its instance (<c>MapInstance.DecideLootView</c>). Kept apart from the world state: <see cref="Reset" /> leaves
+    /// it as it is, and the instance resets it itself, since a client clears its drops on a map transition but not on a
+    /// start-over.
+    /// </summary>
+    internal LootView Loot { get; } = new();
 
     public CharacterCharacterGameState()
     {

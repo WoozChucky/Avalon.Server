@@ -1,7 +1,5 @@
-using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Network.Packets.Loot;
-using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
@@ -16,10 +14,8 @@ namespace Avalon.World.Instances;
 /// </summary>
 internal sealed class KillBuffers
 {
-    // The loot messages this instance's kills have filled so far, refilled by the next: a message holds numbers only,
-    // and its modifier entries are refilled through the pool, which keeps what a smaller drop leaves over (#1179).
-    private readonly List<LootDropDto> _messages = [];
-    private readonly ItemModifierDtoPool _modifiers = new();
+    // The loot messages this instance's kills have filled so far, refilled by the next (#890).
+    private readonly LootMessages _messages = new();
 
     /// <summary>
     /// Who shares the kill, in the party's join order. The kill hands it to the quest service and the loot allocator,
@@ -45,29 +41,11 @@ internal sealed class KillBuffers
     /// <summary>The drops placed around the corpse, before they go into the instance's store.</summary>
     public List<GroundLoot> Placed { get; } = [];
 
-    /// <summary>The drops as the loot packet carries them, which is encoded before the kill returns.</summary>
-    public List<LootDropDto> Sent { get; } = [];
-
     /// <summary>
-    /// Fills <see cref="Sent" /> from <see cref="Placed" />, over messages kept from earlier kills; <paramref name="data" />
-    /// gives a drop that did not roll its template's item level.
+    /// <see cref="Placed" /> as the loot packet carries them, over messages kept from earlier kills, in a list valid until
+    /// <see cref="Clear" />; <paramref name="data" /> gives a drop that did not roll its template's item level.
     /// </summary>
-    public List<LootDropDto> DescribePlaced(StaticData data)
-    {
-        Debug.Assert(Sent.Count == 0, "The loot messages to send still hold an earlier kill's");
-
-        for (int i = 0; i < Placed.Count; i++)
-        {
-            if (i == _messages.Count)
-            {
-                _messages.Add(new LootDropDto());
-            }
-
-            Sent.Add(LootDropMapper.Fill(_messages[i], Placed[i], data, _modifiers));
-        }
-
-        return Sent;
-    }
+    public List<LootDropDto> DescribePlaced(StaticData data) => _messages.Describe(Placed, data);
 
     public void Clear()
     {
@@ -76,6 +54,6 @@ internal sealed class KillBuffers
         QuestDrops.Clear();
         Rolled.Clear();
         Placed.Clear();
-        Sent.Clear();
+        _messages.Clear();
     }
 }

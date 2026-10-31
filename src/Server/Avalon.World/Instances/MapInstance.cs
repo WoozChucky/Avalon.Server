@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
@@ -210,7 +211,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>This tick's ability objects (projectiles), which the cast system fills and the broadcast reads.</summary>
     private readonly List<IWorldObject> _objectAbilities = new(64);
     private readonly ICharacterSaveScheduler? _saveScheduler;
-    private readonly GroundLootStore _groundLoot = new();
+    // Filed in the cells of the spatial grid (#1269), so a client's loot view visits only the drops around it.
+    private readonly GroundLootStore _groundLoot;
+
+    // One kill's or doodad's drops as one client is sent them, when it sees some of them only (#1269).
+    private readonly List<LootDropDto> _lootAudience = [];
+
+    // A pickup's guids, and those of them one client holds, when it holds some of them only (#1269).
+    private readonly List<ulong> _despawnAll = [];
+    private readonly List<ulong> _despawnSome = [];
+
+    // The drops coming into one client's view, described for it on the view's cadence (#1269).
+    private readonly LootMessages _viewLoot = new();
     // What a kill or a doodad drops: the loot roller rolls the table, and the item roller (#1179) makes each equipment drop
     // into its copy as it drops. One optional pair: an instance that drops anything has both, and one built without them
     // (tests) drops nothing.
@@ -265,10 +277,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly IQuestProgress _quests;
 
     /// <summary>
-    /// Characters added since the last tick, owed a snapshot of the drops already on the ground. Sent
-    /// at the start of the next Update rather than from AddCharacter: the handlers that move a
-    /// character call TransferPlayer before they send the map transition, and the client must learn
-    /// the new map before it learns what lies on it.
+    /// Characters added since the last tick, owed the drops in their view (#1269). Sent at the start of the next Update
+    /// rather than from AddCharacter: the handlers that move a character call TransferPlayer before they send the map
+    /// transition, and the client must learn the new map before it learns what lies on it.
     /// </summary>
     private readonly HashSet<ObjectGuid> _lootSnapshotOwed = [];
 
@@ -291,6 +302,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _members = SpatialGrid.For(layout);
         _doodads = DoodadIndex.For(layout);
+        _groundLoot = new GroundLootStore(GridCells.For(layout));
         _scheduler = new CreatureScheduler(_creatures, this, _members);
         _world = world;
         InstanceId = Guid.NewGuid();
@@ -689,6 +701,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
             if (forgotten.Count > 0)
                 connection.Send(SInstanceStateRemovePacket.Create(forgotten, _replicationEncoder));
+
+            // Its drops start over too (#1269), with no packet: the client clears every drop it knows of on the map
+            // transition (SLootSpawnedPacket), and is sent those in its view here on the next tick.
+            arriving.CharacterGameState.Loot.Reset();
         }
 
         // An instance that stood empty skips the ticks its units were owed meanwhile now, before the arrival is a member:
@@ -1286,21 +1302,55 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public VendorStocks Vendors => _vendors;
 
+    /// <summary>
+    /// Picked-up drops leave the view of every client that holds them (#1269), and each such client is told: one that holds
+    /// them all shares one encoding (#875), one that holds some of them is sent those, and one that holds none is sent
+    /// nothing.
+    /// </summary>
     public void BroadcastLootDespawned(IReadOnlyList<ObjectGuid> lootGuids)
     {
-        // Encoded once, for the first connection here, and shared by every one (#875).
+        // By index, in the caller's order: the guids are read once, before anything is sent.
+        _despawnAll.Clear();
+        for (int i = 0; i < lootGuids.Count; i++)
+            _despawnAll.Add(lootGuids[i].RawValue);
+
         OutboundPacket despawned = default;
-        foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
+        try
         {
-            if (despawned.Payload is null)
+            foreach (IWorldConnection connection in _connections.Values)
             {
-                despawned = SLootDespawnedPacket.Create(lootGuids, PacketEncoder.Shared);
+                if (connection.Character is not CharacterEntity character)
+                    continue;
+
+                LootView view = character.CharacterGameState.Loot;
+                _despawnSome.Clear();
+                for (int i = 0; i < _despawnAll.Count; i++)
+                {
+                    if (view.Forget(_despawnAll[i]))
+                        _despawnSome.Add(_despawnAll[i]);
+                }
+
+                if (_despawnSome.Count == 0)
+                    continue;
+
+                if (_despawnSome.Count < _despawnAll.Count)
+                {
+                    connection.Send(SLootDespawnedPacket.Create(_despawnSome, PacketEncoder.Shared));
+                    continue;
+                }
+
+                if (despawned.Payload is null)
+                    despawned = SLootDespawnedPacket.Create(_despawnAll, PacketEncoder.Shared);
+
+                connection.Send(despawned.Share());
             }
-
-            connection.Send(despawned.Share());
         }
-
-        despawned.Release();
+        finally
+        {
+            despawned.Release();
+            _despawnAll.Clear();
+            _despawnSome.Clear();
+        }
     }
 
     /// <summary>
@@ -1448,8 +1498,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Places <paramref name="rolled" /> on the ring around <paramref name="at" />, each drop allocated by
-    /// <paramref name="allocations" />, stores them and tells every connection here: a kill's drops and a doodad's alike.
-    /// Its lists are <paramref name="buffers" />.
+    /// <paramref name="allocations" />, stores them and tells each client of those of them that come into its view
+    /// (#1269), whoever owns them: a kill's drops and a doodad's alike. Its lists are <paramref name="buffers" />.
     /// </summary>
     private void PlaceAndAnnounce(Vector3 at, List<RolledDrop> rolled, KillAllocations allocations, KillBuffers buffers)
     {
@@ -1464,19 +1514,48 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
         List<LootDropDto> dtos = buffers.DescribePlaced(_world.Data);
-        // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
+
+        // Each client is told of the drops that come into its view, and holds them from now on (#1269). One that sees them
+        // all shares one encoding, made for the first such client (#875); one that sees some of them is sent those.
         OutboundPacket spawned = default;
-        foreach (IWorldConnection connection in _connections.Values)
+        try
         {
-            if (spawned.Payload is null)
+            foreach (IWorldConnection connection in _connections.Values)
             {
-                spawned = SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared);
+                if (connection.Character is not CharacterEntity character)
+                    continue;
+
+                LootView view = character.CharacterGameState.Loot;
+                _lootAudience.Clear();
+                for (int i = 0; i < drops.Count; i++)
+                {
+                    if (!view.Sees(character.Guid, character.Position, drops[i], _interest))
+                        continue;
+
+                    view.Learn(drops[i]);
+                    _lootAudience.Add(dtos[i]);
+                }
+
+                if (_lootAudience.Count == 0)
+                    continue;
+
+                if (_lootAudience.Count < drops.Count)
+                {
+                    connection.Send(SLootSpawnedPacket.Create(_lootAudience, PacketEncoder.Shared));
+                    continue;
+                }
+
+                if (spawned.Payload is null)
+                    spawned = SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared);
+
+                connection.Send(spawned.Share());
             }
-
-            connection.Send(spawned.Share());
         }
-
-        spawned.Release();
+        finally
+        {
+            spawned.Release();
+            _lootAudience.Clear();
+        }
     }
 
     void IDoodadHost.PlayersWithin(Vector3 centre, float radius, List<CharacterEntity> into)
@@ -1547,6 +1626,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
+    /// <summary>
+    /// Characters that entered since the last tick are sent the drops in their view there (#1269), decided now rather than
+    /// at their first view decision, so a kill later in this tick reaches them once, through the kill's own packet.
+    /// </summary>
     private void SendOwedLootSnapshots()
     {
         if (_lootSnapshotOwed.Count == 0)
@@ -1554,28 +1637,54 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
-        if (_groundLoot.Count > 0)
+        foreach (ObjectGuid guid in _lootSnapshotOwed)
         {
-            // Every owed connection is sent the same snapshot: built and encoded once, for the first still here, and
-            // shared by the others (#875).
-            OutboundPacket snapshot = default;
-            foreach (ObjectGuid guid in _lootSnapshotOwed)
+            if (_connections.TryGetValue(guid, out IWorldConnection? connection)
+                && connection.Character is CharacterEntity entity)
             {
-                if (_connections.TryGetValue(guid, out IWorldConnection? connection))
-                {
-                    if (snapshot.Payload is null)
-                    {
-                        snapshot = SLootSpawnedPacket.Create(LootDtos(_groundLoot.All, _world.Data), PacketEncoder.Shared);
-                    }
-
-                    connection.Send(snapshot.Share());
-                }
+                DecideLootView(entity);
+                SendLootChanges(connection, entity);
             }
-
-            snapshot.Release();
         }
 
         _lootSnapshotOwed.Clear();
+    }
+
+    /// <summary>
+    /// Decides which drops one client's view holds (#1269): its candidates are the drops of the store's cells within reach
+    /// of its character, each decided by the interest rule. Returns at once when there is no reference data to describe a
+    /// drop by, or no drop on the ground and none held. Bound by name by <c>LootViewBenchmarks</c>, which measures it alone.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void DecideLootView(CharacterEntity entity)
+    {
+        LootView view = entity.CharacterGameState.Loot;
+        if (_world.Data is null || (_groundLoot.Count == 0 && view.Count == 0))
+            return;
+
+        view.Decide(entity.Guid, entity.Position, _interest, _groundLoot);
+    }
+
+    /// <summary>
+    /// Sends one client what its last loot view decision changed (#1269): the drops that left it, then those that came
+    /// into it, each in a packet made for that client alone. Nothing when nothing changed.
+    /// </summary>
+    private void SendLootChanges(IWorldConnection connection, CharacterEntity character)
+    {
+        LootView view = character.CharacterGameState.Loot;
+        try
+        {
+            if (view.Left.Count > 0)
+                connection.Send(SLootDespawnedPacket.Create(view.Left, PacketEncoder.Shared));
+
+            if (view.Entered.Count > 0 && _world.Data is { } data)
+                connection.Send(SLootSpawnedPacket.Create(_viewLoot.Describe(view.Entered, data), PacketEncoder.Shared));
+        }
+        finally
+        {
+            view.Sent();
+            _viewLoot.Clear();
+        }
     }
 
     /// <summary>
@@ -1594,22 +1703,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         _pvpStateOwed.Clear();
-    }
-
-    /// <summary>The drops as the loot packet carries them: built once for every connection the drop is sent to.</summary>
-    private static List<LootDropDto> LootDtos(IReadOnlyCollection<GroundLoot> drops, StaticData data)
-    {
-        var dtos = new List<LootDropDto>(drops.Count);
-        if (drops is IReadOnlyList<GroundLoot> list)
-        {
-            for (int i = 0; i < list.Count; i++)
-                dtos.Add(LootDropMapper.ToDto(list[i], data));
-            return dtos;
-        }
-
-        foreach (GroundLoot drop in drops)
-            dtos.Add(LootDropMapper.ToDto(drop, data));
-        return dtos;
     }
 
     public void Update(TimeSpan deltaTime)
@@ -2062,16 +2155,26 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         IReadOnlyList<ObjectGuid> forgotten = character.CharacterGameState.Reset();
 
+        // Its drops too (#1269): with no map transition to clear them, its client keeps them until told, so it is told to
+        // let them go, and is sent those in view again at its next decision.
+        List<ulong> lootForgotten = character.CharacterGameState.Loot.Reset();
+
         // Party members it held are gone from its client too: their positions go to it once its view is decided (#1199).
         if (character.PartyId is not null)
             _parties?.MemberLeftView(character);
 
-        if (forgotten.Count == 0 || !_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
+        if ((forgotten.Count == 0 && lootForgotten.Count == 0)
+            || !_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
+        {
             return;
+        }
 
         try
         {
-            connection.Send(SInstanceStateRemovePacket.Create(forgotten, _replicationEncoder));
+            if (forgotten.Count > 0)
+                connection.Send(SInstanceStateRemovePacket.Create(forgotten, _replicationEncoder));
+            if (lootForgotten.Count > 0)
+                connection.Send(SLootDespawnedPacket.Create(lootForgotten, PacketEncoder.Shared));
         }
         catch (Exception e)
         {
@@ -2100,9 +2203,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             CharacterCharacterGameState view = entity.CharacterGameState;
             if (decideAll || view.ScanOwed)
+            {
+                // The drops first: DecideView ends ScanOwed (#1269).
+                DecideLootView(entity);
                 DecideView(entity, objectAbilities);
+            }
             else
+            {
                 view.Hold();
+            }
         }
 
         _viewsOwed = false;
@@ -2271,6 +2380,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (character.PartyId is not null)
                 NotePartyMembersLeftView(character, character.CharacterGameState.RemovedObjects);
         }
+
+        // The drops its view decision moved (#1269), after the world state.
+        SendLootChanges(connection, character);
     }
 
     /// <summary>
