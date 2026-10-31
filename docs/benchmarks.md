@@ -6440,45 +6440,31 @@ visits; 0 drops is the early return of an instance with nothing on the ground an
 throws unless the view is steady after two decisions, and, for `near`, holds every drop.
 
 ```bash
-dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*LootViewBenchmarks*" "*InterestVisibilityBenchmarks*" "*ForestTickBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*LootViewBenchmarks*" --warmupCount 5 --iterationCount 10 --affinity 4
 ```
 
-One run of the branch, then one of main at `7d65fe5d8` without `LootViewBenchmarks`; in process, three warmups, five
-iterations, `--affinity 4`. BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9711), 12th Gen Intel Core i9-12900K
-3.20GHz, 24 logical and 16 physical cores, .NET 10.0.14, X64 RyuJIT x86-64-v3.
+**Run it out of process, as above.** In process (`--inProcess`) its rows were not reproducible: the first such run read
+940 ns for 20 drops in view, seven times the figure below, and every row of a main and branch pair of
+`InterestVisibilityBenchmarks` and `ForestTickBenchmarks` run in process the same day differed by three to six times on
+code neither side had touched, so those figures are not recorded. The run below is the perf review's, out of process,
+five warmups, ten iterations, `--affinity 4`: BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9711), 12th Gen Intel
+Core i9-12900K 3.20GHz, 24 logical and 16 physical cores, .NET 10.0.14, X64 RyuJIT x86-64-v3.
 
 | `LootViewBenchmarks.Decide` | Drops | Mean | Allocated |
 |---|---:|---:|---:|
-| near | 0 | 3.19 ns (± 0.56 ns) | 0 B |
-| spread | 0 | 3.12 ns (± 0.17 ns) | 0 B |
-| near | 20 | 940.0 ns (± 90.3 ns) | 0 B |
-| spread | 20 | 118.4 ns (± 13.4 ns) | 0 B |
-| near | 500 | 2,181.5 ns (± 14.1 ns) | 0 B |
-| spread | 500 | 51.3 ns (± 0.25 ns) | 0 B |
+| near | 0 | 2.25 ns (± 0.06 ns) | 0 B |
+| spread | 0 | 1.84 ns (± 0.07 ns) | 0 B |
+| near | 20 | 126.0 ns (± 7.4 ns) | 0 B |
+| spread | 20 | 25.6 ns (± 0.4 ns) | 0 B |
+| near | 500 | 2,395 ns (± 54 ns) | 0 B |
+| spread | 500 | 55.9 ns (± 0.5 ns) | 0 B |
 
-| Row | Main | Branch | Allocated, main / branch |
-|---|---:|---:|---:|
-| `ForestTickBenchmarks.Tick` | 8.958 µs (± 0.672 µs) | 3.636 µs (± 0.264 µs) | 0 B / 0 B |
-| `InterestVisibilityBenchmarks.Update`, dense | 27,566 ns | 8,418 ns | 0 B / 0 B |
-| `InterestVisibilityBenchmarks.Indexed`, dense | 23,048 ns | 5,846 ns | 0 B / 0 B |
-| `InterestVisibilityBenchmarks.Update`, sparse | 10,675 ns | 2,912 ns | 0 B / 0 B |
-| `InterestVisibilityBenchmarks.Indexed`, sparse | 1,742 ns | 522.9 ns | 0 B / 0 B |
-| `InterestVisibilityBenchmarks.Update`, far | 6,334 ns | 2,384 ns | 0 B / 0 B |
-| `InterestVisibilityBenchmarks.Indexed`, far | 445.6 ns | 72.4 ns | 0 B / 0 B |
-| `InterestVisibilityBenchmarks.Update`, margin | 33,196 ns | 8,669 ns | 1 B / 0 B |
-| `InterestVisibilityBenchmarks.Indexed`, margin | 32,787 ns | 7,616 ns | 1 B / 0 B |
-
-- **A steady decision allocates nothing** in every row, and an instance with no drop returns in about 3 ns. With 500
-  drops spread over the layout the decision visits the 25 cells around the watcher and reads 51 ns; with 500 in view
-  it stamps each, about 4.4 ns a drop.
-- **The 20-drop `near` row (47 ns a drop) is likely not the decision's cost**: it was the first row of the class that
-  decides anything, its error is a tenth of its mean, and BenchmarkDotNet warned its iterations ran under 100 ms. No
-  run was made to check it.
-- **The main and branch pairs bound nothing.** Main read three to six times the branch on every row, the full scan
-  (`Update`) included, which neither change touches, and its tick read 9.0 µs where earlier in-process runs read 7 to
-  8 µs ([capstones](#capstones-on-the-hit-path--capstonebenchmarkscs-projectilecastbenchmarkscs-1181-part-d2)); the machine was busier during main's run. The doodad
-  rows (`Doodads` 20) failed on both sides at setup: `AddDoodads` adds to an instance `ScenarioWorld.AddInstance` has
-  already published, which the index refuses (`DoodadIndex.Seal`), so they are left out.
+- **A steady decision allocates nothing** in every row, and an instance with no drop returns in about 2 ns.
+- **A drop in view costs about 5 ns a decision**: 126 ns for 20 (6.3 ns each) and 2,395 ns for 500 (4.8 ns each).
+- **A drop out of reach costs next to nothing:** with 500 drops spread over the layout the decision visits the 25 cells around
+  the watcher, the few drops in them, and reads 56 ns.
+- The doodad rows of `InterestVisibilityBenchmarks` (`Doodads` 20) fail at setup, on main too: `AddDoodads` adds to an
+  instance `ScenarioWorld.AddInstance` has already published, which the index refuses (`DoodadIndex.Seal`); #1275.
 
 The scenario allocation gate (`ScenarioAllocationsShould`) fell in every forest scenario, Debug and Release alike,
 against the branch before this change (`c2d697160`): `forest-combat` 7,675 to 7,585 B per window, `forest-awakening`
