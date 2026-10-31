@@ -47,7 +47,7 @@ public class InterestVisibilityBenchmarks
     private readonly List<IWorldObject> _worldObjects = [];
     private readonly Dictionary<ObjectGuid, GameEntityFields> _dirty = [];
     private static readonly ObjectGuid s_watcher = new(ObjectType.Character, 1);
-    private static readonly InterestRange s_range = new(60f, 10f);
+    private static readonly InterestRange s_range = new(50f, 10f);
 
     private ScenarioWorld _world = null!;
     private CharacterEntity _watcher = null!;
@@ -68,7 +68,7 @@ public class InterestVisibilityBenchmarks
         if (Layout == "margin")
         {
             foreach (ICreature creature in _creatures.Values.Concat(indexed.Values))
-                creature.Position = new Vector3(65f, 0, 0);
+                creature.Position = new Vector3(55f, 0, 0);
         }
         Update();
         Indexed();

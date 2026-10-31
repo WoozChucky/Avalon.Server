@@ -13,7 +13,7 @@ namespace Avalon.Benchmarking.CandidateRatio;
 /// How many creatures a view's spatial index visits for each one in view (#982), over generated forests: for each seed,
 /// the forest as production builds it (<see cref="ScenarioWorld.NewForestInstance" />: its layout, spawn table and
 /// placement), and one client standing every 5 m along the main path, from the entry chunk's centre to the boss chunk's.
-/// At each point its view is decided afresh (nothing tracked, so the 60 m radius decides), over the index, and the
+/// At each point its view is decided afresh (nothing tracked, so the 50 m radius decides), over the index, and the
 /// creatures the index visited (its candidates) are counted against the creatures in view and the forest's creatures (a
 /// full scan's candidates). The client's own character is in both counts of the index and left out here.
 /// </summary>

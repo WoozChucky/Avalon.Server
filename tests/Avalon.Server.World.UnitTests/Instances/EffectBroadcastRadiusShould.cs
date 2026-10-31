@@ -17,7 +17,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// #532: a one-shot effect broadcast goes only to connections within Game:InterestRadius of the
-/// effect on X/Z, or whose character is involved in it. The default radius is 60 m.
+/// effect on X/Z, or whose character is involved in it. The default radius is 50 m.
 /// </summary>
 public class EffectBroadcastRadiusShould
 {

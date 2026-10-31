@@ -96,7 +96,7 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
 
 - **A fourth tracked kind.** Each view has a doodad tracker (`CharacterCharacterGameState._doodadTrackingSystem`) beside the character, creature and world-object ones. Its candidates come from the instance's `DoodadIndex` within `Interest.Reach`, not from the spatial grid.
   - `MapInstance.DecideView` hands each view a `DoodadViewInputs`. An instance without doodads hands the default and reads nothing.
-  - A doodad is listed by the creatures' interest rule: 60 m, kept to 70 m once held.
+  - A doodad is listed by the creatures' interest rule: 50 m, kept to 60 m once held.
   - A despawned doodad is in no view.
 - **Rules.** `DoodadVisibility.AsksRules` is true when a doodad has a visibility gate, a script that decides who sees it, or a usability gate. Only such a doodad has its rules asked. One without rules is seen by everyone in range, and usable while its state allows it (`DoodadVisibility.Usable`: a Click doodad, not despawned, and Ready or Unlimited).
 - **The four gate conditions** (`DoodadGates.Allows`, over the viewer's `QuestLog`):

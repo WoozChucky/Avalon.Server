@@ -138,8 +138,8 @@ power type, and whether it is dead. Power is mana and the power type `Mana` for 
 ### Far members' positions (#1199)
 
 `SMSG_PARTY_POSITIONS` tells a client where the members of its party stand that its world-state stream does not show:
-the members in **your own instance** whose world object your client does not hold (beyond the interest range, 60 m to
-come into view and 70 m to leave it). It is for the map and minimap.
+the members in **your own instance** whose world object your client does not hold (beyond the interest range, 50 m to
+come into view and 60 m to leave it). It is for the map and minimap.
 
 - **What it lists.** Each entry is one member, its `CharacterId` and where it stands on X/Z (no height, no facing). The
   packet is the whole list at that moment: replace what you held. Never yourself, never a member whose world object

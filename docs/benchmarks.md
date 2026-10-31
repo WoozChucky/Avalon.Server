@@ -6424,6 +6424,9 @@ physical cores, .NET 10.0.13, X64 RyuJIT x86-64-v3. Every row allocated 0 B.
 The scenario allocation gate's new `town-doodads` scenario (see [what each scenario models](#what-each-scenario-models))
 reads 0 B per window: in Release before the fix and in Debug with it. The other scenarios are unchanged.
 
+Since #1269 (2026-10-31) `InterestVisibilityBenchmarks` uses 50/10, the new default radius of 50 m and the 10 m
+margin, and `margin` tracks every creature at 55 m. Every result above used 60/10, with `margin` at 65 m.
+
 ### Results — hit queries over a spatial grid (#982, 2026-10-15)
 
 Every hit query (`UnitHitQuery`: a circle, a cone, or a projectile's sweep of one tick, a segment) read every character and

@@ -225,10 +225,10 @@ public class VisibilityCadenceShould
                 boar.Position = change == Change.ComesBack ? new Vector3(0f, 0f, 75f) : new Vector3(0f, 0f, 10f);
                 break;
             case Change.LeavesView:
-                boar.Position = new Vector3(0f, 0f, 75f);   // beyond 60 m and the 10 m margin
+                boar.Position = new Vector3(0f, 0f, 75f);   // beyond 50 m and the 10 m margin
                 break;
             case Change.StaysInTheMargin:
-                boar.Position = new Vector3(0f, 0f, 65f);   // out of range, inside the margin: kept
+                boar.Position = new Vector3(0f, 0f, 55f);   // out of range, inside the margin: kept
                 break;
             case Change.Despawns:
                 instance.RemoveCreature(boar);

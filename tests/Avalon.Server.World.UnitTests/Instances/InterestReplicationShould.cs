@@ -16,7 +16,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// #593: world-state replication through a real MapInstance is filtered per connection by the
-/// interest range, 60 m to enter a client's view and 60 + 10 m to leave it, on X/Z. Character ids
+/// interest range, 50 m to enter a client's view and 50 + 10 m to leave it, on X/Z. Character ids
 /// (593_1xx) and creature ids (593_9xx) are unique to this class.
 /// </summary>
 public class InterestReplicationShould
@@ -31,7 +31,7 @@ public class InterestReplicationShould
         Creature creature = AddCreature(instance, 593_931, new Vector3(30f, 0f, 0f));
         Ticks(instance, 2);
 
-        foreach (float distance in new[] { 61f, 69f, 62f, 70f, 61f })
+        foreach (float distance in new[] { 51f, 59f, 52f, 60f, 51f })
         {
             watcher.Character.Position = new Vector3(30f - distance, 0f, 0f);
             Ticks(instance, 1);
@@ -134,7 +134,7 @@ public class InterestReplicationShould
         farther.Sent.Clear();
 
         CastProjectile(handler, caster, towards: new Vector3(0f, 0f, 90f), reach: 90f);
-        Ticks(instance, 20);   // 20 m/s for a third of a second: still beyond 60 m of the watcher
+        Ticks(instance, 20);   // 20 m/s for a third of a second: still beyond 50 m of the watcher
         Assert.DoesNotContain(watcher.Added(), s => IsProjectile(s.Guid));
         Ticks(instance, 400);   // well past the 4.5 s flight
 
@@ -146,7 +146,7 @@ public class InterestReplicationShould
         Assert.Equal("update", seen[^2]);
         ObjectState added = Assert.Single(watcher.Added(), s => IsProjectile(s.Guid));
         Assert.NotNull(added.Position);
-        Assert.InRange(added.Position!.Z, 40f, 42.5f);   // mid-flight, listed on the first broadcast within 60 m (#981)
+        Assert.InRange(added.Position!.Z, 50f, 52.5f);   // mid-flight, listed on the first broadcast within 50 m (#981)
         Assert.NotNull(added.Velocity);
         ObjectState final = watcher.StateUpdates().Last(s => IsProjectile(s.Guid));
         Assert.Equal(0f, final.Velocity!.Z);
