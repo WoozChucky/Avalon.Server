@@ -295,12 +295,17 @@ public class MapInstanceLootShould
         Assert.Empty(Spawned(client));
     }
 
-    /// <summary>#1269: an arriving character is sent the drops in its view there, on the instance's next tick.</summary>
+    /// <summary>
+    /// #1269: an arriving character is sent the drops in its view there, on the instance's next tick; when that send
+    /// throws, on the tick after.
+    /// </summary>
     [Theory]
-    [InlineData(10f, false, true)]   // beside the drops
-    [InlineData(70f, false, false)]  // 60 m: none within 50 m
-    [InlineData(10f, true, true)]    // back after leaving: its client cleared them on the transition
-    public async Task Tell_a_character_who_enters_of_the_drops_in_its_view_on_the_next_tick(float z, bool returns, bool told)
+    [InlineData(10f, false, false, true)]   // beside the drops
+    [InlineData(70f, false, false, false)]  // 60 m: none within 50 m
+    [InlineData(10f, true, false, true)]    // back after leaving: its client cleared them on the transition
+    [InlineData(10f, false, true, true)]    // its first send throws: the drops are sent again on the next tick
+    public async Task Tell_a_character_who_enters_of_the_drops_in_its_view_on_the_next_tick(float z, bool returns,
+        bool refused, bool told)
     {
         using MapInstance instance = await Build();
         MapInstanceClient first = Join(instance, 460_101);
@@ -322,6 +327,22 @@ public class MapInstanceLootShould
 
         second.Character.Position = new Vector3(10f, 0f, z);
         Assert.Empty(Spawned(second));   // not from AddCharacter: the map transition packets go first
+
+        if (refused)
+        {
+            bool refuseNext = true;
+            second.Connection.When(c => c.Send(Arg.Is<OutboundPacket>(p => p.Header.Type == NetworkPacketType.SMSG_LOOT_SPAWNED)))
+                .Do(call =>
+                {
+                    if (!refuseNext)
+                        return;
+                    refuseNext = false;
+                    second.Sent.Remove(call.Arg<OutboundPacket>());
+                    throw new InvalidOperationException("The connection refused the packet.");
+                });
+            Assert.Throws<InvalidOperationException>(() => instance.Update(s_tick));
+            Assert.Empty(Spawned(second));
+        }
 
         instance.Update(s_tick);
 

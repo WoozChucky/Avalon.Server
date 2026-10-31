@@ -1688,6 +1688,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             // (BroadcastStateContained) names those drops too (LootView.Reset).
             view.Sent();
         }
+        catch
+        {
+            // The drops that entered were never told: let them go, so the next decision finds them entering again, on
+            // the entry path (nothing starts the client over) as on the broadcast path.
+            view.ForgetEntered();
+            throw;
+        }
         finally
         {
             _viewLoot.Clear();

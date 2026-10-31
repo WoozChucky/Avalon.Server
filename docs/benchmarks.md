@@ -6466,10 +6466,12 @@ Core i9-12900K 3.20GHz, 24 logical and 16 physical cores, .NET 10.0.14, X64 RyuJ
 - The doodad rows of `InterestVisibilityBenchmarks` (`Doodads` 20) fail at setup, on main too: `AddDoodads` adds to an
   instance `ScenarioWorld.AddInstance` has already published, which the index refuses (`DoodadIndex.Seal`); #1275.
 
-The scenario allocation gate (`ScenarioAllocationsShould`) fell in every forest scenario, Debug and Release alike,
-against the branch before this change (`c2d697160`): `forest-combat` 7,675 to 7,585 B per window, `forest-awakening`
-7,741 to 7,651 B, `forest-capstones` 10,242 to 10,162 B, `forest-resonance` 10,412 to 10,340 B; the town scenarios and
-`many-instances` stay at their figures. An entrant's drops are described into the instance's kept messages
+The scenario allocation gate (`ScenarioAllocationsShould`) fell in every forest scenario against the branch before
+this change (`c2d697160`), in Debug and in the first Release runs: `forest-combat` 7,675 to 7,585 B per window,
+`forest-awakening` 7,741 to 7,651 B, `forest-capstones` 10,242 to 10,162 B, `forest-resonance` 10,412 to 10,340 B; the
+town scenarios and `many-instances` stay at their figures. In Release `forest-capstones` varies by up to about 90 B
+between runs of the same build (10,146 to 10,239 B in later runs), scenario noise within the gate; Debug reads the same
+figures every run. An entrant's drops are described into the instance's kept messages
 (`LootMessages`) where the snapshot built a list and a message per drop, and a despawn encodes the instance's kept
 list of raw guids where it built one per call.
 

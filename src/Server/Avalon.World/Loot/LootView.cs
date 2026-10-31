@@ -78,6 +78,18 @@ internal sealed class LootView
             _known.Remove(Left[i]);
     }
 
+    /// <summary>
+    /// The client was not told of <see cref="Entered" />, its send having thrown: those drops are let go, so the next
+    /// <see cref="Decide" /> finds them entering again and they are sent then. <see cref="Left" /> stays pending, for a
+    /// start-over (<see cref="Reset" />) to name.
+    /// </summary>
+    public void ForgetEntered()
+    {
+        for (int i = 0; i < _entered.Count; i++)
+            _known.Remove(_entered[i].Guid.RawValue);
+        _entered.Clear();
+    }
+
     /// <summary>The client was told of <see cref="Entered" /> and <see cref="Left" />: both are emptied.</summary>
     public void Sent()
     {
