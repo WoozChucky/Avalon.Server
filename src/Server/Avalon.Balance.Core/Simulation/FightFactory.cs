@@ -9,7 +9,7 @@ public static class FightFactory
     public static FightSimulator Create(BalanceData data, Scenario scenario, RowKey key, IReadOnlyList<WornItem> worn,
         IReadOnlyList<CompiledRotationEntry> rotation, Random random)
     {
-        var player = SimPlayer.Create(data, key.Class, key.Level, worn);
+        var player = SimPlayer.Create(data, key.Class, key.Level, worn, data.Talents.Starter(key.Class));
         var creatures = new List<SimCreature>();
         foreach (PackEntry entry in scenario.Pack)
         {

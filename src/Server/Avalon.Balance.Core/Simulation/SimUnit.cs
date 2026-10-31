@@ -9,12 +9,17 @@ using Avalon.World.Public.Units;
 
 namespace Avalon.Balance.Core;
 
-/// <summary>One ability a unit holds: its row, its runtime metadata (seconds), its cooldown.</summary>
-public sealed class SimAbility(AbilityTemplate template)
+/// <summary>
+/// One ability a unit holds: its row, its runtime metadata (seconds) shaped by the capstones its build holds (B-R13, as
+/// the world's TreeAbility: the template's own metadata when nothing shapes it), its cooldown.
+/// </summary>
+public sealed class SimAbility(AbilityTemplate template, AbilityShaping shaping = default)
 {
     public AbilityTemplate Template { get; } = template;
 
-    public AbilityMetadata Metadata { get; } = AbilityMetadataMapper.From(template);
+    public AbilityMetadata Metadata { get; } = shaping.IsNone
+        ? AbilityMetadataMapper.From(template)
+        : shaping.Apply(AbilityMetadataMapper.From(template));
 
     public uint Id => Template.Id.Value;
 

@@ -172,7 +172,8 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
         MapInstanceClient real = RealWarrior(instance, 6760_101, WarriorGear(gear), null, Row(200));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, WarriorGear(gear).Select(Data.Worn));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, WarriorGear(gear).Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
@@ -273,7 +274,8 @@ public class SimulatorParityShould
         var clock = new FakeTimeProvider(s_clockStart);
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_111, clock, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
         simWarrior.Abilities.Add(new SimAbility(Row(200)));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
@@ -318,7 +320,7 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)), time: clock);
         ulong[] gear = s_scenarios.Value.GearFor("forest", @class);
         MapInstanceClient real = RealCharacter(instance, 6760_121, @class, gear, clock);
-        var simPlayer = SimPlayer.Create(Data, @class, Level, gear.Select(Data.Worn));
+        var simPlayer = SimPlayer.Create(Data, @class, Level, gear.Select(Data.Worn), Data.Talents.Starter(@class));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         Creature realBoar = RealBoar(instance, 6760_921, simBoar);
         IAbility realHit = AbilityTestData.Game(Row(ability));
@@ -364,7 +366,8 @@ public class SimulatorParityShould
         // exchange never meets such a tie.
         ulong[] gear = [.. ForestWarrior, 147];
         MapInstanceClient real = RealWarrior(instance, 6760_151, gear, clock, Row(200), Row(202));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, gear.Select(Data.Worn));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, gear.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
         simWarrior.Abilities.AddRange([new SimAbility(Row(200)), new SimAbility(Row(202))]);
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_951, simBoar, s_pointBlank);
@@ -416,7 +419,7 @@ public class SimulatorParityShould
         real.Character.Spells.Load([AbilityTestData.Game(Row(211))]);
         real.Character.CurrentPower = StartMana;
 
-        var simWizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var simWizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, [], Data.Talents.Starter(CharacterClass.Wizard));
         simWizard.Abilities.Add(new SimAbility(Row(211)));
         simWizard.CurrentPower = StartMana;
         Assert.True(simWizard.Power >= StartMana, $"a level-1 Wizard holds {simWizard.Power} Mana");
@@ -510,7 +513,8 @@ public class SimulatorParityShould
         seed.AbilityTemplates.Add(TestRend(effects, type));
         seed.CreatureTemplates.Single(t => t.Id.Value == 4).WardModifier = 1f;   // a boar with a ward on both sides
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn),
+            data.Talents.Starter(CharacterClass.Warrior));
         simWarrior.Abilities.Add(new SimAbility(TestRend(effects, type)));
         Assert.True(simWarrior.Attack.Weapon.Max1 > 0, "the Warrior has no main hand to roll");
         SimCreature simBoar = PassiveBoar(Level, data);
@@ -583,7 +587,8 @@ public class SimulatorParityShould
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(PoisonSeed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_191, clock, Row(200));
 
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn),
+            data.Talents.Starter(CharacterClass.Warrior));
         var simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         foreach (SimAbility special in simBoar.Specials) special.CooldownLeft = 1_000f;   // only Gore, once
@@ -649,7 +654,8 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend());
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn),
+            data.Talents.Starter(CharacterClass.Warrior));
         simWarrior.Abilities.Add(new SimAbility(TestRend()));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_972, simBoar);
@@ -703,7 +709,7 @@ public class SimulatorParityShould
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         real.Character.Spells.Load([AbilityTestData.Game(renew)]);
 
-        var simCleric = SimPlayer.Create(Data, CharacterClass.Cleric, Level, []);
+        var simCleric = SimPlayer.Create(Data, CharacterClass.Cleric, Level, [], Data.Talents.Starter(CharacterClass.Cleric));
         simCleric.Abilities.Add(new SimAbility(renew));
         Assert.Equal(real.Character.Health, simCleric.Health);
         Assert.Equal(real.Character.CurrentPower, simCleric.CurrentPower);
@@ -766,7 +772,8 @@ public class SimulatorParityShould
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, Data.Combat.Formula));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
         sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0)));
         sim.ApplyAuraStats(Data, s_clockStart.UtcDateTime);
 
@@ -888,7 +895,8 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_131, clock, Row(200));
         real.Character.LastCastStartTime = clock.GetUtcNow().UtcDateTime.AddSeconds(-1);
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
         sim.Abilities.Add(new SimAbility(Row(200)));
 
         handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = 200 });
@@ -911,7 +919,7 @@ public class SimulatorParityShould
     public void Regenerate_the_same_mana_in_combat_as_a_character_entity()
     {
         // The simulated Wizard casts Spark Bolt (instant and free) at a boar that never swings.
-        var sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, [], Data.Talents.Starter(CharacterClass.Wizard));
         sim.CurrentPower = 10;
         var dummy = SimCreature.Create(Data, Data.Creature(4), 1, 0);
         dummy.Health = dummy.CurrentHealth = 1_000_000;

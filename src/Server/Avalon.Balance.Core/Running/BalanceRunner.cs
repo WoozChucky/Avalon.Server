@@ -152,7 +152,7 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
     /// <summary>The player's derived stats and each ability's per-hit amount (AbilityAmounts, as the client is told).</summary>
     private PlayerSnapshot Snapshot(RowKey key, IReadOnlyList<WornItem> worn)
     {
-        var player = SimPlayer.Create(data, key.Class, key.Level, worn);
+        var player = SimPlayer.Create(data, key.Class, key.Level, worn, data.Talents.Starter(key.Class));
         DerivedCharacterStats s = player.Stats;
         return new PlayerSnapshot(s.MaxHealth, s.MaxPower, s.Armor, s.CritPct, s.Evasion, s.BlockPct, s.MaxWard,
             player.Abilities.Select(a =>

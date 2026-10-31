@@ -139,7 +139,7 @@ public sealed class FightSimulator
             if (!ability.Ready || !entry.When.All(c => c.Holds(Read(c.Stat))))
                 continue;
 
-            CostCheck cost = AbilityCost.Check(Player, ability.Metadata);
+            CostCheck cost = AbilityCost.Check(Player, ability.Metadata, fromLife: Player.Talents.Totals.LifeCost);
             if (first && cost == CostCheck.NotEnoughPower) _starved += StepSeconds;
             first = false;
             if (cost != CostCheck.Payable)
@@ -181,9 +181,13 @@ public sealed class FightSimulator
 
     // ---- casting, shared by both sides (InstanceAbilityCastSystem) ----
 
+    /// <summary>
+    /// A player pays when the cast is taken, as InstanceAbilityCastSystem; creatures cast free. With Blood Price (B-R14) the
+    /// cost comes from life, which is no damage: no ward meets it, no total counts it, and the mana is untouched.
+    /// </summary>
     private void Cast(SimUnit caster, SimAbility ability)
     {
-        if (caster is SimPlayer) AbilityCost.Pay(caster, ability.Metadata);   // creatures cast free
+        if (caster is SimPlayer player) AbilityCost.Pay(player, ability.Metadata, fromLife: player.Talents.Totals.LifeCost);
 
         if (ability.Metadata.CastTime > 0f)
         {

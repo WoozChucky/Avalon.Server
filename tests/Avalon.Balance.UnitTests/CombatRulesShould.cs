@@ -14,7 +14,7 @@ public class CombatRulesShould
     private static BalanceData Data => TestData.Seeded;
 
     private static SimPlayer Warrior(ushort level = 1, params ulong[] gear) =>
-        SimPlayer.Create(Data, CharacterClass.Warrior, level, gear.Select(Data.Worn));
+        SimPlayer.Create(Data, CharacterClass.Warrior, level, gear.Select(Data.Worn), Data.Talents.Starter(CharacterClass.Warrior));
 
     private static SimCreature Boar(ushort level = 1) => SimCreature.Create(Data, Data.Creature(4), level, 0);
 
@@ -33,7 +33,7 @@ public class CombatRulesShould
     [Fact]
     public void Start_a_wizard_full_of_mana_regenerating_a_share_of_its_maximum()
     {
-        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, [], Data.Talents.Starter(CharacterClass.Wizard));
 
         Assert.Equal(wizard.Power, wizard.CurrentPower);
         Assert.Equal(ManaRegenRates.Of(new RegenConfiguration(), wizard.Power!.Value, 0f), wizard.ManaRegen);
@@ -55,32 +55,86 @@ public class CombatRulesShould
     /// B-R6: a direct hit on a creature meets its ward first, for what the hit lets the ward absorb (all but its blight
     /// share), and health loses the rest; a dodged hit (0) takes nothing. What the hit cost is the ward's part plus the health.
     /// Any hit pauses the recharge, even one the ward does not meet: a blight point 3 s later leaves the ward as it was 2 s
-    /// after that, short of the 4 s delay, when the next point it can absorb meets it.
+    /// after that, short of the 4 s delay, when the next point it can absorb meets it. With Unbroken (B-R14) the ward takes
+    /// every point, blight included, so health loses none and the blight point meets the ward too.
     /// </summary>
     [Theory]
-    [InlineData(10u, 0u, 10u, 0u, 10u)]
-    [InlineData(0u, 0u, 0u, 0u, 0u)]
-    [InlineData(30u, 20u, 30u, 0u, 10u)]
-    [InlineData(30u, 50u, 30u, 20u, 0u)]
-    [InlineData(30u, 50u, 10u, 40u, 20u)]   // a blight share
-    [InlineData(30u, 50u, 0u, 50u, 30u)]    // all blight
-    public void Take_the_health_a_hit_on_a_creature_deals(uint total, uint ward, uint absorbable, uint wardAfter, uint healthLost)
+    [InlineData(10u, 0u, 10u, 0u, 10u, false)]
+    [InlineData(0u, 0u, 0u, 0u, 0u, false)]
+    [InlineData(30u, 20u, 30u, 0u, 10u, false)]
+    [InlineData(30u, 50u, 30u, 20u, 0u, false)]
+    [InlineData(30u, 50u, 10u, 40u, 20u, false)]   // a blight share
+    [InlineData(30u, 50u, 0u, 50u, 30u, false)]    // all blight
+    [InlineData(30u, 50u, 0u, 20u, 0u, true)]      // all blight, on a cleric holding Unbroken
+    public void Take_the_health_a_hit_on_a_creature_deals(uint total, uint ward, uint absorbable, uint wardAfter, uint healthLost,
+        bool unbroken)
     {
-        SimCreature boar = Boar();
-        boar.ResetWard(ward);
-        uint health = boar.CurrentHealth;
+        SimUnit target = unbroken ? TestData.Whole("cleric-unbroken") : Boar();
+        target.ResetWard(ward);
+        uint health = target.CurrentHealth;
 
         DateTime start = FightSimulator.Epoch.UtcDateTime;
-        WardedLoss loss = CombatRules.Land(boar,
+        WardedLoss loss = CombatRules.Land(target,
             new HitDamage(total, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, absorbable), start);
 
-        Assert.Equal(wardAfter, boar.Ward);
-        Assert.Equal(healthLost, health - boar.CurrentHealth);
-        Assert.Equal(total, loss.Total);   // the boar outlives every row
+        Assert.Equal(wardAfter, target.Ward);
+        Assert.Equal(healthLost, health - target.CurrentHealth);
+        Assert.Equal(total, loss.Total);   // the target outlives every row
 
-        CombatRules.Land(boar, new HitDamage(1, HitResult.None, DamageType.Blight, DamageTypeMask.Blight, 0), start.AddSeconds(3));
-        CombatRules.Land(boar, new HitDamage(1, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 1), start.AddSeconds(5));
-        Assert.Equal(wardAfter == 0 ? 0u : wardAfter - 1, boar.Ward);
+        CombatRules.Land(target, new HitDamage(1, HitResult.None, DamageType.Blight, DamageTypeMask.Blight, 0), start.AddSeconds(3));
+        CombatRules.Land(target, new HitDamage(1, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 1), start.AddSeconds(5));
+        uint met = unbroken ? 2u : 1u;
+        Assert.Equal(wardAfter < met ? 0u : wardAfter - met, target.Ward);
+    }
+
+    /// <summary>
+    /// B-R14, Blood Price: Hurled Axe's 10 is paid from life, which it never takes to 0, so life equal to the cost refuses
+    /// the cast, counted as a starved tick. The payment is no damage (nothing taken) and leaves the mana full.
+    /// </summary>
+    [Theory]
+    [InlineData(100u, 90u, 0d)]
+    [InlineData(10u, 10u, 1d)]
+    public void Pay_ability_costs_from_life_with_blood_price(uint life, uint healthAfter, double starvedTicks)
+    {
+        SimPlayer warrior = TestData.Whole("warrior-blood-price");
+        warrior.CurrentHealth = life;
+        SimCreature dummy = Boar();
+        dummy.Health = dummy.CurrentHealth = 1_000_000;
+        foreach (SimAbility ability in dummy.Abilities) ability.CooldownLeft = 1_000f;   // held
+        var fight = new FightSimulator(Data.Combat.Formula, warrior, [dummy], [new CompiledRotationEntry(202, [])],
+            CombatRandom.Steady);
+
+        fight.Tick();
+
+        FightResult result = fight.Result();
+        Assert.Equal(healthAfter, warrior.CurrentHealth);
+        Assert.Equal(warrior.Power, warrior.CurrentPower);
+        Assert.Equal(starvedTicks * FightSimulator.StepSeconds, result.StarvedSeconds, precision: 9);
+        Assert.Empty(result.DamageTaken);
+    }
+
+    /// <summary>B-R14, Steady Hand: the crit chance is 0, and stays 0 once an aura that adds to it is folded in.</summary>
+    [Fact]
+    public void Never_crit_with_steady_hand()
+    {
+        SimPlayer wizard = TestData.Whole("wizard-steady-hand");
+        Assert.Equal(0f, wizard.Stats.CritPct);
+
+        var focus = new AuraTemplate
+        {
+            Id = new AuraId(9907),
+            Name = "Test Focus",
+            Icon = "focus",
+            Kind = AuraKind.Helpful,
+            DurationMs = 30000,
+            Stacking = AuraStacking.Refresh,
+            MaxStacks = 1,
+        };
+        focus.Modifiers = [new AuraStatModifier { AuraId = focus.Id, Stat = AuraStat.CritPct, Kind = AuraModifierKind.Flat, Value = 5f }];
+        wizard.Auras.Add(new SimAura(focus, wizard, 1, default, AuraSchedule.Start(FightSimulator.Epoch, 30000, 0)));
+        wizard.ApplyAuraStats(Data, FightSimulator.Epoch.UtcDateTime);
+
+        Assert.Equal(0f, wizard.Stats.CritPct);
     }
 
     /// <summary>#1181: a hit on the player takes health and leaves its mana alone.</summary>
@@ -104,7 +158,7 @@ public class CombatRulesShould
     [InlineData(CharacterClass.Wizard)]
     public void Keep_mana_on_the_hit_that_kills(CharacterClass @class)
     {
-        var player = SimPlayer.Create(Data, @class, 1, TestData.Gear("forest", @class));
+        var player = SimPlayer.Create(Data, @class, 1, TestData.Gear("forest", @class), Data.Talents.Starter(@class));
         Assert.True(@class != CharacterClass.Wizard || player.Ward > 0, "a Wizard in cloth carries a ward");
         player.CurrentPower = 60;
 
@@ -160,7 +214,8 @@ public class CombatRulesShould
     [InlineData("forest")]
     public void Wait_an_attacks_weapon_time_over_attack_speed(string gear)
     {
-        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, TestData.Gear(gear, CharacterClass.Warrior));
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, TestData.Gear(gear, CharacterClass.Warrior),
+            Data.Talents.Starter(CharacterClass.Warrior));
         int attackMs = gear == "none" ? 816 : TestData.MidpointOf(7, ItemBaseStat.AttackTime);
 
         Assert.Equal(2f, warrior.Pace.AttackSpeedPct, precision: 4);
@@ -184,7 +239,7 @@ public class CombatRulesShould
     [Fact]
     public void Restore_no_more_than_the_health_missing()
     {
-        var cleric = SimPlayer.Create(Data, CharacterClass.Cleric, 1, []);
+        var cleric = SimPlayer.Create(Data, CharacterClass.Cleric, 1, [], Data.Talents.Starter(CharacterClass.Cleric));
         cleric.CurrentHealth = cleric.Health - 5;
 
         Assert.Equal(5u, CombatRules.HealPlayer(cleric, 40));

@@ -73,7 +73,7 @@ public class AuraSimulationShould
 
     private static (FightSimulator Fight, SimCreature Boar) Fight(BalanceData data, ICombatRandom? rng = null)
     {
-        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, [], data.Talents.Starter(CharacterClass.Warrior));
         warrior.Abilities.Add(new SimAbility(data.Abilities[new AbilityId(9203)]));
         var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
         // Its base maximum too, as the parity test's server boar has, so a stat aura keeps its health where it is.
@@ -225,7 +225,7 @@ public class AuraSimulationShould
     public void Fold_a_stat_aura_into_the_players_defence_and_take_it_back()
     {
         BalanceData data = Data();
-        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, [], data.Talents.Starter(CharacterClass.Warrior));
         uint armour = warrior.Defence.Armor;
 
         warrior.Auras.Add(new SimAura(data.Auras[new AuraId(9905)], warrior, 1, default,
@@ -303,7 +303,7 @@ public class AuraSimulationShould
     public void Run_unchanged_without_aura_data()
     {
         BalanceData data = Data();
-        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, [], data.Talents.Starter(CharacterClass.Warrior));
         warrior.Abilities.Add(new SimAbility(data.Abilities[new AbilityId(9203)]));
         var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
         var fight = new FightSimulator(data.Combat.Formula, warrior, [boar], [new CompiledRotationEntry(9203, [])],

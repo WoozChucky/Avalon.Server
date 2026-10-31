@@ -32,7 +32,8 @@ public sealed class HeldTalents
     /// <summary>
     /// The held nodes' stat lines and keystone rules (B-R12), added as the world's TalentAllocation.RebuildTotals adds
     /// them: nodes by ascending id, each node's lines by stat then kind, then its keystone rule, so every More multiplies
-    /// in the world's order. <see cref="TalentTotals.IsEmpty" /> when no held node carries a line or a rule.
+    /// in the world's order. <see cref="TalentTotals.IsEmpty" /> when no held node carries a line or a rule. Read it, never
+    /// write it: each <see cref="TalentTree.Hold" /> builds a fresh instance, which every reader of this build shares.
     /// </summary>
     public TalentTotals Totals { get; }
 
