@@ -48,6 +48,43 @@ public class SeedLoadShould
         Assert.Equal(34.1145, max, precision: 4);    // 6 x 3.15 x 1.805
     }
 
+    /// <summary>
+    /// The first eleven nodes of the axes build (B-R10 to B-R13): the hub's Strength path, then Hurled Axe's branch to
+    /// Twin Axes. Its abilities are the starter, then Hurled Axe, which Twin Axes fans to two lanes; its lines fold into
+    /// the stats as the world's refresh folds them.
+    /// </summary>
+    [Fact]
+    public void Hold_a_builds_lines_abilities_and_shapes()
+    {
+        BalanceData data = TestData.Seeded;
+
+        HeldTalents held = data.Talents.Hold(CharacterClass.Warrior, [57, 58, 59, 60, 61, 69, 70, 71, 72, 73, 311]);
+
+        Assert.Equal([319u, 202u], held.Abilities.Select(a => a.Template.Id.Value));
+        HeldAbility axe = held.Abilities[1];
+        Assert.Equal(2, axe.Shaping.Apply(AbilityMetadataMapper.From(axe.Template)).ProjectileCount);
+
+        DerivedCharacterStats stats = data.CharacterStats(CharacterClass.Warrior, 1, [], talents: held.Totals);
+        Assert.Equal(33u, stats.Strength);      // 23 + S1 5 + L2.c3 5
+        Assert.Equal(247u, stats.MaxHealth);    // 240 x 1.03, half away from zero
+        var pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, data.Combat.Formula);
+        Assert.Equal(6d, pace.AttackSpeedPct, precision: 4);   // 2 from Agility, + 2 + 2 from L2.c2 and L2.c5
+    }
+
+    [Theory]
+    [InlineData(CharacterClass.Warrior, new[] { 2, 2 }, "node 2: AlreadyAllocated")]
+    [InlineData(CharacterClass.Warrior, new[] { 1 }, "node 1: AlreadyAllocated")]
+    [InlineData(CharacterClass.Warrior, new[] { 3 }, "node 3: NotConnected")]
+    [InlineData(CharacterClass.Warrior, new[] { 999 }, "node 999: UnknownNode")]
+    [InlineData(CharacterClass.Warrior, new[] { 2, 3, 4, 5, 6, 22, 23, 24, 25, 26, 306, 307 }, "node 307: ForkLocked")]
+    [InlineData(CharacterClass.Warrior, new[] { 75 }, "node 75: NotConnected")]
+    public void Refuse_a_build_the_talent_rules_refuse(CharacterClass @class, int[] nodes, string message)
+    {
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => TestData.Seeded.Talents.Hold(@class, nodes));
+
+        Assert.Contains(message, error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Load_every_seeded_ability_and_item_row_and_refuse_none()
     {

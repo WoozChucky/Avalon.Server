@@ -76,6 +76,8 @@ public class ColumnRuleShould
         ("AuraStatModifier", typeof(Avalon.Domain.World.AuraStatModifier)),
         ("ItemTemplateBaseStat", typeof(Avalon.Domain.World.ItemTemplateBaseStat)),
         ("ItemModifierStat", typeof(Avalon.Domain.World.ItemModifierStat)),
+        ("TalentNodeStat", typeof(Avalon.Domain.World.TalentNodeStat)),
+        ("TalentAbilityModifier", typeof(Avalon.Domain.World.TalentAbilityModifier)),
     ];
 
     [Fact]

@@ -77,7 +77,7 @@ public sealed class SimPlayer : SimUnit
             CurrentPower = stats.MaxPower,
         };
         player.ResetWard(stats.MaxWard);
-        player.Abilities.AddRange(data.KitOf(characterClass).Select(t => new SimAbility(t)));
+        player.Abilities.AddRange(data.Talents.Starter(characterClass).Abilities.Select(a => new SimAbility(a.Template)));
         return player;
     }
 }

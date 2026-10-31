@@ -50,7 +50,7 @@ desktop; narrow it with `--class`, `--scenario` and `--runs` while iterating. Th
   names must exist in `scenarios.json`.
 - `rotations.json`: per class, a priority list; the first entry that is off cooldown, affordable and whose conditions
   hold is cast. Conditions: `targetsAlive`, `healthPct`, `power`, `powerPct`, each like `">=2"`. A character holds its
-  class's starter alone (#1181: the ability its talent-tree start links, `BalanceData.KitOf`), and an entry naming any
+  class's starter alone (#1181: the ability its talent-tree start links, `TalentTree.Starter`), and an entry naming any
   other ability is refused when the rotation is compiled ("is not in the class's kit"), so the checked-in rotations
   name each class's starter alone, with no condition, until builds land (the next part of #1183).
 

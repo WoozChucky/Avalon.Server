@@ -25,7 +25,7 @@ internal static class BalanceTestHost
 
     /// <summary>
     /// The service's host over the seed and the checked-in scenarios and targets, with a fixture rotation: each class
-    /// casts the first ability of its kit, as the seed gives it (<see cref="BalanceData.KitOf" />). The run tests use
+    /// casts its starter, as the seed gives it (<see cref="TalentTree.Starter" />). The run tests use
     /// it, so neither the checked-in rotations nor which abilities the seed's kits hold (#1181, #1183) can stop a run.
     /// </summary>
     public static BalanceHost FixtureHost()
@@ -35,7 +35,7 @@ internal static class BalanceTestHost
         var data = BalanceData.From(seed);
         var rotations = new RotationFile();
         foreach (CharacterClass c in CharacterClasses.Playable)
-            rotations[c] = [new RotationEntry { Ability = data.KitOf(c)[0].Id.Value }];
+            rotations[c] = [new RotationEntry { Ability = data.Talents.Starter(c).Abilities[0].Template.Id.Value }];
 
         return new BalanceHost(seed, new BalanceConfig(
             ConfigFileStore.Load(Path.Combine(dir, "scenarios.json"), ConfigFiles.ParseScenarios),

@@ -35,7 +35,7 @@ public sealed partial class RotationFile : Dictionary<CharacterClass, RotationEn
         if (!TryGetValue(characterClass, out RotationEntry[]? entries) || entries is null || entries.Length == 0)
             throw new InvalidDataException($"rotations: {characterClass} has no rotation");
 
-        var kit = data.KitOf(characterClass).Select(a => a.Id.Value).ToHashSet();
+        HeldTalents kit = data.Talents.Starter(characterClass);
         var compiled = new List<CompiledRotationEntry>();
         for (int i = 0; i < entries.Length; i++)
         {
@@ -43,7 +43,7 @@ public sealed partial class RotationFile : Dictionary<CharacterClass, RotationEn
             if (entries[i] is null) throw new InvalidDataException($"{where}: the entry is null");
             if (entries[i].When is null || entries[i].When.Any(d => d is null || d.Values.Any(v => v is null)))
                 throw new InvalidDataException($"{where}: when is missing or holds a null condition");
-            if (!kit.Contains(entries[i].Ability))
+            if (!kit.Holds(entries[i].Ability))
                 throw new InvalidDataException($"{where}: ability {entries[i].Ability} is not in the class's kit");
 
             var conditions = new List<Condition>();

@@ -105,13 +105,13 @@ in no rotation in `balance/rotations.json`.
 
 **A simulated character holds its class's starter alone (#1181).** Since the talent tree, a new character holds only
 the ability its class start links, and every other ability is a node it walks to. Until builds land (the next part of
-#1183) the simulator models no allocation, so `BalanceData.KitOf` returns the starter alone, through the start's link
+#1183) the simulator models no allocation, so `TalentTree.Starter` holds the starter alone, through the start's link
 in the seed's `TalentClassStarts` and `TalentNodeAbilities` (Heavy Strike, Spark Bolt, Quick Shot, Smite), and a
 rotation entry naming any other ability is refused when the rotation is compiled (`RotationFile.Compile`: "is not in
 the class's kit"). So the checked-in `balance/rotations.json` names each class's starter alone, one entry with no
 condition. Whether an ability is a class ability (`granted`, for the ability and aura rules) is read from the same
 links. The Balance Service's run tests (`RunQueueShould`, `RunEndpointsShould`, `ExportEndpointsShould`,
-`WireMappingShould`) run on a fixture rotation, each class casting the first ability of its kit as the seed gives it
+`WireMappingShould`) run on a fixture rotation, each class casting its starter as the seed gives it
 (`BalanceTestHost.FixtureHost`), so neither the checked-in rotations nor the seed's kits can stop them. A simulator
 test that scripts more than the starter gives the character those abilities directly (`TestData.Holding` in the
 balance unit tests; the world's parity tests add each `SimAbility` themselves).

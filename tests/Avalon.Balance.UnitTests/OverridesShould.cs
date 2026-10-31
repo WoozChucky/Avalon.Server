@@ -122,6 +122,8 @@ public class OverridesShould
     [InlineData("""{ "ItemTemplateBaseStat.7.DamageMin.Min": 999 }""", "item 7 '")]
     [InlineData("""{ "Item.112.Rarity": "Magic" }""", "item 112 'Hearthstone Ring': a Magic template links no modifier")]
     [InlineData("""{ "ItemModifierStat.16.0.Min": 999 }""", "modifier 16 line 0: its range 999-")]
+    [InlineData("""{ "TalentNodeStat.2.Strength.Added.ValueMax": 9 }""", "node 2's Strength Added line")]
+    [InlineData("""{ "TalentAbilityModifier.311.AddedProjectiles.Value": 9 }""", "node 311's AddedProjectiles modifier")]
     public void Stop_on_an_override_the_server_would_refuse(string json, string message)
     {
         (SeedTables tables, _) = Apply(json);

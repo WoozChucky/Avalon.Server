@@ -20,10 +20,12 @@ public sealed class BalanceData
     private readonly IReadOnlyDictionary<ulong, WornItem> _worn;
 
     private BalanceData(SeedTables tables, IReadOnlyDictionary<AuraId, AuraTemplate> auras,
-        IReadOnlyDictionary<AbilityId, AbilityTemplate> abilities, IReadOnlyList<string> refusedAbilities, CombatData combat,
-        ItemModifierCatalog itemModifiers, IReadOnlyDictionary<ulong, WornItem> worn, CreatureStatDeriver creatureStats)
+        IReadOnlyDictionary<AbilityId, AbilityTemplate> abilities, IReadOnlyList<string> refusedAbilities, TalentTree talents,
+        CombatData combat, ItemModifierCatalog itemModifiers, IReadOnlyDictionary<ulong, WornItem> worn,
+        CreatureStatDeriver creatureStats)
     {
         Tables = tables;
+        Talents = talents;
         ItemModifiers = itemModifiers;
         _worn = worn;
         Auras = auras;
@@ -53,6 +55,12 @@ public sealed class BalanceData
 
     /// <summary>The templates left out, each with its reason; empty for any data <see cref="From" /> accepts.</summary>
     public IReadOnlyList<string> RefusedAbilities { get; }
+
+    /// <summary>
+    /// The talent tree (#1181), checked against the ability and aura catalogs above as the world's talent catalog checks
+    /// it: what a build holds, its lines, abilities and shapes (<see cref="TalentTree.Hold" />).
+    /// </summary>
+    public TalentTree Talents { get; }
 
     public CombatData Combat { get; }
     public CreatureStatDeriver CreatureStats { get; }
@@ -103,6 +111,8 @@ public sealed class BalanceData
         if (refused.Count > 0)
             throw new InvalidDataException("The ability catalog refused: " + string.Join("; ", refused));
 
+        // As the world's Abilities reload area: the tree after the ability catalog, against it and the auras it was checked with.
+        var talents = TalentTree.From(tables, abilities, auras);
         CombatFormula formula = CombatDataRules.Build(tables.CombatFormulas);
         ItemModifierCatalog itemModifiers = ItemModifierCatalogOf(tables);
         IReadOnlyDictionary<ulong, ItemTemplate> bases = CheckItemTemplates(tables, itemModifiers);
@@ -114,7 +124,8 @@ public sealed class BalanceData
         var creatureStats = new CreatureStatDeriver(tables.CreatureBaseStats, tables.CreatureRarityModifiers,
             NullLoggerFactory.Instance);
 
-        return new BalanceData(tables, auras, abilities, refused, new CombatData(formula), itemModifiers, worn, creatureStats);
+        return new BalanceData(tables, auras, abilities, refused, talents, new CombatData(formula), itemModifiers, worn,
+            creatureStats);
     }
 
     /// <summary>
@@ -211,28 +222,13 @@ public sealed class BalanceData
 
     /// <param name="auras">What the character's auras add, folded in as the server's stats refresh folds them; none when null.</param>
     /// <param name="worn">The fixed copies worn (<see cref="Worn" />), read as the server's stats refresh reads a character's items.</param>
+    /// <param name="talents">What the held talent nodes add (<see cref="HeldTalents.Totals" />), folded as gear's global lines; none when null.</param>
     public DerivedCharacterStats CharacterStats(CharacterClass characterClass, ushort level, IReadOnlyList<WornItem> worn,
-        AuraStatTotals? auras = null)
+        AuraStatTotals? auras = null, TalentTotals? talents = null)
     {
         ClassLevelStat row = Tables.ClassLevelStats.FirstOrDefault(r => r.Class == characterClass && r.Level == level)
             ?? throw new InvalidDataException($"ClassLevelStat {characterClass} level {level} is not seeded");
-        return CharacterStatsCalculator.Calculate(row, worn, Combat.Formula, auras);
-    }
-
-    /// <summary>
-    /// The abilities a new character of the class holds (#1181): its starter alone, which its start on the talent tree
-    /// links, as the catalog holds it. Every other ability is a node it must walk to.
-    /// </summary>
-    public IReadOnlyList<AbilityTemplate> KitOf(CharacterClass characterClass)
-    {
-        TalentClassStart start = Tables.TalentClassStarts.FirstOrDefault(s => s.Class == characterClass)
-            ?? throw new InvalidDataException($"The talent tree has no start for {characterClass}");
-        TalentNodeAbility link = Tables.TalentNodeAbilities.FirstOrDefault(l => l.NodeId == start.NodeId)
-            ?? throw new InvalidDataException($"{characterClass}'s start {start.NodeId} links no ability");
-        return Abilities.TryGetValue(link.AbilityId, out AbilityTemplate? starter)
-            ? [starter]
-            : throw new InvalidDataException(
-                $"{characterClass} starts with ability {link.AbilityId.Value}, which the catalog does not hold");
+        return CharacterStatsCalculator.Calculate(row, worn, Combat.Formula, auras, talents: talents);
     }
 
     /// <summary>

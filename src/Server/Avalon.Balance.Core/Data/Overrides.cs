@@ -83,6 +83,19 @@ public static class Overrides
                     r.ModifierId.ToString(CultureInfo.InvariantCulture) == modifier && Text(r.Index) == index)
                 : null,
             t => t.ItemModifierStats.Select(r => ($"{r.ModifierId.ToString(CultureInfo.InvariantCulture)}.{Text(r.Index)}", (object)r))),
+        // A talent node's stat lines (#1181), keyed by node, stat and kind, as the table keys them.
+        ["TalentNodeStat"] = new(typeof(TalentNodeStat), ["NodeId", "Stat", "Kind"],
+            (t, k) => k.Split('.') is [var node, var s, var kind] && Named(s, out StatType stat)
+                      && Named(kind, out TalentStatKind statKind)
+                ? t.TalentNodeStats.FirstOrDefault(r => Text(r.NodeId) == node && r.Stat == stat && r.Kind == statKind)
+                : null,
+            t => t.TalentNodeStats.Select(r => ($"{Text(r.NodeId)}.{r.Stat}.{r.Kind}", (object)r))),
+        // A capstone's modifiers (#1181 Part D), keyed by node and kind, as the table keys them.
+        ["TalentAbilityModifier"] = new(typeof(TalentAbilityModifier), ["NodeId", "Kind"],
+            (t, k) => k.Split('.') is [var node, var kind] && Named(kind, out TalentModifierKind modifierKind)
+                ? t.TalentAbilityModifiers.FirstOrDefault(r => Text(r.NodeId) == node && r.Kind == modifierKind)
+                : null,
+            t => t.TalentAbilityModifiers.Select(r => ($"{Text(r.NodeId)}.{r.Kind}", (object)r))),
     };
 
     public static OverrideReport Apply(SeedTables tables, JsonElement root)
@@ -237,6 +250,8 @@ public static class Overrides
     }
 
     private static string Text(ulong value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     internal static string Show(object? value) => value switch
     {
