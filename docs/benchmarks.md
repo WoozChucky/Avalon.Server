@@ -6425,7 +6425,8 @@ The scenario allocation gate's new `town-doodads` scenario (see [what each scena
 reads 0 B per window: in Release before the fix and in Debug with it. The other scenarios are unchanged.
 
 Since #1269 (2026-10-31) `InterestVisibilityBenchmarks` uses 50/10, the new default radius of 50 m and the 10 m
-margin, and `margin` tracks every creature at 55 m. Every result above used 60/10, with `margin` at 65 m.
+margin, `sparse` now has 8 creatures in view (creature i at (5i, 5i), 7.07i m away, so i = 0 to 7 within 50 m), and
+`margin` tracks every creature at 55 m. Every result above used 60/10, with `margin` at 65 m and `sparse` 9 in view.
 
 ### Results — hit queries over a spatial grid (#982, 2026-10-15)
 

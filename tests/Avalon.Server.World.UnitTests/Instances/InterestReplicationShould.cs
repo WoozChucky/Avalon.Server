@@ -47,10 +47,10 @@ public class InterestReplicationShould
     {
         using MapInstance instance = TestMapInstances.Build(NewWorld());
         MapInstanceClient watcher = JoinAt(instance, 593_141, Vector3.zero);
-        Creature creature = AddCreature(instance, 593_941, new Vector3(50f, 0f, 0f));
+        Creature creature = AddCreature(instance, 593_941, new Vector3(40f, 0f, 0f));
         Ticks(instance, 2);
 
-        watcher.Character.Position = new Vector3(-30f, 0f, 0f);   // 80 m away: removed on the broadcast, tick 7 (#981)
+        watcher.Character.Position = new Vector3(-30f, 0f, 0f);   // 70 m away: removed on the broadcast, tick 7 (#981)
         Ticks(instance, 5);
         Assert.Equal([creature.Guid.RawValue], watcher.Removed());
         creature.CurrentHealth = 37;
@@ -63,7 +63,7 @@ public class InterestReplicationShould
         Assert.Equal(2, adds.Count);
         Assert.Equal(37u, adds[1].CurrentHealth);
         Assert.Equal(100u, adds[1].Health);
-        Assert.Equal(50f, adds[1].Position!.X);
+        Assert.Equal(40f, adds[1].Position!.X);
     }
 
     [Fact]
