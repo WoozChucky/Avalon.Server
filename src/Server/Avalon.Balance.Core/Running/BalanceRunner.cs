@@ -3,8 +3,9 @@ using Avalon.Common;
 
 namespace Avalon.Balance.Core;
 
+/// <summary>The rows to run: every build at every level, in every gear profile, against every scenario.</summary>
 public sealed record RunPlan(
-    IReadOnlyList<CharacterClass> Classes,
+    IReadOnlyList<CompiledBuild> Builds,
     IReadOnlyList<ushort> Levels,
     IReadOnlyList<string> Gear,
     IReadOnlyList<Scenario> Scenarios,
@@ -14,9 +15,9 @@ public sealed record RunPlan(
     public IEnumerable<RowKey> Keys() =>
         from s in Scenarios
         from g in Gear
-        from c in Classes
+        from b in Builds
         from l in Levels
-        select new RowKey(c, l, g, s.Id);
+        select new RowKey(b.Id, b.Class, l, g, s.Id);
 }
 
 /// <summary>A filter or count the files cannot satisfy; <see cref="Path" /> says which (filter.levels, runsPerRow, ...).</summary>
@@ -25,13 +26,15 @@ public sealed class PlanRefusedException(string path, string message) : Argument
     public string Path { get; } = path;
 }
 
-public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, RotationFile rotations)
+public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, BuildFile builds)
 {
+    /// <summary>The rows of one class's builds (all when null) against one scenario (all when null).</summary>
     /// <exception cref="ArgumentException">A filter names a class or scenario the files do not have.</exception>
     public RunPlan Plan(CharacterClass? onlyClass, string? onlyScenario, int? runs, int? seed)
     {
         var filter = new RunFilter(
             onlyClass is { } c ? new HashSet<CharacterClass> { c } : null,
+            null,
             null,
             null,
             onlyScenario is { } id ? new HashSet<string>(StringComparer.Ordinal) { id } : null);
@@ -47,13 +50,20 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
 
     /// <summary>
     /// The rows the filter keeps, in the files' order. A null set keeps everything; a value the files do not have,
-    /// or an empty set, is refused.
+    /// or an empty set, is refused. Classes keeps the builds of those classes, so a class with no build is refused, and
+    /// so is a pair of filters no build passes both of. Each build kept is compiled (<see cref="BuildFile.Compile" />).
     /// </summary>
     /// <exception cref="PlanRefusedException">The first refusal, with the filter it belongs to.</exception>
+    /// <exception cref="InvalidDataException">A build kept does not compile.</exception>
     public RunPlan Plan(RunFilter filter, int? runs, int? seed)
     {
-        IReadOnlyList<CharacterClass> classes = Pick(filter.Classes, scenarios.Classes, "filter.classes", "classes",
-            c => $"Class '{c}' is not in scenarios.json classes");
+        IReadOnlyList<CharacterClass> classes = Pick(filter.Classes, scenarios.ClassesOf(builds), "filter.classes", "classes",
+            c => $"Class '{c}' has no build in scenarios.json builds");
+        IReadOnlyList<string> named = Pick(filter.Builds, scenarios.Builds, "filter.builds", "builds",
+            b => $"Build '{b}' is not in scenarios.json builds (known: {string.Join(", ", scenarios.Builds)})");
+        CompiledBuild[] kept = [.. named.Select(id => builds.Compile(id, data)).Where(b => classes.Contains(b.Class))];
+        if (kept.Length == 0)
+            throw new PlanRefusedException("filter.builds", "No build named by the builds filter is of a class the classes filter keeps");
         if (runs is < 1)
             throw new PlanRefusedException("runsPerRow", $"--runs must be 1 or more, not {runs}");
         IReadOnlyList<ushort> levels = Pick(filter.Levels, scenarios.LevelRange(), "filter.levels", "levels",
@@ -64,7 +74,7 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
                 id => $"Unknown scenario '{id}' (known: {string.Join(", ", scenarios.Scenarios.Select(s => s.Id))})")
             .Select(scenarios.Find).ToList();
 
-        return new RunPlan(classes, levels, gear, picked, runs ?? scenarios.Runs, seed ?? scenarios.Seed);
+        return new RunPlan(kept, levels, gear, picked, runs ?? scenarios.Runs, seed ?? scenarios.Seed);
     }
 
     private static List<T> Pick<T>(IReadOnlySet<T>? wanted, IReadOnlyCollection<T> known, string path, string what,
@@ -90,33 +100,34 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
     /// </exception>
     public IReadOnlyList<RowResult> Run(RunPlan plan, CancellationToken ct = default, Action<RowResult>? onRowDone = null)
     {
-        var compiled =
-            plan.Classes.ToDictionary(c => c, c => rotations.Compile(c, data));
+        var compiled = plan.Builds.ToDictionary(b => b.Id, StringComparer.Ordinal);
         RowKey[] keys = plan.Keys().ToArray();
         var results = new RowResult[keys.Length];
         var options = new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = Environment.ProcessorCount };
         Parallel.For(0, keys.Length, options, i =>
         {
-            results[i] = RunRow(keys[i], plan, compiled[keys[i].Class], ct);
+            results[i] = RunRow(keys[i], plan, compiled[keys[i].Build], ct);
             onRowDone?.Invoke(results[i]);
         });
         return results;
     }
 
-    private RowResult RunRow(RowKey key, RunPlan plan, IReadOnlyList<CompiledRotationEntry> rotation, CancellationToken ct)
+    /// <summary>The row's runs, each a fresh fight of the build as it stands at the row's level (B-R10).</summary>
+    private RowResult RunRow(RowKey key, RunPlan plan, CompiledBuild build, CancellationToken ct)
     {
         Scenario scenario = plan.Scenarios.First(s => string.Equals(s.Id, key.Scenario, StringComparison.Ordinal));
         WornItem[] worn = [.. scenarios.GearFor(key.Gear, key.Class).Select(data.Worn)];
+        HeldTalents talents = build.HeldAt(key.Level, scenarios.BonusTalentPoints, data);
 
         var fights = new List<FightResult>(plan.Runs);
         for (int run = 0; run < plan.Runs; run++)
         {
             ct.ThrowIfCancellationRequested();
-            var random = new Random(RunSeed.For(plan.Seed, key.Class, key.Level, key.Gear, key.Scenario, run));
-            fights.Add(FightFactory.Create(data, scenario, key, worn, rotation, random).Run());
+            var random = new Random(RunSeed.For(plan.Seed, key.Build, key.Level, key.Gear, key.Scenario, run));
+            fights.Add(FightFactory.Create(data, scenario, key, worn, talents, build.Rotation, random).Run());
         }
 
-        return Aggregate(key, fights, Snapshot(key, worn));
+        return Aggregate(key, fights, Snapshot(key, worn, talents));
     }
 
     /// <summary>
@@ -150,9 +161,9 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
             .ToDictionary(g => g.Key, g => g.Sum(kv => (double)kv.Value) / fights.Count, StringComparer.Ordinal);
 
     /// <summary>The player's derived stats and each ability's per-hit amount (AbilityAmounts, as the client is told).</summary>
-    private PlayerSnapshot Snapshot(RowKey key, IReadOnlyList<WornItem> worn)
+    private PlayerSnapshot Snapshot(RowKey key, IReadOnlyList<WornItem> worn, HeldTalents talents)
     {
-        var player = SimPlayer.Create(data, key.Class, key.Level, worn, data.Talents.Starter(key.Class));
+        var player = SimPlayer.Create(data, key.Class, key.Level, worn, talents);
         DerivedCharacterStats s = player.Stats;
         return new PlayerSnapshot(s.MaxHealth, s.MaxPower, s.Armor, s.CritPct, s.Evasion, s.BlockPct, s.MaxWard,
             player.Abilities.Select(a =>

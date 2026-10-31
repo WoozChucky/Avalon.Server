@@ -14,9 +14,8 @@ public class BalanceRunnerShould
 
     private static BalanceRunner Runner()
     {
-        ScenarioFile scenarios = ConfigFileStore.Load(Path.Combine(s_balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
-        RotationFile rotations = ConfigFileStore.Load(Path.Combine(s_balanceDir, "rotations.json"), ConfigFiles.ParseRotations);
-        return new BalanceRunner(TestData.Seeded, scenarios, rotations);
+        BalanceConfig config = TestData.Config();
+        return new BalanceRunner(TestData.Seeded, config.Scenarios, config.Builds);
     }
 
     [Fact]
@@ -31,10 +30,10 @@ public class BalanceRunnerShould
     [Fact]
     public void Derive_a_stable_seed_from_the_run_coordinates()
     {
-        Assert.Equal(RunSeed.For(672, CharacterClass.Wizard, 3, "forest", "elite-1", 17),
-            RunSeed.For(672, CharacterClass.Wizard, 3, "forest", "elite-1", 17));
-        Assert.NotEqual(RunSeed.For(672, CharacterClass.Wizard, 3, "forest", "elite-1", 17),
-            RunSeed.For(672, CharacterClass.Wizard, 3, "forest", "elite-1", 18));
+        Assert.Equal(RunSeed.For(672, "wizard-fire", 3, "forest", "elite-1", 17),
+            RunSeed.For(672, "wizard-fire", 3, "forest", "elite-1", 17));
+        Assert.NotEqual(RunSeed.For(672, "wizard-fire", 3, "forest", "elite-1", 17),
+            RunSeed.For(672, "wizard-fire", 3, "forest", "elite-1", 18));
     }
 
     [Fact]
@@ -44,11 +43,11 @@ public class BalanceRunnerShould
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-            int invariant = RunSeed.For(-672, CharacterClass.Wizard, 3, "forest", "elite-1", 17);
+            int invariant = RunSeed.For(-672, "wizard-fire", 3, "forest", "elite-1", 17);
 
             // Swedish writes a negative number with U+2212, not an ASCII hyphen.
             CultureInfo.CurrentCulture = new CultureInfo("sv-SE");
-            int swedish = RunSeed.For(-672, CharacterClass.Wizard, 3, "forest", "elite-1", 17);
+            int swedish = RunSeed.For(-672, "wizard-fire", 3, "forest", "elite-1", 17);
 
             Assert.Equal(invariant, swedish);
         }
@@ -63,7 +62,7 @@ public class BalanceRunnerShould
     {
         RunPlan plan = Runner().Plan(CharacterClass.Cleric, "boss-1", runs: 5, seed: null);
 
-        Assert.Equal([CharacterClass.Cleric], plan.Classes);
+        Assert.Equal(["cleric-steadfast", "cleric-unbroken"], plan.Builds.Select(b => b.Id));
         Assert.Equal(["boss-1"], plan.Scenarios.Select(s => s.Id));
         Assert.Equal(5, plan.Runs);
         Assert.Equal(672, plan.Seed);
@@ -92,12 +91,35 @@ public class BalanceRunnerShould
     public void Record_win_rate_percentiles_and_a_stat_snapshot()
     {
         BalanceRunner runner = Runner();
-        RowResult row = runner.Run(runner.Plan(CharacterClass.Warrior, "normal-1", runs: 30, seed: 3) with { Levels = [3], Gear = ["forest"] }).Single();
+        var filter = new RunFilter(null, new HashSet<string> { "warrior-axes" }, new HashSet<ushort> { 3 },
+            new HashSet<string> { "forest" }, new HashSet<string> { "normal-1" });
+        RowResult row = runner.Run(runner.Plan(filter, runs: 30, seed: 3)).Single();
 
-        Assert.Equal(new RowKey(CharacterClass.Warrior, 3, "forest", "normal-1"), row.Key);
+        Assert.Equal(new RowKey("warrior-axes", CharacterClass.Warrior, 3, "forest", "normal-1"), row.Key);
         Assert.InRange(row.WinRatePct, 0, 100);
         Assert.True(row.FightSeconds.P10 <= row.FightSeconds.Median && row.FightSeconds.Median <= row.FightSeconds.P90);
-        Assert.Single(row.Snapshot.Abilities);   // its starter alone until builds land (#1183)
-        Assert.True(row.DamageDealtPerRun.ContainsKey("Heavy Strike"));
+        Assert.Equal(2, row.Snapshot.Abilities.Count);   // its starter, and Hurled Axe from level 2
+        Assert.True(row.DamageDealtPerRun.ContainsKey("Hurled Axe"));
+    }
+
+    /// <summary>
+    /// B-R10: at level L a build holds the first L + bonusTalentPoints nodes of its path (3 checked in, 4 at level 1);
+    /// warrior-axes takes Hurled Axe as its fifth node and Twin Axes, its two-lane fan, among the last.
+    /// </summary>
+    [Theory]
+    [InlineData((ushort)1, 4, new uint[] { 319 }, 0)]
+    [InlineData((ushort)2, 5, new uint[] { 319, 202 }, 1)]
+    [InlineData((ushort)10, 13, new uint[] { 319, 202 }, 2)]
+    public void Hold_more_of_the_path_at_each_level(ushort level, int nodes, uint[] abilities, int axeLanes)
+    {
+        BalanceConfig config = TestData.Config();
+        Assert.Equal(3, config.Scenarios.BonusTalentPoints);
+
+        HeldTalents held = TestData.Build("warrior-axes").HeldAt(level, config.Scenarios.BonusTalentPoints, TestData.Seeded);
+
+        Assert.Equal(nodes, held.Nodes.Count);
+        Assert.Equal(abilities, held.Abilities.Select(a => a.Template.Id.Value));
+        Assert.Equal(axeLanes, held.Abilities.Where(a => a.Template.Id.Value == 202)
+            .Select(a => new SimAbility(a.Template, a.Shaping).Metadata.ProjectileCount).SingleOrDefault());
     }
 }

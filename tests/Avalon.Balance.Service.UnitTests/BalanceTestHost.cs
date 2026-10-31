@@ -1,6 +1,5 @@
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
-using Avalon.Common;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
@@ -23,24 +22,14 @@ internal static class BalanceTestHost
         return BalanceServiceHost.Build(builder, services);
     }
 
-    /// <summary>
-    /// The service's host over the seed and the checked-in scenarios and targets, with a fixture rotation: each class
-    /// casts its starter, as the seed gives it (<see cref="TalentTree.Starter" />). The run tests use
-    /// it, so neither the checked-in rotations nor which abilities the seed's kits hold (#1181, #1183) can stop a run.
-    /// </summary>
+    /// <summary>The service's host over the seed and the checked-in files (#1183 Task 11 removes it).</summary>
     public static BalanceHost FixtureHost()
     {
         string dir = Path.Combine(AppContext.BaseDirectory, "balance");
-        SeedTables seed = SeedSource.Load();
-        var data = BalanceData.From(seed);
-        var rotations = new RotationFile();
-        foreach (CharacterClass c in CharacterClasses.Playable)
-            rotations[c] = [new RotationEntry { Ability = data.Talents.Starter(c).Abilities[0].Template.Id.Value }];
-
-        return new BalanceHost(seed, new BalanceConfig(
+        return new BalanceHost(SeedSource.Load(), new BalanceConfig(
             ConfigFileStore.Load(Path.Combine(dir, "scenarios.json"), ConfigFiles.ParseScenarios),
             ConfigFileStore.Load(Path.Combine(dir, "targets.json"), ConfigFiles.ParseTargets),
-            rotations));
+            ConfigFileStore.Load(Path.Combine(dir, "builds.json"), ConfigFiles.ParseBuilds)));
     }
 
     /// <summary>Registers <see cref="FixtureHost" /> over the service's own host.</summary>

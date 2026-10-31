@@ -136,11 +136,19 @@ public sealed class FightSimulator
         Regenerate();
     }
 
+    /// <summary>
+    /// The first rotation entry that is ready, whose conditions hold and that it can pay, is cast. An entry the build does
+    /// not hold yet at this level is passed over before anything else (B-R16), so it is never the first ready entry and
+    /// never counted as starved; only the first ready entry it cannot pay counts a starved tick.
+    /// </summary>
     private void TryCast()
     {
         bool first = true;
         foreach (CompiledRotationEntry entry in _rotation)
         {
+            if (!Player.Holds(entry.AbilityId))
+                continue;
+
             SimAbility ability = Player.Ability(entry.AbilityId);
             if (!ability.Ready || !entry.When.All(c => c.Holds(Read(c.Stat))))
                 continue;

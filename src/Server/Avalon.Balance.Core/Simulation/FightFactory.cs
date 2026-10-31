@@ -5,11 +5,14 @@ namespace Avalon.Balance.Core;
 
 public static class FightFactory
 {
-    /// <summary>One run's fight: the player, then the pack drawn in order from <paramref name="random" />, which then rolls the combat.</summary>
+    /// <summary>
+    /// One run's fight: the player holding <paramref name="talents" />, then the pack drawn in order from
+    /// <paramref name="random" />, which then rolls the combat.
+    /// </summary>
     public static FightSimulator Create(BalanceData data, Scenario scenario, RowKey key, IReadOnlyList<WornItem> worn,
-        IReadOnlyList<CompiledRotationEntry> rotation, Random random)
+        HeldTalents talents, IReadOnlyList<CompiledRotationEntry> rotation, Random random)
     {
-        var player = SimPlayer.Create(data, key.Class, key.Level, worn, data.Talents.Starter(key.Class));
+        var player = SimPlayer.Create(data, key.Class, key.Level, worn, talents);
         var creatures = new List<SimCreature>();
         foreach (PackEntry entry in scenario.Pack)
         {

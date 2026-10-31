@@ -39,9 +39,10 @@ public static class HtmlReport
         svg{width:100%;max-width:640px;height:auto}svg text{fill:var(--muted);font-size:11px}
         .gridline{stroke:var(--grid)}.axis{stroke:var(--axis)}.bandrect{fill:var(--band)}
         .line{fill:none;stroke-width:2}.c1{stroke:var(--s1);fill:var(--s1)}.c2{stroke:var(--s2);fill:var(--s2)}.c3{stroke:var(--s3);fill:var(--s3)}.c4{stroke:var(--s4);fill:var(--s4)}
-        .line.c1,.line.c2,.line.c3,.line.c4{fill:none}
+        .line.c1,.line.c2,.line.c3,.line.c4{fill:none}.line.alt{stroke-dasharray:6 4}
         .legend{display:flex;gap:12px;color:var(--ink2)}.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
         .sw.c1{background:var(--s1)}.sw.c2{background:var(--s2)}.sw.c3{background:var(--s3)}.sw.c4{background:var(--s4)}
+        .sw.alt{background:none;box-sizing:border-box;border:2px dashed}.sw.alt.c1{border-color:var(--s1)}.sw.alt.c2{border-color:var(--s2)}.sw.alt.c3{border-color:var(--s3)}.sw.alt.c4{border-color:var(--s4)}
         details{margin:4px 0}summary{cursor:pointer}
         """;
 
@@ -95,7 +96,7 @@ public static class HtmlReport
         foreach (GradedMetric m in ctx.Grades.Worst(10))
         {
             sb.Append("<tr><td class=\"").Append(Cls(m.Grade)).Append("\">").Append(Badge(m.Grade)).Append("</td><td>").Append(E(m.Check))
-              .Append("</td><td>").Append(m.Row is { } k ? E($"{k.Class} L{k.Level} {k.Scenario}") : "&ndash;")
+              .Append("</td><td>").Append(m.Row is { } k ? E($"{k.Build} L{k.Level} {k.Scenario}") : "&ndash;")
               .Append("</td><td>").Append(E(m.Metric)).Append("</td><td>").Append(VU(m.Value, m.Unit))
               .Append("</td><td>").Append(E(m.Band.Describe(m.Unit))).Append("</td></tr>");
         }
@@ -143,18 +144,19 @@ public static class HtmlReport
         sb.Append("</section>");
     }
 
+    /// <summary>One line per build, in the order the rows came (scenarios.json's), with its class beneath its id.</summary>
     private static void Grid(StringBuilder sb, ReportContext ctx, string scenario, string gear, List<ushort> levels)
     {
-        sb.Append("<div class=\"scroll\"><table><tr><th>Class</th>");
+        sb.Append("<div class=\"scroll\"><table><tr><th>Build</th>");
         foreach (ushort l in levels) sb.Append("<th>L").Append(l).Append("</th>");
         sb.Append("</tr>");
-        foreach (CharacterClass c in s_classOrder)
+        foreach ((string build, CharacterClass c) in ctx.Rows.Where(r => r.Key.Scenario == scenario && r.Key.Gear == gear)
+                     .Select(r => (r.Key.Build, r.Key.Class)).Distinct())
         {
-            if (!ctx.Rows.Any(r => r.Key.Class == c && r.Key.Scenario == scenario && r.Key.Gear == gear)) continue;
-            sb.Append("<tr><th>").Append(c).Append("</th>");
+            sb.Append("<tr><th>").Append(E(build)).Append("<br><span class=\"muted\">").Append(c).Append("</span></th>");
             foreach (ushort l in levels)
             {
-                RowResult? r = ctx.Rows.FirstOrDefault(x => x.Key == new RowKey(c, l, gear, scenario));
+                RowResult? r = ctx.Rows.FirstOrDefault(x => x.Key == new RowKey(build, c, l, gear, scenario));
                 if (r is null) { sb.Append("<td>&ndash;</td>"); continue; }
                 GradedMetric[] graded = ctx.Grades.Metrics.Where(m => m.Row == r.Key && m.Check == "scenario").ToArray();
                 Grade? worst = graded.Length > 0 ? graded.Max(m => m.Grade) : (Grade?)null;
@@ -174,14 +176,27 @@ public static class HtmlReport
         sb.Append("</table></div>");
     }
 
-    private static IEnumerable<(int Slot, CharacterClass Class, double?[] Values)> Series(List<RowResult> rows, List<ushort> levels,
-        Func<RowResult, double> pick) =>
-        s_classOrder.Select((c, i) => (Slot: i + 1, Class: c,
-                Values: levels.Select(l => rows.FirstOrDefault(r => r.Key.Class == c && r.Key.Level == l) is { } r ? pick(r) : (double?)null).ToArray()))
-            .Where(s => s.Values.Any(v => v is not null));
+    /// <summary>
+    /// One series per build, coloured by its class; a class's builds after its first are drawn dashed, so two builds of one
+    /// class stay apart.
+    /// </summary>
+    private static List<(int Slot, bool Alt, string Build, double?[] Values)> Series(List<RowResult> rows, List<ushort> levels,
+        Func<RowResult, double> pick)
+    {
+        var series = new List<(int Slot, bool Alt, string Build, double?[] Values)>();
+        foreach ((string build, CharacterClass c) in rows.Select(r => (r.Key.Build, r.Key.Class)).Distinct())
+        {
+            int slot = Array.IndexOf(s_classOrder, c) + 1;
+            bool alt = series.Exists(s => s.Slot == slot);
+            series.Add((slot, alt, build,
+                [.. levels.Select(l => rows.FirstOrDefault(r => r.Key.Build == build && r.Key.Level == l) is { } r ? pick(r) : (double?)null)]));
+        }
+
+        return series;
+    }
 
     private static void LineChart(StringBuilder sb, string title, List<ushort> levels,
-        IEnumerable<(int Slot, CharacterClass Class, double?[] Values)> series, Band? band, double yMax, string unit)
+        IEnumerable<(int Slot, bool Alt, string Build, double?[] Values)> series, Band? band, double yMax, string unit)
     {
         // inset keeps the first and last markers (r 4) off the y-axis labels and the plot edge.
         const int W = 560, H = 220, Left = 44, Right = 12, Top = 12, Bottom = 28, Inset = 14;
@@ -209,17 +224,18 @@ public static class HtmlReport
             sb.Append($"<text x=\"{F(X(i))}\" y=\"{H - 10}\" text-anchor=\"middle\">L{levels[i]}</text>");
 
         var legend = new StringBuilder("<div class=\"legend\">");
-        foreach ((int slot, CharacterClass c, double?[] values) in series)
+        foreach ((int slot, bool alt, string build, double?[] values) in series)
         {
+            string style = alt ? $"c{slot} alt" : $"c{slot}";
             string points = string.Join(' ', values.Select((v, i) => v is { } d ? $"{F(X(i))},{F(Y(d))}" : null).OfType<string>());
-            sb.Append($"<polyline class=\"line c{slot}\" points=\"{points}\"/>");
+            sb.Append($"<polyline class=\"line {style}\" points=\"{points}\"/>");
             for (int i = 0; i < values.Length; i++)
             {
                 if (values[i] is not { } d) continue;
-                sb.Append($"<circle class=\"c{slot}\" cx=\"{F(X(i))}\" cy=\"{F(Y(d))}\" r=\"4\"><title>{c} L{levels[i]}: {V(d)}{E(unit)}</title></circle>");
+                sb.Append($"<circle class=\"c{slot}\" cx=\"{F(X(i))}\" cy=\"{F(Y(d))}\" r=\"4\"><title>{E(build)} L{levels[i]}: {V(d)}{E(unit)}</title></circle>");
             }
 
-            legend.Append($"<span><span class=\"sw c{slot}\"></span>{c}</span>");
+            legend.Append($"<span><span class=\"sw {style}\"></span>{E(build)}</span>");
         }
 
         sb.Append("</svg>").Append(legend).Append("</div></figure>");
@@ -228,7 +244,7 @@ public static class HtmlReport
     private static void RowDetails(StringBuilder sb, RowResult r)
     {
         PlayerSnapshot s = r.Snapshot;
-        sb.Append("<details><summary>").Append(E($"{r.Key.Class} L{r.Key.Level} {r.Key.Gear}")).Append(" &middot; ")
+        sb.Append("<details><summary>").Append(E($"{r.Key.Build} L{r.Key.Level} {r.Key.Gear}")).Append(" &middot; ")
           .Append(V(r.WinRatePct)).Append(" % win</summary><div class=\"scroll\">");
         sb.Append("<p>Health ").Append(s.Health).Append(" &middot; power ").Append(s.Power).Append(" &middot; armour ").Append(s.Armor)
           .Append(" &middot; crit ").Append(V(s.CritPct)).Append(" % &middot; evasion ").Append(s.Evasion)

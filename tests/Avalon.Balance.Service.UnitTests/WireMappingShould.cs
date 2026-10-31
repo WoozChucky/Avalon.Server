@@ -24,7 +24,7 @@ public class WireMappingShould
         return new BalanceConfig(
             ConfigFileStore.Load(Path.Combine(dir, "scenarios.json"), ConfigFiles.ParseScenarios),
             ConfigFileStore.Load(Path.Combine(dir, "targets.json"), ConfigFiles.ParseTargets),
-            ConfigFileStore.Load(Path.Combine(dir, "rotations.json"), ConfigFiles.ParseRotations));
+            ConfigFileStore.Load(Path.Combine(dir, "builds.json"), ConfigFiles.ParseBuilds));
     }
 
     /// <summary>A small run over the seed, on the fixture rotation (BalanceTestHost.FixtureHost).</summary>
@@ -33,7 +33,7 @@ public class WireMappingShould
         BalanceHost host = BalanceTestHost.FixtureHost();
         return Simulation.Run(host.Seed, host.Defaults,
             new RunRequest(null, null,
-                new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, new HashSet<string> { "normal-3" }),
+                new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, null, new HashSet<string> { "normal-3" }),
                 RunsPerRow: 10, Seed: 1),
             null, CancellationToken.None);
     }

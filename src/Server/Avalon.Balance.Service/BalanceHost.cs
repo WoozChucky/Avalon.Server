@@ -47,7 +47,7 @@ public sealed class BalanceHost
             commit,
             Core.Catalog.Describe(Seed).Select(WireMapping.ToDto).ToList(),
             WireMapping.ToDto(Defaults),
-            scenarios.Classes.Select(c => c.ToString()).ToList(),
+            scenarios.ClassesOf(Defaults.Builds).Select(c => c.ToString()).ToList(),
             scenarios.LevelRange().Select(l => (int)l).ToList(),
             scenarios.Gear.ToList(),
             scenarios.Scenarios.Select(s => s.Id).ToList(),

@@ -2,7 +2,8 @@ using Avalon.Common;
 
 namespace Avalon.Balance.Core;
 
-public sealed record RowKey(CharacterClass Class, ushort Level, string Gear, string Scenario);
+/// <summary>One row: a build (of its class) at a level, in a gear profile, against a scenario (B-R18).</summary>
+public sealed record RowKey(string Build, CharacterClass Class, ushort Level, string Gear, string Scenario);
 
 public sealed record Distribution(double P10, double Median, double P90)
 {

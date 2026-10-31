@@ -225,12 +225,12 @@ public class AuraSimulationShould
     {
         AuraTemplate fortified = TestData.Seeded.Auras[new AuraId(5)];
         AuraTemplate bleed = TestData.Seeded.Auras[new AuraId(1)];
-        (CharacterClass cleric, int[] steadfast) = TestData.BuildPath("cleric-steadfast");
+        CompiledBuild steadfast = TestData.Build("cleric-steadfast");
         return new TheoryData<CharacterClass, int[], uint, uint, uint>
         {
             // Steadfast: +50 % duration on Fortify.
-            { cleric, steadfast, 234u, 1u, AuraRules.Lengthen(fortified.DurationMs, 50f) },
-            // Rend, then Haemorrhage: +2 stacks on its bleed. Not a B-R20 build, so its path is given here.
+            { steadfast.Class, [.. steadfast.Nodes], 234u, 1u, AuraRules.Lengthen(fortified.DurationMs, 50f) },
+            // Rend, then Haemorrhage: +2 stacks on its bleed. Not a checked-in build, so its path is given here.
             {
                 CharacterClass.Warrior, [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 27, 28, 29, 30, 31, 308], 203u,
                 bleed.MaxStacks + 2u, bleed.DurationMs

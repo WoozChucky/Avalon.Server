@@ -1,0 +1,226 @@
+{
+  "warrior-axes": {
+    "class": "Warrior",
+    "nodes": [
+      57,
+      58,
+      59,
+      60,
+      61,
+      69,
+      70,
+      71,
+      72,
+      73,
+      311,
+      2,
+      3
+    ],
+    "rotation": [
+      {
+        "ability": 202,
+        "when": []
+      },
+      {
+        "ability": 319,
+        "when": []
+      }
+    ]
+  },
+  "warrior-blood-price": {
+    "class": "Warrior",
+    "nodes": [
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      66,
+      67,
+      68,
+      302,
+      332,
+      2,
+      3
+    ],
+    "rotation": [
+      {
+        "ability": 202,
+        "when": [
+          {
+            "healthPct": ">=40"
+          }
+        ]
+      },
+      {
+        "ability": 319,
+        "when": []
+      }
+    ]
+  },
+  "hunter-double-tap": {
+    "class": "Hunter",
+    "nodes": [
+      105,
+      106,
+      107,
+      108,
+      109,
+      125,
+      126,
+      127,
+      128,
+      129,
+      315,
+      75,
+      76
+    ],
+    "rotation": [
+      {
+        "ability": 223,
+        "when": []
+      },
+      {
+        "ability": 220,
+        "when": []
+      }
+    ]
+  },
+  "hunter-glass-edge": {
+    "class": "Hunter",
+    "nodes": [
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      144,
+      145,
+      146,
+      303,
+      333,
+      75,
+      76
+    ],
+    "rotation": [
+      {
+        "ability": 220,
+        "when": []
+      }
+    ]
+  },
+  "wizard-fire": {
+    "class": "Wizard",
+    "nodes": [
+      178,
+      179,
+      180,
+      181,
+      182,
+      148,
+      149,
+      150,
+      151,
+      152,
+      183,
+      184,
+      185
+    ],
+    "rotation": [
+      {
+        "ability": 211,
+        "when": []
+      },
+      {
+        "ability": 212,
+        "when": []
+      },
+      {
+        "ability": 210,
+        "when": []
+      }
+    ]
+  },
+  "wizard-steady-hand": {
+    "class": "Wizard",
+    "nodes": [
+      208,
+      209,
+      210,
+      211,
+      212,
+      213,
+      217,
+      218,
+      219,
+      304,
+      334,
+      178,
+      179
+    ],
+    "rotation": [
+      {
+        "ability": 210,
+        "when": []
+      }
+    ]
+  },
+  "cleric-steadfast": {
+    "class": "Cleric",
+    "nodes": [
+      276,
+      277,
+      278,
+      279,
+      280,
+      288,
+      289,
+      290,
+      291,
+      292,
+      329,
+      221,
+      222
+    ],
+    "rotation": [
+      {
+        "ability": 234,
+        "when": []
+      },
+      {
+        "ability": 230,
+        "when": []
+      }
+    ]
+  },
+  "cleric-unbroken": {
+    "class": "Cleric",
+    "nodes": [
+      276,
+      277,
+      278,
+      279,
+      280,
+      281,
+      285,
+      286,
+      287,
+      305,
+      335,
+      246,
+      247
+    ],
+    "rotation": [
+      {
+        "ability": 234,
+        "when": []
+      },
+      {
+        "ability": 230,
+        "when": []
+      }
+    ]
+  }
+}

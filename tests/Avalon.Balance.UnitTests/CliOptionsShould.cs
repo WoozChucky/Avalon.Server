@@ -8,14 +8,14 @@ public class CliOptionsShould
     [Fact]
     public void Read_every_option()
     {
-        var o = CliOptions.Parse(["--class", "warrior", "--scenario", "normal-3", "--runs", "5000", "--seed", "1",
-            "--overrides", "balance/try-slam.json", "--out", "tmp/out"]);
+        var o = CliOptions.Parse(["--class", "warrior", "--build", "warrior-axes", "--scenario", "normal-3", "--runs", "5000",
+            "--seed", "1", "--overrides", "balance/try-slam.json", "--out", "tmp/out"]);
 
-        Assert.Equal(new CliOptions(CharacterClass.Warrior, "normal-3", 5000, 1, "balance/try-slam.json", "tmp/out", false), o);
+        Assert.Equal(new CliOptions(CharacterClass.Warrior, "warrior-axes", "normal-3", 5000, 1, "balance/try-slam.json", "tmp/out", false), o);
     }
 
     [Fact]
-    public void Default_to_nothing() => Assert.Equal(new CliOptions(null, null, null, null, null, null, false), CliOptions.Parse([]));
+    public void Default_to_nothing() => Assert.Equal(new CliOptions(null, null, null, null, null, null, null, false), CliOptions.Parse([]));
 
     [Fact]
     public void Refuse_an_unknown_class() =>

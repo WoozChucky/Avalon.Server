@@ -234,6 +234,27 @@ public class FightSimulatorShould
         Assert.Null(fight.Result().FirstSpenderSeconds);
     }
 
+    /// <summary>
+    /// B-R16, Review Focus 1: warrior-axes at level 1 holds four nodes and no Hurled Axe yet, so its first entry is passed
+    /// over, never counted as starved, and the first tick casts Heavy Strike.
+    /// </summary>
+    [Fact]
+    public void Skip_an_entry_the_build_does_not_hold_yet_without_starving()
+    {
+        CompiledBuild axes = TestData.Build("warrior-axes");
+        Assert.Equal([202u, 319u], axes.Rotation.Select(e => e.AbilityId));
+        SimCreature dummy = Dummy();
+        Hold(dummy);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [], axes.HeldAt(1, 3, Data));
+        Assert.False(warrior.Holds(202));
+        FightSimulator fight = Fight(warrior, [.. axes.Rotation], dummy);
+
+        fight.Tick();
+
+        Assert.Equal(319u, Assert.Single(fight.Result().Casts).AbilityId);
+        Assert.Equal(0d, fight.Result().StarvedSeconds);
+    }
+
     [Fact]
     public void Draw_no_roll_for_a_creature_that_is_already_dead()
     {
@@ -428,7 +449,7 @@ public class FightSimulatorShould
     [Fact]
     public void Explode_on_the_creature_a_projectile_ends_on()
     {
-        // Lane A to the joint, Frostbolt, its branch, then Rimeburst: not a B-R20 build (none reaches an explosion).
+        // Lane A to the joint, Frostbolt, its branch, then Rimeburst: not a checked-in build (none reaches an explosion).
         int[] rimeburst = [148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 294, 297, 298, 299, 300, 301, 331];
         var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 10, [],
             Data.Talents.Hold(CharacterClass.Wizard, rimeburst));

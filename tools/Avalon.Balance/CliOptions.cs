@@ -3,13 +3,13 @@ using Avalon.Common;
 
 namespace Avalon.Balance;
 
-public sealed record CliOptions(CharacterClass? Class, string? Scenario, int? Runs, int? Seed, string? OverridesPath,
-    string? OutDir, bool Help)
+public sealed record CliOptions(CharacterClass? Class, string? Build, string? Scenario, int? Runs, int? Seed,
+    string? OverridesPath, string? OutDir, bool Help)
 {
     /// <exception cref="ArgumentException">An unknown option, a missing value, or a value that does not parse.</exception>
     public static CliOptions Parse(IReadOnlyList<string> args)
     {
-        var o = new CliOptions(null, null, null, null, null, null, false);
+        var o = new CliOptions(null, null, null, null, null, null, null, false);
         for (int i = 0; i < args.Count; i++)
         {
             string Value() => i + 1 < args.Count ? args[++i] : throw new ArgumentException($"{args[i]} needs a value");
@@ -17,6 +17,7 @@ public sealed record CliOptions(CharacterClass? Class, string? Scenario, int? Ru
             o = args[i] switch
             {
                 "--class" => o with { Class = ParseClass(Value()) },
+                "--build" => o with { Build = Value() },
                 "--scenario" => o with { Scenario = Value() },
                 "--runs" => o with { Runs = ParseInt("--runs", Value(), min: 1) },
                 "--seed" => o with { Seed = ParseInt("--seed", Value(), min: int.MinValue) },

@@ -8,7 +8,7 @@ public static class CsvReport
 {
     private static readonly string[] s_header =
     [
-        "class", "level", "gear", "scenario", "runs", "win_rate",
+        "class", "build", "level", "gear", "scenario", "runs", "win_rate",
         "fight_p10", "fight_median", "fight_p90",
         "health_left_p10", "health_left_median", "health_left_p90",
         "first_spender_p10", "first_spender_median", "first_spender_p90",
@@ -23,7 +23,7 @@ public static class CsvReport
         {
             string?[] fields =
             [
-                r.Key.Class.ToString(), N(r.Key.Level), r.Key.Gear, r.Key.Scenario, N(r.Runs), N(r.WinRatePct),
+                r.Key.Class.ToString(), r.Key.Build, N(r.Key.Level), r.Key.Gear, r.Key.Scenario, N(r.Runs), N(r.WinRatePct),
                 N(r.FightSeconds.P10), N(r.FightSeconds.Median), N(r.FightSeconds.P90),
                 N(r.HealthLeftPct?.P10), N(r.HealthLeftPct?.Median), N(r.HealthLeftPct?.P90),
                 N(r.FirstSpenderSeconds?.P10), N(r.FirstSpenderSeconds?.Median), N(r.FirstSpenderSeconds?.P90),
