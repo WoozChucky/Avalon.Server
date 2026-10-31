@@ -654,6 +654,9 @@ public class WorldServerBarrierTickShould : IDisposable
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
 
+            // The game settings, the defaults: the input handler reads its movement budget (#1267) from them.
+            if (serviceType == typeof(IOptions<GameConfiguration>)) return Options.Create(new GameConfiguration());
+
             // The presence capture (#639), only where a test hands one over; production registers it.
             if (serviceType == typeof(Avalon.World.Presence.PresenceCapture)) return presence;
 

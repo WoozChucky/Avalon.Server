@@ -3,11 +3,14 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.State;
 using Avalon.World;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -23,7 +26,9 @@ public class CharacterDeltaReplicationShould
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(c => c.ArgAt<Vector3>(1));
         using MapInstance instance = TestMapInstances.Build(world, navigator: navigator);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
-        var handler = new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world);
+        var clock = new FakeTimeProvider();
+        var handler = new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world, clock,
+            Options.Create(new GameConfiguration()));
         MapInstanceClient player = Join(instance, 910_101);
         MapInstanceClient watcher = Join(instance, 910_102);
         Broadcast(instance);
@@ -34,6 +39,7 @@ public class CharacterDeltaReplicationShould
         {
             handler.Execute(player.Connection, new CPlayerInputPacket { Seq = seq });
             instance.Update(TimeSpan.FromSeconds(1d / 60d));
+            clock.Advance(TimeSpan.FromSeconds(1d / 60d));
         }
         Assert.Equal(14u, player.Connection.LastInputSeq);
         Assert.Equal(Enumerable.Range(1, 14).Select(n => (uint)n),

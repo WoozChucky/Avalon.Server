@@ -34,7 +34,7 @@ public sealed class LoopWalker
 
     /// <summary>The handler every walker of the world shares, over the world's real registry, as production has one.</summary>
     public static PlayerInputHandler Handler(ScenarioWorld world) =>
-        new(NullLogger<PlayerInputHandler>.Instance, world.Host);
+        new(NullLogger<PlayerInputHandler>.Instance, world.Host, world.Clock, world.GameOptions);
 
     /// <summary>A walker around <paramref name="centre" />, its step ready to be a connection's map update.</summary>
     public static Action<ScenarioConnection> Around(PlayerInputHandler handler, Vector3 centre) =>

@@ -97,6 +97,8 @@ public static class ServiceExtensions
         services.AddSingleton<IValidateOptions<GameConfiguration>>(new ItemConfigurationValidation());
         // #1181: a talent refund price setting above the gold cap stops the start.
         services.AddSingleton<IValidateOptions<GameConfiguration>>(new TalentConfigurationValidation());
+        // #1267: an input catch-up shorter than one step or longer than 2 seconds stops the start.
+        services.AddSingleton<IValidateOptions<GameConfiguration>>(new MovementConfigurationValidation());
 
         // The send threads and the session layer (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall,
         // PacketEncryption. And the receive queue's depth cap (#927): MaxReceiveQueueDepth.

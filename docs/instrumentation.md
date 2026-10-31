@@ -224,6 +224,21 @@ its deadline, a system line and a Warning, counted under `world.instance.build_t
 the connection before it arrived, and the refusals of the other moves: an item's teleport (`MapTeleport`) answers
 through its own code, and a return to town refuses nothing by a reply.
 
+### Movement over budget
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `world.movement.inputs_over_budget` | `world_movement_inputs_over_budget_total` | Player inputs (`CMSG_PLAYER_INPUT`) over their character's movement budget (#1267, [packet handlers](packet-handlers.md)): sent faster than server time allows past the catch-up `Game:Movement:InputCatchUp` holds, and answered standing. No tags. On the world's meter (`world-server`) |
+
+`PlayerInputHandler` counts one for every input it answers standing for want of budget; one held by a stun or root,
+one from a dead character and one out of order are not counted. The first per character also writes one Warning
+(`Avalon.World.Handlers.PlayerInputHandler`) naming the character and its connection; the connection is not closed.
+An honest client sends one input per 1/60 s of its own clock. The budget refills 0.5 % faster than server time
+(`Game:Movement:ClockDriftAllowancePercent`), far more than any working clock drifts (10 to 100 parts per million), so
+an honest client reaches it only through a stall longer than the catch-up (250 ms by default), and then only for the
+inputs past it. A steady count is a client sending more than 0.5 % faster than the server's time: a clock that badly
+off, or a modified client. The allowance is also the most a modified client gains: 0.5 % above its speed.
+
 ### Instance build timeouts
 
 | Metric | Prometheus | Measures |
