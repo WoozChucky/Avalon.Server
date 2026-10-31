@@ -11,11 +11,13 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
+using Avalon.Network.Packets.Talents;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Combat;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Server.World.UnitTests.Talents;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
@@ -31,6 +33,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Reload;
+using Avalon.World.Talents;
 using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -42,7 +45,7 @@ namespace Avalon.Server.World.UnitTests.Balance;
 
 /// <summary>
 /// The balance simulator (tools/Avalon.Balance) against the real server: the same seed, the same exchange, the same
-/// numbers. A level-3 Warrior in forest gear and a level-3 Thornback Boar. Character ids 6760_1xx, creatures 6760_9xx.
+/// numbers. A level-3 Warrior in forest gear and a level-3 Thornback Boar. Character ids 6760_1xx and 6760_2xx, creatures 6760_9xx.
 /// </summary>
 public class SimulatorParityShould
 {
@@ -51,13 +54,33 @@ public class SimulatorParityShould
     private static readonly Lazy<BalanceData> s_seededData = new(() => BalanceData.From(SeedSource.Load()));
     private static readonly Lazy<ScenarioFile> s_scenarios = new(() => ConfigFileStore.Load(
         Path.Combine(TownNavmesh.RepositoryRoot, "balance", "scenarios.json"), ConfigFiles.ParseScenarios));
+    private static readonly Lazy<BuildFile> s_builds = new(() => ConfigFileStore.Load(
+        Path.Combine(TownNavmesh.RepositoryRoot, "balance", "builds.json"), ConfigFiles.ParseBuilds));
     private static BalanceData Data => s_seededData.Value;
 
-    /// <summary>The checked-in forest profile's Warrior gear (balance/scenarios.json).</summary>
-    private static ulong[] ForestWarrior => WarriorGear("forest");
+    /// <summary>
+    /// Paths these guards hold that balance/builds.json does not: Rimeburst (331) lies 17 nodes from the Wizard's start, out
+    /// of reach of every checked-in build, so its explosion is held here. Lane A to the joint, through node 153 (its area
+    /// line, so the explosion's Area tag scales by it on both sides), then Frostbolt (320), its branch and Rimeburst.
+    /// </summary>
+    private static readonly Dictionary<string, (CharacterClass Class, int[] Nodes)> s_testBuilds = new(StringComparer.Ordinal)
+    {
+        ["wizard-rimeburst"] = (CharacterClass.Wizard,
+            [148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 294, 297, 298, 299, 300, 301, 331]),
+    };
 
-    /// <summary>A checked-in gear profile's Warrior gear; "none" is no gear.</summary>
-    private static ulong[] WarriorGear(string profile) => s_scenarios.Value.GearFor(profile, CharacterClass.Warrior);
+    /// <summary>The class and the whole path of <paramref name="build" />: a checked-in build, or one of <see cref="s_testBuilds" />.</summary>
+    private static (CharacterClass Class, int[] Nodes) PathOf(string build) =>
+        s_testBuilds.TryGetValue(build, out (CharacterClass, int[]) local)
+            ? local
+            : (s_builds.Value[build].Class, s_builds.Value[build].Nodes);
+
+    /// <summary>What a character of <paramref name="class" /> holding <paramref name="nodes" /> holds; its starter alone for none.</summary>
+    private static HeldTalents Held(CharacterClass @class, int[]? nodes) =>
+        nodes is null ? Data.Talents.Starter(@class) : Data.Talents.Hold(@class, nodes);
+
+    /// <summary>The checked-in forest profile's Warrior gear (balance/scenarios.json).</summary>
+    private static ulong[] ForestWarrior => s_scenarios.Value.GearFor("forest", CharacterClass.Warrior);
 
     /// <summary>
     /// Close enough to the warrior (at the origin) that Hurled Axe hits on its first step whatever its speed (9 m/s, 0.15 m
@@ -77,15 +100,17 @@ public class SimulatorParityShould
 
     private static MapInstanceClient RealWarrior(MapInstance instance, uint id, ulong[] gear, TimeProvider? time,
         params AbilityTemplate[] abilities) =>
-        RealCharacter(instance, id, CharacterClass.Warrior, gear, time, abilities);
+        RealCharacter(instance, id, CharacterClass.Warrior, gear, time, null, abilities);
 
     /// <summary>
     /// A level-3 character of <paramref name="class" /> wearing <paramref name="gear" />, each piece the simulator's fixed
     /// copy of it (B-R4): its base stats and modifiers loaded as the copy's rows under the instance id the equipment holds,
-    /// then a stats refresh.
+    /// then a stats refresh. With <paramref name="held" />, it enters the world on that path whole, as select leaves it
+    /// (<see cref="TalentTestCharacters.Enter" />: its lines summed, its abilities the tree's, shaped by its capstones),
+    /// before the refresh; else it holds <paramref name="abilities" /> and no node.
     /// </summary>
     private static MapInstanceClient RealCharacter(MapInstance instance, uint id, CharacterClass @class, ulong[] gear,
-        TimeProvider? time, params AbilityTemplate[] abilities)
+        TimeProvider? time, int[]? held, params AbilityTemplate[] abilities)
     {
         MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id, time: time));
         warrior.Character.Data!.Class = @class;
@@ -95,10 +120,14 @@ public class SimulatorParityShould
         InventoryItem[] worn = [.. gear.Select(Data.Item).Select(i => Inventory.TestCharacters.Item(SlotOf(i), i))];
         warrior.Character.ItemModifiers.Load([.. worn.Select(i => CopyOf(i, Data.Worn(i.TemplateId.Value)))]);
         warrior.Character.Container(InventoryType.Equipment).Load(worn);
+        if (held is not null)
+            TalentTestCharacters.Enter(warrior.Character, ScenarioReferenceData.Shared.Data, held);
+
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, Data.Tables.ClassLevelStats,
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
-        warrior.Character.Spells.Load(abilities.Select(a => (IAbility)AbilityTestData.Game(a)).ToArray());
+        if (held is null)
+            warrior.Character.Spells.Load(abilities.Select(a => (IAbility)AbilityTestData.Game(a)).ToArray());
         return warrior;
     }
 
@@ -164,21 +193,71 @@ public class SimulatorParityShould
                 ?.GetValue(unit)
             ?? throw new InvalidOperationException($"{unit.GetType().Name}.{property} is not there"));
 
+    /// <summary>
+    /// A level-3 character in a gear profile, with no node or a build's whole path (its lines, Glass Edge's More lines
+    /// among them), against the simulator's: the same stats, speeds, mana rates and combat. A build's character is of the
+    /// build's class; one without is a Warrior.
+    /// </summary>
     [Theory]
-    [InlineData("none")]
-    [InlineData("forest")]
-    public void Derive_the_same_character_stats_as_a_stats_refresh(string gear)
+    [InlineData("none", null)]
+    [InlineData("forest", null)]
+    [InlineData("forest", "warrior-axes")]
+    [InlineData("none", "hunter-glass-edge")]
+    public void Derive_the_same_character_stats_as_a_stats_refresh(string gear, string? build)
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
-        MapInstanceClient real = RealWarrior(instance, 6760_101, WarriorGear(gear), null, Row(200));
+        (CharacterClass @class, int[]? held) = build is null ? (CharacterClass.Warrior, null) : PathOf(build);
+        ulong[] worn = s_scenarios.Value.GearFor(gear, @class);
+        MapInstanceClient real = RealCharacter(instance, 6760_101, @class, worn, null, held, Row(200));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, WarriorGear(gear).Select(Data.Worn));
+        var sim = SimPlayer.Create(Data, @class, Level, worn.Select(Data.Worn), Held(@class, held));
 
         Assert.Equal(real.Character.Stats, sim.Stats);
         Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
         Assert.Equal(Internal<ManaRegenRates>(real.Character, "ManaRegen"), sim.ManaRegen);
         Assert.Equal(Internal<AttackerCombat>(real.Character, "Combat"), sim.Attack);
         Assert.Equal(Internal<DefenderCombat>(real.Character, "Defence"), sim.Defence);
+    }
+
+    /// <summary>
+    /// Every checked-in build's path is one the world lets a character take, node by node in its order, each with one
+    /// point more than it has spent (TalentRules.Allocate, which the simulator's TalentTree.Hold mirrors); the whole path
+    /// gives the world's TalentAbilities.Rebuild the abilities the simulator holds, in its order, each shaped as the
+    /// simulator shapes it by the capstones held.
+    /// </summary>
+    [Fact]
+    public void Allocate_every_shipped_build_as_the_talent_rules_allow()
+    {
+        StaticData world = ScenarioReferenceData.Shared.Data;
+        Assert.NotEmpty(s_builds.Value);
+        uint id = 6760_201;
+
+        foreach ((string build, BuildEntry entry) in s_builds.Value)
+        {
+            CharacterEntity character = Inventory.TestCharacters.New(id++);
+            character.Data!.Class = entry.Class;
+            TalentAllocation talents = character.Talents;
+            foreach (int node in entry.Nodes)
+            {
+                TalentResult result = TalentRules.Allocate(talents, world.Talents, entry.Class, dead: false,
+                    earned: talents.Spent + 1, [(uint)node], out _);
+                Assert.Equal((build, node, TalentResult.Ok), (build, node, result));
+                talents.Allocate([(uint)node]);
+            }
+
+            TalentAbilities.Rebuild(character, world.Talents, world.Abilities, NullLogger.Instance);
+            HeldTalents sim = Data.Talents.Hold(entry.Class, entry.Nodes);
+
+            Assert.Equal((build, string.Join(", ", sim.Abilities.Select(a => a.Template.Id.Value))),
+                (build, string.Join(", ", character.Spells.All.Select(a => a.AbilityId.Value))));
+            foreach ((IAbility real, HeldAbility held) in character.Spells.All.Zip(sim.Abilities))
+                Assert.Equal((build, Shape(real.Metadata)), (build, Shape(new SimAbility(held.Template, held.Shaping).Metadata)));
+        }
+
+        static (int Lanes, float ExplosionRadius, float ExplosionEffectiveness, float SecondHit, uint StacksBonus,
+            float DurationPct, float Reach, float Radius, float Arc) Shape(AbilityMetadata m) =>
+            (m.ProjectileCount, m.ExplosionRadius, m.ExplosionEffectiveness, m.SecondHitEffectiveness, m.AuraStacksBonus,
+                m.AuraDurationPct, m.Reach, m.Radius, m.ArcDegrees);
     }
 
     /// <summary>
@@ -273,7 +352,8 @@ public class SimulatorParityShould
         var clock = new FakeTimeProvider(s_clockStart);
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_111, clock, Row(200));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
         simWarrior.Abilities.Add(new SimAbility(Row(200)));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
@@ -306,25 +386,29 @@ public class SimulatorParityShould
     /// simulator's B-R6 landing: the same health and the same ward after every hit. Health is refilled each hit, the ward
     /// is not, and both clocks move 5 s between hits (the 4 s recharge delay and half the 2 s recharge), so the ward drains,
     /// pauses and recharges as the world's does. A Warrior's forest gear carries a small ward (5); a Wizard's cloth ward
-    /// takes Gore (physical) and none of Rotting Burst (blight).
+    /// takes Gore (physical) and none of Rotting Burst (blight). A Cleric holding cleric-unbroken (Unbroken, B-R14) takes
+    /// the blight on its ward, whole while the ward holds, and waits twice the delay before it recharges.
     /// </summary>
     [Theory]
-    [InlineData(CharacterClass.Warrior, 300u)]
-    [InlineData(CharacterClass.Wizard, 300u)]
-    [InlineData(CharacterClass.Wizard, 307u)]
-    public void Take_the_same_gore_damage_and_mana_hit_for_hit(CharacterClass @class, uint ability)
+    [InlineData(CharacterClass.Warrior, 300u, null)]
+    [InlineData(CharacterClass.Wizard, 300u, null)]
+    [InlineData(CharacterClass.Wizard, 307u, null)]
+    [InlineData(CharacterClass.Cleric, 307u, "cleric-unbroken")]
+    public void Take_the_same_gore_damage_and_mana_hit_for_hit(CharacterClass @class, uint ability, string? build)
     {
         var clock = new FakeTimeProvider(s_clockStart);
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)), time: clock);
         ulong[] gear = s_scenarios.Value.GearFor("forest", @class);
-        MapInstanceClient real = RealCharacter(instance, 6760_121, @class, gear, clock);
-        var simPlayer = SimPlayer.Create(Data, @class, Level, gear.Select(Data.Worn));
+        int[]? held = build is null ? null : PathOf(build).Nodes;
+        MapInstanceClient real = RealCharacter(instance, 6760_121, @class, gear, clock, held);
+        var simPlayer = SimPlayer.Create(Data, @class, Level, gear.Select(Data.Worn), Held(@class, held));
         var simBoar = SimCreature.Create(Data, Data.Creature(4), Level, 0);
         Creature realBoar = RealBoar(instance, 6760_921, simBoar);
         IAbility realHit = AbilityTestData.Game(Row(ability));
         var simHit = new SimAbility(Row(ability));
         var simRng = new CombatRandom(new Random(Seed));
         Assert.Equal(real.Character.MaxWard, simPlayer.MaxWard);
+        bool wardTookAll = false;
 
         for (int hit = 0; hit < 60; hit++)
         {
@@ -332,6 +416,7 @@ public class SimulatorParityShould
             real.Character.CurrentPower = 0;
             simPlayer.CurrentHealth = simPlayer.Health;
             simPlayer.CurrentPower = 0;
+            uint wardBefore = real.Character.Ward;
             DateTime now = s_clockStart.UtcDateTime + TimeSpan.FromSeconds(5 * hit);
 
             instance.CombatService.ApplyDamage(realBoar, real.Character, realHit);
@@ -340,8 +425,11 @@ public class SimulatorParityShould
             Assert.Equal((hit, real.Character.CurrentHealth), (hit, simPlayer.CurrentHealth));
             Assert.Equal((hit, real.Character.Ward), (hit, simPlayer.Ward));
             Assert.Equal((hit, real.Character.CurrentPower), (hit, simPlayer.CurrentPower));
+            wardTookAll |= real.Character.Ward < wardBefore && real.Character.CurrentHealth == real.Character.Health;
             clock.Advance(TimeSpan.FromSeconds(5));
         }
+
+        Assert.True(build is null || wardTookAll, "no blight hit landed on the Unbroken ward whole");
     }
 
     /// <summary>
@@ -364,7 +452,8 @@ public class SimulatorParityShould
         // exchange never meets such a tie.
         ulong[] gear = [.. ForestWarrior, 147];
         MapInstanceClient real = RealWarrior(instance, 6760_151, gear, clock, Row(200), Row(202));
-        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, gear.Select(Data.Worn));
+        var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, gear.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
         simWarrior.Abilities.AddRange([new SimAbility(Row(200)), new SimAbility(Row(202))]);
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_951, simBoar, s_pointBlank);
@@ -381,6 +470,89 @@ public class SimulatorParityShould
 
         Assert.True(cast[200] >= 5, $"Cleave was cast {cast[200]} times");
         Assert.True(cast[202] >= 2, $"Hurled Axe was cast {cast[202]} times");
+    }
+
+    /// <summary>
+    /// A build's whole path, through the real handler, cast system and combat service against the simulator, for 10 s:
+    /// its shaped casts and its keystone land on the same ticks, each boar's health, and the character's health, mana and
+    /// ward compared after every tick (B-R14, B-R15). The boars never swing and stand in the pack's order, nearest first:
+    /// <list type="bullet">
+    /// <item>Twin Axes' fan (warrior-axes, Hurled Axe in two lanes 10 degrees apart): a boar on each lane at point blank,
+    /// the first lane's the nearer, so each lane ends on the boar the simulator gives it;</item>
+    /// <item>Double Tap's second hit (hunter-double-tap, Crippling Shot): the hit, then the share with its own rolls, then
+    /// the aura once;</item>
+    /// <item>Rimeburst's explosion (a test path, Frostbolt): the bolt ends on the nearest boar and its burst takes the
+    /// other two, within its radius, at its share with the Area tag;</item>
+    /// <item>Blood Price (warrior-blood-price, Hurled Axe): its cost paid from life, which no ward meets.</item>
+    /// </list>
+    /// The character is kept in combat every tick, as the simulator's continuous fight is.
+    /// </summary>
+    [Theory]
+    [InlineData("warrior-axes", 202u, 2)]
+    [InlineData("hunter-double-tap", 223u, 1)]
+    [InlineData("wizard-rimeburst", 320u, 3)]
+    [InlineData("warrior-blood-price", 202u, 1)]
+    public async Task Land_shaped_casts_and_keystones_on_the_same_ticks_through_the_cast_system(string build, uint ability,
+        int boars)
+    {
+        (CharacterClass @class, int[] held) = PathOf(build);
+        var clock = new FakeTimeProvider(s_clockStart);
+        // Crippling Shot's slow, Crippled, rolls a chance to break early each second on the server. The simulator leaves
+        // crowd control out by the owner's ruling (#770), so this row's server reads a seed copy where that chance is 0.
+        StaticData world = build == "hunter-double-tap"
+            ? await WorldWithoutEarlyBreak(auraId: 3)
+            : ScenarioReferenceData.Shared.Data;
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
+            world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
+        // The pendant's 1 % cooldown recovery keeps every expiry off a tick boundary (see the cleave exchange).
+        ulong[] gear = [.. s_scenarios.Value.GearFor("forest", @class), 147];
+        MapInstanceClient real = RealCharacter(instance, 6760_211, @class, gear, clock, held);
+        var sim = SimPlayer.Create(Data, @class, Level, gear.Select(Data.Worn), Data.Talents.Hold(@class, held));
+        Vector3[] standing = boars switch
+        {
+            1 => [s_pointBlank],
+            2 => [new Vector3(-0.04f, 0f, 0.45f), new Vector3(0.05f, 0f, 0.55f)],   // lane 0 turns to -X, lane 1 to +X
+            _ => [s_pointBlank, new Vector3(0f, 0f, 1.5f), new Vector3(0f, 0f, 2.5f)],
+        };
+        SimCreature[] pack = [.. standing.Select(_ => PassiveBoar(Level))];
+        Creature[] realPack = [.. standing.Select((at, i) => RealBoar(instance, 6760_931u + (uint)i, pack[i], at))];
+        CompiledRotationEntry[] rotation = [new(ability, [])];
+        var fight = new FightSimulator(Data.Combat.Formula, sim, pack, rotation, new CombatRandom(new Random(Seed)), data: Data);
+
+        Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, s_pointBlank, ticks: 600, tick =>
+            {
+                for (int i = 0; i < pack.Length; i++)
+                {
+                    Assert.True(pack[i].CurrentHealth == realPack[i].CurrentHealth,
+                        $"tick {tick}: boar {i} has {realPack[i].CurrentHealth} health on the server, {pack[i].CurrentHealth} simulated");
+                }
+
+                Assert.True(sim.CurrentHealth == real.Character.CurrentHealth,
+                    $"tick {tick}: the {@class} has {real.Character.CurrentHealth} health on the server, {sim.CurrentHealth} simulated");
+                Assert.True(sim.CurrentPower == real.Character.CurrentPower,
+                    $"tick {tick}: the {@class} has {real.Character.CurrentPower} mana on the server, {sim.CurrentPower} simulated");
+                Assert.True(sim.Ward == real.Character.Ward,
+                    $"tick {tick}: the {@class} has {real.Character.Ward} ward on the server, {sim.Ward} simulated");
+            },
+            clock, beforeUpdate: () => real.Character.MarkCombat());
+
+        Assert.True(cast[ability] >= 2, $"ability {ability} was cast {cast[ability]} times");
+        Assert.All(realPack, b => Assert.True(b.CurrentHealth < b.Health, "a boar the shape reaches was never hit"));
+        Assert.True(!sim.Talents.Totals.LifeCost || real.Character.CurrentHealth < real.Character.Health,
+            "Blood Price paid no life");
+    }
+
+    /// <summary>
+    /// The seed's abilities and auras as the server loads them, from a copy of the seed of this call's own in which aura
+    /// <paramref name="auraId" /> never breaks early on its own: nothing shared is changed.
+    /// </summary>
+    private static async Task<StaticData> WorldWithoutEarlyBreak(uint auraId)
+    {
+        SeedTables seed = SeedSource.Load();
+        seed.AuraTemplates.Single(a => a.Id.Value == auraId).BreakPerSecondPct = 0f;
+        var data = BalanceData.From(seed);
+        return await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            abilities: () => [.. data.Tables.AbilityTemplates], auras: () => [.. data.Auras.Values]));
     }
 
     /// <summary>
@@ -416,7 +588,7 @@ public class SimulatorParityShould
         real.Character.Spells.Load([AbilityTestData.Game(Row(211))]);
         real.Character.CurrentPower = StartMana;
 
-        var simWizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var simWizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, [], Data.Talents.Starter(CharacterClass.Wizard));
         simWizard.Abilities.Add(new SimAbility(Row(211)));
         simWizard.CurrentPower = StartMana;
         Assert.True(simWizard.Power >= StartMana, $"a level-1 Wizard holds {simWizard.Power} Mana");
@@ -510,7 +682,8 @@ public class SimulatorParityShould
         seed.AbilityTemplates.Add(TestRend(effects, type));
         seed.CreatureTemplates.Single(t => t.Id.Value == 4).WardModifier = 1f;   // a boar with a ward on both sides
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn),
+            data.Talents.Starter(CharacterClass.Warrior));
         simWarrior.Abilities.Add(new SimAbility(TestRend(effects, type)));
         Assert.True(simWarrior.Attack.Weapon.Max1 > 0, "the Warrior has no main hand to roll");
         SimCreature simBoar = PassiveBoar(Level, data);
@@ -583,7 +756,8 @@ public class SimulatorParityShould
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(PoisonSeed)), time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_191, clock, Row(200));
 
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn),
+            data.Talents.Starter(CharacterClass.Warrior));
         var simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         foreach (SimAbility special in simBoar.Specials) special.CooldownLeft = 1_000f;   // only Gore, once
@@ -649,7 +823,8 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(TestBleed());
         seed.AbilityTemplates.Add(TestRend());
         var data = BalanceData.From(seed);
-        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn));
+        var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, ForestWarrior.Select(data.Worn),
+            data.Talents.Starter(CharacterClass.Warrior));
         simWarrior.Abilities.Add(new SimAbility(TestRend()));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_972, simBoar);
@@ -703,7 +878,7 @@ public class SimulatorParityShould
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, Data.Combat.Formula));
         real.Character.Spells.Load([AbilityTestData.Game(renew)]);
 
-        var simCleric = SimPlayer.Create(Data, CharacterClass.Cleric, Level, []);
+        var simCleric = SimPlayer.Create(Data, CharacterClass.Cleric, Level, [], Data.Talents.Starter(CharacterClass.Cleric));
         simCleric.Abilities.Add(new SimAbility(renew));
         Assert.Equal(real.Character.Health, simCleric.Health);
         Assert.Equal(real.Character.CurrentPower, simCleric.CurrentPower);
@@ -766,7 +941,8 @@ public class SimulatorParityShould
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid),
             ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, Data.Combat.Formula));
 
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
         sim.Auras.Add(new SimAura(ward, sim, 1, default, AuraSchedule.Start(s_clockStart, 30000, 0)));
         sim.ApplyAuraStats(Data, s_clockStart.UtcDateTime);
 
@@ -888,7 +1064,8 @@ public class SimulatorParityShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, time: clock);
         MapInstanceClient real = RealWarrior(instance, 6760_131, clock, Row(200));
         real.Character.LastCastStartTime = clock.GetUtcNow().UtcDateTime.AddSeconds(-1);
-        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn));
+        var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, ForestWarrior.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior));
         sim.Abilities.Add(new SimAbility(Row(200)));
 
         handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = 200 });
@@ -911,7 +1088,7 @@ public class SimulatorParityShould
     public void Regenerate_the_same_mana_in_combat_as_a_character_entity()
     {
         // The simulated Wizard casts Spark Bolt (instant and free) at a boar that never swings.
-        var sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var sim = SimPlayer.Create(Data, CharacterClass.Wizard, 1, [], Data.Talents.Starter(CharacterClass.Wizard));
         sim.CurrentPower = 10;
         var dummy = SimCreature.Create(Data, Data.Creature(4), 1, 0);
         dummy.Health = dummy.CurrentHealth = 1_000_000;

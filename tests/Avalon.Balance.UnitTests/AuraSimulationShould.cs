@@ -73,7 +73,7 @@ public class AuraSimulationShould
 
     private static (FightSimulator Fight, SimCreature Boar) Fight(BalanceData data, ICombatRandom? rng = null)
     {
-        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, [], data.Talents.Starter(CharacterClass.Warrior));
         warrior.Abilities.Add(new SimAbility(data.Abilities[new AbilityId(9203)]));
         var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
         // Its base maximum too, as the parity test's server boar has, so a stat aura keeps its health where it is.
@@ -221,11 +221,65 @@ public class AuraSimulationShould
         Assert.Equal(FightSimulator.Epoch + TimeSpan.FromSeconds(18 + 12), bleed.Schedule.ExpiresAt);
     }
 
+    public static TheoryData<CharacterClass, int[], uint, uint, uint> CapstoneAuras()
+    {
+        AuraTemplate fortified = TestData.Seeded.Auras[new AuraId(5)];
+        AuraTemplate bleed = TestData.Seeded.Auras[new AuraId(1)];
+        CompiledBuild steadfast = TestData.Build("cleric-steadfast");
+        return new TheoryData<CharacterClass, int[], uint, uint, uint>
+        {
+            // Steadfast: +50 % duration on Fortify.
+            { steadfast.Class, [.. steadfast.Nodes], 234u, 1u, AuraRules.Lengthen(fortified.DurationMs, 50f) },
+            // Rend, then Haemorrhage: +2 stacks on its bleed. Not a checked-in build, so its path is given here.
+            {
+                CharacterClass.Warrior, [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 27, 28, 29, 30, 31, 308], 203u,
+                bleed.MaxStacks + 2u, bleed.DurationMs
+            },
+        };
+    }
+
+    /// <summary>
+    /// B-R15, as AuraSystem.Apply: the source ability's capstone factors shape the aura it places (never crowd control's).
+    /// The ability is cast as many times as the stacks expected, each within the aura, and the copy held is read after
+    /// the last: a Stack aura goes past its row's cap by the capstone's bonus, and the duration placed is the row's
+    /// lengthened by the capstone's share.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CapstoneAuras))]
+    public void Lengthen_and_deepen_its_aura_as_its_capstone_says(CharacterClass characterClass, int[] nodes,
+        uint ability, uint expectedStacks, uint expectedDurationMs)
+    {
+        BalanceData data = TestData.Seeded;
+        var player = SimPlayer.Create(data, characterClass, 10, [], data.Talents.Hold(characterClass, nodes));
+        var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
+        boar.Health = boar.CurrentHealth = 1_000_000;
+        foreach (SimAbility a in boar.Abilities) a.CooldownLeft = 1_000f;
+        var fight = new FightSimulator(data.Combat.Formula, player, [boar], [new CompiledRotationEntry(ability, [])],
+            CombatRandom.Steady, data: data);
+
+        DateTimeOffset applied = default;
+        int casts = 0;
+        while (casts < expectedStacks && fight.Time < 60)
+        {
+            DateTimeOffset now = fight.Now;
+            fight.Tick();
+            int count = fight.Result().Casts.Count(c => c.AbilityId == ability);
+            if (count > casts) applied = now;
+            casts = count;
+        }
+
+        Assert.Equal((int)expectedStacks, casts);
+        uint aura = data.Abilities[new AbilityId(ability)].AuraId!.Value;
+        SimAura held = Assert.Single(player.Auras.Concat(boar.Auras), a => a.Template.Id.Value == aura);
+        Assert.Equal(expectedStacks, held.Stacks);
+        Assert.Equal(TimeSpan.FromMilliseconds(expectedDurationMs), held.Schedule.ExpiresAt - applied);
+    }
+
     [Fact]
     public void Fold_a_stat_aura_into_the_players_defence_and_take_it_back()
     {
         BalanceData data = Data();
-        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, [], data.Talents.Starter(CharacterClass.Warrior));
         uint armour = warrior.Defence.Armor;
 
         warrior.Auras.Add(new SimAura(data.Auras[new AuraId(9905)], warrior, 1, default,
@@ -303,7 +357,7 @@ public class AuraSimulationShould
     public void Run_unchanged_without_aura_data()
     {
         BalanceData data = Data();
-        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, []);
+        var warrior = SimPlayer.Create(data, CharacterClass.Warrior, 3, [], data.Talents.Starter(CharacterClass.Warrior));
         warrior.Abilities.Add(new SimAbility(data.Abilities[new AbilityId(9203)]));
         var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
         var fight = new FightSimulator(data.Combat.Formula, warrior, [boar], [new CompiledRotationEntry(9203, [])],

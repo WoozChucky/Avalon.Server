@@ -42,12 +42,15 @@ public sealed class BalanceHost
     {
         (string version, string commit) = ReadVersion();
         ScenarioFile scenarios = Defaults.Scenarios;
+        // A copy: building the data attaches rows to the tables it reads, and Seed is every run's to clone.
+        TalentTree tree = BalanceData.From(Seed.Clone()).Talents;
         return new CatalogDto(
             version,
             commit,
             Core.Catalog.Describe(Seed).Select(WireMapping.ToDto).ToList(),
             WireMapping.ToDto(Defaults),
-            scenarios.Classes.Select(c => c.ToString()).ToList(),
+            scenarios.ClassesOf(Defaults.Builds).Select(c => c.ToString()).ToList(),
+            scenarios.Builds.Select(id => WireMapping.ToDto(id, Defaults.Builds[id], tree)).ToList(),
             scenarios.LevelRange().Select(l => (int)l).ToList(),
             scenarios.Gear.ToList(),
             scenarios.Scenarios.Select(s => s.Id).ToList(),

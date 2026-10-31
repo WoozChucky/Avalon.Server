@@ -10,7 +10,7 @@ namespace Avalon.Balance.UnitTests;
 public class SimulationBadConfigShould
 {
     private static readonly RunFilter s_warriorNormal3 =
-        new(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, new HashSet<string> { "normal-3" });
+        new(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, null, new HashSet<string> { "normal-3" });
 
     private static RunRequest With(BalanceConfig config, int? runs = 5) => new(null, config, s_warriorNormal3, runs, 1);
 
@@ -28,27 +28,31 @@ public class SimulationBadConfigShould
 
     private static JsonObject FirstScenario(JsonObject scenarios) => (JsonObject)scenarios["scenarios"]!.AsArray()[0]!;
 
-    private static JsonObject WarriorEntry(JsonObject rotations) => (JsonObject)rotations["Warrior"]!.AsArray()[0]!;
+    private const string Axes = "warrior-axes";
+
+    private static JsonObject AxesBuild(JsonObject builds) => (JsonObject)builds[Axes]!;
+
+    private static JsonObject AxesEntry(JsonObject builds) => (JsonObject)AxesBuild(builds)["rotation"]!.AsArray()[0]!;
 
     public static TheoryData<string> BadJson =>
     [
-        "scenarios.classes-null", "scenarios.gear-null", "scenarios.scenarios-null", "scenarios.gearProfiles-null",
+        "scenarios.builds-null", "scenarios.gear-null", "scenarios.scenarios-null", "scenarios.gearProfiles-null",
         "scenarios.levels-null", "scenarios.scenario-null", "scenarios.pack-null", "scenarios.pack-element-null",
         "scenarios.levelOffset-fraction", "scenarios.gearProfile-class-null",
         "targets.scenarios-null", "targets.global-null", "targets.scenario-null",
-        "rotations.class-null", "rotations.entry-null", "rotations.when-null", "rotations.when-element-null",
-        "rotations.when-value-null",
+        "builds.build-null", "builds.nodes-null", "builds.rotation-null", "builds.entry-null", "builds.when-null",
+        "builds.when-element-null", "builds.when-value-null",
     ];
 
     [Theory]
     [MemberData(nameof(BadJson))]
     public void Refuse_a_parsed_config_with_a_hole_in_it(string name)
     {
-        (string s, string t, string r) = ConfigFiles.Save(TestData.Config());
-        JsonObject scenarios = Json(s), targets = Json(t), rotations = Json(r);
+        (string s, string t, string b) = ConfigFiles.Save(TestData.Config());
+        JsonObject scenarios = Json(s), targets = Json(t), builds = Json(b);
         switch (name)
         {
-            case "scenarios.classes-null": scenarios["classes"] = null; break;
+            case "scenarios.builds-null": scenarios["builds"] = null; break;
             case "scenarios.gear-null": scenarios["gear"] = null; break;
             case "scenarios.scenarios-null": scenarios["scenarios"] = null; break;
             case "scenarios.gearProfiles-null": scenarios["gearProfiles"] = null; break;
@@ -61,11 +65,13 @@ public class SimulationBadConfigShould
             case "targets.scenarios-null": targets["scenarios"] = null; break;
             case "targets.global-null": targets["global"] = null; break;
             case "targets.scenario-null": ((JsonObject)targets["scenarios"]!)["normal-3"] = null; break;
-            case "rotations.class-null": rotations["Warrior"] = null; break;
-            case "rotations.entry-null": rotations["Warrior"] = new JsonArray((JsonNode?)null); break;
-            case "rotations.when-null": WarriorEntry(rotations)["when"] = null; break;
-            case "rotations.when-element-null": WarriorEntry(rotations)["when"] = new JsonArray((JsonNode?)null); break;
-            case "rotations.when-value-null": WarriorEntry(rotations)["when"] = new JsonArray(new JsonObject { ["targetsAlive"] = null }); break;
+            case "builds.build-null": builds[Axes] = null; break;
+            case "builds.nodes-null": AxesBuild(builds)["nodes"] = null; break;
+            case "builds.rotation-null": AxesBuild(builds)["rotation"] = null; break;
+            case "builds.entry-null": AxesBuild(builds)["rotation"] = new JsonArray((JsonNode?)null); break;
+            case "builds.when-null": AxesEntry(builds)["when"] = null; break;
+            case "builds.when-element-null": AxesEntry(builds)["when"] = new JsonArray((JsonNode?)null); break;
+            case "builds.when-value-null": AxesEntry(builds)["when"] = new JsonArray(new JsonObject { ["targetsAlive"] = null }); break;
             default: throw new ArgumentException(name);
         }
 
@@ -73,7 +79,7 @@ public class SimulationBadConfigShould
         try
         {
             config = new BalanceConfig(ConfigFiles.ParseScenarios(scenarios.ToJsonString()),
-                ConfigFiles.ParseTargets(targets.ToJsonString()), ConfigFiles.ParseRotations(rotations.ToJsonString()));
+                ConfigFiles.ParseTargets(targets.ToJsonString()), ConfigFiles.ParseBuilds(builds.ToJsonString()));
         }
         catch (InvalidDataException)
         {
@@ -84,7 +90,7 @@ public class SimulationBadConfigShould
     }
 
     [Theory]
-    [InlineData("classes")]
+    [InlineData("builds")]
     [InlineData("gear")]
     [InlineData("scenarios")]
     [InlineData("gearProfiles")]
@@ -97,21 +103,23 @@ public class SimulationBadConfigShould
     [InlineData("targets.scenarios")]
     [InlineData("targets.global")]
     [InlineData("targets.scenario-value")]
-    [InlineData("rotation-class")]
+    [InlineData("build")]
+    [InlineData("nodes")]
+    [InlineData("rotation")]
     [InlineData("rotation-entry")]
     [InlineData("when")]
     [InlineData("when-element")]
     [InlineData("when-value")]
     [InlineData("scenarios-file")]
     [InlineData("targets-file")]
-    [InlineData("rotations-file")]
+    [InlineData("builds-file")]
     public void Refuse_a_config_built_with_nulls(string name)
     {
         BalanceConfig c = TestData.Config();
         BalanceConfig config = c;
         switch (name)
         {
-            case "classes": c.Scenarios.Classes = null!; break;
+            case "builds": c.Scenarios.Builds = null!; break;
             case "gear": c.Scenarios.Gear = null!; break;
             case "scenarios": c.Scenarios.Scenarios = null!; break;
             case "gearProfiles": c.Scenarios.GearProfiles = null!; break;
@@ -124,14 +132,16 @@ public class SimulationBadConfigShould
             case "targets.scenarios": c.Targets.Scenarios = null!; break;
             case "targets.global": c.Targets.Global = null!; break;
             case "targets.scenario-value": c.Targets.Scenarios["normal-3"] = null!; break;
-            case "rotation-class": c.Rotations[CharacterClass.Warrior] = null!; break;
-            case "rotation-entry": c.Rotations[CharacterClass.Warrior] = [null!]; break;
-            case "when": c.Rotations[CharacterClass.Warrior][0].When = null!; break;
-            case "when-element": c.Rotations[CharacterClass.Warrior][0].When = [null!]; break;
-            case "when-value": c.Rotations[CharacterClass.Warrior][0].When = [new Dictionary<string, string> { ["targetsAlive"] = null! }]; break;
+            case "build": c.Builds[Axes] = null!; break;
+            case "nodes": c.Builds[Axes].Nodes = null!; break;
+            case "rotation": c.Builds[Axes].Rotation = null!; break;
+            case "rotation-entry": c.Builds[Axes].Rotation = [null!]; break;
+            case "when": c.Builds[Axes].Rotation[0].When = null!; break;
+            case "when-element": c.Builds[Axes].Rotation[0].When = [null!]; break;
+            case "when-value": c.Builds[Axes].Rotation[0].When = [new Dictionary<string, string> { ["targetsAlive"] = null! }]; break;
             case "scenarios-file": config = c with { Scenarios = null! }; break;
             case "targets-file": config = c with { Targets = null! }; break;
-            case "rotations-file": config = c with { Rotations = null! }; break;
+            case "builds-file": config = c with { Builds = null! }; break;
             default: throw new ArgumentException(name);
         }
 

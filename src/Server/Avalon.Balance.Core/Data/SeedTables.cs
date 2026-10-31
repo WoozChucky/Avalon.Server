@@ -18,6 +18,14 @@ public sealed class SeedTables
     public required List<VendorStock> VendorStocks { get; init; }
     public required List<AuraTemplate> AuraTemplates { get; init; }
     public required List<AuraStatModifier> AuraStatModifiers { get; init; }
+    /// <summary>The talent tree's nodes (#1181): each one's kind, fork group and keystone rule.</summary>
+    public required List<TalentNode> TalentNodes { get; init; }
+    /// <summary>The talent tree's edges (#1181), each undirected.</summary>
+    public required List<TalentEdge> TalentEdges { get; init; }
+    /// <summary>The talent nodes' stat lines (#1181), folded as gear's global lines are.</summary>
+    public required List<TalentNodeStat> TalentNodeStats { get; init; }
+    /// <summary>The capstones' modifiers (#1181 Part D): how each reshapes the ability it hangs from.</summary>
+    public required List<TalentAbilityModifier> TalentAbilityModifiers { get; init; }
     /// <summary>The talent tree's ability links (#1181): the abilities it grants, which the class rules hold.</summary>
     public required List<TalentNodeAbility> TalentNodeAbilities { get; init; }
     /// <summary>The talent tree's class starts (#1181): where each class starts, whose link is its starter.</summary>
@@ -53,6 +61,10 @@ public sealed class SeedTables
         VendorStocks = CloneRows(VendorStocks),
         AuraTemplates = CloneRows(AuraTemplates),
         AuraStatModifiers = CloneRows(AuraStatModifiers),
+        TalentNodes = CloneRows(TalentNodes),
+        TalentEdges = CloneRows(TalentEdges),
+        TalentNodeStats = CloneRows(TalentNodeStats),
+        TalentAbilityModifiers = CloneRows(TalentAbilityModifiers),
         TalentNodeAbilities = CloneRows(TalentNodeAbilities),
         TalentClassStarts = CloneRows(TalentClassStarts),
         ItemTemplateBaseStats = CloneRows(ItemTemplateBaseStats),

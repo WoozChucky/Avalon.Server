@@ -1,4 +1,3 @@
-using Avalon.Common;
 using CreatureRarity = Avalon.World.Public.Enums.CreatureRarity;
 
 namespace Avalon.Balance.Core;
@@ -29,7 +28,8 @@ public static class Grader
 {
     /// <summary>
     /// Grades each row of <see cref="TargetFile.GradedGear" /> against its scenario's bands, then the global checks
-    /// (flat curve, class parity, resource flow) over those rows only, and the levelling pace from the data alone.
+    /// (flat curve and resource flow per build, class parity per class by its best build) over those rows only, and the
+    /// levelling pace from the data alone.
     /// </summary>
     /// <remarks>The targets must have passed <see cref="TargetFile.Validate" />, which checks yellowTolerancePct.</remarks>
     public static GradeReport Grade(IReadOnlyList<RowResult> rows, BalanceData data, ScenarioFile scenarios, TargetFile targets)
@@ -50,10 +50,10 @@ public static class Grader
             if (t.HealthLeftPct is { } hp) Add(r.Key, "scenario", "health left", r.HealthLeftPct?.Median, hp, " %");
         }
 
-        // Flat curve: same-level scenarios, per class, across levels.
-        foreach (IGrouping<(CharacterClass, string), RowResult> curve in graded
+        // Flat curve: same-level scenarios, per build, across levels.
+        foreach (IGrouping<(string, string), RowResult> curve in graded
                      .Where(r => scenarios.Scenarios.Any(s => s.Id == r.Key.Scenario && s.SameLevel))
-                     .GroupBy(r => (r.Key.Class, r.Key.Scenario)))
+                     .GroupBy(r => (r.Key.Build, r.Key.Scenario)))
         {
             if (curve.Count() < 2) continue;
             string name = $"{curve.Key.Item1} {curve.Key.Item2}";
@@ -65,12 +65,23 @@ public static class Grader
                 new Band { Min = 0, Max = g.FlatCurveFightLengthPct }, " %");
         }
 
-        // Class parity: each class against the class average, per level.
+        // Class parity, per level: each class is scored by its best build against the average of the classes' best.
+        // The best is the highest win rate; on a tie above 0 % the shorter median fight (it wins sooner), at 0 % the
+        // longer (it survives longer); then the build named first in scenarios.json. The metric is recorded on the
+        // best build's row; a class's other builds get none and do not move the average.
         foreach (IGrouping<ushort, RowResult> level in graded.Where(r => r.Key.Scenario == g.ParityScenario).GroupBy(r => r.Key.Level))
         {
-            double avgWin = level.Average(r => r.WinRatePct);
-            double avgFight = level.Average(r => r.FightSeconds.Median);
-            foreach (RowResult r in level)
+            RowResult[] best =
+            [
+                .. level.GroupBy(r => r.Key.Class).Select(c => c
+                    .OrderByDescending(r => r.WinRatePct)
+                    .ThenBy(r => r.WinRatePct > 0 ? r.FightSeconds.Median : -r.FightSeconds.Median)
+                    .ThenBy(r => BuildOrder(scenarios, r.Key.Build))
+                    .First()),
+            ];
+            double avgWin = best.Average(r => r.WinRatePct);
+            double avgFight = best.Average(r => r.FightSeconds.Median);
+            foreach (RowResult r in best)
             {
                 Add(r.Key, "class parity", $"{r.Key.Class} L{r.Key.Level} win rate vs average", r.WinRatePct - avgWin,
                     new Band { Min = -g.ParityWinRatePoints, Max = g.ParityWinRatePoints }, " pts");
@@ -84,7 +95,7 @@ public static class Grader
         // starves, and nothing on how soon it first spends.
         foreach (RowResult r in graded.Where(r => r.Key.Scenario == g.ResourceScenario))
         {
-            Add(r.Key, "resource flow", $"{r.Key.Class} L{r.Key.Level} starved share", r.StarvedPct.Median,
+            Add(r.Key, "resource flow", $"{r.Key.Build} L{r.Key.Level} starved share", r.StarvedPct.Median,
                 new Band { Min = 0, Max = g.CasterStarvedPct }, " %");
         }
 
@@ -101,5 +112,12 @@ public static class Grader
         }
 
         return new GradeReport(metrics);
+    }
+
+    /// <summary>Where scenarios.json names the build; one it does not name sorts last.</summary>
+    private static int BuildOrder(ScenarioFile scenarios, string build)
+    {
+        int index = Array.IndexOf(scenarios.Builds, build);
+        return index < 0 ? int.MaxValue : index;
     }
 }

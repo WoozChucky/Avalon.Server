@@ -27,7 +27,7 @@ public static partial class Simulation
 
         if (config.Scenarios is null) return Invalid(new Issue("scenarios", "scenarios: the file is missing"));
         if (config.Targets is null) return Invalid(new Issue("targets", "targets: the file is missing"));
-        if (config.Rotations is null) return Invalid(new Issue("rotations", "rotations: the file is missing"));
+        if (config.Builds is null) return Invalid(new Issue("builds", "builds: the file is missing"));
         if (runs > MaxRunsPerRow)
             return Invalid(new Issue("runsPerRow", $"runsPerRow must be {MaxRunsPerRow} or fewer, not {runs}"));
 
@@ -58,8 +58,8 @@ public static partial class Simulation
         List<Issue> configIssues = [];
         try
         {
-            config.Scenarios.Validate(data);
-            foreach (CharacterClass characterClass in config.Scenarios.Classes)
+            config.Scenarios.Validate(data, config.Builds);
+            foreach (CharacterClass characterClass in config.Scenarios.ClassesOf(config.Builds))
             {
                 foreach (ushort level in config.Scenarios.LevelRange())
                 {
@@ -82,22 +82,23 @@ public static partial class Simulation
             configIssues.Add(new Issue("scenarios", e.Message));
         }
 
-        foreach (CharacterClass characterClass in config.Scenarios.Classes ?? [])
+        // Each build the scenarios name that the file holds; a name it lacks is the scenarios issue above.
+        foreach (string id in (config.Scenarios.Builds ?? []).Where(id => id is not null && config.Builds.ContainsKey(id)))
         {
             try
             {
-                config.Rotations.Compile(characterClass, data);
+                config.Builds.Compile(id, data);
             }
             catch (InvalidDataException e)
             {
-                configIssues.Add(new Issue($"rotations.{characterClass}", e.Message));
+                configIssues.Add(new Issue($"builds.{id}", e.Message));
             }
         }
 
         if (configIssues.Count > 0)
             return Invalid(configIssues.ToArray());
 
-        var runner = new BalanceRunner(data, config.Scenarios, config.Rotations);
+        var runner = new BalanceRunner(data, config.Scenarios, config.Builds);
         RunPlan plan;
         try
         {

@@ -12,7 +12,7 @@ public static class ConfigFiles
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        // A null where the file's type has no null ("classes": null, "pack": [null]) is a bad file, not a later crash.
+        // A null where the file's type has no null ("builds": null, "pack": [null]) is a bad file, not a later crash.
         RespectNullableAnnotations = true,
         Converters = { new JsonStringEnumConverter(allowIntegerValues: false) },
     };
@@ -30,8 +30,8 @@ public static class ConfigFiles
     };
 
     /// <summary>The three files as canonical JSON: 2-space indent, camelCase, string enums, a trailing newline.</summary>
-    public static (string Scenarios, string Targets, string Rotations) Save(BalanceConfig config) =>
-        (Write(config.Scenarios), Write(config.Targets), Write(config.Rotations));
+    public static (string Scenarios, string Targets, string Builds) Save(BalanceConfig config) =>
+        (Write(config.Scenarios), Write(config.Targets), Write(config.Builds));
 
     private static string Write<T>(T file) => JsonSerializer.Serialize(file, s_canonical) + "\n";
 
@@ -39,7 +39,7 @@ public static class ConfigFiles
 
     public static TargetFile ParseTargets(string json) => Parse<TargetFile>(json, "targets");
 
-    public static RotationFile ParseRotations(string json) => Parse<RotationFile>(json, "rotations");
+    public static BuildFile ParseBuilds(string json) => Parse<BuildFile>(json, "builds");
 
     private static T Parse<T>(string json, string name)
     {

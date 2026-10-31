@@ -12,11 +12,11 @@ public class CheckedInFilesShould
     [Theory]
     [InlineData("scenarios.json")]
     [InlineData("targets.json")]
-    [InlineData("rotations.json")]
+    [InlineData("builds.json")]
     public void Be_in_the_canonical_form_Save_writes(string file)
     {
-        (string s, string t, string r) = ConfigFiles.Save(TestData.Config());
-        string expected = file switch { "scenarios.json" => s, "targets.json" => t, _ => r };
+        (string s, string t, string b) = ConfigFiles.Save(TestData.Config());
+        string expected = file switch { "scenarios.json" => s, "targets.json" => t, _ => b };
 
         Assert.Equal(expected, File.ReadAllText(Path.Combine(Root, "balance", file)));
     }
@@ -25,7 +25,7 @@ public class CheckedInFilesShould
     public void Give_the_command_lines_csv_for_a_small_fixed_run()
     {
         var request = new RunRequest(null, null,
-            new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, new HashSet<string> { "normal-3" }),
+            new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, null, new HashSet<string> { "normal-3" }),
             RunsPerRow: 20, Seed: 1);
 
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), request, null, CancellationToken.None);

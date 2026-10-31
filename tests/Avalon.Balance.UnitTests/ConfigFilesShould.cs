@@ -14,19 +14,22 @@ public class ConfigFilesShould
     private static ScenarioFile CheckedInScenarios() =>
         ConfigFileStore.Load(Path.Combine(s_balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
 
+    private static BuildFile CheckedInBuilds() =>
+        ConfigFileStore.Load(Path.Combine(s_balanceDir, "builds.json"), ConfigFiles.ParseBuilds);
+
     [Fact]
     public void Load_the_checked_in_files_against_the_seed()
     {
         BalanceData data = TestData.Seeded;
         ScenarioFile scenarios = CheckedInScenarios();
-        scenarios.Validate(data);
+        BuildFile builds = CheckedInBuilds();
+        scenarios.Validate(data, builds);
         TargetFile targets = ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
-        RotationFile rotations = ConfigFileStore.Load(Path.Combine(s_balanceDir, "rotations.json"), ConfigFiles.ParseRotations);
 
         Assert.Equal(Enumerable.Range(1, 10).Select(l => (ushort)l), scenarios.LevelRange());
         Assert.Equal("forest", targets.GradedGear);
-        foreach (CharacterClass c in scenarios.Classes)
-            Assert.NotEmpty(rotations.Compile(c, data));
+        foreach (string id in scenarios.Builds)
+            Assert.NotEmpty(builds.Compile(id, data).Rotation);
     }
 
     [Fact]
@@ -98,39 +101,46 @@ public class ConfigFilesShould
     public void Refuse_a_pack_rarity_with_no_hostile_template()
     {
         ScenarioFile scenarios = ConfigFiles.ParseScenarios("""
-            { "runs": 1, "seed": 1, "levels": [1, 1], "classes": ["Warrior"], "gear": ["none"],
+            { "runs": 1, "seed": 1, "levels": [1, 1], "builds": ["warrior-axes"], "gear": ["none"],
               "scenarios": [ { "id": "town", "pack": [ { "template": 1 } ] } ], "gearProfiles": {} }
             """);
 
-        InvalidDataException error = Assert.Throws<InvalidDataException>(() => scenarios.Validate(TestData.Seeded));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => scenarios.Validate(TestData.Seeded, CheckedInBuilds()));
         Assert.Contains("scenario 'town'", error.Message, StringComparison.Ordinal);
 
         SeedTables tables = SeedSource.Load();
         tables.CreatureTemplates.Single(t => t.Id.Value == 10).Rarity = CreatureRarity.Rare;   // no Boss left
         ScenarioFile boss = ConfigFiles.ParseScenarios("""
-            { "runs": 1, "seed": 1, "levels": [1, 1], "classes": ["Warrior"], "gear": ["none"],
+            { "runs": 1, "seed": 1, "levels": [1, 1], "builds": ["warrior-axes"], "gear": ["none"],
               "scenarios": [ { "id": "boss-1", "pack": [ { "rarity": "Boss" } ] } ], "gearProfiles": {} }
             """);
         Assert.Contains("no hostile Boss template",
-            Assert.Throws<InvalidDataException>(() => boss.Validate(BalanceData.From(tables))).Message, StringComparison.Ordinal);
+            Assert.Throws<InvalidDataException>(() => boss.Validate(BalanceData.From(tables), CheckedInBuilds())).Message,
+            StringComparison.Ordinal);
     }
 
+    /// <summary>B-R16: a build is refused when compiled for an ability its whole path never holds, a node the tree refuses, or a bad condition; an unknown class when parsed.</summary>
     [Theory]
-    [InlineData("""{ "Warrior": [ { "ability": 210 } ] }""", "Warrior rotation entry 1: ability 210 is not in the class's kit")]
-    [InlineData("""{ "Warrior": [ { "ability": 319, "when": [ { "mood": ">1" } ] } ] }""", "unknown condition 'mood'")]
-    [InlineData("""{ "Warrior": [ { "ability": 319, "when": [ { "power": "about 3" } ] } ] }""", "'about 3' is not")]
-    public void Refuse_a_bad_rotation(string json, string message)
+    [InlineData("""{ "b": { "class": "Warrior", "nodes": [57], "rotation": [ { "ability": 210 } ] } }""",
+        "build 'b' rotation entry 1: ability 210 is never held by the build")]
+    [InlineData("""{ "b": { "class": "Warrior", "nodes": [57], "rotation": [ { "ability": 319, "when": [ { "mood": ">1" } ] } ] } }""",
+        "unknown condition 'mood'")]
+    [InlineData("""{ "b": { "class": "Warrior", "nodes": [57], "rotation": [ { "ability": 319, "when": [ { "power": "about 3" } ] } ] } }""",
+        "'about 3' is not")]
+    [InlineData("""{ "b": { "class": "Warrior", "nodes": [3], "rotation": [ { "ability": 319 } ] } }""",
+        "build 'b': node 3: NotConnected")]
+    [InlineData("""{ "b": { "class": "Nope", "nodes": [57], "rotation": [ { "ability": 319 } ] } }""", "builds: ")]
+    public void Refuse_a_bad_build(string json, string message)
     {
-        RotationFile rotations = ConfigFiles.ParseRotations(json);
-
-        InvalidDataException error = Assert.Throws<InvalidDataException>(() => rotations.Compile(CharacterClass.Warrior, TestData.Seeded));
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() =>
+            ConfigFiles.ParseBuilds(json).Compile("b", TestData.Seeded));
         Assert.Contains(message, error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Refuse_a_class_with_no_rotation() =>
+    public void Refuse_a_build_with_no_rotation() =>
         Assert.Throws<InvalidDataException>(() =>
-            ConfigFiles.ParseRotations("{}").Compile(CharacterClass.Wizard, TestData.Seeded));
+            ConfigFiles.ParseBuilds("""{ "b": { "class": "Wizard", "nodes": [] } }""").Compile("b", TestData.Seeded));
 
     private static TargetFile CheckedInTargets() =>
         ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
@@ -139,7 +149,7 @@ public class ConfigFilesShould
     public void Refuse_a_misspelt_scenario_field()
     {
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => ConfigFiles.ParseScenarios("""
-            { "runs": 1, "seed": 1, "levels": [1, 1], "classes": ["Warrior"], "gear": ["none"],
+            { "runs": 1, "seed": 1, "levels": [1, 1], "builds": ["warrior-axes"], "gear": ["none"],
               "scenarios": [ { "id": "normal-1", "pack": [ { "rarity": "Normal" } ], "levelOfset": 2 } ], "gearProfiles": {} }
             """));
 

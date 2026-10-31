@@ -29,9 +29,19 @@ internal static class TestData
         return FixedGear.Midpoint(row.Min, row.Max);
     }
 
+    /// <summary>A checked-in build of balance/builds.json, compiled against the seed.</summary>
+    public static CompiledBuild Build(string id) => Config().Builds.Compile(id, Seeded);
+
+    /// <summary>A level-10 character of a checked-in build holding its whole path, wearing nothing.</summary>
+    public static SimPlayer Whole(string id)
+    {
+        CompiledBuild build = Build(id);
+        return SimPlayer.Create(Seeded, build.Class, 10, [], Seeded.Talents.Hold(build.Class, build.Nodes));
+    }
+
     /// <summary>
-    /// <paramref name="player" />, given each of <paramref name="abilities" /> it does not hold yet (B-R9): until builds
-    /// land, a test hands a character its abilities directly.
+    /// <paramref name="player" />, given each of <paramref name="abilities" /> it does not hold yet (B-R9): a test whose
+    /// subject is not the tree hands a character its abilities directly.
     /// </summary>
     public static SimPlayer Holding(this SimPlayer player, BalanceData data, params uint[] abilities)
     {
@@ -51,6 +61,6 @@ internal static class TestData
         return new BalanceConfig(
             ConfigFileStore.Load(Path.Combine(dir, "scenarios.json"), ConfigFiles.ParseScenarios),
             ConfigFileStore.Load(Path.Combine(dir, "targets.json"), ConfigFiles.ParseTargets),
-            ConfigFileStore.Load(Path.Combine(dir, "rotations.json"), ConfigFiles.ParseRotations));
+            ConfigFileStore.Load(Path.Combine(dir, "builds.json"), ConfigFiles.ParseBuilds));
     }
 }

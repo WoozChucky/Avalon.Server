@@ -14,12 +14,12 @@ public class ConfigSaveShould
     };
 
     private static string Neutral_(BalanceConfig c) => JsonSerializer.Serialize(c.Scenarios, s_neutral)
-        + JsonSerializer.Serialize(c.Targets, s_neutral) + JsonSerializer.Serialize(c.Rotations, s_neutral);
+        + JsonSerializer.Serialize(c.Targets, s_neutral) + JsonSerializer.Serialize(c.Builds, s_neutral);
 
     private static BalanceConfig Reload(BalanceConfig config)
     {
-        (string s, string t, string r) = ConfigFiles.Save(config);
-        return new BalanceConfig(ConfigFiles.ParseScenarios(s), ConfigFiles.ParseTargets(t), ConfigFiles.ParseRotations(r));
+        (string s, string t, string b) = ConfigFiles.Save(config);
+        return new BalanceConfig(ConfigFiles.ParseScenarios(s), ConfigFiles.ParseTargets(t), ConfigFiles.ParseBuilds(b));
     }
 
     [Fact]
@@ -36,9 +36,9 @@ public class ConfigSaveShould
     [Fact]
     public void Write_indented_camel_case_with_a_trailing_newline()
     {
-        (string s, string t, string r) = ConfigFiles.Save(TestData.Config());
+        (string s, string t, string b) = ConfigFiles.Save(TestData.Config());
 
-        foreach (string text in new[] { s, t, r })
+        foreach (string text in new[] { s, t, b })
         {
             Assert.EndsWith("}\n", text);
             Assert.DoesNotContain("\r", text);
@@ -52,13 +52,11 @@ public class ConfigSaveShould
     [Fact]
     public void Write_comparison_operators_literally()
     {
-        // Its own rotation: the checked-in one holds no condition while it names only the starters (#1181, #1183).
-        RotationFile conditional = ConfigFiles.ParseRotations(
-            """{ "Warrior": [ { "ability": 319, "when": [ { "targetsAlive": ">=2" } ] } ] }""");
-        (_, _, string rotations) = ConfigFiles.Save(TestData.Config() with { Rotations = conditional });
+        // warrior-blood-price casts Hurled Axe while its health is at least 40 %.
+        (_, _, string builds) = ConfigFiles.Save(TestData.Config());
 
-        Assert.Contains("\">=2\"", rotations);
-        Assert.DoesNotContain("\\" + "u003E", rotations, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\\" + "u003C", rotations, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\">=40\"", builds);
+        Assert.DoesNotContain("\\" + "u003E", builds, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\\" + "u003C", builds, StringComparison.OrdinalIgnoreCase);
     }
 }

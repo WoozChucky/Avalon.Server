@@ -3,6 +3,7 @@ using Avalon.Balance.Core;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;
@@ -42,7 +43,8 @@ public class FightSimulatorShould
         {
             var random = new Random(672);
             SimCreature[] pack = [SimCreature.Create(Data, Data.Creature(5), 2, 0), SimCreature.Create(Data, Data.Creature(7), 3, 1)];
-            SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, new ulong[] { 7, 12, 13 }.Select(Data.Worn))
+            SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, new ulong[] { 7, 12, 13 }.Select(Data.Worn),
+                Data.Talents.Starter(CharacterClass.Warrior))
                 .Holding(Data, 201, 202, 200);
             var fight = new FightSimulator(Data.Combat.Formula, warrior, pack, Rotation(201, 202, 200), new CombatRandom(random));
             return JsonSerializer.Serialize(fight.Run());
@@ -56,7 +58,8 @@ public class FightSimulatorShould
     {
         SimCreature dummy = Dummy();
         Hold(dummy);
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []).Holding(Data, 200);
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [],
+            Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 200);
         FightSimulator fight = Fight(warrior, Rotation(200), dummy);
         RunFor(fight, 5);
 
@@ -72,7 +75,8 @@ public class FightSimulatorShould
     {
         SimCreature dummy = Dummy();
         Hold(dummy);
-        FightSimulator fight = Fight(SimPlayer.Create(Data, CharacterClass.Hunter, 1, []).Holding(Data, 221, 222, 220), Rotation(221, 222, 220), dummy);
+        FightSimulator fight = Fight(SimPlayer.Create(Data, CharacterClass.Hunter, 1, [],
+            Data.Talents.Starter(CharacterClass.Hunter)).Holding(Data, 221, 222, 220), Rotation(221, 222, 220), dummy);
         RunFor(fight, 1);
 
         double[] starts = fight.Result().Casts.Select(c => c.StartSeconds).ToArray();
@@ -86,7 +90,8 @@ public class FightSimulatorShould
     {
         SimCreature dummy = Dummy();
         Hold(dummy);
-        FightSimulator fight = Fight(SimPlayer.Create(Data, CharacterClass.Wizard, 1, []).Holding(Data, 211), Rotation(211), dummy);
+        FightSimulator fight = Fight(SimPlayer.Create(Data, CharacterClass.Wizard, 1, [],
+            Data.Talents.Starter(CharacterClass.Wizard)).Holding(Data, 211), Rotation(211), dummy);
         RunFor(fight, 2);
 
         // As on the server: the handler queues the cast in the character pass and the cast system counts it down in
@@ -100,7 +105,8 @@ public class FightSimulatorShould
     public void Land_a_creature_wind_up_after_its_cast_time()
     {
         var alpha = SimCreature.Create(Data, Data.Creature(8), 3, 0);   // Howling Roar, 1 s wind-up
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, []).Holding(Data, 201);
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 3, [],
+            Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 201);
         warrior.Health = warrior.CurrentHealth = 1_000_000;
         FightSimulator fight = Fight(warrior, Rotation(201), alpha);   // 201 costs mana the warrior may lack: fine
         RunFor(fight, 3);
@@ -119,7 +125,8 @@ public class FightSimulatorShould
     {
         SimCreature[] pack = [Dummy(4, 0), Dummy(4, 1), Dummy(4, 2)];
         foreach (SimCreature c in pack) Hold(c);
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []).Holding(Data, 200);
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [],
+            Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 200);
         warrior.CurrentPower = 50;
         FightSimulator fight = Fight(warrior, Rotation(200), pack);
 
@@ -132,7 +139,8 @@ public class FightSimulatorShould
     [Fact]
     public void Gain_no_mana_from_damage_taken()
     {
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []).Holding(Data, 201);
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [],
+            Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 201);
         warrior.ResetWard(0);   // a bare Warrior carries a small ward: the trample must meet health
         warrior.CurrentPower = 10;
         FightSimulator fight = Fight(warrior, Rotation(201), Dummy());   // 201 costs 20 mana: never cast here
@@ -146,7 +154,8 @@ public class FightSimulatorShould
     [Fact]
     public void Regenerate_mana_at_the_in_combat_rate_carrying_the_fraction()
     {
-        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);   // 1 % of its maximum a second in combat
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, [],
+            Data.Talents.Starter(CharacterClass.Wizard));   // 1 % of its maximum a second in combat
         double rate = wizard.ManaRegen.InCombat;
         wizard.CurrentPower = 10;
         SimCreature dummy = Dummy();
@@ -164,7 +173,8 @@ public class FightSimulatorShould
     [Fact]
     public void Keep_regenerating_through_a_cast_time_cast()
     {
-        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []).Holding(Data, 211);
+        SimPlayer wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, [],
+            Data.Talents.Starter(CharacterClass.Wizard)).Holding(Data, 211);
         SimCreature dummy = Dummy();
         Hold(dummy);
         FightSimulator fight = Fight(wizard, Rotation(211), dummy);   // Flame Burst: 0.6 s cast, 25 mana, 5 s cooldown
@@ -177,7 +187,8 @@ public class FightSimulatorShould
     [Fact]
     public void End_a_fight_nobody_can_finish_at_the_time_limit_as_a_loss()
     {
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []).Holding(Data, 201);
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [],
+            Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 201);
         warrior.Health = warrior.CurrentHealth = uint.MaxValue / 2;
         // No mana and no maximum to regenerate towards, so Ground Slam never becomes affordable and nobody damages
         // the boar.
@@ -194,7 +205,8 @@ public class FightSimulatorShould
     public void Win_when_every_creature_is_dead_and_record_what_happened()
     {
         var boar = SimCreature.Create(Data, Data.Creature(4), 1, 0);
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, new ulong[] { 7, 12, 13, 14, 15, 16 }.Select(Data.Worn))
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, new ulong[] { 7, 12, 13, 14, 15, 16 }.Select(Data.Worn),
+            Data.Talents.Starter(CharacterClass.Warrior))
             .Holding(Data, 201, 202, 200);
         FightResult result = Fight(warrior, Rotation(201, 202, 200), boar).Run();
 
@@ -211,7 +223,8 @@ public class FightSimulatorShould
     {
         SimCreature dummy = Dummy();
         Hold(dummy);
-        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []).Holding(Data, 201, 200);
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [],
+            Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 201, 200);
         warrior.CurrentPower = 0;
         FightSimulator fight = Fight(warrior, Rotation(201, 200), dummy);   // Ground Slam first, 0 mana
 
@@ -219,6 +232,29 @@ public class FightSimulatorShould
 
         Assert.Equal(Tick, fight.Result().StarvedSeconds, precision: 9);
         Assert.Null(fight.Result().FirstSpenderSeconds);
+    }
+
+    /// <summary>
+    /// B-R16, Review Focus 1: warrior-axes at level 1 holds four nodes and no Hurled Axe yet, so its first entry is passed
+    /// over: never cast, never counted as starved, and never taken as the first ready entry. Ground Slam, given after it
+    /// with no mana to pay, is then the first ready entry, so the tick counts as starved; then Heavy Strike is cast.
+    /// </summary>
+    [Fact]
+    public void Skip_an_entry_the_build_does_not_hold_yet_and_starve_on_the_next()
+    {
+        CompiledBuild axes = TestData.Build("warrior-axes");
+        Assert.Equal([202u, 319u], axes.Rotation.Select(e => e.AbilityId));
+        SimCreature dummy = Dummy();
+        Hold(dummy);
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [], axes.HeldAt(1, 3, Data)).Holding(Data, 201);
+        warrior.CurrentPower = 0;
+        Assert.False(warrior.Holds(202));
+        FightSimulator fight = Fight(warrior, [axes.Rotation[0], new CompiledRotationEntry(201, []), axes.Rotation[1]], dummy);
+
+        fight.Tick();
+
+        Assert.Equal(319u, Assert.Single(fight.Result().Casts).AbilityId);
+        Assert.Equal(Tick, fight.Result().StarvedSeconds, precision: 9);
     }
 
     [Fact]
@@ -238,7 +274,8 @@ public class FightSimulatorShould
             var rng = new CountingRandom();
             // Cleave, a cone: in the melee model it reaches every living creature.
             var fight = new FightSimulator(Data.Combat.Formula,
-                SimPlayer.Create(Data, CharacterClass.Warrior, 1, []).Holding(Data, 200), pack, Rotation(200), rng);
+                SimPlayer.Create(Data, CharacterClass.Warrior, 1, [],
+                    Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 200), pack, Rotation(200), rng);
             fight.Tick();
             return rng.Draws;
         }
@@ -271,7 +308,7 @@ public class FightSimulatorShould
         foreach (SimCreature c in pack) Hold(c);
         AbilityTemplate row = TestData.Seed().AbilityTemplates.Single(a => a.Id.Value == ability);
         row.MaxTargets = maxTargets ?? row.MaxTargets;
-        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [], Data.Talents.Starter(CharacterClass.Warrior));
         warrior.Abilities.RemoveAll(a => a.Id == ability);   // Heavy Strike is its starter
         warrior.Abilities.Add(new SimAbility(row));
         var fight = new FightSimulator(Data.Combat.Formula, warrior, pack, Rotation(ability), CombatRandom.Steady,
@@ -288,7 +325,7 @@ public class FightSimulatorShould
         var alpha = SimCreature.Create(Data, Data.Creature(8), 3, 0);
         Hold(alpha);
         alpha.Abilities.First(a => a.Id == 310).CooldownLeft = 0f;   // Howling Roar, 1 s wind-up: the only thing it may choose
-        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, []);
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 1, [], Data.Talents.Starter(CharacterClass.Wizard));
         wizard.Health = wizard.CurrentHealth = 1_000_000;
         SimAbility bolt = wizard.Ability(210);   // Spark Bolt: an instant projectile
         bolt.CooldownLeft = 1_000f;
@@ -315,7 +352,7 @@ public class FightSimulatorShould
         var tuskroot = SimCreature.Create(Data, Data.Creature(9), 3, 0);
         Hold(tuskroot);
         tuskroot.Abilities.First(a => a.Id == 313).CooldownLeft = 0f;   // Thorn Volley, an instant projectile
-        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [], Data.Talents.Starter(CharacterClass.Warrior));
         warrior.Health = warrior.CurrentHealth = 1_000_000;
         FightSimulator fight = Fight(warrior, Rotation(), tuskroot);
 
@@ -333,7 +370,7 @@ public class FightSimulatorShould
         var tuskroot = SimCreature.Create(Data, Data.Creature(9), 3, 0);
         Hold(tuskroot);
         tuskroot.Abilities.First(a => a.Id == 313).CooldownLeft = 0f;
-        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, []);
+        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [], Data.Talents.Starter(CharacterClass.Warrior));
         warrior.Health = warrior.CurrentHealth = 1_000_000;
         var rng = new CountingRandom();
         var fight = new FightSimulator(Data.Combat.Formula, warrior, [tuskroot], Rotation(), rng);
@@ -345,6 +382,97 @@ public class FightSimulatorShould
 
         Assert.Equal(warrior.Health, warrior.CurrentHealth);
         Assert.Equal(0, rng.Draws);
+    }
+
+    /// <summary>
+    /// B-R15, as AbilityEffect.Apply: Double Tap's second hit (50 %) draws its own rolls, as many as a whole hit, and the
+    /// aura is placed once after both; a first hit that kills is never followed by a second, so the corpse draws nothing.
+    /// One hit's draws are an unshaped Crippling Shot's (its aura, Crippled, draws nothing: it does not tick).
+    /// </summary>
+    [Theory]
+    [InlineData(1_000_000u, 2)]
+    [InlineData(1u, 1)]
+    public void Land_a_second_hit_with_its_own_rolls_and_one_aura(uint health, int hits)
+    {
+        (long Draws, SimCreature Dummy) Cast(SimPlayer hunter)
+        {
+            SimCreature dummy = Dummy();
+            dummy.Health = dummy.CurrentHealth = health;
+            Hold(dummy);
+            var rng = new CountingRandom();
+            new FightSimulator(Data.Combat.Formula, hunter, [dummy], Rotation(223), rng, data: Data).Tick();
+            return (rng.Draws, dummy);
+        }
+
+        (long oneHit, _) = Cast(SimPlayer.Create(Data, CharacterClass.Hunter, 10, [],
+            Data.Talents.Starter(CharacterClass.Hunter)).Holding(Data, 223));
+        (long draws, SimCreature dummy) = Cast(TestData.Whole("hunter-double-tap"));
+
+        Assert.True(oneHit > 0);
+        Assert.Equal(hits * oneHit, draws);
+        SimAura[] crippled = [.. dummy.Auras.Where(a => a.Template.Name == "Crippled")];
+        Assert.Equal(dummy.IsDead ? 0 : 1, crippled.Length);
+        Assert.All(crippled, a => Assert.Equal(1u, a.Stacks));
+    }
+
+    /// <summary>
+    /// B-R15: Twin Axes fires Hurled Axe in two lanes that share one set of creatures hit, so each lane takes the first
+    /// creature the cast has not hit; a lane with no creature left hits nothing and draws nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 2)]
+    [InlineData(1, 1)]
+    public void Spread_a_fan_over_distinct_creatures(int creatures, int damaged)
+    {
+        long Draws(SimPlayer warrior, SimCreature[] pack)
+        {
+            foreach (SimCreature c in pack) Hold(c);
+            var rng = new CountingRandom();
+            new FightSimulator(Data.Combat.Formula, warrior, pack, Rotation(202), rng).Tick();   // instant: lands this tick
+            return rng.Draws;
+        }
+
+        long unshaped = Draws(SimPlayer.Create(Data, CharacterClass.Warrior, 10, [],
+            Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 202), [Dummy()]);
+        SimCreature[] pack = [.. Enumerable.Range(0, creatures).Select(i => Dummy(4, i))];
+        SimPlayer axes = TestData.Whole("warrior-axes");
+        Assert.Equal(2, axes.Ability(202).Metadata.ProjectileCount);
+
+        long draws = Draws(axes, pack);
+
+        Assert.Equal(damaged, pack.Count(c => c.CurrentHealth < c.Health));
+        Assert.Equal(damaged * unshaped, draws);
+    }
+
+    /// <summary>
+    /// B-R15: Rimeburst's Frostbolt ends on the first creature and explodes there; in melee the burst reaches every other
+    /// living creature, each hit once at 60 % with the Area tag, damage only (no aura, no second hit).
+    /// </summary>
+    [Fact]
+    public void Explode_on_the_creature_a_projectile_ends_on()
+    {
+        // Lane A to the joint, Frostbolt, its branch, then Rimeburst: not a checked-in build (none reaches an explosion).
+        int[] rimeburst = [148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 294, 297, 298, 299, 300, 301, 331];
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 10, [],
+            Data.Talents.Hold(CharacterClass.Wizard, rimeburst));
+        SimAbility frostbolt = wizard.Ability(320);
+        // Steady rolls the same every draw, so the burst's hit on an identical dummy is the one each burst creature takes.
+        uint burstHit = CombatRules.Damage(wizard, Dummy(), frostbolt, Data.Combat.Formula, CombatRandom.Steady,
+            new HitShaping(frostbolt.Metadata.ExplosionEffectiveness, AbilityTags.Area)).Total;
+        SimCreature[] pack = [Dummy(4, 0), Dummy(4, 1), Dummy(4, 2)];
+        foreach (SimCreature c in pack) Hold(c);
+        var fight = new FightSimulator(Data.Combat.Formula, wizard, pack, Rotation(320), CombatRandom.Steady, data: Data);
+
+        RunFor(fight, 1);   // a 0.5 s cast, then a 2 s cooldown: one Frostbolt
+
+        Assert.Single(fight.Result().Casts, c => c.AbilityId == 320);
+        Assert.True(burstHit < pack[0].Health - pack[0].CurrentHealth);   // the burst is a share of the first hit
+        Assert.True(burstHit > 0);
+        foreach (SimCreature burst in pack[1..])
+        {
+            Assert.Equal(burstHit, burst.Health - burst.CurrentHealth);
+            Assert.Empty(burst.Auras);
+        }
     }
 
     private sealed class CountingRandom : ICombatRandom

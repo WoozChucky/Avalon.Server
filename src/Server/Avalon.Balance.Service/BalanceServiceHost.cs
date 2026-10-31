@@ -63,7 +63,7 @@ public static class BalanceServiceHost
         var defaults = new BalanceConfig(
             ConfigFileStore.Load(Path.Combine(dir, "scenarios.json"), ConfigFiles.ParseScenarios),
             ConfigFileStore.Load(Path.Combine(dir, "targets.json"), ConfigFiles.ParseTargets),
-            ConfigFileStore.Load(Path.Combine(dir, "rotations.json"), ConfigFiles.ParseRotations));
+            ConfigFileStore.Load(Path.Combine(dir, "builds.json"), ConfigFiles.ParseBuilds));
         return new BalanceHost(SeedSource.Load(), defaults);
     }
 }

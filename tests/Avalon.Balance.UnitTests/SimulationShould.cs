@@ -9,17 +9,17 @@ public class SimulationShould
 {
     private static RunRequest Quick(RunFilter? filter = null, string? overrides = null) =>
         new(overrides is null ? null : JsonDocument.Parse(overrides).RootElement, null,
-            filter ?? new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, new HashSet<string> { "normal-3" }),
+            filter ?? new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, null, new HashSet<string> { "normal-3" }),
             RunsPerRow: 20, Seed: 1);
 
-    private static RunFilter AllWarriorRows => new(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, null);
+    private static RunFilter AllWarriorRows => new(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, null, null);
 
     [Fact]
     public void Give_the_same_rows_as_the_command_line_runner()
     {
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(), null, CancellationToken.None);
         // Same plan through the old path.
-        var runner = new BalanceRunner(TestData.Seeded, TestData.Config().Scenarios, TestData.Config().Rotations);
+        var runner = new BalanceRunner(TestData.Seeded, TestData.Config().Scenarios, TestData.Config().Builds);
         IReadOnlyList<RowResult> expected = runner.Run(runner.Plan(CharacterClass.Warrior, "normal-3", 20, 1));
 
         Assert.Equal(RunStatus.Done, result.Status);
@@ -31,18 +31,18 @@ public class SimulationShould
     {
         RunResult all = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(), null, CancellationToken.None);
         RunResult some = Simulation.Run(TestData.Seed(), TestData.Config(),
-            Quick(new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, new HashSet<ushort> { 5 }, new HashSet<string> { "forest" }, new HashSet<string> { "normal-3" })),
+            Quick(new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, new HashSet<ushort> { 5 }, new HashSet<string> { "forest" }, new HashSet<string> { "normal-3" })),
             null, CancellationToken.None);
 
-        RowResult row = Assert.Single(some.Rows);
-        Assert.Equal(all.Rows.Single(r => r.Key == row.Key).WinRatePct, row.WinRatePct);
+        Assert.Equal(["warrior-axes", "warrior-blood-price"], some.Rows.Select(r => r.Key.Build));
+        Assert.All(some.Rows, row => Assert.Equal(all.Rows.Single(r => r.Key == row.Key).WinRatePct, row.WinRatePct));
     }
 
     [Fact]
     public void Report_the_rows_the_global_checks_cover()
     {
         RunResult some = Simulation.Run(TestData.Seed(), TestData.Config(),
-            Quick(new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, new HashSet<string> { "none", "forest" }, new HashSet<string> { "normal-3" })),
+            Quick(new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, new HashSet<string> { "none", "forest" }, new HashSet<string> { "normal-3" })),
             null, CancellationToken.None);
         string graded = TestData.Config().Targets.GradedGear;
 
@@ -109,16 +109,22 @@ public class SimulationShould
         Assert.Equal(original.ItemTemplates.Count, copy.ItemTemplates.Count);
     }
 
-    [Fact]
-    public void Report_a_bad_config_as_an_issue()
+    [Theory]
+    [InlineData("unknown-ability", "builds.warrior-axes", "build 'warrior-axes' rotation entry 1: ability 99999 is never held")]
+    [InlineData("no-file", "builds", "builds: the file is missing")]
+    public void Report_a_bad_config_as_an_issue(string fault, string path, string message)
     {
         BalanceConfig config = TestData.Config();
-        BalanceConfig broken = config with { Rotations = new RotationFile { [CharacterClass.Warrior] = [new RotationEntry { Ability = 99999 }] } };
+        if (fault == "unknown-ability")
+            config.Builds["warrior-axes"].Rotation = [new RotationEntry { Ability = 99999 }];
+        BalanceConfig broken = fault == "no-file" ? config with { Builds = null! } : config;
 
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick() with { Config = broken }, null, CancellationToken.None);
 
         Assert.Equal(RunStatus.Invalid, result.Status);
-        Assert.Contains(result.Issues, i => i.Path.StartsWith("rotations", StringComparison.Ordinal));
+        Issue issue = Assert.Single(result.Issues);
+        Assert.Equal(path, issue.Path);
+        Assert.StartsWith(message, issue.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -135,19 +141,29 @@ public class SimulationShould
         Assert.Contains("yellowTolerancePct", issue.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>Each filter the files cannot satisfy: an unknown value, or a builds filter naming no build of the filtered classes.</summary>
     [Theory]
-    [InlineData("filter.levels")]
-    [InlineData("filter.gear")]
-    [InlineData("filter.scenarios")]
-    [InlineData("filter.classes")]
-    public void Report_an_unknown_filter_value_as_an_issue(string path)
+    [InlineData("levels", "filter.levels")]
+    [InlineData("gear", "filter.gear")]
+    [InlineData("scenarios", "filter.scenarios")]
+    [InlineData("classes", "filter.classes")]
+    [InlineData("builds", "filter.builds")]
+    [InlineData("builds-of-another-class", "filter.builds")]   // a known Cleric build under a Warrior filter: no row left
+    public void Report_an_unknown_filter_value_as_an_issue(string filter, string path)
     {
-        HashSet<CharacterClass> classes = path == "filter.classes" ? [(CharacterClass)250] : [CharacterClass.Warrior];
-        HashSet<ushort>? levels = path == "filter.levels" ? [999] : null;
-        HashSet<string>? gear = path == "filter.gear" ? ["nope"] : null;
-        HashSet<string> scenarios = path == "filter.scenarios" ? ["nope"] : ["normal-3"];
+        HashSet<CharacterClass> classes = filter == "classes" ? [(CharacterClass)250] : [CharacterClass.Warrior];
+        HashSet<string>? builds = filter switch
+        {
+            "builds" => ["warrior-nope"],
+            "builds-of-another-class" => ["cleric-steadfast"],
+            _ => null,
+        };
+        HashSet<ushort>? levels = filter == "levels" ? [999] : null;
+        HashSet<string>? gear = filter == "gear" ? ["nope"] : null;
+        HashSet<string> scenarios = filter == "scenarios" ? ["nope"] : ["normal-3"];
 
-        RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick(new RunFilter(classes, levels, gear, scenarios)), null, CancellationToken.None);
+        RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(),
+            Quick(new RunFilter(classes, builds, levels, gear, scenarios)), null, CancellationToken.None);
 
         Assert.Equal(RunStatus.Invalid, result.Status);
         Assert.Equal(path, Assert.Single(result.Issues).Path);
@@ -222,7 +238,7 @@ public class SimulationShould
         { RunsPerRow = 1 }, null, CancellationToken.None);
 
         Assert.Equal(RunStatus.Done, result.Status);
-        Assert.Equal(TestData.Config().Scenarios.Classes.Length * 10 * 3 * 8, result.Rows.Count);
+        Assert.Equal(TestData.Config().Scenarios.Builds.Length * 10 * 3 * 8, result.Rows.Count);
     }
 
     [Fact]
@@ -233,8 +249,8 @@ public class SimulationShould
             new SyncProgress<RunProgress>(_ => { calls++; throw new InvalidOperationException("handler bug"); }), CancellationToken.None);
 
         Assert.Equal(RunStatus.Done, result.Status);
-        Assert.Equal(30, result.Rows.Count);
-        Assert.Equal(30, calls);
+        Assert.Equal(60, result.Rows.Count);   // two Warrior builds x 10 levels x 3 gear profiles
+        Assert.Equal(60, calls);
     }
 
     [Fact]

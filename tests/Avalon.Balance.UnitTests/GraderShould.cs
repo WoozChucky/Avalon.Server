@@ -14,12 +14,15 @@ public class GraderShould
 
     private static TargetFile Targets() => ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
 
+    /// <summary>A row of <paramref name="build" />, by default the class's own one-build name ("warrior" for a Warrior).</summary>
     private static RowResult Row(CharacterClass c, ushort level, string scenario, double win, double fight,
-        double? health = 50, double starved = 0) =>
-        new(new RowKey(c, level, "forest", scenario), 100, win, new Distribution(fight, fight, fight),
+        double? health = 50, double starved = 0, string? build = null) =>
+        new(new RowKey(build ?? Build(c), c, level, "forest", scenario), 100, win, new Distribution(fight, fight, fight),
             health is { } h ? new Distribution(h, h, h) : null,
             new Distribution(1, 1, 1), new Distribution(starved, starved, starved),
             new Dictionary<string, double>(), new Dictionary<string, double>(), s_noSnapshot);
+
+    private static string Build(CharacterClass c) => c.ToString().ToLowerInvariant();
 
     [Theory]
     [InlineData(90d, Grade.Green)]
@@ -38,7 +41,7 @@ public class GraderShould
         GradeReport report = Grader.Grade([Row(CharacterClass.Warrior, 1, "elite-1", win: 0, fight: 12, health: null)],
             TestData.Seeded, Scenarios(), Targets());
 
-        GradedMetric health = report.For(new RowKey(CharacterClass.Warrior, 1, "forest", "elite-1"), "health left")!;
+        GradedMetric health = report.For(new RowKey("warrior", CharacterClass.Warrior, 1, "forest", "elite-1"), "health left")!;
         Assert.Null(health.Value);
         Assert.Equal(Grade.Red, health.Grade);
     }
@@ -48,7 +51,7 @@ public class GraderShould
     {
         RowResult starter = Row(CharacterClass.Warrior, 1, "normal-1", 0, 100) with
         {
-            Key = new RowKey(CharacterClass.Warrior, 1, "starter", "normal-1"),
+            Key = new RowKey("warrior", CharacterClass.Warrior, 1, "starter", "normal-1"),
         };
 
         GradeReport report = Grader.Grade([starter], TestData.Seeded, Scenarios(), Targets());
@@ -63,25 +66,43 @@ public class GraderShould
 
         GradeReport report = Grader.Grade(rows, TestData.Seeded, Scenarios(), Targets());
 
-        GradedMetric flat = report.Metrics.Single(m => m.Check == "flat curve" && m.Metric == "Warrior normal-3 win rate spread");
+        GradedMetric flat = report.Metrics.Single(m => m.Check == "flat curve" && m.Metric == "warrior normal-3 win rate spread");
         Assert.Equal(40d, flat.Value);
         Assert.Equal(Grade.Red, flat.Grade);
     }
 
-    [Fact]
-    public void Flag_a_class_far_from_the_class_average()
+    /// <summary>
+    /// R-P2-3: each class is scored by its best build against the average of the classes' best, on that build's row. A
+    /// worse second build gets no parity metric and leaves the average alone; a better one becomes the class's score.
+    /// On a win-rate tie the shorter median fight is best, at 0 % the longer; then the build scenarios.json names first.
+    /// The second build (cleric-steadfast) is named before the first (cleric-unbroken) but added after it.
+    /// </summary>
+    [Theory]
+    [InlineData(60d, null, 0d, "cleric-unbroken", -30d, Grade.Red)]       // one build: 60 against (100 + 100 + 100 + 60) / 4
+    [InlineData(60d, 20d, 20d, "cleric-unbroken", -30d, Grade.Red)]       // a worse second build changes nothing
+    [InlineData(60d, 100d, 20d, "cleric-steadfast", 0d, Grade.Green)]     // a better second build is the Cleric's score
+    [InlineData(60d, 60d, 15d, "cleric-steadfast", -30d, Grade.Red)]      // a win-rate tie: the shorter fight
+    [InlineData(60d, 60d, 20d, "cleric-steadfast", -30d, Grade.Red)]      // a full tie: the build named first
+    [InlineData(0d, 0d, 30d, "cleric-steadfast", -75d, Grade.Red)]        // a tie at 0 %: the longer fight
+    public void Score_each_class_by_its_best_build_against_the_average(double clericWin, double? secondClericWin,
+        double secondClericFight, string scored, double value, Grade grade)
     {
-        RowResult[] rows =
+        List<RowResult> rows =
         [
             Row(CharacterClass.Warrior, 1, "normal-3", 100, 20), Row(CharacterClass.Wizard, 1, "normal-3", 100, 20),
-            Row(CharacterClass.Hunter, 1, "normal-3", 100, 20), Row(CharacterClass.Cleric, 1, "normal-3", 60, 20),
+            Row(CharacterClass.Hunter, 1, "normal-3", 100, 20),
+            Row(CharacterClass.Cleric, 1, "normal-3", clericWin, 20, build: "cleric-unbroken"),
         ];
+        if (secondClericWin is { } win)
+            rows.Add(Row(CharacterClass.Cleric, 1, "normal-3", win, secondClericFight, build: "cleric-steadfast"));
 
         GradeReport report = Grader.Grade(rows, TestData.Seeded, Scenarios(), Targets());
 
         GradedMetric cleric = report.Metrics.Single(m => m.Check == "class parity" && m.Metric == "Cleric L1 win rate vs average");
-        Assert.Equal(-30d, cleric.Value);
-        Assert.Equal(Grade.Red, cleric.Grade);
+        Assert.Equal(scored, cleric.Row!.Build);
+        Assert.Equal(value, cleric.Value);
+        Assert.Equal(grade, cleric.Grade);
+        Assert.Equal(8, report.Metrics.Count(m => m.Check == "class parity"));   // two per class, on its best build only
     }
 
     [Fact]
@@ -95,8 +116,8 @@ public class GraderShould
 
         GradeReport report = Grader.Grade(rows, TestData.Seeded, Scenarios(), Targets());
 
-        Assert.Equal(Grade.Red, report.Metrics.Single(m => m.Metric == "Warrior L1 starved share").Grade);
-        Assert.Equal(Grade.Red, report.Metrics.Single(m => m.Metric == "Wizard L1 starved share").Grade);
+        Assert.Equal(Grade.Red, report.Metrics.Single(m => m.Metric == "warrior L1 starved share").Grade);
+        Assert.Equal(Grade.Red, report.Metrics.Single(m => m.Metric == "wizard L1 starved share").Grade);
     }
 
     [Fact]
@@ -109,7 +130,7 @@ public class GraderShould
 
         GradeReport report = Grader.Grade(rows, TestData.Seeded, Scenarios(), Targets());
 
-        GradedMetric starved = report.Metrics.Single(m => m.Metric == "Wizard L1 starved share");
+        GradedMetric starved = report.Metrics.Single(m => m.Metric == "wizard L1 starved share");
         Assert.Equal(5, starved.Value);
         Assert.Equal(Grade.Green, starved.Grade);
     }

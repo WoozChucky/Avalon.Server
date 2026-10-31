@@ -25,7 +25,6 @@ public class ExportEndpointsShould
             extra: extra ?? (token ? s_withToken : null),
             services: s =>
             {
-                BalanceTestHost.UseFixtureRotations(s);
                 s.AddSingleton<IGitHub>(github);
                 s.AddSingleton(new BuildInfo(commit));
                 s.AddSingleton<TimeProvider>(new FakeTimeProvider(new DateTimeOffset(2026, 9, 30, 14, 5, 0, TimeSpan.Zero)));
@@ -43,11 +42,11 @@ public class ExportEndpointsShould
     private static FakeGitHub GitHubWithDefaults(BalanceHost host)
     {
         var github = new FakeGitHub();
-        (string scenarios, string targets, string rotations) = ConfigFiles.Save(host.Defaults);
+        (string scenarios, string targets, string builds) = ConfigFiles.Save(host.Defaults);
         github.FilesAtCommit["balance/overrides.json"] = ("s1", "{}\n");
         github.FilesAtCommit["balance/scenarios.json"] = ("s2", scenarios);
         github.FilesAtCommit["balance/targets.json"] = ("s3", targets);
-        github.FilesAtCommit["balance/rotations.json"] = ("s4", rotations);
+        github.FilesAtCommit["balance/builds.json"] = ("s4", builds);
         return github;
     }
 

@@ -11,7 +11,7 @@ public class ReportsShould
     private static readonly string s_balanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
 
     private static RowResult Row(CharacterClass c, ushort level, double win) =>
-        new(new RowKey(c, level, "forest", "normal-3"), 10, win, new Distribution(15, 20, 25), new Distribution(40, 50, 60),
+        new(new RowKey($"{c.ToString().ToLowerInvariant()}-build", c, level, "forest", "normal-3"), 10, win, new Distribution(15, 20, 25), new Distribution(40, 50, 60),
             new Distribution(1, 1.5, 2), new Distribution(2, 3, 4.25), new Dictionary<string, double> { ["Cleave, the \"big\" one"] = 120.5 }, new Dictionary<string, double> { ["Grey Fen Wolf: Bite"] = 80 },
             new PlayerSnapshot(300, 100, 20, 5, 22, 5, 0, [new AbilityLine("Cleave", "Damage", 30, 36)]));
 
@@ -33,8 +33,8 @@ public class ReportsShould
         string[] lines = CsvReport.Render(ctx.Rows, ctx.Grades).TrimEnd().Split('\n');
 
         Assert.Equal(3, lines.Length);
-        Assert.StartsWith("class,level,gear,scenario,runs,win_rate,", lines[0], StringComparison.Ordinal);
-        Assert.StartsWith("Warrior,1,forest,normal-3,10,96,", lines[1], StringComparison.Ordinal);
+        Assert.StartsWith("class,build,level,gear,scenario,runs,win_rate,", lines[0], StringComparison.Ordinal);
+        Assert.StartsWith("Warrior,warrior-build,1,forest,normal-3,10,96,", lines[1], StringComparison.Ordinal);
         Assert.Contains("green", lines[1], StringComparison.Ordinal);
     }
 
@@ -69,7 +69,7 @@ public class ReportsShould
         Assert.DoesNotContain("http://", html, StringComparison.Ordinal);
         Assert.DoesNotContain("https://", html, StringComparison.Ordinal);
         foreach (string text in new[] { "abc1234", "Seed 672", "Ability.201.Cost", "already applied", "Summary",
-                     "normal-3", "Level curves", "<svg", "Cleave, the &quot;big&quot; one", "prefers-color-scheme" })
+                     "normal-3", "Level curves", "<svg", "Cleave, the &quot;big&quot; one", "prefers-color-scheme", "warrior-build" })
         {
             Assert.Contains(text, html, StringComparison.Ordinal);
         }

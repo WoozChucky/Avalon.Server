@@ -2,12 +2,14 @@ using System.Text.Json;
 
 namespace Avalon.Balance.Contract;
 
+/// <param name="Builds">The builds a run can name: scenarios.json's builds, in its order, each with its path.</param>
 public sealed record CatalogDto(
     string Version,
     string Commit,
     IReadOnlyList<TunableDto> Tunables,
     BalanceConfigDto DefaultConfig,
     IReadOnlyList<string> Classes,
+    IReadOnlyList<BuildDto> Builds,
     IReadOnlyList<int> Levels,
     IReadOnlyList<string> Gear,
     IReadOnlyList<string> Scenarios,
@@ -18,8 +20,14 @@ public sealed record TunableDto(string Key, string Table, string? RowKey, string
 
 public sealed record NamedIdDto(long Id, string Name);
 
+/// <summary>A checked-in build in builds.json: its id, its class, and the talent nodes it takes, in path order.</summary>
+public sealed record BuildDto(string Id, string Class, IReadOnlyList<BuildNodeDto> Nodes);
+
+/// <summary>Kind is the node's kind by name (Small, Notable, Ability, ...); Name is null on a node the seed leaves unnamed.</summary>
+public sealed record BuildNodeDto(int Id, string Kind, string? Name);
+
 /// <summary>Each member is the canonical JSON text of that file.</summary>
-public sealed record BalanceConfigDto(string Scenarios, string Targets, string Rotations);
+public sealed record BalanceConfigDto(string Scenarios, string Targets, string Builds);
 
 public sealed record RunRequestDto(
     Dictionary<string, JsonElement>? Overrides,
@@ -28,7 +36,7 @@ public sealed record RunRequestDto(
     int? RunsPerRow,
     int? Seed);
 
-public sealed record RunFilterDto(string[]? Classes, int[]? Levels, string[]? Gear, string[]? Scenarios);
+public sealed record RunFilterDto(string[]? Classes, string[]? Builds, int[]? Levels, string[]? Gear, string[]? Scenarios);
 
 public sealed record RunAcceptedDto(string RunId);
 
@@ -51,9 +59,10 @@ public sealed record RunResultDto(
     int Seed,
     int RunsPerRow);
 
-/// <summary>Id is "Class|Level|Gear|Scenario".</summary>
+/// <summary>Id is "Build|Level|Gear|Scenario".</summary>
 public sealed record RowDto(
     string Id,
+    string Build,
     string Class,
     int Level,
     string Gear,

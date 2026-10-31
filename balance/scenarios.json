@@ -5,12 +5,17 @@
     1,
     10
   ],
-  "classes": [
-    "Warrior",
-    "Wizard",
-    "Hunter",
-    "Cleric"
+  "builds": [
+    "warrior-axes",
+    "warrior-blood-price",
+    "hunter-double-tap",
+    "hunter-glass-edge",
+    "wizard-fire",
+    "wizard-steady-hand",
+    "cleric-steadfast",
+    "cleric-unbroken"
   ],
+  "bonusTalentPoints": 3,
   "gear": [
     "none",
     "starter",

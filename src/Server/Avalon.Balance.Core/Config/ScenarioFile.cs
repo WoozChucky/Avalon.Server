@@ -54,13 +54,24 @@ public sealed class ScenarioFile
     /// <summary>An inclusive range, [first, last].</summary>
     public ushort[] Levels { get; set; } = [1, 1];
 
-    public CharacterClass[] Classes { get; set; } = [];
+    /// <summary>The builds to run, ids in builds.json, in the order rows are planned (B-R17).</summary>
+    public string[] Builds { get; set; } = [];
+
+    /// <summary>
+    /// The talent points a character holds beyond its level (B-R10): the paying quests' points. A build holds the first
+    /// level + this many nodes of its path. 0 or more.
+    /// </summary>
+    public int BonusTalentPoints { get; set; }
 
     public string[] Gear { get; set; } = [NoGear];
 
     public Scenario[] Scenarios { get; set; } = [];
 
     public Dictionary<string, Dictionary<CharacterClass, ulong[]>> GearProfiles { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>The classes of the named builds the file holds, in the order they are first named.</summary>
+    public IReadOnlyList<CharacterClass> ClassesOf(BuildFile builds) =>
+        [.. Builds.Select(id => builds.TryGetValue(id, out BuildEntry? b) ? b : null).OfType<BuildEntry>().Select(b => b.Class).Distinct()];
 
     public IReadOnlyList<ushort> LevelRange() =>
         Enumerable.Range(Levels[0], Levels[1] - Levels[0] + 1).Select(l => (ushort)l).ToList();
@@ -72,14 +83,28 @@ public sealed class ScenarioFile
         Scenarios.FirstOrDefault(s => string.Equals(s.Id, id, StringComparison.Ordinal))
         ?? throw new ArgumentException($"Unknown scenario '{id}' (known: {string.Join(", ", Scenarios.Select(s => s.Id))})");
 
+    /// <summary>
+    /// The first problem, naming the scenario, gear or setting. Each build named must be in <paramref name="builds" />;
+    /// the build itself is checked when it is compiled (<see cref="BuildFile.Compile" />).
+    /// </summary>
     /// <exception cref="InvalidDataException">The first problem, naming the scenario, gear or setting.</exception>
-    public void Validate(BalanceData data)
+    public void Validate(BalanceData data, BuildFile builds)
     {
         if (Runs < 1) throw new InvalidDataException($"scenarios: runs must be 1 or more, not {Runs}");
         if (Levels is not [var first, var last] || first < 1 || first > last)
             throw new InvalidDataException("scenarios: levels must be [first, last] with 1 <= first <= last");
-        if (Classes is null) throw new InvalidDataException("scenarios: classes is missing");
-        if (Classes.Length == 0) throw new InvalidDataException("scenarios: classes is empty");
+        if (Builds is null || Builds.Any(b => b is null)) throw new InvalidDataException("scenarios: builds is missing or names a null build");
+        if (Builds.Length == 0) throw new InvalidDataException("scenarios: builds is empty");
+        if (Builds.Distinct(StringComparer.Ordinal).Count() != Builds.Length)
+            throw new InvalidDataException("scenarios: builds names a build twice");
+        foreach (string id in Builds)
+        {
+            if (!builds.ContainsKey(id))
+                throw new InvalidDataException($"scenarios: build '{id}' is not in builds.json (known: {string.Join(", ", builds.Keys)})");
+        }
+
+        if (BonusTalentPoints < 0)
+            throw new InvalidDataException($"scenarios: bonusTalentPoints must be 0 or more, not {BonusTalentPoints}");
         if (Gear is null || Gear.Any(g => g is null)) throw new InvalidDataException("scenarios: gear is missing or names a null profile");
         if (GearProfiles is null) throw new InvalidDataException("scenarios: gearProfiles is missing");
         if (Scenarios is null || Scenarios.Any(s => s is null)) throw new InvalidDataException("scenarios: scenarios is missing or holds a null scenario");
@@ -89,7 +114,7 @@ public sealed class ScenarioFile
             if (string.Equals(gear, NoGear, StringComparison.Ordinal)) continue;
             if (!GearProfiles.TryGetValue(gear, out Dictionary<CharacterClass, ulong[]>? profile) || profile is null)
                 throw new InvalidDataException($"scenarios: gear '{gear}' has no profile in gearProfiles");
-            foreach (CharacterClass c in Classes)
+            foreach (CharacterClass c in ClassesOf(builds))
             {
                 if (!profile.TryGetValue(c, out ulong[]? ids) || ids is null)
                     throw new InvalidDataException($"scenarios: gear '{gear}' names no items for {c}");

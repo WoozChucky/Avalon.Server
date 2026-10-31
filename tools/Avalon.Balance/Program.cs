@@ -8,6 +8,7 @@ using Avalon.Common;
 
 // dotnet run --project tools/Avalon.Balance
 // dotnet run --project tools/Avalon.Balance -- --class Warrior --scenario normal-3 --runs 5000
+// dotnet run --project tools/Avalon.Balance -- --build warrior-axes --scenario elite-1
 // dotnet run --project tools/Avalon.Balance -- --overrides balance/try-slam.json --seed 1
 // Exit code: 0 no graded row is red, 1 some graded row is red, 2 the input was refused.
 
@@ -16,7 +17,7 @@ try
     var options = CliOptions.Parse(args);
     if (options.Help)
     {
-        Console.WriteLine("Usage: Avalon.Balance [--class C] [--scenario ID] [--runs N] [--seed N] [--overrides FILE] [--out DIR]");
+        Console.WriteLine("Usage: Avalon.Balance [--class C] [--build ID] [--scenario ID] [--runs N] [--seed N] [--overrides FILE] [--out DIR]");
         return 0;
     }
 
@@ -30,13 +31,14 @@ try
     var config = new BalanceConfig(
         ConfigFileStore.Load(Path.Combine(balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios),
         ConfigFileStore.Load(Path.Combine(balanceDir, "targets.json"), ConfigFiles.ParseTargets),
-        ConfigFileStore.Load(Path.Combine(balanceDir, "rotations.json"), ConfigFiles.ParseRotations));
+        ConfigFileStore.Load(Path.Combine(balanceDir, "builds.json"), ConfigFiles.ParseBuilds));
 
     var request = new RunRequest(
         overridesFile?.RootElement,
         null,
         new RunFilter(
             options.Class is { } c ? new HashSet<CharacterClass> { c } : null,
+            options.Build is { } buildId ? new HashSet<string>(StringComparer.Ordinal) { buildId } : null,
             null,
             null,
             options.Scenario is { } scenarioId ? new HashSet<string>(StringComparer.Ordinal) { scenarioId } : null),
