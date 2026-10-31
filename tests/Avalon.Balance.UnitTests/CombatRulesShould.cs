@@ -55,10 +55,10 @@ public class CombatRulesShould
     /// B-R6: a direct hit meets the target's ward first, for what the hit lets the ward absorb (all but its blight share),
     /// and health loses the rest; a dodged hit (0) takes nothing. What the hit cost is the ward's part plus the health.
     /// Any damage pauses the recharge, even damage the ward does not meet: a bleed tick 3 s later leaves the ward as it was
-    /// 2 s after that, short of the 4 s delay, when the next point it can absorb meets it; 5 s after that point the
-    /// recharge has run 1 s of its 2 s (half the maximum) when one more point meets it. With Unbroken (B-R14), on a cleric,
-    /// the ward takes every point, blight and the bleed tick included, so health loses none, and its delay is doubled to
-    /// 8 s, so nothing has recharged by the last point.
+    /// 2 s after that, short of the 4 s delay, when the next point it can absorb meets it. A direct blight point 1 s later
+    /// pauses it again, though the ward cannot take it, so 5 s after that the recharge has run 1 s of its 2 s (half the
+    /// maximum) when one more point meets it. With Unbroken (B-R14), on a cleric, the ward takes every point, blight and the
+    /// bleed tick included, so health loses none, and its delay is doubled to 8 s, so nothing has recharged by the last point.
     /// </summary>
     [Theory]
     [InlineData(10u, 0u, 10u, 0u, 10u, 0u, false)]
@@ -67,7 +67,7 @@ public class CombatRulesShould
     [InlineData(30u, 50u, 30u, 20u, 0u, 43u, false)]
     [InlineData(30u, 50u, 10u, 40u, 20u, 49u, false)]   // a blight share
     [InlineData(30u, 50u, 0u, 50u, 30u, 49u, false)]    // all blight
-    [InlineData(30u, 50u, 0u, 20u, 0u, 17u, true)]      // all blight, on a cleric holding Unbroken
+    [InlineData(30u, 50u, 0u, 20u, 0u, 16u, true)]      // all blight, on a cleric holding Unbroken
     public void Take_the_health_a_hit_deals_behind_the_ward(uint total, uint ward, uint absorbable, uint wardAfter,
         uint healthLost, uint wardLater, bool unbroken)
     {
@@ -88,7 +88,8 @@ public class CombatRulesShould
         uint met = unbroken ? 2u : 1u;
         Assert.Equal(wardAfter < met ? 0u : wardAfter - met, target.Ward);
 
-        CombatRules.Land(target, new HitDamage(1, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 1), start.AddSeconds(10));
+        CombatRules.Land(target, new HitDamage(1, HitResult.None, DamageType.Blight, DamageTypeMask.Blight, 0), start.AddSeconds(6));
+        CombatRules.Land(target, new HitDamage(1, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 1), start.AddSeconds(11));
         Assert.Equal(wardLater, target.Ward);
     }
 
