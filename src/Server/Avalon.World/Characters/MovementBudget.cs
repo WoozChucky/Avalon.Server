@@ -24,9 +24,10 @@ public sealed class MovementBudget
 
     /// <summary>
     /// Whether this character's first input over the budget has been logged: the warning is written once per character,
-    /// every refusal is counted. Never cleared, so it also tells that the character was ever refused.
+    /// every refusal is counted. Never cleared, so it also tells that the character was ever refused. Set only by the
+    /// input handler, so nothing outside Avalon.World can silence the warning.
     /// </summary>
-    public bool Warned { get; set; }
+    public bool Warned { get; internal set; }
 
     /// <summary>
     /// The most steps the budget holds for a catch-up allowance of <paramref name="catchUp" />: the whole steps it
