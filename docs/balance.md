@@ -101,7 +101,8 @@ attack speed, cast speed and cooldown recovery), so an element meets its resista
 - **Rows are keyed by build** (`RowKey(Build, Class, Level, Gear, Scenario)`), and each row's runs are seeded by its
   build id (`RunSeed.For`). The grader groups the flat curve by build and scenario and the resource flow by build and
   level. Class parity scores each class by its best build at each level of the parity scenario (the highest win rate;
-  on a tie the lower median fight length, then the earlier in `scenarios.json`'s `builds`) against the mean of the
+  on a tie above 0 % the lower median fight length, since it wins sooner, and at 0 % the higher, since it survives
+  longer; then the earlier in `scenarios.json`'s `builds`) against the mean of the
   classes' best, under the names `{Class} L{level} win rate vs average` and `... fight length vs average`, recorded on
   the best build's row; another build of the class gets no parity metric.
 

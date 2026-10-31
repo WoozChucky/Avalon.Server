@@ -240,7 +240,7 @@ public class FightSimulatorShould
     /// with no mana to pay, is then the first ready entry, so the tick counts as starved; then Heavy Strike is cast.
     /// </summary>
     [Fact]
-    public void Skip_an_entry_the_build_does_not_hold_yet_without_starving()
+    public void Skip_an_entry_the_build_does_not_hold_yet_and_starve_on_the_next()
     {
         CompiledBuild axes = TestData.Build("warrior-axes");
         Assert.Equal([202u, 319u], axes.Rotation.Select(e => e.AbilityId));

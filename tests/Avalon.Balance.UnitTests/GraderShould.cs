@@ -74,21 +74,27 @@ public class GraderShould
     /// <summary>
     /// R-P2-3: each class is scored by its best build against the average of the classes' best, on that build's row. A
     /// worse second build gets no parity metric and leaves the average alone; a better one becomes the class's score.
+    /// On a win-rate tie the shorter median fight is best, at 0 % the longer; then the build scenarios.json names first.
+    /// The second build (cleric-steadfast) is named before the first (cleric-unbroken) but added after it.
     /// </summary>
     [Theory]
-    [InlineData(null, "cleric", -30d, Grade.Red)]           // one build: 60 against (100 + 100 + 100 + 60) / 4
-    [InlineData(20d, "cleric", -30d, Grade.Red)]            // a worse second build changes nothing
-    [InlineData(100d, "cleric-second", 0d, Grade.Green)]    // a better second build is the Cleric's score
-    public void Score_each_class_by_its_best_build_against_the_average(double? secondClericWin, string scored, double value,
-        Grade grade)
+    [InlineData(60d, null, 0d, "cleric-unbroken", -30d, Grade.Red)]       // one build: 60 against (100 + 100 + 100 + 60) / 4
+    [InlineData(60d, 20d, 20d, "cleric-unbroken", -30d, Grade.Red)]       // a worse second build changes nothing
+    [InlineData(60d, 100d, 20d, "cleric-steadfast", 0d, Grade.Green)]     // a better second build is the Cleric's score
+    [InlineData(60d, 60d, 15d, "cleric-steadfast", -30d, Grade.Red)]      // a win-rate tie: the shorter fight
+    [InlineData(60d, 60d, 20d, "cleric-steadfast", -30d, Grade.Red)]      // a full tie: the build named first
+    [InlineData(0d, 0d, 30d, "cleric-steadfast", -75d, Grade.Red)]        // a tie at 0 %: the longer fight
+    public void Score_each_class_by_its_best_build_against_the_average(double clericWin, double? secondClericWin,
+        double secondClericFight, string scored, double value, Grade grade)
     {
         List<RowResult> rows =
         [
             Row(CharacterClass.Warrior, 1, "normal-3", 100, 20), Row(CharacterClass.Wizard, 1, "normal-3", 100, 20),
-            Row(CharacterClass.Hunter, 1, "normal-3", 100, 20), Row(CharacterClass.Cleric, 1, "normal-3", 60, 20),
+            Row(CharacterClass.Hunter, 1, "normal-3", 100, 20),
+            Row(CharacterClass.Cleric, 1, "normal-3", clericWin, 20, build: "cleric-unbroken"),
         ];
         if (secondClericWin is { } win)
-            rows.Add(Row(CharacterClass.Cleric, 1, "normal-3", win, 20, build: "cleric-second"));
+            rows.Add(Row(CharacterClass.Cleric, 1, "normal-3", win, secondClericFight, build: "cleric-steadfast"));
 
         GradeReport report = Grader.Grade(rows, TestData.Seeded, Scenarios(), Targets());
 

@@ -65,16 +65,17 @@ public static class Grader
                 new Band { Min = 0, Max = g.FlatCurveFightLengthPct }, " %");
         }
 
-        // Class parity, per level: each class is scored by its best build (the highest win rate; then the shorter
-        // median fight; then the build named first in scenarios.json), against the average of the classes' best. The
-        // metric is recorded on the best build's row; a class's other builds get none and do not move the average.
+        // Class parity, per level: each class is scored by its best build against the average of the classes' best.
+        // The best is the highest win rate; on a tie above 0 % the shorter median fight (it wins sooner), at 0 % the
+        // longer (it survives longer); then the build named first in scenarios.json. The metric is recorded on the
+        // best build's row; a class's other builds get none and do not move the average.
         foreach (IGrouping<ushort, RowResult> level in graded.Where(r => r.Key.Scenario == g.ParityScenario).GroupBy(r => r.Key.Level))
         {
             RowResult[] best =
             [
                 .. level.GroupBy(r => r.Key.Class).Select(c => c
                     .OrderByDescending(r => r.WinRatePct)
-                    .ThenBy(r => r.FightSeconds.Median)
+                    .ThenBy(r => r.WinRatePct > 0 ? r.FightSeconds.Median : -r.FightSeconds.Median)
                     .ThenBy(r => BuildOrder(scenarios, r.Key.Build))
                     .First()),
             ];

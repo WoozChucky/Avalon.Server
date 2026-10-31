@@ -45,7 +45,8 @@ desktop; narrow it with `--class`, `--build`, `--scenario` and `--runs` while it
   validators would refuse stops it with their message, and so does a modifier line whose range runs backwards. An
   override equal to the seed is reported as stale ("already applied"): delete it.
 - `scenarios.json`: runs, seed, the level range `[first, last]`, `builds` (the ids in `builds.json` to run, each named
-  once; class parity breaks a tie between two builds of a class by this order), `bonusTalentPoints` (the talent points a character holds beyond its
+  once; class parity takes each class's best build by the highest win rate, on a tie above 0 % the shorter median
+  fight and at 0 % the longer, and on a full tie the build named first here), `bonusTalentPoints` (the talent points a character holds beyond its
   level, 0 or more: 3 checked in, the three seeded paying quests), gear profiles to run, the scenarios (a pack
   entry names a `rarity`, drawn per run from the hostile templates of that rarity, or a `template` id; `levelOffset`
   is added to the player's level and clamped to the template's range, or `"template"` rolls the template's own range;
@@ -134,7 +135,7 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
   auras per unit is never reached, no aura script runs, and the server's catch-up after a stall does not arise (the
   simulator never falls behind).
 - Not modelled: crowd control (#770: stuns, roots, silences, slows, resistance, diminishing and early breaks; the four
-  crowd-control abilities are in no rotation, and Crippling Shot's slow is placed but does nothing and never breaks
+  crowd-control abilities are in no build's rotation, and Crippling Shot's slow is placed but does nothing and never breaks
   early), area, reach and arc capstones change no target (everyone is in melee),
   a refresh's later expiry (one caster per aura), rolled gear (affixes, rarities and item levels), Resonance effects (the procs
   worn affix families trigger), Awakening (a sealed affix that wakes as it is used), movement, dodging wind-ups,
