@@ -169,7 +169,7 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
 
             // Transfer first so MapInstance.AddCharacter is the boundary that enables broadcast.
             // The map transition and chunk layout must go out in this same callback: MapInstance sends
-            // the loot snapshot on its next tick, and the client has to know the map before its drops.
+            // the drops in view on its next tick, and the client has to know the map before its drops.
             world.TransferPlayer(connection, townInstance);
 
             // The spawn is the entry spawn of the town's chunk layout. The template defaults serve only an instance

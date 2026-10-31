@@ -30,8 +30,8 @@ public interface IDoodadHost : IItemUseHost
     /// <summary>
     /// Rolls <paramref name="doodad" />'s loot table and gold range and drops them on the ring around it, as a kill
     /// drops: allocated by the instance's loot allocator among <paramref name="user" /> and the members of its party in
-    /// this instance (nobody, as for a kill, when the user is in a party leave countdown), stored, and told to every
-    /// connection here in one shared loot packet. Its equipment drops roll their copies at an item level drawn from
+    /// this instance (nobody, as for a kill, when the user is in a party leave countdown), stored, and told to the
+    /// clients that have them in view (#1269). Its equipment drops roll their copies at an item level drawn from
     /// <paramref name="random" /> (the use's own) within the doodad's level range (#1179). Contained: a failure is logged and
     /// drops what was stored before it. How many drops it stored.
     /// </summary>

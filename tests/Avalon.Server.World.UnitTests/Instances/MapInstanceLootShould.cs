@@ -371,7 +371,8 @@ public class MapInstanceLootShould
 
     /// <summary>
     /// #1269: told as drops come into its view (50 m) and leave it (beyond 60 m), not in between; a pickup reaches a client
-    /// holding them in the margin.
+    /// holding them in the margin. The broadcast that would tell it the drops left throws before their despawn goes out:
+    /// the client is started over, and the start-over's despawn names them.
     /// </summary>
     [Fact]
     public async Task Tell_a_client_of_drops_as_they_come_into_its_view_and_leave_it()
@@ -383,11 +384,26 @@ public class MapInstanceLootShould
         Kill(instance, 460_001);
         ulong[] guids = [.. instance.Drops.All.Select(d => d.Guid.RawValue).Order()];
 
+        // The walker's next world-state packet throws once armed, ahead of its loot packets in the same broadcast.
+        bool refuseNext = false;
+        walker.Connection.When(c => c.Send(Arg.Is<OutboundPacket>(p => p.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_UPDATE
+                                                                       || p.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_REMOVE)))
+            .Do(call =>
+            {
+                if (!refuseNext)
+                    return;
+                refuseNext = false;
+                walker.Sent.Remove(call.Arg<OutboundPacket>());
+                throw new InvalidOperationException("The connection refused the packet.");
+            });
+
         // The drops lie within a metre of (10, 10): each step is the walker's distance from them, give or take one.
         foreach ((float z, int spawned, int despawned) in new[] { (90f, 0, 0), (55f, 1, 0), (65f, 1, 0), (75f, 1, 1), (55f, 2, 1), (65f, 2, 1) })
         {
             walker.Character.Position = new Vector3(10f, 0f, z);
+            refuseNext = z == 75f;   // the step out of view: the despawn comes from the start-over
             Ticks(instance, 6);
+            Assert.False(refuseNext, "the broadcast did not throw");
             Assert.Equal((z, spawned, despawned), (z, Spawned(walker).Count, Despawned(walker).Count));
         }
 

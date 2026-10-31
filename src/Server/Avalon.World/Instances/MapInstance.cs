@@ -1354,8 +1354,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Rolls, allocates and places a dying creature's drops and tells everyone here. Tick thread: CreatureKilled is
-    /// called by this instance's combat service inside combat and ability processing. Reads the Loot, Items and
+    /// Rolls, allocates and places a dying creature's drops and tells the clients that have them in view (#1269). Tick
+    /// thread: CreatureKilled is called by this instance's combat service inside combat and ability processing. Reads the Loot, Items and
     /// Quests areas as they are now, so a reload applies to the next kill. Each table drop is allocated on its own,
     /// among the characters that share the kill (2026-09-30); each quest drop (#433) belongs to the member it was
     /// rolled for, for good. All of them are placed in one ring. A kill nobody is credited with
@@ -1420,7 +1420,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// areas as they are, each drop allocated on its own among the user and the members of its party in this instance (a
     /// party member anywhere here, dead or alive; a character leaves its party, and so this, at the start of a leave
     /// countdown; a user in one makes nobody eligible, as a killer in one does), placed on the ring around the doodad and
-    /// told to everyone here in one shared packet. Each equipment drop is rolled into its copy as it drops (#1179), by the
+    /// told to the clients that have them in view (#1269). Each equipment drop is rolled into its copy as it drops (#1179), by the
     /// Normal odds, at an item level drawn from <paramref name="random" /> within the doodad's depth band, else this map's
     /// level range, else 1 (<see cref="DoodadItemLevel" />). Its lists are the instance's
     /// <see cref="KillBuffers" />, as a kill's are. Contained, as a kill's drop is: a failure is logged, and what was
@@ -1667,11 +1667,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Sends one client what its last loot view decision changed (#1269): the drops that left it, then those that came
-    /// into it, each in a packet made for that client alone. Nothing when nothing changed.
+    /// into it, each in a packet made for that client alone. Returns at once when nothing changed, as on the ticks
+    /// between decisions.
     /// </summary>
     private void SendLootChanges(IWorldConnection connection, CharacterEntity character)
     {
         LootView view = character.CharacterGameState.Loot;
+        if (view.Left.Count == 0 && view.Entered.Count == 0)
+            return;
+
         try
         {
             if (view.Left.Count > 0)
@@ -1679,10 +1683,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             if (view.Entered.Count > 0 && _world.Data is { } data)
                 connection.Send(SLootSpawnedPacket.Create(_viewLoot.Describe(view.Entered, data), PacketEncoder.Shared));
+
+            // Only once both went out: a send that throws leaves Left pending, and the start-over the throw leads to
+            // (BroadcastStateContained) names those drops too (LootView.Reset).
+            view.Sent();
         }
         finally
         {
-            view.Sent();
             _viewLoot.Clear();
         }
     }
@@ -1759,9 +1766,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_healthFactorOwed)
             ApplyHealthFactor();
 
-        // Step 0: drops already on the ground, for characters that entered since the last tick. First,
+        // Step 0: the drops in view, for characters that entered since the last tick (#1269). First,
         // before any packet is processed, so a kill later in this tick reaches them once, through the
-        // kill broadcast, rather than twice.
+        // kill's own packet, rather than twice.
         SendOwedLootSnapshots();
         SendOwedPvpStates();
 

@@ -86,16 +86,19 @@ internal sealed class LootView
     }
 
     /// <summary>
-    /// Forgets every drop held, for a client starting over, and returns their raw guids. The list is reused: it is valid
-    /// until the next call to this.
+    /// Forgets every drop held, for a client starting over, and returns their raw guids, with those of <see cref="Left" />
+    /// not yet sent: a broadcast that threw after the decision never told the client they left, so it may still hold them
+    /// (the client ignores a guid it does not hold). The list is reused: it is valid until the next call to this.
     /// </summary>
     public List<ulong> Reset()
     {
-        _entered.Clear();
-        Left.Clear();
         _forgotten.Clear();
+        _forgotten.AddRange(Left);
         foreach (KeyValuePair<ulong, uint> entry in _known)
             _forgotten.Add(entry.Key);
+
+        _entered.Clear();
+        Left.Clear();
         _known.Clear();
         return _forgotten;
     }
