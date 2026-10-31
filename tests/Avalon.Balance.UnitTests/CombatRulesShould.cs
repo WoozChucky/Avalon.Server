@@ -52,22 +52,24 @@ public class CombatRulesShould
     }
 
     /// <summary>
-    /// B-R6: a direct hit on a creature meets its ward first, for what the hit lets the ward absorb (all but its blight
-    /// share), and health loses the rest; a dodged hit (0) takes nothing. What the hit cost is the ward's part plus the health.
-    /// Any hit pauses the recharge, even one the ward does not meet: a blight point 3 s later leaves the ward as it was 2 s
-    /// after that, short of the 4 s delay, when the next point it can absorb meets it. With Unbroken (B-R14) the ward takes
-    /// every point, blight included, so health loses none and the blight point meets the ward too.
+    /// B-R6: a direct hit meets the target's ward first, for what the hit lets the ward absorb (all but its blight share),
+    /// and health loses the rest; a dodged hit (0) takes nothing. What the hit cost is the ward's part plus the health.
+    /// Any damage pauses the recharge, even damage the ward does not meet: a bleed tick 3 s later leaves the ward as it was
+    /// 2 s after that, short of the 4 s delay, when the next point it can absorb meets it; 5 s after that point the
+    /// recharge has run 1 s of its 2 s (half the maximum) when one more point meets it. With Unbroken (B-R14), on a cleric,
+    /// the ward takes every point, blight and the bleed tick included, so health loses none, and its delay is doubled to
+    /// 8 s, so nothing has recharged by the last point.
     /// </summary>
     [Theory]
-    [InlineData(10u, 0u, 10u, 0u, 10u, false)]
-    [InlineData(0u, 0u, 0u, 0u, 0u, false)]
-    [InlineData(30u, 20u, 30u, 0u, 10u, false)]
-    [InlineData(30u, 50u, 30u, 20u, 0u, false)]
-    [InlineData(30u, 50u, 10u, 40u, 20u, false)]   // a blight share
-    [InlineData(30u, 50u, 0u, 50u, 30u, false)]    // all blight
-    [InlineData(30u, 50u, 0u, 20u, 0u, true)]      // all blight, on a cleric holding Unbroken
-    public void Take_the_health_a_hit_on_a_creature_deals(uint total, uint ward, uint absorbable, uint wardAfter, uint healthLost,
-        bool unbroken)
+    [InlineData(10u, 0u, 10u, 0u, 10u, 0u, false)]
+    [InlineData(0u, 0u, 0u, 0u, 0u, 0u, false)]
+    [InlineData(30u, 20u, 30u, 0u, 10u, 9u, false)]
+    [InlineData(30u, 50u, 30u, 20u, 0u, 43u, false)]
+    [InlineData(30u, 50u, 10u, 40u, 20u, 49u, false)]   // a blight share
+    [InlineData(30u, 50u, 0u, 50u, 30u, 49u, false)]    // all blight
+    [InlineData(30u, 50u, 0u, 20u, 0u, 17u, true)]      // all blight, on a cleric holding Unbroken
+    public void Take_the_health_a_hit_deals_behind_the_ward(uint total, uint ward, uint absorbable, uint wardAfter,
+        uint healthLost, uint wardLater, bool unbroken)
     {
         SimUnit target = unbroken ? TestData.Whole("cleric-unbroken") : Boar();
         target.ResetWard(ward);
@@ -81,10 +83,13 @@ public class CombatRulesShould
         Assert.Equal(healthLost, health - target.CurrentHealth);
         Assert.Equal(total, loss.Total);   // the target outlives every row
 
-        CombatRules.Land(target, new HitDamage(1, HitResult.None, DamageType.Blight, DamageTypeMask.Blight, 0), start.AddSeconds(3));
+        CombatRules.LandTick(target, 1, DamageType.Physical, start.AddSeconds(3));   // a bleed tick
         CombatRules.Land(target, new HitDamage(1, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 1), start.AddSeconds(5));
         uint met = unbroken ? 2u : 1u;
         Assert.Equal(wardAfter < met ? 0u : wardAfter - met, target.Ward);
+
+        CombatRules.Land(target, new HitDamage(1, HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 1), start.AddSeconds(10));
+        Assert.Equal(wardLater, target.Ward);
     }
 
     /// <summary>
