@@ -1,5 +1,3 @@
-using Avalon.Balance.Core;
-using Avalon.Balance.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
@@ -21,19 +19,6 @@ internal static class BalanceTestHost
         builder.WebHost.UseTestServer();
         return BalanceServiceHost.Build(builder, services);
     }
-
-    /// <summary>The service's host over the seed and the checked-in files (#1183 Task 11 removes it).</summary>
-    public static BalanceHost FixtureHost()
-    {
-        string dir = Path.Combine(AppContext.BaseDirectory, "balance");
-        return new BalanceHost(SeedSource.Load(), new BalanceConfig(
-            ConfigFileStore.Load(Path.Combine(dir, "scenarios.json"), ConfigFiles.ParseScenarios),
-            ConfigFileStore.Load(Path.Combine(dir, "targets.json"), ConfigFiles.ParseTargets),
-            ConfigFileStore.Load(Path.Combine(dir, "builds.json"), ConfigFiles.ParseBuilds)));
-    }
-
-    /// <summary>Registers <see cref="FixtureHost" /> over the service's own host.</summary>
-    public static void UseFixtureRotations(IServiceCollection services) => services.AddSingleton(FixtureHost());
 
     /// <summary>On the real Kestrel, on a free loopback port: the only way to see Kestrel's own limits.</summary>
     public static WebApplication BuildKestrel(string? secret = Secret)

@@ -27,16 +27,14 @@ public class WireMappingShould
             ConfigFileStore.Load(Path.Combine(dir, "builds.json"), ConfigFiles.ParseBuilds));
     }
 
-    /// <summary>A small run over the seed, on the fixture rotation (BalanceTestHost.FixtureHost).</summary>
-    private static RunResult SmallRun()
-    {
-        BalanceHost host = BalanceTestHost.FixtureHost();
-        return Simulation.Run(host.Seed, host.Defaults,
+    /// <summary>One row over the seed and the checked-in files: warrior-axes at level 3, forest gear, normal-1.</summary>
+    private static RunResult SmallRun() =>
+        Simulation.Run(SeedSource.Load(), Config(),
             new RunRequest(null, null,
-                new RunFilter(new HashSet<CharacterClass> { CharacterClass.Warrior }, null, null, null, new HashSet<string> { "normal-3" }),
+                new RunFilter(null, new HashSet<string> { "warrior-axes" }, new HashSet<ushort> { 3 },
+                    new HashSet<string> { "forest" }, new HashSet<string> { "normal-1" }),
                 RunsPerRow: 10, Seed: 1),
             null, CancellationToken.None);
-    }
 
     [Fact]
     public void Map_a_real_run_with_ids_enum_strings_and_summary_intact()
@@ -46,11 +44,10 @@ public class WireMappingShould
 
         RunResultDto dto = WireMapping.ToDto(result);
 
-        Assert.Equal(result.Rows.Count, dto.Rows.Count);
-        RowResult first = result.Rows[0];
-        RowKey k = first.Key;
-        Assert.Equal($"{k.Class}|{k.Level}|{k.Gear}|{k.Scenario}", dto.Rows[0].Id);
-        Assert.Equal(k.Class.ToString(), dto.Rows[0].Class);
+        RowResult first = Assert.Single(result.Rows);
+        Assert.Equal("warrior-axes|3|forest|normal-1", Assert.Single(dto.Rows).Id);
+        Assert.Equal("warrior-axes", dto.Rows[0].Build);
+        Assert.Equal("Warrior", dto.Rows[0].Class);
         Assert.Equal(first.WinRatePct, dto.Rows[0].WinRatePct);
         Assert.Equal(first.FightSeconds.Median, dto.Rows[0].FightSeconds.Median);
         Assert.Equal(result.CheckedRows.Select(WireMapping.RowId), dto.CheckedRows);
@@ -98,11 +95,12 @@ public class WireMappingShould
     public void Map_a_filter_to_the_core_filter()
     {
         (RunFilter? filter, IReadOnlyList<IssueDto> issues) =
-            WireMapping.ToFilter(new RunFilterDto(["Warrior"], [5], null, null));
+            WireMapping.ToFilter(new RunFilterDto(["Warrior"], ["warrior-axes"], [5], null, null));
 
         Assert.Empty(issues);
         Assert.NotNull(filter);
         Assert.Equal(new HashSet<CharacterClass> { CharacterClass.Warrior }, filter.Classes);
+        Assert.Equal(new HashSet<string> { "warrior-axes" }, filter.Builds);
         Assert.Equal(new HashSet<ushort> { 5 }, filter.Levels);
         Assert.Null(filter.Gear);
         Assert.Null(filter.Scenarios);
@@ -120,7 +118,7 @@ public class WireMappingShould
     [Fact]
     public void Refuse_an_unknown_class_on_filter_classes()
     {
-        (RunFilter? filter, IReadOnlyList<IssueDto> issues) = WireMapping.ToFilter(new RunFilterDto(["Nobody"], null, null, null));
+        (RunFilter? filter, IReadOnlyList<IssueDto> issues) = WireMapping.ToFilter(new RunFilterDto(["Nobody"], null, null, null, null));
 
         Assert.Null(filter);
         Assert.Equal("filter.classes", Assert.Single(issues).Path);
@@ -129,7 +127,7 @@ public class WireMappingShould
     [Fact]
     public void Refuse_a_level_outside_ushort_on_filter_levels()
     {
-        (_, IReadOnlyList<IssueDto> issues) = WireMapping.ToFilter(new RunFilterDto(null, [70000], null, null));
+        (_, IReadOnlyList<IssueDto> issues) = WireMapping.ToFilter(new RunFilterDto(null, null, [70000], null, null));
 
         Assert.Equal("filter.levels", Assert.Single(issues).Path);
     }
@@ -162,6 +160,6 @@ public class WireMappingShould
     {
         (_, IReadOnlyList<IssueDto> issues) = WireMapping.ToConfig(new BalanceConfigDto("[]", "[]", "[]"));
 
-        Assert.Equal(["config.scenarios", "config.targets", "config.rotations"], issues.Select(i => i.Path));
+        Assert.Equal(["config.scenarios", "config.targets", "config.builds"], issues.Select(i => i.Path));
     }
 }

@@ -9,6 +9,9 @@ namespace Avalon.Balance.Core;
 /// <summary>An ability a build holds (B-R13), and the shape its held capstones give it: none when no capstone shapes it.</summary>
 public sealed record HeldAbility(AbilityTemplate Template, AbilityShaping Shaping);
 
+/// <summary>A node of the tree as the seed names it: its kind, and its name, null on a node the seed leaves unnamed.</summary>
+public sealed record TalentNodeInfo(int Id, TalentNodeKind Kind, string? Name);
+
 /// <summary>
 /// The talent nodes one build holds at a level (B-R10), and what they give it: the stat lines and keystone rules it folds,
 /// and its abilities with their shapes. Immutable once built: nothing adds to its <see cref="Totals" /> after
@@ -111,6 +114,7 @@ public sealed class TalentTree
 
         var nodes = tables.TalentNodes.ToDictionary(n => n.Id, n => new Node(
             n.Kind,
+            n.Name,
             [.. neighbours[n.Id].Distinct()],
             partners.TryGetValue(n.Id, out int partner) ? partner : null,
             [.. lines[n.Id].OrderBy(s => s.Stat).ThenBy(s => s.Kind)
@@ -126,6 +130,12 @@ public sealed class TalentTree
         var starts = tables.TalentClassStarts.ToDictionary(s => s.Class, s => s.NodeId);
         return new TalentTree(nodes, starts, abilities, shapers);
     }
+
+    /// <summary>The node <paramref name="id" />, as the seed names it.</summary>
+    /// <exception cref="InvalidDataException">The tree holds no node <paramref name="id" />.</exception>
+    public TalentNodeInfo Describe(int id) => _nodes.TryGetValue(id, out Node? node)
+        ? new TalentNodeInfo(id, node.Kind, node.Name)
+        : throw new InvalidDataException($"The talent tree holds no node {id}");
 
     /// <summary>What a new character of the class holds: no node, its starter alone.</summary>
     /// <exception cref="InvalidDataException">The tree has no start for the class.</exception>
@@ -253,6 +263,7 @@ public sealed class TalentTree
 
     private sealed record Node(
         TalentNodeKind Kind,
+        string? Name,
         int[] Neighbours,
         int? ForkPartner,
         Line[] Lines,

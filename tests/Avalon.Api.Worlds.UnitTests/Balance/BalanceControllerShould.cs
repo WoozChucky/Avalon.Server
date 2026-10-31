@@ -24,7 +24,7 @@ public sealed class BalanceControllerShould
         { "POST", "/balance/exports", """{"title":"t","overrides":{}}""" },
     };
 
-    private static readonly CatalogDto s_catalog = new("1.0.0", "abc", [], new BalanceConfigDto("{}", "{}", "{}"), ["Warrior"],
+    private static readonly CatalogDto s_catalog = new("1.0.0", "abc", [], new BalanceConfigDto("{}", "{}", "{}"), ["Warrior"], [],
         [1], [], [], [], []);
 
     private static readonly AccountAccessLevel s_admin = AccountAccessLevel.Player | AccountAccessLevel.Admin;

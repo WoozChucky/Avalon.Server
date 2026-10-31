@@ -8,7 +8,7 @@ namespace Avalon.Balance.Service.Mapping;
 /// <summary>Converts Avalon.Balance.Core's types to and from the wire DTOs.</summary>
 public static class WireMapping
 {
-    public static string RowId(RowKey key) => $"{key.Class}|{key.Level}|{key.Gear}|{key.Scenario}";
+    public static string RowId(RowKey key) => $"{key.Build}|{key.Level}|{key.Gear}|{key.Scenario}";
 
     /// <summary>NaN and Infinity cannot be written as JSON numbers: they become null.</summary>
     public static double? Finite(double? value) => value is { } v && double.IsFinite(v) ? v : null;
@@ -25,6 +25,7 @@ public static class WireMapping
 
     public static RowDto ToDto(RowResult row) => new(
         RowId(row.Key),
+        row.Key.Build,
         row.Key.Class.ToString(),
         row.Key.Level,
         row.Key.Gear,
@@ -52,6 +53,13 @@ public static class WireMapping
     public static IssueDto ToDto(Issue issue) => new(issue.Path, issue.Message);
 
     public static TunableDto ToDto(Tunable t) => new(t.Key, t.Table, t.RowKey, t.Column, t.Type, t.SeedValue, t.Display);
+
+    /// <summary>A build with its path, each node as the tree names it.</summary>
+    /// <exception cref="InvalidDataException">The path names a node the tree does not hold.</exception>
+    public static BuildDto ToDto(string id, BuildEntry build, TalentTree tree) => new(
+        id,
+        build.Class.ToString(),
+        build.Nodes.Select(tree.Describe).Select(n => new TalentNodeDto(n.Id, n.Kind.ToString(), n.Name)).ToList());
 
     public static BalanceConfigDto ToDto(BalanceConfig config)
     {
@@ -103,7 +111,7 @@ public static class WireMapping
 
         return (new RunFilter(
             classes,
-            null,
+            dto.Builds is null ? null : new HashSet<string>(dto.Builds, StringComparer.Ordinal),
             levels,
             dto.Gear is null ? null : new HashSet<string>(dto.Gear, StringComparer.Ordinal),
             dto.Scenarios is null ? null : new HashSet<string>(dto.Scenarios, StringComparer.Ordinal)), []);
@@ -115,7 +123,7 @@ public static class WireMapping
         var issues = new List<IssueDto>();
         ScenarioFile? scenarios = Try(dto.Scenarios, ConfigFiles.ParseScenarios, "config.scenarios", issues);
         TargetFile? targets = Try(dto.Targets, ConfigFiles.ParseTargets, "config.targets", issues);
-        BuildFile? builds = Try(dto.Rotations, ConfigFiles.ParseBuilds, "config.rotations", issues);
+        BuildFile? builds = Try(dto.Builds, ConfigFiles.ParseBuilds, "config.builds", issues);
 
         return issues.Count > 0 || scenarios is null || targets is null || builds is null
             ? (null, issues)

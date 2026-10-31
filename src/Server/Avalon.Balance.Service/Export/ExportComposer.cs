@@ -56,13 +56,13 @@ public static partial class ExportComposer
 
         // An override equal to the seed changes nothing; leaving it out keeps the file honest.
         var stale = new HashSet<string>(report.Stale, StringComparer.Ordinal);
-        (string scenarios, string targets, string rotations) = ConfigFiles.Save(config);
+        (string scenarios, string targets, string builds) = ConfigFiles.Save(config);
         var candidates = new (string Path, string Text)[]
         {
             ("balance/overrides.json", OverridesText(given, stale)),
             ("balance/scenarios.json", scenarios),
             ("balance/targets.json", targets),
-            ("balance/rotations.json", rotations),
+            ("balance/builds.json", builds),
         };
 
         var changed = new List<(string Path, string Text, string? Sha)>();

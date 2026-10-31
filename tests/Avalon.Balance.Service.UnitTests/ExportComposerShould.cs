@@ -33,11 +33,11 @@ public class ExportComposerShould
     private static FakeGitHub GitHubWithDefaults()
     {
         var github = new FakeGitHub();
-        (string scenarios, string targets, string rotations) = ConfigFiles.Save(Host.Defaults);
+        (string scenarios, string targets, string builds) = ConfigFiles.Save(Host.Defaults);
         github.FilesAtCommit["balance/overrides.json"] = ("sha-overrides", "{}\n");
         github.FilesAtCommit["balance/scenarios.json"] = ("sha-scenarios", scenarios);
         github.FilesAtCommit["balance/targets.json"] = ("sha-targets", targets);
-        github.FilesAtCommit["balance/rotations.json"] = ("sha-rotations", rotations);
+        github.FilesAtCommit["balance/builds.json"] = ("sha-builds", builds);
         return github;
     }
 
@@ -72,21 +72,26 @@ public class ExportComposerShould
     }
 
     [Fact]
-    public async Task Put_a_changed_config_file_in_canonical_form_and_a_file_missing_at_the_commit_without_a_sha()
+    public async Task Put_changed_config_files_in_canonical_form_and_a_file_missing_at_the_commit_without_a_sha()
     {
         FakeGitHub github = GitHubWithDefaults();
-        BalanceConfigDto edited = WireMapping.ToDto(Host.Defaults) with
+        BalanceConfigDto defaults = WireMapping.ToDto(Host.Defaults);
+        BalanceConfigDto edited = defaults with
         {
-            Targets = WireMapping.ToDto(Host.Defaults).Targets.Replace("\"yellowTolerancePct\": ", "\"yellowTolerancePct\": 1", StringComparison.Ordinal),
+            Targets = defaults.Targets.Replace("\"yellowTolerancePct\": ", "\"yellowTolerancePct\": 1", StringComparison.Ordinal),
+            Builds = defaults.Builds.Replace("\"healthPct\": \">=40\"", "\"healthPct\": \">=50\"", StringComparison.Ordinal),
         };
-        Assert.NotEqual(WireMapping.ToDto(Host.Defaults).Targets, edited.Targets);
+        Assert.NotEqual(defaults.Targets, edited.Targets);
+        Assert.NotEqual(defaults.Builds, edited.Builds);
         github.FilesAtCommit.Remove("balance/overrides.json");
 
         await Compose(Request(overrides: """{"Ability.201.Cost":18}""", config: edited), github);
 
-        Assert.Equal(["balance/overrides.json", "balance/targets.json"], github.Puts.Select(p => p.Path));
+        Assert.Equal(["balance/overrides.json", "balance/targets.json", "balance/builds.json"], github.Puts.Select(p => p.Path));
         Assert.Null(github.Puts[0].ExistingSha);
         Assert.Equal("sha-targets", github.Puts[1].ExistingSha);
+        Assert.Equal("sha-builds", github.Puts[2].ExistingSha);
+        Assert.Contains("\">=50\"", github.Puts[2].Text);
         Assert.EndsWith("\n", github.Puts[1].Text);
         Assert.DoesNotContain("\r", github.Puts[1].Text);
     }
@@ -281,7 +286,7 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
         var metrics = Enumerable.Range(0, 12)
-            .Select(i => new MetricDto("Warrior|3|none|normal-3", "check", $"metric-{i}", 100 + i, new BandDto(0, 10), "pct", "Red"))
+            .Select(i => new MetricDto("warrior-axes|3|none|normal-3", "check", $"metric-{i}", 100 + i, new BandDto(0, 10), "pct", "Red"))
             .Append(new MetricDto(null, "check", "fine-metric", 5, new BandDto(0, 10), "pct", "Green"))
             .ToList();
         var run = new RunResultDto([], metrics, [], new SummaryDto(1, 2, 12), [], [], 1, 10);

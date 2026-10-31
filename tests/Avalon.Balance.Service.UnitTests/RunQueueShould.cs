@@ -20,13 +20,13 @@ public class RunQueueShould
 
     public RunQueueShould()
     {
-        using WebApplication app = BalanceTestHost.Build(services: BalanceTestHost.UseFixtureRotations);
+        using WebApplication app = BalanceTestHost.Build();
         _host = app.Services.GetRequiredService<BalanceHost>();
         _queue = new RunQueue(Options.Create(_options), _time);
     }
 
     private static RunRequestDto Small(int runs = 10) =>
-        new(null, null, new RunFilterDto(["Warrior"], null, null, ["normal-3"]), runs, null);
+        new(null, null, new RunFilterDto(["Warrior"], null, null, null, ["normal-3"]), runs, null);
 
     private RunWorker Worker(RunSimulation? simulate = null) =>
         new(_queue, _host, _time, Options.Create(_options), NullLogger<RunWorker>.Instance, simulate);
@@ -196,7 +196,7 @@ public class RunQueueShould
     [Fact]
     public void Refuse_a_bad_filter_and_a_bad_config_with_their_paths()
     {
-        var dto = new RunRequestDto(null, new BalanceConfigDto("{", "{}", "{}"), new RunFilterDto(["Bard"], null, null, null), 10, null);
+        var dto = new RunRequestDto(null, new BalanceConfigDto("{", "{}", "{}"), new RunFilterDto(["Bard"], null, null, null, null), 10, null);
 
         EnqueueOutcome outcome = _queue.TryEnqueue(dto, out _, out IReadOnlyList<Issue> issues);
 
