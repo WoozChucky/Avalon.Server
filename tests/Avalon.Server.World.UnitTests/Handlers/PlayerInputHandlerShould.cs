@@ -1,4 +1,6 @@
+using System.Diagnostics.Metrics;
 using Avalon.Common.Mathematics;
+using Avalon.Common.Telemetry;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
@@ -7,6 +9,7 @@ using Avalon.Server.World.UnitTests.Creatures;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.Auras;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Maps.Navigation;
@@ -14,7 +17,10 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
@@ -64,7 +70,8 @@ public class PlayerInputHandlerShould
     }
 
     private static (PlayerInputHandler handler, IWorldConnection conn, ICharacter ch, IMapNavigator nav) Setup(
-        float speed = 5f, Vector3 startPos = default, IMapNavigator? navigator = null)
+        float speed = 5f, Vector3 startPos = default, IMapNavigator? navigator = null, FakeTimeProvider? clock = null,
+        ILogger<PlayerInputHandler>? logger = null)
     {
         var instanceId = Guid.NewGuid();
 
@@ -95,8 +102,177 @@ public class PlayerInputHandlerShould
         IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
 
-        var handler = new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world);
+        var handler = new PlayerInputHandler(logger ?? NullLogger<PlayerInputHandler>.Instance, world,
+            clock ?? new FakeTimeProvider(), Options.Create(new GameConfiguration()));
         return (handler, conn, ch, nav);
+    }
+
+    /// <summary>
+    /// #1267: each input that may move spends one step of the character's movement budget, which server time refills at
+    /// one step per 1/60 s and holds at most 15 (Game:Movement:InputCatchUp, 250 ms). One over it is answered standing:
+    /// its sequence advances and its ack carries the unchanged position and zero velocity. Each row is a list of
+    /// (advance in microseconds, then a burst of inputs) pairs, run <paramref name="repeat" /> times, after
+    /// <paramref name="heldFirst" /> inputs sent stunned (held, spending nothing). The budget starts full; a burst past it
+    /// moves 15; one step's time earns one more; ten idle seconds refill it to 15, never more; a client sending at 60 a
+    /// second with jitter is never refused; and stunned inputs leave the budget whole for after the stun.
+    /// </summary>
+    [Theory]
+    [InlineData(new[] { 0, 15 }, 1, 0, 15, 0)]
+    [InlineData(new[] { 0, 16 }, 1, 0, 15, 1)]
+    [InlineData(new[] { 0, 40, 16_667, 2 }, 1, 0, 16, 26)]
+    [InlineData(new[] { 0, 15, 10_000_000, 40 }, 1, 0, 30, 25)]
+    [InlineData(new[] { 15_000, 1, 18_000, 1 }, 300, 0, 600, 0)]
+    [InlineData(new[] { 0, 15 }, 1, 30, 15, 30)]
+    public void Answer_moving_inputs_beyond_the_time_budget_standing(
+        int[] steps, int repeat, int heldFirst, int movedExpected, int standingExpected)
+    {
+        var clock = new FakeTimeProvider();
+        (PlayerInputHandler handler, IWorldConnection conn, ICharacter placeholder, IMapNavigator _) = Setup(clock: clock);
+        CharacterEntity character = TestCharacters.New(time: clock);
+        character.InstanceId = placeholder.InstanceId;
+        conn.Character.Returns(character);
+        List<SPlayerStateAckPacket> acks = RecordAcks(conn);
+        var packet = new CPlayerInputPacket { DirX = 1, YawDeg = 90 };
+
+        if (heldFirst > 0)
+        {
+            ActiveAura stun = AuraTestData.HeldControl(CrowdControl.Stun);
+            character.Auras.Add(stun, clock.GetUtcNow());
+            for (int i = 0; i < heldFirst; i++)
+                Send(handler, conn, packet);
+            character.Auras.Remove(stun, clock.GetUtcNow());
+        }
+
+        for (int r = 0; r < repeat; r++)
+        {
+            for (int s = 0; s < steps.Length; s += 2)
+            {
+                clock.Advance(TimeSpan.FromMicroseconds(steps[s]));
+                for (int i = 0; i < steps[s + 1]; i++)
+                    Send(handler, conn, packet);
+            }
+        }
+
+        int moved = 0, standing = 0;
+        var before = new Vector3(0, 0, 0);
+        foreach (SPlayerStateAckPacket ack in acks)
+        {
+            var at = new Vector3(ack.X, ack.Y, ack.Z);
+            if (at.x != before.x || at.z != before.z)
+            {
+                moved++;
+            }
+            else
+            {
+                Assert.Equal((0f, 0f), (ack.VelX, ack.VelZ));
+                standing++;
+            }
+
+            before = at;
+        }
+
+        Assert.Equal((movedExpected, standingExpected), (moved, standing));
+        Assert.Equal(Enumerable.Range(1, acks.Count).Select(n => (uint)n), acks.Select(a => a.Seq));
+        Assert.Equal(packet.Seq, conn.LastInputSeq);
+    }
+
+    /// <summary>
+    /// #1267: an input over the budget takes no step, so the arrival protection a character entered with stays, as it
+    /// does for a held one.
+    /// </summary>
+    [Fact]
+    public void Keep_arrival_protection_on_an_input_over_the_budget()
+    {
+        var clock = new FakeTimeProvider();
+        (PlayerInputHandler handler, IWorldConnection conn, ICharacter placeholder, IMapNavigator _) = Setup(clock: clock);
+        CharacterEntity character = TestCharacters.New(time: clock);
+        character.InstanceId = placeholder.InstanceId;
+        conn.Character.Returns(character);
+        RecordAcks(conn);
+        var packet = new CPlayerInputPacket { DirX = 1, YawDeg = 90 };
+        for (int i = 0; i < 15; i++)
+            Send(handler, conn, packet);
+        Vector3 spent = character.Position;
+        ArrivalProtectionTestData.Apply(character);
+
+        Send(handler, conn, packet);
+
+        Assert.True(ArrivalProtection.IsProtected(character));
+        Assert.Equal(spent, character.Position);
+    }
+
+    /// <summary>
+    /// #1267: an input over the budget is counted every time in <c>world.movement.inputs_over_budget</c> and logged once
+    /// per character, a Warning; the connection is not closed.
+    /// </summary>
+    [Fact]
+    public void Log_once_and_count_every_input_over_the_budget()
+    {
+        var log = new TestLog();
+        (PlayerInputHandler handler, IWorldConnection conn, ICharacter placeholder, IMapNavigator _) =
+            Setup(logger: new Logger<PlayerInputHandler>(log));
+        CharacterEntity character = TestCharacters.New();
+        character.InstanceId = placeholder.InstanceId;
+        conn.Character.Returns(character);
+        RecordAcks(conn);
+        using var counted = new OverBudgetProbe();
+        var packet = new CPlayerInputPacket { DirX = 1, YawDeg = 90 };
+
+        for (int i = 0; i < 18; i++)
+            Send(handler, conn, packet);
+
+        Assert.Single(log.Entries, entry => entry.Level == LogLevel.Warning);
+        Assert.Equal(3, counted.Total);
+        conn.DidNotReceiveWithAnyArgs().Close();
+    }
+
+    private static void Send(PlayerInputHandler handler, IWorldConnection conn, CPlayerInputPacket packet)
+    {
+        packet.Seq++;
+        handler.Execute(conn, packet);
+    }
+
+    /// <summary>Every ack the connection is sent, read and its pooled payload released.</summary>
+    private static List<SPlayerStateAckPacket> RecordAcks(IWorldConnection conn)
+    {
+        var acks = new List<SPlayerStateAckPacket>();
+        conn.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(call =>
+        {
+            OutboundPacket sent = call.Arg<OutboundPacket>();
+            acks.AddRange(TestTown.Read<SPlayerStateAckPacket>([sent], NetworkPacketType.SMSG_PLAYER_STATE_ACK));
+            sent.Release();
+        });
+        return acks;
+    }
+
+    /// <summary>
+    /// The inputs counted in <c>world.movement.inputs_over_budget</c> on this test's own flow: the counter is static and
+    /// shared, and other tests move characters in parallel.
+    /// </summary>
+    private sealed class OverBudgetProbe : IDisposable
+    {
+        private static readonly AsyncLocal<OverBudgetProbe?> s_current = new();
+        private readonly MeterListener _listener = new();
+
+        public OverBudgetProbe()
+        {
+            s_current.Value = this;
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter == DiagnosticsConfig.World.Meter && instrument.Name == "world.movement.inputs_over_budget")
+                    listener.EnableMeasurementEvents(instrument);
+            };
+            _listener.SetMeasurementEventCallback<long>((_, value, _, _) =>
+            {
+                if (s_current.Value == this)
+                    Total += value;
+            });
+            _listener.Start();
+        }
+
+        public long Total { get; private set; }
+
+        public void Dispose() => _listener.Dispose();
     }
 
     /// <summary>

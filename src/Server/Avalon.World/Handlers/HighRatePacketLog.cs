@@ -15,6 +15,10 @@ internal static partial class HighRatePacketLog
     [LoggerMessage(Level = LogLevel.Error, Message = "{PacketType} on connection {ConnectionId}: no instance {InstanceId}")]
     public static partial void InstanceNotFound(ILogger logger, NetworkPacketType packetType, Guid connectionId, Guid instanceId);
 
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "Character {Name} on connection {ConnectionId} sent movement faster than server time allows; inputs over budget are answered standing")]
+    public static partial void MovementOverBudget(ILogger logger, string name, Guid connectionId);
+
     [LoggerMessage(Level = LogLevel.Information,
         Message = "[{CharName}] Latency changed: {Latency}ms -> {NewLatency}ms ({PacketType} on connection {ConnectionId})")]
     public static partial void LatencyChanged(ILogger logger, string? charName, long latency, long newLatency,

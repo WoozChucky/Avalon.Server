@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Movement;
 using Avalon.Server.World.UnitTests.Reload;
 using Avalon.World;
 using Avalon.World.Characters;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Items;
@@ -17,6 +18,8 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Reload;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -238,7 +241,8 @@ public class CharacterMovementSpeedShould
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
 
-        new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world)
+        new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world, new FakeTimeProvider(),
+                Options.Create(new GameConfiguration()))
             .Execute(connection, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
 
         Assert.Equal(4.4f / 60f, character.Position.x, precision: 5);

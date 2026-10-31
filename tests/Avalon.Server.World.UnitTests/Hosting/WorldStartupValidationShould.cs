@@ -54,7 +54,7 @@ public class WorldStartupValidationShould
     /// A Game setting out of its range stops the start, naming the setting: a row at each bound with a reason. The
     /// floats must be finite (#532, #593): the interest radius at least 1 m, the interest remove margin 0 or more. The
     /// crowd-control diminishing window (#770) is above 0 and at most 7 s. The tick's CPU
-    /// (#1002) is a CPU number a mask can name, on every system.
+    /// (#1002) is a CPU number a mask can name, on every system. The input catch-up (#1267) is one step to 2 s.
     /// </summary>
     [Theory]
     [InlineData("InterestRadius", "0.5")]
@@ -87,6 +87,8 @@ public class WorldStartupValidationShould
     [InlineData("MaxIgnoredCharacters", "501")]
     [InlineData("TickThreadCpu", "-1")]
     [InlineData("TickThreadCpu", "1024")]
+    [InlineData("Movement:InputCatchUp", "00:00:00")]
+    [InlineData("Movement:InputCatchUp", "00:00:03")]
     public async Task Refuse_to_start_with_a_game_setting_out_of_range(string setting, string value)
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)

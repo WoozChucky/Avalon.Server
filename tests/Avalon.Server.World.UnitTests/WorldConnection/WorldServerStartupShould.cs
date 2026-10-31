@@ -399,6 +399,9 @@ public class WorldServerStartupShould
                 return Avalon.Server.World.UnitTests.GameAuth.GameplayTestAdmission.TlsTransport();
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
 
+            // The game settings, the defaults: the input handler reads its movement budget (#1267) from them.
+            if (serviceType == typeof(IOptions<GameConfiguration>)) return Options.Create(new GameConfiguration());
+
             if (serviceType == typeof(ReloadRequestHandler))
             {
                 return new ReloadRequestHandler(Substitute.For<IReferenceDataReloader>(), Substitute.For<IReplicatedCache>(),

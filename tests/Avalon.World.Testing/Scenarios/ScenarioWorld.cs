@@ -286,6 +286,9 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>The world the instances belong to, as a packet handler is given it: its registry is the real one here.</summary>
     public IWorld Host => _world;
 
+    /// <summary>The game settings the world was made with, as a packet handler is given them.</summary>
+    public IOptions<GameConfiguration> GameOptions => Options.Create(_world.Configuration);
+
     /// <summary>
     /// The quest service every instance of a world with reference data tells of its kills, and <see cref="Tick()" />
     /// flushes, as production's; null in a world without reference data. Tick thread only.

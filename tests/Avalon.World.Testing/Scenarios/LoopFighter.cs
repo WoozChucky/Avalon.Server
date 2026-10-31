@@ -289,7 +289,7 @@ public sealed class LoopFighter
         ICharacterEconomy economy = world.Economy!;
         var combat = new CombatConfig();
         return new FighterHandlers(
-            new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world.Host),
+            new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world.Host, world.Clock, world.GameOptions),
             new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world.Host, combat, world.Clock),
             new QuestAbandonHandler(quests, NullLogger<QuestAbandonHandler>.Instance),
             new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world.Host, economy, world.Clock, quests),
