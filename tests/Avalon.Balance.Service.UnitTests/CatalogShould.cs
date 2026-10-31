@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using Avalon.Balance.Contract;
 using Avalon.Balance.Core;
 using Microsoft.AspNetCore.Builder;
@@ -31,35 +30,28 @@ public class CatalogShould
         ScenarioFile scenarios = ConfigFiles.ParseScenarios(catalog.DefaultConfig.Scenarios);
         Assert.Equal(scenarios.Scenarios.Select(s => s.Id), catalog.Scenarios);
         Assert.NotEmpty(catalog.Classes);
-        Assert.Equal(CheckedInBuildIds(), catalog.Builds.Select(b => b.Id));
+        Assert.Equal(scenarios.Builds, catalog.Builds.Select(b => b.Id));
         BuildDto bloodPrice = Assert.Single(catalog.Builds, b => b.Id == "warrior-blood-price");
         Assert.Equal("Warrior", bloodPrice.Class);
         Assert.Equal(
         [
-            new TalentNodeDto(57, "Small", null),
-            new TalentNodeDto(58, "Small", null),
-            new TalentNodeDto(59, "Small", null),
-            new TalentNodeDto(60, "Small", null),
-            new TalentNodeDto(61, "Ability", "Hurled Axe"),
-            new TalentNodeDto(62, "Small", null),
-            new TalentNodeDto(66, "Small", null),
-            new TalentNodeDto(67, "Small", null),
-            new TalentNodeDto(68, "Notable", "Brawn"),
-            new TalentNodeDto(302, "Junction", null),
-            new TalentNodeDto(332, "Keystone", "Blood Price"),
-            new TalentNodeDto(2, "Small", null),
-            new TalentNodeDto(3, "Small", null),
+            new BuildNodeDto(57, "Small", null),
+            new BuildNodeDto(58, "Small", null),
+            new BuildNodeDto(59, "Small", null),
+            new BuildNodeDto(60, "Small", null),
+            new BuildNodeDto(61, "Ability", "Hurled Axe"),
+            new BuildNodeDto(62, "Small", null),
+            new BuildNodeDto(66, "Small", null),
+            new BuildNodeDto(67, "Small", null),
+            new BuildNodeDto(68, "Notable", "Brawn"),
+            new BuildNodeDto(302, "Junction", null),
+            new BuildNodeDto(332, "Keystone", "Blood Price"),
+            new BuildNodeDto(2, "Small", null),
+            new BuildNodeDto(3, "Small", null),
         ], bloodPrice.Nodes);
         Assert.NotEmpty(catalog.Levels);
         Assert.NotEmpty(catalog.Gear);
         Assert.NotEmpty(catalog.Abilities);
         Assert.NotEmpty(catalog.Creatures);
-    }
-
-    /// <summary>The build ids of the checked-in builds.json, in the file's order, read as plain JSON.</summary>
-    private static IEnumerable<string> CheckedInBuildIds()
-    {
-        using var file = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "balance", "builds.json")));
-        return file.RootElement.EnumerateObject().Select(p => p.Name).ToList();
     }
 }

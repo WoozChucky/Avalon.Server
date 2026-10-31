@@ -2,6 +2,7 @@ using System.Text.Json;
 
 namespace Avalon.Balance.Contract;
 
+/// <param name="Builds">The builds a run can name: scenarios.json's builds, in its order, each with its path.</param>
 public sealed record CatalogDto(
     string Version,
     string Commit,
@@ -20,10 +21,10 @@ public sealed record TunableDto(string Key, string Table, string? RowKey, string
 public sealed record NamedIdDto(long Id, string Name);
 
 /// <summary>A checked-in build in builds.json: its id, its class, and the talent nodes it takes, in path order.</summary>
-public sealed record BuildDto(string Id, string Class, IReadOnlyList<TalentNodeDto> Nodes);
+public sealed record BuildDto(string Id, string Class, IReadOnlyList<BuildNodeDto> Nodes);
 
 /// <summary>Kind is the node's kind by name (Small, Notable, Ability, ...); Name is null on a node the seed leaves unnamed.</summary>
-public sealed record TalentNodeDto(int Id, string Kind, string? Name);
+public sealed record BuildNodeDto(int Id, string Kind, string? Name);
 
 /// <summary>Each member is the canonical JSON text of that file.</summary>
 public sealed record BalanceConfigDto(string Scenarios, string Targets, string Builds);

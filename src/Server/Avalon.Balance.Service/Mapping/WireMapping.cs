@@ -59,7 +59,7 @@ public static class WireMapping
     public static BuildDto ToDto(string id, BuildEntry build, TalentTree tree) => new(
         id,
         build.Class.ToString(),
-        build.Nodes.Select(tree.Describe).Select(n => new TalentNodeDto(n.Id, n.Kind.ToString(), n.Name)).ToList());
+        build.Nodes.Select(tree.Describe).Select(n => new BuildNodeDto(n.Id, n.Kind.ToString(), n.Name)).ToList());
 
     public static BalanceConfigDto ToDto(BalanceConfig config)
     {

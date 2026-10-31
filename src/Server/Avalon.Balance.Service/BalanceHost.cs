@@ -50,7 +50,7 @@ public sealed class BalanceHost
             Core.Catalog.Describe(Seed).Select(WireMapping.ToDto).ToList(),
             WireMapping.ToDto(Defaults),
             scenarios.ClassesOf(Defaults.Builds).Select(c => c.ToString()).ToList(),
-            Defaults.Builds.Select(b => WireMapping.ToDto(b.Key, b.Value, tree)).ToList(),
+            scenarios.Builds.Select(id => WireMapping.ToDto(id, Defaults.Builds[id], tree)).ToList(),
             scenarios.LevelRange().Select(l => (int)l).ToList(),
             scenarios.Gear.ToList(),
             scenarios.Scenarios.Select(s => s.Id).ToList(),
