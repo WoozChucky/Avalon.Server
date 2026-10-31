@@ -3,6 +3,7 @@ using Avalon.Balance.Core;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;
@@ -431,6 +432,10 @@ public class FightSimulatorShould
         int[] rimeburst = [148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 294, 297, 298, 299, 300, 301, 331];
         var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 10, [],
             Data.Talents.Hold(CharacterClass.Wizard, rimeburst));
+        SimAbility frostbolt = wizard.Ability(320);
+        // Steady rolls the same every draw, so the burst's hit on an identical dummy is the one each burst creature takes.
+        uint burstHit = CombatRules.Damage(wizard, Dummy(), frostbolt, Data.Combat.Formula, CombatRandom.Steady,
+            new HitShaping(frostbolt.Metadata.ExplosionEffectiveness, AbilityTags.Area)).Total;
         SimCreature[] pack = [Dummy(4, 0), Dummy(4, 1), Dummy(4, 2)];
         foreach (SimCreature c in pack) Hold(c);
         var fight = new FightSimulator(Data.Combat.Formula, wizard, pack, Rotation(320), CombatRandom.Steady, data: Data);
@@ -438,12 +443,11 @@ public class FightSimulatorShould
         RunFor(fight, 1);   // a 0.5 s cast, then a 2 s cooldown: one Frostbolt
 
         Assert.Single(fight.Result().Casts, c => c.AbilityId == 320);
-        uint first = pack[0].Health - pack[0].CurrentHealth;
-        Assert.True(first > 0);
+        Assert.True(pack[0].CurrentHealth < pack[0].Health);
+        Assert.True(burstHit > 0);
         foreach (SimCreature burst in pack[1..])
         {
-            uint lost = burst.Health - burst.CurrentHealth;
-            Assert.InRange(lost, 1u, (uint)(0.6 * first) + 1u);
+            Assert.Equal(burstHit, burst.Health - burst.CurrentHealth);
             Assert.Empty(burst.Auras);
         }
     }

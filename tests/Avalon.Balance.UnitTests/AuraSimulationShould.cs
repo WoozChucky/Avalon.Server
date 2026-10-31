@@ -221,17 +221,20 @@ public class AuraSimulationShould
         Assert.Equal(FightSimulator.Epoch + TimeSpan.FromSeconds(18 + 12), bleed.Schedule.ExpiresAt);
     }
 
-    // Rend and Haemorrhage: not a B-R20 build, so kept here.
-    private static readonly int[] s_haemorrhage = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 27, 28, 29, 30, 31, 308];
-
-    public static TheoryData<string, uint, uint, uint> CapstoneAuras()
+    public static TheoryData<CharacterClass, int[], uint, uint, uint> CapstoneAuras()
     {
         AuraTemplate fortified = TestData.Seeded.Auras[new AuraId(5)];
         AuraTemplate bleed = TestData.Seeded.Auras[new AuraId(1)];
-        return new TheoryData<string, uint, uint, uint>
+        (CharacterClass cleric, int[] steadfast) = TestData.BuildPath("cleric-steadfast");
+        return new TheoryData<CharacterClass, int[], uint, uint, uint>
         {
-            { "cleric-steadfast", 234u, 1u, AuraRules.Lengthen(fortified.DurationMs, 50f) },   // Steadfast: +50 % duration
-            { "warrior-haemorrhage", 203u, bleed.MaxStacks + 2u, bleed.DurationMs },           // Haemorrhage: +2 stacks
+            // Steadfast: +50 % duration on Fortify.
+            { cleric, steadfast, 234u, 1u, AuraRules.Lengthen(fortified.DurationMs, 50f) },
+            // Rend, then Haemorrhage: +2 stacks on its bleed. Not a B-R20 build, so its path is given here.
+            {
+                CharacterClass.Warrior, [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 27, 28, 29, 30, 31, 308], 203u,
+                bleed.MaxStacks + 2u, bleed.DurationMs
+            },
         };
     }
 
@@ -243,13 +246,10 @@ public class AuraSimulationShould
     /// </summary>
     [Theory]
     [MemberData(nameof(CapstoneAuras))]
-    public void Lengthen_and_deepen_its_aura_as_its_capstone_says(string path, uint ability, uint expectedStacks,
-        uint expectedDurationMs)
+    public void Lengthen_and_deepen_its_aura_as_its_capstone_says(CharacterClass characterClass, int[] nodes,
+        uint ability, uint expectedStacks, uint expectedDurationMs)
     {
         BalanceData data = TestData.Seeded;
-        (CharacterClass characterClass, int[] nodes) = path == "warrior-haemorrhage"
-            ? (CharacterClass.Warrior, s_haemorrhage)
-            : TestData.BuildPath(path);
         var player = SimPlayer.Create(data, characterClass, 10, [], data.Talents.Hold(characterClass, nodes));
         var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
         boar.Health = boar.CurrentHealth = 1_000_000;
