@@ -360,6 +360,94 @@ public class FightSimulatorShould
         Assert.Equal(0, rng.Draws);
     }
 
+    /// <summary>
+    /// B-R15, as AbilityEffect.Apply: Double Tap's second hit (50 %) draws its own rolls, as many as a whole hit, and the
+    /// aura is placed once after both; a first hit that kills is never followed by a second, so the corpse draws nothing.
+    /// One hit's draws are an unshaped Crippling Shot's (its aura, Crippled, draws nothing: it does not tick).
+    /// </summary>
+    [Theory]
+    [InlineData(1_000_000u, 2)]
+    [InlineData(1u, 1)]
+    public void Land_a_second_hit_with_its_own_rolls_and_one_aura(uint health, int hits)
+    {
+        (long Draws, SimCreature Dummy) Cast(SimPlayer hunter)
+        {
+            SimCreature dummy = Dummy();
+            dummy.Health = dummy.CurrentHealth = health;
+            Hold(dummy);
+            var rng = new CountingRandom();
+            new FightSimulator(Data.Combat.Formula, hunter, [dummy], Rotation(223), rng, data: Data).Tick();
+            return (rng.Draws, dummy);
+        }
+
+        (long oneHit, _) = Cast(SimPlayer.Create(Data, CharacterClass.Hunter, 10, [],
+            Data.Talents.Starter(CharacterClass.Hunter)).Holding(Data, 223));
+        (long draws, SimCreature dummy) = Cast(TestData.Whole("hunter-double-tap"));
+
+        Assert.True(oneHit > 0);
+        Assert.Equal(hits * oneHit, draws);
+        SimAura[] crippled = [.. dummy.Auras.Where(a => a.Template.Name == "Crippled")];
+        Assert.Equal(dummy.IsDead ? 0 : 1, crippled.Length);
+        Assert.All(crippled, a => Assert.Equal(1u, a.Stacks));
+    }
+
+    /// <summary>
+    /// B-R15: Twin Axes fires Hurled Axe in two lanes that share one set of creatures hit, so each lane takes the first
+    /// creature the cast has not hit; a lane with no creature left hits nothing and draws nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 2)]
+    [InlineData(1, 1)]
+    public void Spread_a_fan_over_distinct_creatures(int creatures, int damaged)
+    {
+        long Draws(SimPlayer warrior, SimCreature[] pack)
+        {
+            foreach (SimCreature c in pack) Hold(c);
+            var rng = new CountingRandom();
+            new FightSimulator(Data.Combat.Formula, warrior, pack, Rotation(202), rng).Tick();   // instant: lands this tick
+            return rng.Draws;
+        }
+
+        long unshaped = Draws(SimPlayer.Create(Data, CharacterClass.Warrior, 10, [],
+            Data.Talents.Starter(CharacterClass.Warrior)).Holding(Data, 202), [Dummy()]);
+        SimCreature[] pack = [.. Enumerable.Range(0, creatures).Select(i => Dummy(4, i))];
+        SimPlayer axes = TestData.Whole("warrior-axes");
+        Assert.Equal(2, axes.Ability(202).Metadata.ProjectileCount);
+
+        long draws = Draws(axes, pack);
+
+        Assert.Equal(damaged, pack.Count(c => c.CurrentHealth < c.Health));
+        Assert.Equal(damaged * unshaped, draws);
+    }
+
+    /// <summary>
+    /// B-R15: Rimeburst's Frostbolt ends on the first creature and explodes there; in melee the burst reaches every other
+    /// living creature, each hit once at 60 % with the Area tag, damage only (no aura, no second hit).
+    /// </summary>
+    [Fact]
+    public void Explode_on_the_creature_a_projectile_ends_on()
+    {
+        // Lane A to the joint, Frostbolt, its branch, then Rimeburst: not a B-R20 build (none reaches an explosion).
+        int[] rimeburst = [148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 294, 297, 298, 299, 300, 301, 331];
+        var wizard = SimPlayer.Create(Data, CharacterClass.Wizard, 10, [],
+            Data.Talents.Hold(CharacterClass.Wizard, rimeburst));
+        SimCreature[] pack = [Dummy(4, 0), Dummy(4, 1), Dummy(4, 2)];
+        foreach (SimCreature c in pack) Hold(c);
+        var fight = new FightSimulator(Data.Combat.Formula, wizard, pack, Rotation(320), CombatRandom.Steady, data: Data);
+
+        RunFor(fight, 1);   // a 0.5 s cast, then a 2 s cooldown: one Frostbolt
+
+        Assert.Single(fight.Result().Casts, c => c.AbilityId == 320);
+        uint first = pack[0].Health - pack[0].CurrentHealth;
+        Assert.True(first > 0);
+        foreach (SimCreature burst in pack[1..])
+        {
+            uint lost = burst.Health - burst.CurrentHealth;
+            Assert.InRange(lost, 1u, (uint)(0.6 * first) + 1u);
+            Assert.Empty(burst.Auras);
+        }
+    }
+
     private sealed class CountingRandom : ICombatRandom
     {
         public long Draws { get; private set; }

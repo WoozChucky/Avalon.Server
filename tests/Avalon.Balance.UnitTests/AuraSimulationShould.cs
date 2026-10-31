@@ -221,6 +221,60 @@ public class AuraSimulationShould
         Assert.Equal(FightSimulator.Epoch + TimeSpan.FromSeconds(18 + 12), bleed.Schedule.ExpiresAt);
     }
 
+    // Rend and Haemorrhage: not a B-R20 build, so kept here.
+    private static readonly int[] s_haemorrhage = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 27, 28, 29, 30, 31, 308];
+
+    public static TheoryData<string, uint, uint, uint> CapstoneAuras()
+    {
+        AuraTemplate fortified = TestData.Seeded.Auras[new AuraId(5)];
+        AuraTemplate bleed = TestData.Seeded.Auras[new AuraId(1)];
+        return new TheoryData<string, uint, uint, uint>
+        {
+            { "cleric-steadfast", 234u, 1u, AuraRules.Lengthen(fortified.DurationMs, 50f) },   // Steadfast: +50 % duration
+            { "warrior-haemorrhage", 203u, bleed.MaxStacks + 2u, bleed.DurationMs },           // Haemorrhage: +2 stacks
+        };
+    }
+
+    /// <summary>
+    /// B-R15, as AuraSystem.Apply: the source ability's capstone factors shape the aura it places (never crowd control's).
+    /// The ability is cast as many times as the stacks expected, each within the aura, and the copy held is read after
+    /// the last: a Stack aura goes past its row's cap by the capstone's bonus, and the duration placed is the row's
+    /// lengthened by the capstone's share.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CapstoneAuras))]
+    public void Lengthen_and_deepen_its_aura_as_its_capstone_says(string path, uint ability, uint expectedStacks,
+        uint expectedDurationMs)
+    {
+        BalanceData data = TestData.Seeded;
+        (CharacterClass characterClass, int[] nodes) = path == "warrior-haemorrhage"
+            ? (CharacterClass.Warrior, s_haemorrhage)
+            : TestData.BuildPath(path);
+        var player = SimPlayer.Create(data, characterClass, 10, [], data.Talents.Hold(characterClass, nodes));
+        var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
+        boar.Health = boar.CurrentHealth = 1_000_000;
+        foreach (SimAbility a in boar.Abilities) a.CooldownLeft = 1_000f;
+        var fight = new FightSimulator(data.Combat.Formula, player, [boar], [new CompiledRotationEntry(ability, [])],
+            CombatRandom.Steady, data: data);
+
+        DateTimeOffset applied = default;
+        int casts = 0;
+        while (casts < expectedStacks && fight.Time < 60)
+        {
+            DateTimeOffset now = fight.Now;
+            fight.Tick();
+            int count = fight.Result().Casts.Count(c => c.AbilityId == ability);
+            if (count > casts) applied = now;
+            casts = count;
+        }
+
+        Assert.Equal((int)expectedStacks, casts);
+        uint aura = data.Abilities[new AbilityId(ability)].AuraId!.Value;
+        SimAura held = Assert.Single(player.Auras.Concat(boar.Auras), a => a.Template.Id.Value == aura);
+        Assert.Equal(expectedStacks, held.Stacks);
+        Assert.Equal(TimeSpan.FromMilliseconds(expectedDurationMs), held.Schedule.ExpiresAt - applied);
+    }
+
     [Fact]
     public void Fold_a_stat_aura_into_the_players_defence_and_take_it_back()
     {

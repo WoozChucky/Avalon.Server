@@ -20,14 +20,23 @@ public readonly record struct WardedLoss(uint Absorbed, uint Health)
 public static class CombatRules
 {
     /// <summary>
-    /// An ability's hit, as CombatService's: the ability's own base (OffenceMath.DirectBase, its rolls first), then evasion
-    /// (none for an Unavoidable ability, #1164), crit, block, mitigation. The draw order is HitResolver's.
+    /// An ability's whole hit: <see cref="Damage(SimUnit, SimUnit, SimAbility, CombatFormula, ICombatRandom, in HitShaping)" />
+    /// at <see cref="HitShaping.Whole" />.
     /// </summary>
     public static HitDamage Damage(SimUnit attacker, SimUnit target, SimAbility ability, CombatFormula formula,
-        ICombatRandom rng)
+        ICombatRandom rng) =>
+        Damage(attacker, target, ability, formula, rng, HitShaping.Whole);
+
+    /// <summary>
+    /// An ability's hit, as CombatService's: the ability's own base (OffenceMath.DirectBase, its rolls first) at
+    /// <paramref name="shaping" />'s share and with its extra tags (B-R15: a second hit, an explosion), then evasion (none
+    /// for an Unavoidable ability, #1164), crit, block, mitigation, each rolled afresh. The draw order is HitResolver's.
+    /// </summary>
+    public static HitDamage Damage(SimUnit attacker, SimUnit target, SimAbility ability, CombatFormula formula,
+        ICombatRandom rng, in HitShaping shaping)
     {
         AbilityMetadata m = ability.Metadata;
-        DamageParts parts = OffenceMath.DirectBase(attacker.Attack, m, rng);
+        DamageParts parts = OffenceMath.DirectBase(attacker.Attack, m, rng, shaping);
         return HitResolver.ResolveDamage(attacker.Attack, target.Defence, parts, formula, rng, IsUnavoidable(m));
     }
 
@@ -103,9 +112,14 @@ public static class CombatRules
 
     private static bool IsUnavoidable(AbilityMetadata m) => (m.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
 
-    public static (uint Heal, HitResult Result) Heal(SimUnit healer, SimAbility ability, CombatFormula formula, ICombatRandom rng)
+    /// <summary>
+    /// An ability's heal, as CombatService.ApplyHeal: its heal base at <paramref name="amountPct" /> % (B-R15: a second
+    /// heal), then its own crit roll.
+    /// </summary>
+    public static (uint Heal, HitResult Result) Heal(SimUnit healer, SimAbility ability, CombatFormula formula,
+        ICombatRandom rng, float amountPct = 100f)
     {
-        double baseHeal = OffenceMath.HealBase(healer.Attack, ability.Metadata, rng);
+        double baseHeal = OffenceMath.HealBase(healer.Attack, ability.Metadata, rng, amountPct);
         return HitResolver.ResolveHeal(healer.Attack, baseHeal, formula, rng);
     }
 
