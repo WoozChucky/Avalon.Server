@@ -35,6 +35,9 @@ public class PlayerInputHandler(
     // The steps a character's movement budget holds, from Game:Movement:InputCatchUp, read once.
     private readonly int _budgetCap = MovementBudget.CapFor(game.Value.Movement.InputCatchUp);
 
+    // The steps a second of server time earns, from Game:Movement:ClockDriftAllowancePercent, read once.
+    private readonly double _refillRate = MovementBudget.RefillRateFor(game.Value.Movement.ClockDriftAllowancePercent);
+
     public override void Execute(IWorldConnection connection, CPlayerInputPacket packet)
     {
         ICharacter? ch = connection.Character;
@@ -60,11 +63,14 @@ public class PlayerInputHandler(
         }
 
         // #1267: every input that may move spends one step of the character's movement budget, which server time
-        // refills, so a client sending inputs faster than time passes moves no faster than one sending at the tick
-        // rate. One over the budget is answered standing, as a held one is, and keeps arrival protection, since it
-        // takes no step. Counted every time, logged once per character. A character that is not an entity (a test
-        // double) is not budgeted.
-        if (ch is CharacterEntity entity && !entity.Movement.TrySpend(clock.GetTimestamp(), clock, _budgetCap))
+        // refills (plus the clock drift allowance), so a client sending inputs faster than time passes moves no faster
+        // than one sending at the tick rate. One over the budget is answered standing, as a held one is, and keeps
+        // arrival protection, since it takes no step. Counted every time, logged once per character. The time is the
+        // tick's, read once per tick by the lease check; a connection that is not a WorldConnection (a scenario's, a
+        // test's) reads the clock. A character that is not an entity (a test double) is not budgeted.
+        if (ch is CharacterEntity entity && !entity.Movement.TrySpend(
+                connection is WorldConnection ticked ? ticked.TickTimestamp(clock) : clock.GetTimestamp(),
+                clock, _budgetCap, _refillRate))
         {
             s_overBudget.Add(1);
             if (!entity.Movement.Warned)

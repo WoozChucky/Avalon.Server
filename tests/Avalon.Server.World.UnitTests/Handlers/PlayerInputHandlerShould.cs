@@ -109,19 +109,18 @@ public class PlayerInputHandlerShould
 
     /// <summary>
     /// #1267: each input that may move spends one step of the character's movement budget, which server time refills at
-    /// one step per 1/60 s and holds at most 15 (Game:Movement:InputCatchUp, 250 ms). One over it is answered standing:
-    /// its sequence advances and its ack carries the unchanged position and zero velocity. Each row is a list of
-    /// (advance in microseconds, then a burst of inputs) pairs, run <paramref name="repeat" /> times, after
-    /// <paramref name="heldFirst" /> inputs sent stunned (held, spending nothing). The budget starts full; a burst past it
-    /// moves 15; one step's time earns one more; ten idle seconds refill it to 15, never more; a client sending at 60 a
-    /// second with jitter is never refused; and stunned inputs leave the budget whole for after the stun.
+    /// one step per 1/60 s (plus the 0.5 % clock drift allowance) and holds at most 15 (Game:Movement:InputCatchUp,
+    /// 250 ms). One over it is answered standing: its sequence advances and its ack carries the unchanged position and
+    /// zero velocity. Each row is a list of (advance in microseconds, then a burst of inputs) pairs, run
+    /// <paramref name="repeat" /> times, after <paramref name="heldFirst" /> inputs sent stunned (held, spending nothing).
+    /// The budget starts full; a burst past it moves 15; one step's time earns one more; ten idle seconds refill it to 15,
+    /// never more; and stunned inputs leave the budget whole for after the stun.
     /// </summary>
     [Theory]
     [InlineData(new[] { 0, 15 }, 1, 0, 15, 0)]
     [InlineData(new[] { 0, 16 }, 1, 0, 15, 1)]
     [InlineData(new[] { 0, 40, 16_667, 2 }, 1, 0, 16, 26)]
     [InlineData(new[] { 0, 15, 10_000_000, 40 }, 1, 0, 30, 25)]
-    [InlineData(new[] { 15_000, 1, 18_000, 1 }, 300, 0, 600, 0)]
     [InlineData(new[] { 0, 15 }, 1, 30, 15, 30)]
     public void Answer_moving_inputs_beyond_the_time_budget_standing(
         int[] steps, int repeat, int heldFirst, int movedExpected, int standingExpected)
@@ -173,6 +172,66 @@ public class PlayerInputHandlerShould
 
         Assert.Equal((movedExpected, standingExpected), (moved, standing));
         Assert.Equal(Enumerable.Range(1, acks.Count).Select(n => (uint)n), acks.Select(a => a.Seq));
+        Assert.Equal(packet.Seq, conn.LastInputSeq);
+    }
+
+    /// <summary>
+    /// #1267: a client sends one input per 1/60 s of its own clock, which runs at its own rate. The budget refills
+    /// 0.5 % faster than server time (Game:Movement:ClockDriftAllowancePercent), so a client whose clock runs a little
+    /// fast, 50 parts per million here, is never answered standing however long it plays (two hours of server time),
+    /// and neither is one whose inputs arrive with jitter around an exact 1/60 s. One sending 1 % fast, past the
+    /// allowance, moves at the 0.5 % ceiling: of its first 6,000 inputs, 15 + 5,999 x 0.99 x 1.005 move and the rest
+    /// stand. Input <c>i</c> arrives at <c>i x interval</c> of server time, plus or minus <paramref name="jitterMs" />
+    /// alternately, where the interval is 1/60 s x (1 - <paramref name="fast" />).
+    /// </summary>
+    [Theory]
+    [InlineData(0d, 2d, 432_000, 0)]
+    [InlineData(50e-6, 0d, 432_000, 0)]
+    [InlineData(0.01, 0d, 6_000, 17)]
+    public void Keep_a_client_moving_at_its_own_clock_within_the_drift_allowance(
+        double fast, double jitterMs, int inputs, int standingExpected)
+    {
+        var clock = new FakeTimeProvider();
+        CharacterEntity character = TestCharacters.New(time: clock);
+        // Its own substitutes, cleared as it goes, and a plain connection (a substitute's property set 432,000 times
+        // slows every read of it): the long rows make millions of calls.
+        IMapNavigator nav = Substitute.For<IMapNavigator>();
+        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(call => call.ArgAt<Vector3>(1));
+        IMapInstance instance = Substitute.For<IMapInstance>();
+        instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(nav);
+        IWorld world = Substitute.For<IWorld>();
+        world.InstanceRegistry.GetInstanceById(character.InstanceId).Returns(instance);
+        var conn = new QuietConnection(character);
+        var handler = new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world, clock,
+            Options.Create(new GameConfiguration()));
+        var packet = new CPlayerInputPacket { YawDeg = 90 };
+        double interval = TimeSpan.TicksPerSecond / 60d * (1d - fast);
+        long start = clock.GetUtcNow().UtcTicks;
+
+        int standing = 0;
+        for (int i = 1; i <= inputs; i++)
+        {
+            double jitter = (i % 2 == 0 ? jitterMs : -jitterMs) * TimeSpan.TicksPerMillisecond;
+            clock.SetUtcNow(new DateTimeOffset(start + (long)Math.Round(i * interval + jitter), TimeSpan.Zero));
+            packet.DirX = i % 2 == 0 ? 1 : -1; // back and forth, so the position stays small and exact
+            Vector3 before = character.Position;
+            Send(handler, conn, packet);
+            if (character.Position == before)
+            {
+                Assert.Equal(Vector3.zero, character.Velocity);
+                standing++;
+            }
+
+            if (i % 10_000 == 0)
+            {
+                world.ClearReceivedCalls();
+                world.InstanceRegistry.ClearReceivedCalls();
+                instance.ClearReceivedCalls();
+                nav.ClearReceivedCalls();
+            }
+        }
+
+        Assert.Equal(standingExpected, standing);
         Assert.Equal(packet.Seq, conn.LastInputSeq);
     }
 

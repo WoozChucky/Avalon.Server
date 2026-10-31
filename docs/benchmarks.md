@@ -8,6 +8,22 @@ five measured iterations over 1,024 characters measured **0.707 ns/read before**
 **0.858 ns/read after**, with **0 B allocated** in both. This isolates the getter, not a whole movement
 step or tick. Run with `--filter "*CharacterMovementSpeedBenchmarks*" --job short --warmupCount 3 --iterationCount 5`.
 
+The movement budget (#1267) adds to each `CMSG_PLAYER_INPUT` a type check, a read of its connection's tick timestamp
+(the lease check's, read once per tick, #977) and `MovementBudget.TrySpend` (a refill by elapsed time with the clock
+drift allowance, a cap and a spend). No benchmark in `tools/Avalon.Benchmarking` runs `PlayerInputHandler`, so it was
+measured by a stand-alone BenchmarkDotNet micro-benchmark over copies of `MovementBudget` and `TickTime`, 1,800
+characters a tick, one input each. On 2026-10-31, Windows 11, i9-12900K, .NET 10.0.14, Release, in-process, affinity 4:
+
+| Per input | Mean | Allocated |
+|---|---:|---:|
+| The character read alone (the baseline) | 0.53 ns | 0 B |
+| The budget, with the tick's timestamp (as shipped) | 7.11 ns ± 0.15 | 0 B |
+| The budget, reading the clock per input (the first draft) | 28.46 ns ± 0.74 | 0 B |
+
+So the budget costs about 13 µs of a tick at 1,800 players (under 0.1 % of 16.7 ms). Reading the clock once per tick,
+not once per input, saved about three quarters of that. The scenario allocation gate (town-walk and forest-combat run
+the real handler every tick) passes in Debug and Release with no baseline changed.
+
 `ArrivalProtectionBenchmarks` and `ArrivalTargetSelectionBenchmarks` measure the arrival buff checks and real
 creature target selection (#1088). On 2026-10-20, Windows 11, i9-12900K, .NET 10.0.13, Release, in-process,
 `DOTNET_TieredCompilation=0`, affinity 1, three warmups and five measured iterations:

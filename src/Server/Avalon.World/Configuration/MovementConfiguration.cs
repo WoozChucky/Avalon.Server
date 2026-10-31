@@ -14,11 +14,26 @@ public sealed class MovementConfiguration
     /// </summary>
     public TimeSpan InputCatchUp { get; set; } = TimeSpan.FromMilliseconds(250);
 
-    /// <summary>The setting out of range, named; null when it is in range.</summary>
+    /// <summary>
+    /// Game:Movement:ClockDriftAllowancePercent: how much faster than server time the budget refills, in percent, so a
+    /// client whose clock runs slightly fast (a machine's clock commonly drifts 10 to 100 parts per million) is never
+    /// answered standing, however long it plays. It is also the most a modified client gains: 0.5 % is 0.5 % above its
+    /// speed. From 0 to 5.
+    /// </summary>
+    public double ClockDriftAllowancePercent { get; set; } = 0.5;
+
+    /// <summary>The first setting out of range, named; null when every one is in range.</summary>
     public string? Problem()
     {
         if (InputCatchUp < TimeSpan.FromMilliseconds(17) || InputCatchUp > TimeSpan.FromSeconds(2))
             return $"Game:Movement:InputCatchUp must be between 00:00:00.017 and 00:00:02 (was {InputCatchUp})";
+
+        // Written so NaN fails it too.
+        if (!(ClockDriftAllowancePercent >= 0 && ClockDriftAllowancePercent <= 5))
+        {
+            return "Game:Movement:ClockDriftAllowancePercent must be between 0 and 5 (was " +
+                   ClockDriftAllowancePercent.ToString(System.Globalization.CultureInfo.InvariantCulture) + ")";
+        }
 
         return null;
     }

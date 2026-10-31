@@ -265,6 +265,11 @@ public static class ScenarioMeasurement
     private static ScenarioReport Report(IScenario scenario, ScenarioWorld world, long bytesPerWindow,
         long[] tickBytes, long[] tickDurations, TimingPhase timing)
     {
+        // After every tick of the run, outside them all: a player whose inputs the movement budget refused (#1267) stood
+        // where it should have walked, which would measure cheaper (the flag is never cleared, so one read covers the
+        // whole run).
+        world.RequireNoInputOverBudget(scenario.Name);
+
         int players = scenario.Players;
         double bytesPerPlayerPerTick = players > 0 ? bytesPerWindow / (double)WindowTicks / players : 0;
 

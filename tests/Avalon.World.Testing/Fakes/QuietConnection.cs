@@ -12,7 +12,8 @@ namespace Avalon.World.Testing.Fakes;
 /// <summary>
 /// A connection that only counts what it is sent, and holds the character, dialogue and target a tick
 /// reads, with no packets of its own to process. Allocation-free, so the tick paths it serves can be
-/// pinned at zero bytes, unless <see cref="KeepLastPayload" /> is set. Everything else throws.
+/// pinned at zero bytes, unless <see cref="KeepLastPayload" /> is set. It also has an id and keeps the last input
+/// sequence, as the input handler reads them (#1267). Everything else throws.
 /// </summary>
 public sealed class QuietConnection(CharacterEntity character) : IWorldConnection
 {
@@ -46,7 +47,7 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
         packet.Release();
     }
 
-    public Guid Id => throw new NotSupportedException();
+    public Guid Id { get; } = Guid.NewGuid();
     public Task? ExecuteTask => throw new NotSupportedException();
     public string RemoteEndPoint => throw new NotSupportedException();
     public AccountId? AccountId { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
@@ -61,7 +62,7 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
     public long CurrentPacketArrivedTicks => throw new NotSupportedException();
     public bool InGame => throw new NotSupportedException();
     public bool InMap => throw new NotSupportedException();
-    public uint LastInputSeq { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+    public uint LastInputSeq { get; set; }
     public ulong? CurrentTargetGuid { get; set; }
     public AccountLocale Locale { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;

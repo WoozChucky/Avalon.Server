@@ -403,9 +403,9 @@ public partial class CharacterEntity : ICharacter
     /// <summary>
     /// The input steps server time has earned this character (#1267), spent by <c>PlayerInputHandler</c>: an input over
     /// it is answered standing. Made once with the character; World-side, never on ICharacter, and never saved. Tick
-    /// thread only.
+    /// thread only. Public to read for the scenario harness, which fails a run whose inputs were ever refused.
     /// </summary>
-    internal MovementBudget Movement { get; } = new();
+    public MovementBudget Movement { get; } = new();
 
     /// <summary>Slots and gold the client must be told about at the end of this tick.</summary>
     public InventoryClientChanges ClientChanges { get; } = new();
