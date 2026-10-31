@@ -141,19 +141,26 @@ public class SimulationShould
         Assert.Contains("yellowTolerancePct", issue.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>Each filter the files cannot satisfy: an unknown value, or a builds filter naming no build of the filtered classes.</summary>
     [Theory]
-    [InlineData("filter.levels")]
-    [InlineData("filter.gear")]
-    [InlineData("filter.scenarios")]
-    [InlineData("filter.classes")]
-    [InlineData("filter.builds")]
-    public void Report_an_unknown_filter_value_as_an_issue(string path)
+    [InlineData("levels", "filter.levels")]
+    [InlineData("gear", "filter.gear")]
+    [InlineData("scenarios", "filter.scenarios")]
+    [InlineData("classes", "filter.classes")]
+    [InlineData("builds", "filter.builds")]
+    [InlineData("builds-of-another-class", "filter.builds")]   // a known Cleric build under a Warrior filter: no row left
+    public void Report_an_unknown_filter_value_as_an_issue(string filter, string path)
     {
-        HashSet<CharacterClass> classes = path == "filter.classes" ? [(CharacterClass)250] : [CharacterClass.Warrior];
-        HashSet<string>? builds = path == "filter.builds" ? ["warrior-nope"] : null;
-        HashSet<ushort>? levels = path == "filter.levels" ? [999] : null;
-        HashSet<string>? gear = path == "filter.gear" ? ["nope"] : null;
-        HashSet<string> scenarios = path == "filter.scenarios" ? ["nope"] : ["normal-3"];
+        HashSet<CharacterClass> classes = filter == "classes" ? [(CharacterClass)250] : [CharacterClass.Warrior];
+        HashSet<string>? builds = filter switch
+        {
+            "builds" => ["warrior-nope"],
+            "builds-of-another-class" => ["cleric-steadfast"],
+            _ => null,
+        };
+        HashSet<ushort>? levels = filter == "levels" ? [999] : null;
+        HashSet<string>? gear = filter == "gear" ? ["nope"] : null;
+        HashSet<string> scenarios = filter == "scenarios" ? ["nope"] : ["normal-3"];
 
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(),
             Quick(new RunFilter(classes, builds, levels, gear, scenarios)), null, CancellationToken.None);

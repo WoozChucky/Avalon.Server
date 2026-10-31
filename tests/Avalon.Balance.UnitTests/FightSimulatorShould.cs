@@ -236,7 +236,8 @@ public class FightSimulatorShould
 
     /// <summary>
     /// B-R16, Review Focus 1: warrior-axes at level 1 holds four nodes and no Hurled Axe yet, so its first entry is passed
-    /// over, never counted as starved, and the first tick casts Heavy Strike.
+    /// over: never cast, never counted as starved, and never taken as the first ready entry. Ground Slam, given after it
+    /// with no mana to pay, is then the first ready entry, so the tick counts as starved; then Heavy Strike is cast.
     /// </summary>
     [Fact]
     public void Skip_an_entry_the_build_does_not_hold_yet_without_starving()
@@ -245,14 +246,15 @@ public class FightSimulatorShould
         Assert.Equal([202u, 319u], axes.Rotation.Select(e => e.AbilityId));
         SimCreature dummy = Dummy();
         Hold(dummy);
-        var warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [], axes.HeldAt(1, 3, Data));
+        SimPlayer warrior = SimPlayer.Create(Data, CharacterClass.Warrior, 1, [], axes.HeldAt(1, 3, Data)).Holding(Data, 201);
+        warrior.CurrentPower = 0;
         Assert.False(warrior.Holds(202));
-        FightSimulator fight = Fight(warrior, [.. axes.Rotation], dummy);
+        FightSimulator fight = Fight(warrior, [axes.Rotation[0], new CompiledRotationEntry(201, []), axes.Rotation[1]], dummy);
 
         fight.Tick();
 
         Assert.Equal(319u, Assert.Single(fight.Result().Casts).AbilityId);
-        Assert.Equal(0d, fight.Result().StarvedSeconds);
+        Assert.Equal(Tick, fight.Result().StarvedSeconds, precision: 9);
     }
 
     [Fact]
