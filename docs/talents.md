@@ -552,7 +552,8 @@ maximum life, Steady Hand's 20 % more damage and healing). `RebuildTotals` also 
 (`TalentCatalog.KeystoneAt`) as a flag on the totals ("Keystones", below); the fold reads one of them, `NoCrits`, last
 of all. The world folds at select and after every talent change; the saved
 `CharacterStats` row is what the world wrote after folding, so the REST character sheet reads it as it is
-([inventory and saves](inventory-and-saves.md)).
+([inventory and saves](inventory-and-saves.md)). The balance simulator folds a build's lines through the same
+`TalentTotals` and `CharacterStatsCalculator`, guarded by `SimulatorParityShould` ([balance](balance.md)).
 
 ## REST reads of a character
 
