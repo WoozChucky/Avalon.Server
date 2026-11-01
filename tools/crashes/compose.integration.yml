@@ -1,7 +1,7 @@
 # All state belongs to the generated Compose project. No published ports or external volumes.
 services:
   postgres:
-    image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+    image: postgres:18@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
     command: [postgres, -p, "5433"]
     env_file: ${CRASHES_RUN_DIR:?}/postgres.env
     volumes: [postgres:/var/lib/postgresql]
