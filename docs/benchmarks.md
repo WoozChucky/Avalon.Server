@@ -6424,6 +6424,57 @@ physical cores, .NET 10.0.13, X64 RyuJIT x86-64-v3. Every row allocated 0 B.
 The scenario allocation gate's new `town-doodads` scenario (see [what each scenario models](#what-each-scenario-models))
 reads 0 B per window: in Release before the fix and in Debug with it. The other scenarios are unchanged.
 
+Since #1269 (2026-10-31) `InterestVisibilityBenchmarks` uses 50/10, the new default radius of 50 m and the 10 m
+margin, `sparse` now has 8 creatures in view (creature i at (5i, 5i), 7.07i m away, so i = 0 to 7 within 50 m), and
+`margin` tracks every creature at 55 m. Every result above used 60/10, with `margin` at 65 m and `sparse` 9 in view.
+
+### Results — loot views (#1269, 2026-10-31)
+
+Ground loot follows each client's view (see [world simulation](world-simulation.md), Ground loot): each client's
+`LootView` is decided by the interest rule, on the view cadence, over the drops of the store's cells within reach
+(`GroundLootStore.Visit`). `LootViewBenchmarks` measures one decision alone (`MapInstance.DecideLootView`, bound by
+name), steady, so nothing enters or leaves, as on almost every broadcast tick: the instance's layout is
+`InterestVisibilityBenchmarks`' (30 m cells, 0 to 1,020 m) with the watcher at (495, 495). `near` lays the drops on a
+disc 45 m round it, all in view; `spread` scatters them over the layout, seeded, most in cells the decision never
+visits; 0 drops is the early return of an instance with nothing on the ground and a view holding none. The setup
+throws unless the view is steady after two decisions, and, for `near`, holds every drop.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*LootViewBenchmarks*" --warmupCount 5 --iterationCount 10 --affinity 4
+```
+
+**Run it out of process, as above.** In process (`--inProcess`) its rows were not reproducible: the first such run read
+940 ns for 20 drops in view, seven times the figure below, and every row of a main and branch pair of
+`InterestVisibilityBenchmarks` and `ForestTickBenchmarks` run in process the same day differed by three to six times on
+code neither side had touched, so those figures are not recorded. The run below is the perf review's, out of process,
+five warmups, ten iterations, `--affinity 4`: BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9711), 12th Gen Intel
+Core i9-12900K 3.20GHz, 24 logical and 16 physical cores, .NET 10.0.14, X64 RyuJIT x86-64-v3.
+
+| `LootViewBenchmarks.Decide` | Drops | Mean | Allocated |
+|---|---:|---:|---:|
+| near | 0 | 2.25 ns (± 0.06 ns) | 0 B |
+| spread | 0 | 1.84 ns (± 0.07 ns) | 0 B |
+| near | 20 | 126.0 ns (± 7.4 ns) | 0 B |
+| spread | 20 | 25.6 ns (± 0.4 ns) | 0 B |
+| near | 500 | 2,395 ns (± 54 ns) | 0 B |
+| spread | 500 | 55.9 ns (± 0.5 ns) | 0 B |
+
+- **A steady decision allocates nothing** in every row, and an instance with no drop returns in about 2 ns.
+- **A drop in view costs about 5 ns a decision**: 126 ns for 20 (6.3 ns each) and 2,395 ns for 500 (4.8 ns each).
+- **A drop out of reach costs next to nothing:** with 500 drops spread over the layout the decision visits the 25 cells around
+  the watcher, the few drops in them, and reads 56 ns.
+- The doodad rows of `InterestVisibilityBenchmarks` (`Doodads` 20) fail at setup, on main too: `AddDoodads` adds to an
+  instance `ScenarioWorld.AddInstance` has already published, which the index refuses (`DoodadIndex.Seal`); #1275.
+
+The scenario allocation gate (`ScenarioAllocationsShould`) fell in every forest scenario against the branch before
+this change (`c2d697160`), in Debug and in the first Release runs: `forest-combat` 7,675 to 7,585 B per window,
+`forest-awakening` 7,741 to 7,651 B, `forest-capstones` 10,242 to 10,162 B, `forest-resonance` 10,412 to 10,340 B; the
+town scenarios and `many-instances` stay at their figures. In Release `forest-capstones` varies by up to about 90 B
+between runs of the same build (10,146 to 10,239 B in later runs), scenario noise within the gate; Debug reads the same
+figures every run. An entrant's drops are described into the instance's kept messages
+(`LootMessages`) where the snapshot built a list and a message per drop, and a despawn encodes the instance's kept
+list of raw guids where it built one per call.
+
 ### Results — hit queries over a spatial grid (#982, 2026-10-15)
 
 Every hit query (`UnitHitQuery`: a circle, a cone, or a projectile's sweep of one tick, a segment) read every character and

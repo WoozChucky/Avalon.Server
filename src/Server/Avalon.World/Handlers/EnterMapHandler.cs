@@ -623,7 +623,7 @@ public partial class EnterMapHandler(
         // 9. Transfer the player. World.TransferPlayer owns instance membership only: it removes the character from
         // its current instance, sets its InstanceId and adds it to the target. It does not move the character: the
         // position is the row's, written in step 13. Steps 11 and 12 must go out in this same callback: the instance
-        // sends its loot snapshot on its next tick, and the client has to know the map before its drops.
+        // sends the drops in view on its next tick, and the client has to know the map before its drops.
         world.TransferPlayer(connection, targetInstance);
 
         // 10. The spawn: the entry spawn of the target instance's layout, which every MapInstance (town and normal)

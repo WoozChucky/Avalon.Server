@@ -158,7 +158,7 @@ public class GameConfiguration
     ///     too, since neither compares inside it.
     /// </summary>
     [Range(1.0, double.MaxValue)]
-    public float InterestRadius { get; set; } = 60f;
+    public float InterestRadius { get; set; } = 50f;
 
     /// <summary>
     ///     Metres added to <see cref="InterestRadius" /> before an object already in a client's view is

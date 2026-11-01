@@ -54,7 +54,13 @@ public class ObjectGuid
     /// <summary>
     ///     Gets the type of the object.
     /// </summary>
-    public ObjectType Type => (ObjectType)((RawValue & TypeMask) >> TypeShift);
+    public ObjectType Type => TypeOf(RawValue);
+
+    /// <summary>
+    ///     The type of the object a raw GUID names, read without building an <see cref="ObjectGuid" />.
+    /// </summary>
+    /// <param name="rawValue">The raw value of the GUID.</param>
+    public static ObjectType TypeOf(ulong rawValue) => (ObjectType)((rawValue & TypeMask) >> TypeShift);
 
     /// <summary>
     ///     Gets the ID of the object.

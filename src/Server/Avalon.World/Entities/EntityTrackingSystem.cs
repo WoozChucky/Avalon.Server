@@ -20,6 +20,9 @@ public class EntityTrackingSystem(int capacity)
     /// <summary>Whether <paramref name="guid" /> is in this system's set, as of its last update.</summary>
     public bool IsTracked(ObjectGuid guid) => _tracked.ContainsKey(guid.RawValue);
 
+    /// <summary>Whether the guid whose raw value is <paramref name="rawGuid" /> is in this system's set, as of its last update.</summary>
+    public bool IsTracked(ulong rawGuid) => _tracked.ContainsKey(rawGuid);
+
     /// <summary>
     /// Takes <paramref name="guid" /> out of the set without raising <see cref="EntityRemoved" />: for an entity known to
     /// have gone, whose removal the caller reports itself (#981). False when it was not in the set.

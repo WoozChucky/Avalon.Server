@@ -22,7 +22,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 /// <remarks>
 /// The changes are the ones the index can get wrong: moves within and across cells, positions on cell edges and in the
-/// 60 to 70 m margin of a client, teleports off the layout (in the clamped edge cells, a client and others together) and
+/// 50 to 60 m margin of a client, teleports off the layout (in the clamped edge cells, a client and others together) and
 /// back, positions that are not finite (the client's own character among them, which it always sees), writes through
 /// <see cref="IWorldObject.Position" />, characters leaving, coming back and entering a second instance without leaving
 /// this one, creatures despawning, spawning (placed before or after they join), joining again, and replaced by another
@@ -278,13 +278,13 @@ public class SpatialVisibilityShould
     {
         float distance = random.Next(7) switch
         {
-            0 => 60f,
-            1 => 70f,
-            2 => MathF.BitDecrement(60f),
-            3 => MathF.BitIncrement(60f),
-            4 => MathF.BitDecrement(70f),
-            5 => MathF.BitIncrement(70f),
-            _ => (float)(55 + random.NextDouble() * 20),
+            0 => 50f,
+            1 => 60f,
+            2 => MathF.BitDecrement(50f),
+            3 => MathF.BitIncrement(50f),
+            4 => MathF.BitDecrement(60f),
+            5 => MathF.BitIncrement(60f),
+            _ => (float)(45 + random.NextDouble() * 20),
         };
         double angle = random.Next(2) == 0 ? random.Next(4) * Math.PI / 2 : random.NextDouble() * 2 * Math.PI;
         return new Vector3(watcher.x + distance * (float)Math.Cos(angle), watcher.y,

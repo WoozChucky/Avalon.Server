@@ -51,6 +51,12 @@ public class MapInstanceLootShould
     private static List<SLootDespawnedPacket> Despawned(MapInstanceClient client) =>
         client.Read<SLootDespawnedPacket>(NetworkPacketType.SMSG_LOOT_DESPAWNED);
 
+    private static void Ticks(MapInstance instance, int count)
+    {
+        for (int i = 0; i < count; i++)
+            instance.Update(s_tick);
+    }
+
     /// <param name="itemRoller">
     /// Rolls the equipment drops (#1179); with one, the items and the modifier catalog are the seeded ones, which it rolls
     /// over. Without one, a real roller makes the drops of the loot tests' own items, none of which is a base, so none rolls.
@@ -88,8 +94,15 @@ public class MapInstanceLootShould
         navigator.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>())
             .Returns(ci => ci.ArgAt<float>(1));
 
-        var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
-        var layout = new ChunkLayout(Seed: 0, Chunks: [entryChunk], EntryChunk: entryChunk, BossChunk: null,
+        // 4 x 4 chunks of 30 m: the ground loot is filed in 16 cells (#1269), and a view reaches across them.
+        List<PlacedChunk> chunks = [];
+        for (short gx = 0; gx < 4; gx++)
+        {
+            for (short gz = 0; gz < 4; gz++)
+                chunks.Add(new PlacedChunk(new ChunkTemplateId(1), gx, gz, 0, new Vector3(gx * 30f, 0f, gz * 30f)));
+        }
+
+        var layout = new ChunkLayout(Seed: 0, Chunks: chunks, EntryChunk: chunks[0], BossChunk: null,
             Portals: [], EntrySpawnWorldPos: Vector3.zero, CellSize: 30f, Config: null);
 
         return new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(2),
@@ -282,22 +295,59 @@ public class MapInstanceLootShould
         Assert.Empty(Spawned(client));
     }
 
-    [Fact]
-    public async Task Tell_A_Character_Who_Enters_About_The_Drops_Already_There_On_The_Next_Tick()
+    /// <summary>
+    /// #1269: an arriving character is sent the drops in its view there, on the instance's next tick; when that send
+    /// throws, on the tick after.
+    /// </summary>
+    [Theory]
+    [InlineData(10f, false, false, true)]   // beside the drops
+    [InlineData(70f, false, false, false)]  // 60 m: none within 50 m
+    [InlineData(10f, true, false, true)]    // back after leaving: its client cleared them on the transition
+    [InlineData(10f, false, true, true)]    // its first send throws: the drops are sent again on the next tick
+    public async Task Tell_a_character_who_enters_of_the_drops_in_its_view_on_the_next_tick(float z, bool returns,
+        bool refused, bool told)
     {
         using MapInstance instance = await Build();
         MapInstanceClient first = Join(instance, 460_101);
-        instance.Update(s_tick);            // first's own snapshot: nothing on the ground yet, so nothing sent
+        instance.Update(s_tick);            // first's own entry: nothing on the ground yet, so nothing sent
         Kill(instance, 460_001);
 
         MapInstanceClient second = Join(instance, 460_102);
+        if (returns)
+        {
+            second.Character.Position = new Vector3(10f, 0f, 10f);
+            instance.Update(s_tick);
+            Assert.Equal(2, Assert.Single(Spawned(second)).Drops.Count);
+
+            // Out and straight back in, as a move into the instance it is in: the client cleared its drops on the way.
+            instance.RemoveCharacter(second.Connection);
+            second.Sent.Clear();
+            instance.AddCharacter(second.Connection);
+        }
+
+        second.Character.Position = new Vector3(10f, 0f, z);
         Assert.Empty(Spawned(second));   // not from AddCharacter: the map transition packets go first
+
+        if (refused)
+        {
+            bool refuseNext = true;
+            second.Connection.When(c => c.Send(Arg.Is<OutboundPacket>(p => p.Header.Type == NetworkPacketType.SMSG_LOOT_SPAWNED)))
+                .Do(call =>
+                {
+                    if (!refuseNext)
+                        return;
+                    refuseNext = false;
+                    second.Sent.Remove(call.Arg<OutboundPacket>());
+                    throw new InvalidOperationException("The connection refused the packet.");
+                });
+            Assert.Throws<InvalidOperationException>(() => instance.Update(s_tick));
+            Assert.Empty(Spawned(second));
+        }
 
         instance.Update(s_tick);
 
-        SLootSpawnedPacket snapshot = Assert.Single(Spawned(second));
-        Assert.Equal(2, snapshot.Drops.Count);
-        Assert.Single(Spawned(first));   // the kill broadcast only; first is owed no snapshot
+        Assert.Equal(told ? 2 : 0, Spawned(second).Sum(p => p.Drops.Count));
+        Assert.Single(Spawned(first));   // the kill's only; first is owed nothing on entry
     }
 
     [Fact]
@@ -317,30 +367,82 @@ public class MapInstanceLootShould
         Assert.Single(Spawned(stays));
     }
 
-    /// <summary>
-    /// #593 non-goal: loot is not filtered by the interest range. A character far beyond it still hears
-    /// a kill's drops, is sent the drops already there when it enters, and hears them leave.
-    /// </summary>
-    [Fact]
-    public async Task Still_Send_Far_Loot_To_Everyone_In_The_Instance()
+    /// <summary>#1269: a kill's drops, and their pickup, reach only the clients whose view holds them.</summary>
+    [Theory]
+    [InlineData(10f, 10f, true)]          // at the corpse
+    [InlineData(10f, 57f, true)]          // 47 m: the ring's drops 46-48 m away
+    [InlineData(10f, 63f, false)]         // 53 m: in the margin, never held
+    [InlineData(float.NaN, 10f, false)]   // not finite: sees nothing
+    public async Task Send_a_kills_drops_and_their_pickup_only_to_clients_that_have_them_in_view(float x, float z, bool hears)
     {
         using MapInstance instance = await Build();
-        MapInstanceClient far = Join(instance, 460_121);
-        far.Character.Position = new Vector3(500f, 0f, 500f);
+        MapInstanceClient watcher = Join(instance, 460_121);
+        watcher.Character.Position = new Vector3(x, 0f, z);
         instance.Update(s_tick);
 
         Kill(instance, 460_001);
-        MapInstanceClient farLate = Join(instance, 460_122);
-        farLate.Character.Position = new Vector3(-500f, 0f, 0f);
-        instance.Update(s_tick);
-        ObjectGuid[] guids = instance.Drops.All.Select(d => d.Guid).ToArray();
+        Ticks(instance, 6);
+        ObjectGuid[] guids = [.. instance.Drops.All.Select(d => d.Guid)];
         instance.BroadcastLootDespawned(guids);
 
-        foreach (MapInstanceClient client in new[] { far, farLate })
+        Assert.Equal(hears ? 1 : 0, Spawned(watcher).Count);
+        Assert.All(Spawned(watcher), p => Assert.Equal(2, p.Drops.Count));
+        Assert.Equal(hears ? guids.Select(g => g.RawValue) : [], Despawned(watcher).SelectMany(p => p.LootGuids));
+    }
+
+    /// <summary>
+    /// #1269: told as drops come into its view (50 m) and leave it (beyond 60 m), not in between; a pickup reaches a client
+    /// holding them in the margin. The broadcast that would tell it the drops left throws before their despawn goes out:
+    /// the client is started over, and the start-over's despawn names them.
+    /// </summary>
+    [Fact]
+    public async Task Tell_a_client_of_drops_as_they_come_into_its_view_and_leave_it()
+    {
+        using MapInstance instance = await Build();
+        MapInstanceClient walker = Join(instance, 460_131);
+        walker.Character.Position = new Vector3(10f, 0f, 90f);
+        instance.Update(s_tick);
+        Kill(instance, 460_001);
+        ulong[] guids = [.. instance.Drops.All.Select(d => d.Guid.RawValue).Order()];
+
+        // The walker's next world-state packet throws once armed, ahead of its loot packets in the same broadcast.
+        bool refuseNext = false;
+        walker.Connection.When(c => c.Send(Arg.Is<OutboundPacket>(p => p.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_UPDATE
+                                                                       || p.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_REMOVE)))
+            .Do(call =>
+            {
+                if (!refuseNext)
+                    return;
+                refuseNext = false;
+                walker.Sent.Remove(call.Arg<OutboundPacket>());
+                throw new InvalidOperationException("The connection refused the packet.");
+            });
+
+        // The drops lie within a metre of (10, 10): each step is the walker's distance from them, give or take one.
+        foreach ((float z, int spawned, int despawned) in new[] { (90f, 0, 0), (55f, 1, 0), (65f, 1, 0), (75f, 1, 1), (55f, 2, 1), (65f, 2, 1) })
         {
-            Assert.Equal(2, Assert.Single(Spawned(client)).Drops.Count);
-            Assert.Equal(guids.Select(g => g.RawValue), Assert.Single(Despawned(client)).LootGuids);
+            walker.Character.Position = new Vector3(10f, 0f, z);
+            refuseNext = z == 75f;   // the step out of view: the despawn comes from the start-over
+            Ticks(instance, 6);
+            Assert.False(refuseNext, "the broadcast did not throw");
+            Assert.Equal((z, spawned, despawned), (z, Spawned(walker).Count, Despawned(walker).Count));
         }
+
+        Assert.All(Spawned(walker), p => Assert.Equal(guids, p.Drops.Select(d => d.LootGuid).Order()));
+        Assert.Equal(guids, Despawned(walker)[0].LootGuids.Order());
+
+        // Picked up, as the pickup takes them off the ground, while the walker holds them from the margin: it is told, and
+        // they never come into its view again.
+        ObjectGuid[] picked = [.. instance.Drops.All.Select(d => d.Guid)];
+        Assert.All(picked, guid => Assert.True(instance.Drops.Remove(guid)));
+        instance.BroadcastLootDespawned(picked);
+        walker.Character.Position = new Vector3(10f, 0f, 10f);
+        Ticks(instance, 6);
+
+        List<SLootDespawnedPacket> despawns = Despawned(walker);
+        Assert.Equal(2, despawns.Count);
+        Assert.Equal(guids, despawns[1].LootGuids.Order());
+        Assert.Equal(2, Spawned(walker).Count);
     }
 
     [Fact]

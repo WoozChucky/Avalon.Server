@@ -127,10 +127,12 @@ loses the Encrypted flag, so the client opens nothing. The outbox frames the pac
 `[varint length][NetworkPacket{1: header, 2: payload}]`, written by hand, byte for byte what protobuf-net writes for a
 `NetworkPacket`, then releases the segment to its pool: no `byte[]` per packet.
 
-A broadcast whose bytes are the same for every recipient (a hit, a cast, a death, a heal, loot spawned or despawned,
-instance and party chat, a party member's status, a maintenance warning) is encoded once, for the first recipient that
+A broadcast whose bytes are the same for every recipient (a hit, a cast, a death, a heal, a kill's loot spawned or a
+pickup's despawned for the clients that hold all of it, instance and party chat, a party member's status, a maintenance
+warning) is encoded once, for the first recipient that
 hears it, and each recipient takes a reference of its own (`OutboundPacket.Share`); the broadcaster releases its own
-after the loop (#875). Each send thread copies the payload into its own connection's burst, sealing it there when its
+after the loop (#875). The loot packets of a client's view decision (drops coming into its view or leaving it, #1269),
+and those of a kill or a pickup for a client that holds only some of the drops, are encoded for that client alone. Each send thread copies the payload into its own connection's burst, sealing it there when its
 connection seals, and releases its reference as it frames it, or at once when its connection refuses the packet; the
 segment is never sealed in place, and it returns to its pool after the last reference. An aura update
 (`SMSG_AURA_UPDATE`) is shared the same way inside the per-recipient state pass: its bytes depend only on its unit, so

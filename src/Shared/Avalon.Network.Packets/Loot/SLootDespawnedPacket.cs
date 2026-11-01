@@ -5,7 +5,10 @@ using ProtoBuf;
 
 namespace Avalon.Network.Packets.Loot;
 
-/// <summary>Drops that left the ground because someone picked them up. Sent to everyone in the instance.</summary>
+/// <summary>
+/// Drops the client is to let go of (#1269): picked up, sent to every client holding one of them, or out of the client's
+/// view. It may name a drop the client no longer holds, which the client ignores; by itself it is no pickup.
+/// </summary>
 [ProtoContract]
 public class SLootDespawnedPacket : Packet
 {
@@ -24,6 +27,17 @@ public class SLootDespawnedPacket : Packet
             ids.Add(lootGuids[i].RawValue);
         SLootDespawnedPacket message = PacketEncoder.Scratch<SLootDespawnedPacket>();
         message.LootGuids = ids;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
+
+    /// <summary>
+    /// The raw guids as they are, encoded from the caller's list (#1269): a list the instance keeps and refills, so a
+    /// despawn allocates no list of its own. Encoded before this returns, so the caller may refill the list after.
+    /// </summary>
+    public static OutboundPacket Create(List<ulong> lootGuids, PacketEncoder encoder)
+    {
+        SLootDespawnedPacket message = PacketEncoder.Scratch<SLootDespawnedPacket>();
+        message.LootGuids = lootGuids;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }

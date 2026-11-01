@@ -88,7 +88,7 @@ followed by a fresh list when it holds any.
 
 `SMSG_AURA_UPDATE` carries one unit's aura changes of one tick, **in the order they happened**, at most one packet per
 unit per tick. It goes to the unit itself (when it is a character) and to every client that has the unit in view
-(interest, `Game:InterestRadius`, 60 m by default, as for the unit's own world state), in the same tick's broadcast.
+(interest, `Game:InterestRadius`, 50 m by default, as for the unit's own world state), in the same tick's broadcast.
 Each entry is the copy as it stood when that change happened, so one packet can hold several entries for one key (a
 copy applied and removed in the same tick, say): apply them in order.
 

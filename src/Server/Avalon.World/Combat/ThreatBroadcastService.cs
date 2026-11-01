@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Serialization;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -19,15 +20,24 @@ namespace Avalon.World.Combat;
 /// always sends the first packet for a new (connection, target) pair regardless of
 /// throttling so the client never starts with stale UI.
 ///
+/// A list is mirrored only while its target is in the viewer's view, as of the last decision of
+/// that view (<see cref="CharacterCharacterGameState.Knows(ulong)"/>, #1269): a target that has left
+/// it keeps the client's selection but gets no list until it is back, when the first is sent as for
+/// a new pair.
+///
 /// State is keyed by <see cref="IWorldConnection"/>. Entries are dropped as soon as the
-/// player loses their target, the target leaves combat, or the target is no longer present
-/// on the instance — preventing leaks on disconnect-via-no-target paths.
+/// player loses their target, the target leaves combat or the viewer's view, or the target is no
+/// longer present on the instance — preventing leaks on disconnect-via-no-target paths.
 /// </summary>
 public sealed class ThreatBroadcastService
 {
     private readonly CombatConfig _config;
     private readonly TimeProvider _time;
     private readonly Dictionary<IWorldConnection, BroadcastState> _state = new();
+
+    // The key a selected creature is looked up by, rewritten for each lookup: ObjectGuid is a class, and one built per
+    // connection per tick was an allocation every tick for a target that gets no list. Tick thread only, never stored.
+    private readonly ObjectGuid _creatureKey = new();
 
     /// <param name="time">The instance's clock, the one the rest of the world times by (#614).</param>
     public ThreatBroadcastService(CombatConfig config, TimeProvider? time = null)
@@ -67,7 +77,7 @@ public sealed class ThreatBroadcastService
     private void TickConnection(IWorldConnection conn, IReadOnlyDictionary<ObjectGuid, ICreature> creatures,
         ICombatService combatService, DateTime now)
     {
-        if (conn.Character is null || conn.Character.IsDead)
+        if (conn.Character is not CharacterEntity { IsDead: false } viewer)
         {
             _state.Remove(conn);
             return;
@@ -79,17 +89,25 @@ public sealed class ThreatBroadcastService
             return;
         }
 
-        // ObjectGuid is a class: reuse the guid of the target this connection was last sent about
-        // while it is still the one selected, so a steady tick allocates no key.
-        ObjectGuid targetGuid = _state.TryGetValue(conn, out BroadcastState last)
-                                && last.Target.Guid.RawValue == rawTargetGuid
-            ? last.Target.Guid
-            : new ObjectGuid(rawTargetGuid);
-
         // Threat lists are only meaningful for hostile creatures. Player-on-player threat
         // is out of scope for V1 and creatures are the only ObjectType that can be a hostile.
-        if (targetGuid.Type != ObjectType.Creature ||
-            !creatures.TryGetValue(targetGuid, out ICreature? creature))
+        // Asked of the raw guid, as the view is below: no ObjectGuid is built for a target (#1269).
+        if (ObjectGuid.TypeOf(rawTargetGuid) != ObjectType.Creature)
+        {
+            _state.Remove(conn);
+            return;
+        }
+
+        // Only a target the client holds (#1269).
+        if (!viewer.CharacterGameState.Knows(rawTargetGuid))
+        {
+            _state.Remove(conn);
+            return;
+        }
+
+        // The view holds this guid, so it is a creature's, whose id fits the key; the check keeps any other out.
+        _creatureKey.Set(ObjectType.Creature, (uint)rawTargetGuid);
+        if (_creatureKey.RawValue != rawTargetGuid || !creatures.TryGetValue(_creatureKey, out ICreature? creature))
         {
             _state.Remove(conn);
             return;
@@ -140,7 +158,7 @@ public sealed class ThreatBroadcastService
             };
         }
 
-        conn.Send(SThreatListPacket.Create(targetGuid, entries, PacketEncoder.Shared));
+        conn.Send(SThreatListPacket.Create(creature.Guid, entries, PacketEncoder.Shared));
         _state[conn] = new BroadcastState(creature, now, topPercent);
     }
 

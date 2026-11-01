@@ -96,7 +96,7 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
 
 - **A fourth tracked kind.** Each view has a doodad tracker (`CharacterCharacterGameState._doodadTrackingSystem`) beside the character, creature and world-object ones. Its candidates come from the instance's `DoodadIndex` within `Interest.Reach`, not from the spatial grid.
   - `MapInstance.DecideView` hands each view a `DoodadViewInputs`. An instance without doodads hands the default and reads nothing.
-  - A doodad is listed by the creatures' interest rule: 60 m, kept to 70 m once held.
+  - A doodad is listed by the creatures' interest rule: 50 m, kept to 60 m once held.
   - A despawned doodad is in no view.
 - **Rules.** `DoodadVisibility.AsksRules` is true when a doodad has a visibility gate, a script that decides who sees it, or a usability gate. Only such a doodad has its rules asked. One without rules is seen by everyone in range, and usable while its state allows it (`DoodadVisibility.Usable`: a Click doodad, not despawned, and Ready or Unlimited).
 - **The four gate conditions** (`DoodadGates.Allows`, over the viewer's `QuestLog`):
@@ -220,7 +220,7 @@ The stock scripts are in `Avalon.World/Doodads/Scripts/`, and `StockDoodadScript
   - **Who is eligible:** the user and every member of the user's party in this instance, by `CharacterEntity.PartyId`, dead or alive.
   - **A leave countdown leaves nobody eligible.** When the user is in one, nobody is eligible, as for a killer in one, so the drops are free for all at once.
   - Each drop is allocated by the instance's `ILootAllocator` (`PartyLootAllocator`, with the `LootGracePeriod`).
-  - The drops are placed on the ring around the doodad, stored, and told to every connection here in one shared `SLootSpawnedPacket`, using the instance's `KillBuffers`.
+  - The drops are placed on the ring around the doodad, stored, and told, using the instance's `KillBuffers`, to the clients that have them in view (#1269): one `SLootSpawnedPacket` shared by every client that sees them all, its own to one that sees some of them; a client farther away is told of them as they come into its view.
   - The drop is contained: a failure is logged, and what was stored before it stays.
 - **`ShrineDoodadScript`** is a gamble:
   - **The roll happens at use.** It draws one of the template's `AuraOutcomes` by weight, with `NextRandom(OutcomeWeightTotal)` taking the first outcome whose running weight passes the roll.

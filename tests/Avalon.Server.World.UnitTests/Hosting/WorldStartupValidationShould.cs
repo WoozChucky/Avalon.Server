@@ -136,7 +136,7 @@ public class WorldStartupValidationShould
         });
 
         Assert.Equal(42f, renamed.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRadius);
-        Assert.Equal(60f, old.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRadius);
+        Assert.Equal(50f, old.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRadius);
     }
 
     [Theory]

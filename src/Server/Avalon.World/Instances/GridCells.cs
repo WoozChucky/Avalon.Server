@@ -32,6 +32,9 @@ internal readonly struct GridCells
         Rows = rows;
     }
 
+    /// <summary>One cell holding everything: the cells of a store built with no layout.</summary>
+    public static GridCells One { get; } = new(0f, 0f, 1f, 1, 1);
+
     /// <summary>How many cells there are.</summary>
     public int Count => Columns * Rows;
 
@@ -40,7 +43,7 @@ internal readonly struct GridCells
     {
         float cellSize = layout.CellSize;
         if (layout.Chunks.Count == 0 || !float.IsFinite(cellSize) || cellSize <= 0f)
-            return new GridCells(0f, 0f, 1f, 1, 1);
+            return One;
 
         float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
         foreach (PlacedChunk chunk in layout.Chunks)
@@ -52,7 +55,7 @@ internal readonly struct GridCells
         }
 
         if (!float.IsFinite(minX) || !float.IsFinite(minZ) || !float.IsFinite(maxX) || !float.IsFinite(maxZ))
-            return new GridCells(0f, 0f, 1f, 1, 1);
+            return One;
 
         double width = (double)maxX - minX + cellSize;
         double depth = (double)maxZ - minZ + cellSize;

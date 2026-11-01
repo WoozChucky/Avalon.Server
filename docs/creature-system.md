@@ -437,7 +437,9 @@ of a party's instance for one eligible member drawn at random (through `ICombatR
 cases for `GameConfiguration.LootGracePeriod` (default 30 s). In an instance with neither owner,
 such as a town, and for a party kill with nobody eligible, every drop is free for all at once. Each equipment drop
 rolls its copy when it drops, at the creature's level and by its rarity's odds (#1179, [item modifiers](item-modifiers.md#drops)).
-The drops are placed around the corpse, kept in the instance's `GroundLootStore`, and broadcast with `SLootSpawnedPacket`.
+The drops are placed around the corpse, kept in the instance's `GroundLootStore`, and sent with `SLootSpawnedPacket` to
+the clients that have them in view (#1269), the killer included only when it is within `Game:InterestRadius` of them;
+a client farther away is told of them as they come into its view ([world simulation](world-simulation.md)).
 A loot failure is logged, and the kill still counts.
 
 [World simulation](world-simulation.md) describes loot tables and pickup (ground loot, #460).

@@ -150,7 +150,7 @@ Otherwise, in this order:
 
 ```
 0. resume paused auras; rescale creature health when the party size changed;
-   send owed loot snapshots and PvP states to characters that just arrived
+   send the drops in view and PvP states to characters that just arrived
 1. _corpseRemover.Update(deltaTime); expired item-use summons leave; due doodad respawns (a min-heap peeked once)
 2. foreach character → its in-map packets (MapSessionFilter) + character.Update(deltaTime)
    then the vendor pass, once a shop has been opened here
@@ -475,7 +475,7 @@ Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST
 12. Send SChunkLayoutPacket for the new instance (seed, cell size, chunks, entry spawn, portals,
        obstacle boxes, scenery ring and its piece names)
        when the target is a MapInstance, in the same continuation as 9 and 11: the instance
-       sends its loot snapshot on its next tick, and the client has to know the map first
+       sends the drops in its view on its next tick, and the client has to know the map first
     11 and 12 are MapArrival.Send, the one place every arrival's packets are sent from (below)
 13. Save the character (ICharacterSaver.Save: the row's map, instance and the spawn of step 10
        as its position, with any dirty inventory and gold)

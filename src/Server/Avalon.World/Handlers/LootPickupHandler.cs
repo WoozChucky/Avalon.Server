@@ -14,7 +14,7 @@ namespace Avalon.World.Handlers;
 
 /// <summary>
 /// Picks up one drop (issue #460). Runs on the tick, in the map pass, like every in-map handler.
-/// The picker hears the result; everyone in the instance hears the despawn; the picker's inventory
+/// The picker hears the result; the clients that hold the drop hear the despawn (#1269); the picker's inventory
 /// update leaves at the end of the tick through InventoryUpdateFlusher.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_LOOT_PICKUP)]

@@ -9,14 +9,15 @@ using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
-using NSubstitute;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// #593: world-state replication through a real MapInstance is filtered per connection by the
-/// interest range, 60 m to enter a client's view and 60 + 10 m to leave it, on X/Z. Character ids
+/// interest range, 50 m to enter a client's view and 50 + 10 m to leave it, on X/Z. Character ids
 /// (593_1xx) and creature ids (593_9xx) are unique to this class.
 /// </summary>
 public class InterestReplicationShould
@@ -31,7 +32,7 @@ public class InterestReplicationShould
         Creature creature = AddCreature(instance, 593_931, new Vector3(30f, 0f, 0f));
         Ticks(instance, 2);
 
-        foreach (float distance in new[] { 61f, 69f, 62f, 70f, 61f })
+        foreach (float distance in new[] { 51f, 59f, 52f, 60f, 51f })
         {
             watcher.Character.Position = new Vector3(30f - distance, 0f, 0f);
             Ticks(instance, 1);
@@ -47,10 +48,10 @@ public class InterestReplicationShould
     {
         using MapInstance instance = TestMapInstances.Build(NewWorld());
         MapInstanceClient watcher = JoinAt(instance, 593_141, Vector3.zero);
-        Creature creature = AddCreature(instance, 593_941, new Vector3(50f, 0f, 0f));
+        Creature creature = AddCreature(instance, 593_941, new Vector3(40f, 0f, 0f));
         Ticks(instance, 2);
 
-        watcher.Character.Position = new Vector3(-30f, 0f, 0f);   // 80 m away: removed on the broadcast, tick 7 (#981)
+        watcher.Character.Position = new Vector3(-30f, 0f, 0f);   // 70 m away: removed on the broadcast, tick 7 (#981)
         Ticks(instance, 5);
         Assert.Equal([creature.Guid.RawValue], watcher.Removed());
         creature.CurrentHealth = 37;
@@ -63,7 +64,7 @@ public class InterestReplicationShould
         Assert.Equal(2, adds.Count);
         Assert.Equal(37u, adds[1].CurrentHealth);
         Assert.Equal(100u, adds[1].Health);
-        Assert.Equal(50f, adds[1].Position!.X);
+        Assert.Equal(40f, adds[1].Position!.X);
     }
 
     [Fact]
@@ -134,7 +135,7 @@ public class InterestReplicationShould
         farther.Sent.Clear();
 
         CastProjectile(handler, caster, towards: new Vector3(0f, 0f, 90f), reach: 90f);
-        Ticks(instance, 20);   // 20 m/s for a third of a second: still beyond 60 m of the watcher
+        Ticks(instance, 20);   // 20 m/s for a third of a second: still beyond 50 m of the watcher
         Assert.DoesNotContain(watcher.Added(), s => IsProjectile(s.Guid));
         Ticks(instance, 400);   // well past the 4.5 s flight
 
@@ -146,31 +147,73 @@ public class InterestReplicationShould
         Assert.Equal("update", seen[^2]);
         ObjectState added = Assert.Single(watcher.Added(), s => IsProjectile(s.Guid));
         Assert.NotNull(added.Position);
-        Assert.InRange(added.Position!.Z, 40f, 42.5f);   // mid-flight, listed on the first broadcast within 60 m (#981)
+        Assert.InRange(added.Position!.Z, 50f, 52.5f);   // mid-flight, listed on the first broadcast within 50 m (#981)
         Assert.NotNull(added.Velocity);
         ObjectState final = watcher.StateUpdates().Last(s => IsProjectile(s.Guid));
         Assert.Equal(0f, final.Velocity!.Z);
         Assert.Empty(Sequence(farther));
     }
 
-    [Fact]
-    public void Still_send_the_threat_list_for_a_target_out_of_view()
+    /// <summary>#1269: a target is stored only when the client holds it; anything else clears the earlier one.</summary>
+    [Theory]
+    [InlineData("near", true)]
+    [InlineData("far", false)]       // 100 m: never added
+    [InlineData("self", true)]
+    [InlineData("unknown", false)]   // no unit has the guid
+    [InlineData("none", false)]      // null clears, as before
+    public void Accept_a_target_only_when_its_client_holds_it(string target, bool kept)
     {
         using MapInstance instance = TestMapInstances.Build(NewWorld());
-        MapInstanceClient watcher = JoinAt(instance, 593_191, Vector3.zero);
+        MapInstanceClient watcher = JoinAt(instance, 593_195, Vector3.zero);
+        Creature near = AddCreature(instance, 593_995, new Vector3(10f, 0f, 0f));
+        Creature far = AddCreature(instance, 593_996, new Vector3(0f, 0f, 100f));
+        Creature first = AddCreature(instance, 593_992, new Vector3(-10f, 0f, 0f));   // in view, and no row's guid
+        Ticks(instance, 2);
+        var handler = new TargetUnitHandler(NullLogger<TargetUnitHandler>.Instance);
+        handler.Execute(watcher.Connection, new CTargetUnitPacket { TargetGuid = first.Guid.RawValue });
+        Assert.Equal(first.Guid.RawValue, watcher.Connection.CurrentTargetGuid);
+
+        ulong? asked = target switch
+        {
+            "near" => near.Guid.RawValue,
+            "far" => far.Guid.RawValue,
+            "self" => watcher.Character.Guid.RawValue,
+            "unknown" => new ObjectGuid(ObjectType.Creature, 593_997).RawValue,
+            _ => null,
+        };
+        handler.Execute(watcher.Connection, new CTargetUnitPacket { TargetGuid = asked });
+
+        Assert.Equal(kept ? asked : null, watcher.Connection.CurrentTargetGuid);
+    }
+
+    /// <summary>#1269: the mirror stops while its target is out of view, though the throttle has passed, and resumes.</summary>
+    [Fact]
+    public void Mirror_the_threat_list_only_while_its_target_is_in_view()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero));
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), time: clock);
+        MapInstanceClient watcher = JoinAt(instance, 593_196, Vector3.zero);
         Creature creature = AddCreature(instance, 593_991, new Vector3(1f, 0f, 0f));
         creature.Script = new MapInstanceAbilityCastShould.WoundScript(creature);
         instance.CombatService.ApplyDamage(watcher.Character, creature, 10);
         Ticks(instance, 2);
-        Assert.Contains(watcher.Added(), s => s.Guid == creature.Guid.RawValue);
+
+        watcher.Connection.CurrentTargetGuid = creature.Guid.RawValue;
+        Ticks(instance, 1);
+        Assert.NotEmpty(watcher.Read<SThreatListPacket>(NetworkPacketType.SMSG_THREAT_LIST));
+
         watcher.Character.Position = new Vector3(500f, 0f, 0f);
-        Ticks(instance, 5);   // removed on the broadcast, tick 7 (#981)
+        Ticks(instance, 6);   // removed on the broadcast (#981)
         Assert.Contains(creature.Guid.RawValue, watcher.Removed());
 
-        // Targeted only now, from out of view: the first threat list for a new target is always sent.
-        watcher.Connection.CurrentTargetGuid.Returns(creature.Guid.RawValue);
+        watcher.Sent.Clear();
+        clock.Advance(TimeSpan.FromMilliseconds(300));   // past the 250 ms throttle
         Ticks(instance, 1);
+        Assert.Empty(watcher.Read<SThreatListPacket>(NetworkPacketType.SMSG_THREAT_LIST));
+        Assert.Equal(creature.Guid.RawValue, watcher.Connection.CurrentTargetGuid);   // the client's choice stands
 
+        watcher.Character.Position = Vector3.zero;
+        Ticks(instance, 6);   // back in view on the next broadcast
         Assert.NotEmpty(watcher.Read<SThreatListPacket>(NetworkPacketType.SMSG_THREAT_LIST));
     }
 
