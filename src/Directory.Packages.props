@@ -4,15 +4,15 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="SharpZipLib" Version="1.4.2" />
-    <PackageVersion Include="AngleSharp" Version="1.9.0" />
+    <PackageVersion Include="AngleSharp" Version="1.10.4" />
     <PackageVersion Include="AspNet.Security.OpenId.Steam" Version="10.0.0" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.318" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.341" />
     <PackageVersion Include="LinqKit" Version="1.4.1" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.18.7" />
-    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.8" />
-    <PackageVersion Include="StackExchange.Redis" Version="3.4.29" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.21.0" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.1.1" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.4.35" />
     <PackageVersion Include="Stripe.net" Version="53.1.0" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="WebPush" Version="1.0.13" />
