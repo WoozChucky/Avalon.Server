@@ -46,6 +46,11 @@ jobs:
       - name: Test
         # A hung test fails after 5 minutes and names itself (blame Sequence file in TestResults), not hours later.
         timeout-minutes: 20
+        env:
+          # SDK 10.0.404/11.0.100 and later keep each run's test-session files under /run/user/<uid>, which the k3s
+          # runner containers lack: without this every project warns "VSTEST_ARTIFACTS_DIRECTORY environment variable
+          # was not found", and the blame collector's attachments are not post-processed. The SDK images set it too.
+          VSTEST_ARTIFACTS_BASE_DIRECTORY: ${{ runner.temp }}
         run: dotnet test -c Release --no-build --logger trx --results-directory TestResults --blame-hang-timeout 5m --blame-hang-dump-type none
       - name: Test channel versions
         run: bash tools/release/test.sh
