@@ -20,7 +20,7 @@ public static class ApiStartup
     /// </summary>
     public static async Task ValidateAndMigrateAsync(IServiceProvider services, ILogger logger)
     {
-        services.GetRequiredService<IStartupValidator>().Validate();
+        await services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
         // Builds WorldDatabases, which parses Database:Worlds and refuses it naming the setting,
         // before any database call; the world check below reuses that instance. A process that
         // reads no world database has none.

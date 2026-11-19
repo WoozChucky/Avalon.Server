@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
-using System.Net.Http.Json;
 using Avalon.Api.Identity.Services;
 using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;

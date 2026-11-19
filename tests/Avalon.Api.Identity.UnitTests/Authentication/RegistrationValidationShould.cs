@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Identity.Services;
 using Avalon.Api.Testing;

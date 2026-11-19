@@ -60,12 +60,12 @@ public class ApiStartupValidationShould
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" ")]
-    public void Refuse_to_start_without_a_cache_host(string? host)
+    public async Task Refuse_to_start_without_a_cache_host(string? host)
     {
         using ServiceProvider provider = Build(host);
 
-        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
-            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None));
 
         Assert.Contains("'CacheConfiguration' members: 'Host'", refused.Message, StringComparison.Ordinal);
     }
@@ -89,12 +89,12 @@ public class ApiStartupValidationShould
     /// options validation (#523).
     /// </summary>
     [Fact]
-    public void Pass_the_options_checks_without_a_world()
+    public async Task Pass_the_options_checks_without_a_world()
     {
         using ServiceProvider provider = Build("localhost:6379",
             ("Database:Worlds:1:World:ConnectionString", null), ("Database:Worlds:1:Characters:ConnectionString", null));
 
-        provider.GetRequiredService<IStartupValidator>().Validate();
+        await provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
     }
 
     /// <summary>#561: a request limit below one would refuse every request.</summary>
@@ -114,13 +114,13 @@ public class ApiStartupValidationShould
     }
 
     [Fact]
-    public void Pass_startup_validation_with_request_limits_of_one()
+    public async Task Pass_startup_validation_with_request_limits_of_one()
     {
         using ServiceProvider provider = Build("localhost:6379",
             ("Application:RateLimiting:AnonymousPermitsPerMinute", "1"),
             ("Application:RateLimiting:AuthenticatedPermitsPerMinute", "1"));
 
-        provider.GetRequiredService<IStartupValidator>().Validate();
+        await provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
     }
 
     /// <summary>
@@ -147,7 +147,7 @@ public class ApiStartupValidationShould
     [InlineData("10.0.0.05/32", "\"10.0.0.05/32\"")]
     [InlineData("10.1.0.5/16", "\"10.1.0.5/16\"")]
     [InlineData("::ffff:0.0.0.0/80", "\"::ffff:0.0.0.0/80\"")]
-    public void Validate_the_exempt_sources_at_startup(string entries, string? refusalNaming)
+    public async Task Validate_the_exempt_sources_at_startup(string entries, string? refusalNaming)
     {
         using ServiceProvider provider = Build("localhost:6379", entries.Split('|')
             .Select((entry, i) => ($"Application:RateLimiting:ExemptSources:{i}", (string?)entry))
@@ -155,12 +155,12 @@ public class ApiStartupValidationShould
 
         if (refusalNaming is null)
         {
-            provider.GetRequiredService<IStartupValidator>().Validate();
+            await provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
             return;
         }
 
-        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
-            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None));
         Assert.Contains(refusalNaming, refused.Message, StringComparison.Ordinal);
     }
 
@@ -180,28 +180,28 @@ public class ApiStartupValidationShould
     [InlineData("-1.0.0", false)]
     [InlineData("256.0.0", false)]
     [InlineData("0.0.65536", false)]
-    public void Validate_the_minimum_client_version_at_startup(string? value, bool accepted)
+    public async Task Validate_the_minimum_client_version_at_startup(string? value, bool accepted)
     {
         using ServiceProvider provider = Build("localhost:6379", ("Application:GameWorkloads:MinClientVersion", value));
 
         if (accepted)
         {
-            provider.GetRequiredService<IStartupValidator>().Validate();
+            await provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
             return;
         }
 
-        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
-            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None));
         Assert.Contains("Application:GameWorkloads:MinClientVersion must be", refused.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Refuse_to_start_with_a_load_test_account_cap_below_one()
+    public async Task Refuse_to_start_with_a_load_test_account_cap_below_one()
     {
         using ServiceProvider provider = Build("localhost:6379", ("Application:LoadTest:MaxAccounts", "0"));
 
-        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
-            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None));
         Assert.Contains("Application:LoadTest:MaxAccounts must be at least 1", refused.Message, StringComparison.Ordinal);
     }
 
@@ -209,33 +209,33 @@ public class ApiStartupValidationShould
     [Theory]
     [InlineData("00:00:00")]
     [InlineData("-00:00:05")]
-    public void Refuse_to_start_with_a_non_positive_template_reload_timeout(string timeout)
+    public async Task Refuse_to_start_with_a_non_positive_template_reload_timeout(string timeout)
     {
         using ServiceProvider provider = Build("localhost:6379", ("Application:Templates:ReloadTimeout", timeout));
 
-        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
-            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None));
 
         Assert.Contains("Application:Templates:ReloadTimeout must be a positive time span", refused.Message,
             StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Refuse_to_start_without_a_template_reload_timeout()
+    public async Task Refuse_to_start_without_a_template_reload_timeout()
     {
         using ServiceProvider provider = Build("localhost:6379", ("Application:Templates:ReloadTimeout", null));
 
-        Assert.Throws<OptionsValidationException>(
-            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        await Assert.ThrowsAsync<OptionsValidationException>(
+            () => provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None));
     }
 
     [Fact]
-    public void Refuse_to_start_without_the_auth_database()
+    public async Task Refuse_to_start_without_the_auth_database()
     {
         using ServiceProvider provider = Build("localhost:6379", ("Database:Auth:ConnectionString", null));
 
-        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
-            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None));
 
         Assert.Contains("Database:Auth:ConnectionString is required.", refused.Message, StringComparison.Ordinal);
     }

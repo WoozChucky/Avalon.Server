@@ -159,7 +159,7 @@ public static class ChunkCatalogSeeder
         HashSet<string> chunkNames, CancellationToken ct)
     {
         string path = Path.Combine(mapsRoot, "chunk-pools.json");
-        if (!File.Exists(path)) return [];
+        if (!File.Exists(path)) return new(StringComparer.Ordinal);
 
         Dictionary<string, PoolMemberDto[]> pools = await ReadAsync<Dictionary<string, PoolMemberDto[]>>(path, ct);
         foreach ((string pool, PoolMemberDto[] members) in pools)

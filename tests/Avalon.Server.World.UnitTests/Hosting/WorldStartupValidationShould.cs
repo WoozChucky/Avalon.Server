@@ -27,7 +27,7 @@ public class WorldStartupValidationShould
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal));
 
-        host.Services.GetRequiredService<IStartupValidator>().Validate();
+        await host.Services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
     }
 
     [Theory]
@@ -116,7 +116,7 @@ public class WorldStartupValidationShould
             ["Game:InterestRemoveMargin"] = "0",
         });
 
-        host.Services.GetRequiredService<IStartupValidator>().Validate();
+        await host.Services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
 
         GameConfiguration configuration = host.Services.GetRequiredService<IOptions<GameConfiguration>>().Value;
         Assert.Equal(0f, configuration.InterestRemoveMargin);

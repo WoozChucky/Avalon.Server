@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.World.GameAuth;
