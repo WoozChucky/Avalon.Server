@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="11.0.0"/>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15"/>
     <PackageReference Include="NSubstitute" Version="6.2.0"/>
     <PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17">
       <PrivateAssets>all</PrivateAssets>
