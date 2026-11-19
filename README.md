@@ -103,7 +103,7 @@ Serilog for structured logging; OpenTelemetry instrumentation covers HTTP, EF Co
 
 ## Running Locally
 
-Prerequisites: .NET 10 SDK, Docker, and a clone with its submodule (`git clone --recurse-submodules`). The whole
+Prerequisites: .NET 11 SDK, Docker, and a clone with its submodule (`git clone --recurse-submodules`). The whole
 path, from a fresh clone to the game client in a world, with what each step sets up and what to do when one fails, is
 in [Development setup: from clone to client in world](docs/development-setup.md#from-clone-to-client-in-world). In
 short:

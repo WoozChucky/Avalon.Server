@@ -190,7 +190,7 @@ adds no lock and no allocation. Exhaustion is written by the one thread sealing,
 check once the counter is spent.
 
 `AesGcm` has no fallback. `ServerBase` refuses to construct, so the world server refuses to
-start, when `AesGcm.IsSupported` is false (on Linux it needs OpenSSL, which the `aspnet:10.0`
+start, when `AesGcm.IsSupported` is false (on Linux it needs OpenSSL, which the `aspnet:11.0`
 images carry), rather than failing at the first handshake. The check is in the host because
 `Avalon.Common` targets netstandard2.1, which has no `IsSupported`.
 
