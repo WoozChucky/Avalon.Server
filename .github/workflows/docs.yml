@@ -56,7 +56,10 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          global-json-file: global.json
+          # Not global-json-file: global.json rolls forward to the latest major, which setup-dotnet
+          # reads as the LTS channel, so an STS SDK such as 11 was never installed. Renovate moves
+          # this line with the other workflows'.
+          dotnet-version: 11.0.x
 
       - name: Generate the OpenAPI document
         env:
