@@ -55,7 +55,7 @@ Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_on
   --startup-project src/Server/Avalon.Api --context WorldDbContext
 ```
 
-Target framework: .NET 10 (`global.json`). The long notes — the local run (the world's three local TLS certificates, the Development-only license of the seeded `ADMIN`, the client's `netconfig.local.json`), every EF design-time rule, seed-migration ordering, ChunkGen details, publish commands, and setting the REST API's signing keys (#801: identity's ES256 private key `Application:Authentication:SigningKey` with its `SigningKeyId`, which no other service may hold; the public keys every service checks tokens with, `ValidationKeys`; the game-auth host key `Application:GameAuth:HostKey`; never committed: user-secrets, or the AppHost's own, locally, a Kubernetes Secret in Helm) — are in [docs/development-setup.md](docs/development-setup.md).
+Target framework: .NET 11 (`global.json`). The long notes — the local run (the world's three local TLS certificates, the Development-only license of the seeded `ADMIN`, the client's `netconfig.local.json`), every EF design-time rule, seed-migration ordering, ChunkGen details, publish commands, and setting the REST API's signing keys (#801: identity's ES256 private key `Application:Authentication:SigningKey` with its `SigningKeyId`, which no other service may hold; the public keys every service checks tokens with, `ValidationKeys`; the game-auth host key `Application:GameAuth:HostKey`; never committed: user-secrets, or the AppHost's own, locally, a Kubernetes Secret in Helm) — are in [docs/development-setup.md](docs/development-setup.md).
 
 ## Architecture
 

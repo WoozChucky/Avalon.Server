@@ -17,7 +17,7 @@ Before starting: check that the worlds sharing the node are quiet (see [load tes
 1. **Attach a debug container.** It stays until the pod restarts, so give each one a new name.
 
    ```sh
-   kubectl -n avalon debug avalon-world-loadtest-0 --image=mcr.microsoft.com/dotnet/sdk:10.0 \
+   kubectl -n avalon debug avalon-world-loadtest-0 --image=mcr.microsoft.com/dotnet/sdk:11.0 \
      --target=avalon-world --container=trace1 --profile=general -- sleep 3600
    ```
 
@@ -79,7 +79,7 @@ Runtime keyword `0x1` (GC) at level 4 adds each collection's start and end and t
 Kernel sampling needs `perf_event_open`, and the homelab node has `perf_event_paranoid = 4`, which refuses it to any process without `CAP_PERFMON` or `CAP_SYS_ADMIN`: a `general` debug container cannot sample. The `sysadmin` profile grants those, which makes the container **root on the node**. Use it only with the owner's go-ahead, given in that session, for that capture; give it a short `sleep` so it ends by itself.
 
 ```sh
-kubectl -n avalon debug avalon-world-loadtest-0 --image=mcr.microsoft.com/dotnet/sdk:10.0 \
+kubectl -n avalon debug avalon-world-loadtest-0 --image=mcr.microsoft.com/dotnet/sdk:11.0 \
   --target=avalon-world --container=ktrace1 --profile=sysadmin -- sleep 2700
 ```
 

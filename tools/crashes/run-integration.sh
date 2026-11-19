@@ -82,14 +82,14 @@ p=pathlib.Path(sys.argv[1]); password=secrets.token_hex(32)
 (p/'tls').mkdir()
 (p/'collector.yaml').write_text('receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 0.0.0.0:4317\nexporters:\n  file:\n    path: /capture/export.json\n    flush_interval: 100ms\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      exporters: [file]\n    logs:\n      receivers: [otlp]\n      exporters: [file]\n    metrics:\n      receivers: [otlp]\n      exporters: [file]\n')
 PY
-# This exact SDK's test runner targets the same .NET10.0.13 runtime as the pinned product image.
-sdk=mcr.microsoft.com/dotnet/sdk:10.0@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa
+# This exact SDK's test runner targets the same .NET 11.0.0 runtime as the pinned product image.
+sdk=mcr.microsoft.com/dotnet/sdk:11.0@sha256:65f3c7c6a25a239ab3e6719f2896147e7b68242ff2d8818dd70498bde6ef8bea
 docker run --rm --network none -v "$CRASHES_RUN_DIR/tls:/tls" --entrypoint sh "$sdk" -c 'openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout /tls/server.key -out /tls/server.crt -subj /CN=garage-tls -addext subjectAltName=DNS:garage-tls >/dev/null 2>&1; chmod 755 /tls; chmod 644 /tls/server.crt' || fail "TLS certificate generation failed"
-dotnet publish "$root/tests/Avalon.Crashes.IntegrationTests/Avalon.Crashes.IntegrationTests.csproj" -c Release -r linux-x64 --self-contained false -p:UseAppHost=false -p:RuntimeFrameworkVersion=10.0.13 -o "$run/tests" >"$run/build.log" 2>&1 || { cat "$run/build.log"; fail "integration test publish failed"; }
+dotnet publish "$root/tests/Avalon.Crashes.IntegrationTests/Avalon.Crashes.IntegrationTests.csproj" -c Release -r linux-x64 --self-contained false -p:UseAppHost=false -p:RuntimeFrameworkVersion=11.0.0 -o "$run/tests" >"$run/build.log" 2>&1 || { cat "$run/build.log"; fail "integration test publish failed"; }
 chmod -R a+rX "$run/tests"
 docker volume create --label "avalon.crashes.integration=$id" "$runner" >/dev/null
 docker volume create --label "avalon.crashes.integration=$id" "$results" >/dev/null
-docker run --rm --network none -v "$runner:/runner" -v "$results:/results" --entrypoint sh "$sdk" -c 'cp -a /usr/share/dotnet/sdk/10.0.402/. /runner/; chown 1654:1654 /results; chmod 700 /results'
+docker run --rm --network none -v "$runner:/runner" -v "$results:/results" --entrypoint sh "$sdk" -c 'cp -a /usr/share/dotnet/sdk/11.0.100/. /runner/; chown 1654:1654 /results; chmod 700 /results'
 network=none
 if [[ $suite != native ]]; then
   compose_started=true

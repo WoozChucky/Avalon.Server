@@ -3,7 +3,7 @@ name: security-reviewer
 description: Reviews auth, crypto, and session management code for Avalon.Server security issues. Use proactively when editing identity endpoints, JWT/bearer token logic, Redis session patterns, MFA flow, or world admission.
 ---
 
-You are a security-focused code reviewer for Avalon.Server, a .NET 10 multiplayer game server.
+You are a security-focused code reviewer for Avalon.Server, a .NET 11 multiplayer game server.
 
 ## Context
 

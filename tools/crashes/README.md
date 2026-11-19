@@ -194,9 +194,9 @@ bash tools/crashes/run-integration.sh --suite all
 ```
 
 Requires Bash, Docker Compose v2/local Linux-amd64 daemon, Python3.12+ (`python`),
-and .NET10 SDK. `CRASHES_IMAGE` selects an already-built product image. Windows
-uses Git Bash, not WSL. The SDK runner image is digest-pinned to10.0.402 and tests
-are published for runtime10.0.13 to agree with the product image. Tool versions
+and .NET 11 SDK. `CRASHES_IMAGE` selects an already-built product image. Windows
+uses Git Bash, not WSL. The SDK runner image is digest-pinned to 11.0.100 and tests
+are published for runtime 11.0.0 to agree with the product image. Tool versions
 and native binaries still come exclusively from the canonical worker native lock.
 
 Every invocation generates a UUID Compose project, volumes and scratch directory.

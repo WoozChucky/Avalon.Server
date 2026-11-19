@@ -128,7 +128,7 @@ Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_on
 # ModelDriftShould (Avalon.Database.UnitTests) fails when HasData changed without a migration.
 ```
 
-Target framework: **.NET 10**. Docker compose credentials default to password `123`.
+Target framework: **.NET 11**. Docker compose credentials default to password `123`.
 
 **PR titles follow Conventional Commits and every PR has a player note** (`.github/workflows/pr-check.yml`, which runs `WoozChucky/avalon-release-notes/pr-check`): the title is `type(scope)!: summary (#123)`, with type one of `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `perf`, `build`, `style`, `revert`; the scope optional, lowercase `[a-z0-9-]+`, commas between several (`(api,world)`); `!` optional, for a breaking change; the summary starting with any character but a space and not ending with a period; an optional trailing ` (#123)` or ` (#123, #456)`. Example: `fix(security): keep secrets out of Redis key names and exception messages (#535)`. The description needs a line `Player note: <one sentence>` written like a patch note: third person, starting with what changed, never "I" or "we" (the check refuses first-person notes), e.g. `Player note: Fixed an issue where heals could raise health above the maximum.`; for internal work, `Player note: No gameplay changes: faster builds.` A note can link an item or ability with `[item:14]` or `[ability:210]` (optionally `[item:14@3]`); the release fills in its name and the changelog shows its tooltip. It is shown on the public changelog, and `gh pr create --body` skips the PR template, so write the line into the body yourself. The rules live in the `avalon-release-notes` repository.
 
@@ -238,7 +238,7 @@ The one path from a fresh clone to a character in the world on this machine. Not
 
 `ADMIN` (password `123`, access level Player, GameMaster and Admin) is the one account that can enter world 1, the Development world, which only an Admin may enter. Any other account needs both that access level and a license.
 
-**Once per machine.** The .NET 10 SDK, Docker, a clone with its submodule (`git clone --recurse-submodules`), and the development certificate, trusted:
+**Once per machine.** The .NET 11 SDK, Docker, a clone with its submodule (`git clone --recurse-submodules`), and the development certificate, trusted:
 
 ```bash
 dotnet dev-certs https --trust

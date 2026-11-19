@@ -17,7 +17,7 @@ Thank you for your interest in contributing. This document covers how to set up 
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [.NET 11 SDK](https://dotnet.microsoft.com/download)
 - [Docker](https://www.docker.com/) (for infrastructure services)
 - A PostgreSQL client (optional, for direct DB inspection)
 
@@ -166,7 +166,7 @@ starts, each world's World and Characters databases' when its world server start
 
 ## Coding Conventions
 
-- **Framework:** .NET 10 / C#. Follow the coding standard in `docs/coding-standard.md`, which every build enforces.
+- **Framework:** .NET 11 / C#. Follow the coding standard in `docs/coding-standard.md`, which every build enforces.
 - **Value objects:** Wrap primitive IDs in `ValueObject<T>` (see `src/Shared/Avalon.Common`). Do not pass raw `int`/`long` IDs across layer boundaries.
 - **No raw strings for Redis keys:** all key patterns live in `CacheKeys` in `src/Server/Avalon.Infrastructure`.
 - **Public abstractions:** if a type is consumed by more than one project, it belongs in a `*.Public` or `*.Abstractions` project, not in the implementation project.
