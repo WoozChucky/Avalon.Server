@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Serilog.Extensions.Logging" />
     <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\Avalon.Hosting\Avalon.Hosting.csproj"/>
   </ItemGroup>
