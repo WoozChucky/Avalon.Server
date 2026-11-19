@@ -24,7 +24,7 @@ public static class WorldStartup
     /// </summary>
     public static async Task PrepareAsync(IHost host)
     {
-        host.Services.GetRequiredService<IStartupValidator>().Validate();
+        await host.Services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
 
         // The packet reader is built here, and with it the decoder of every packet this server reads (#897): a
         // contract that cannot be decoded stops the start, and no decoder is built on a connection's read loop. Left

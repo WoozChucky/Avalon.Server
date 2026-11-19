@@ -11,13 +11,13 @@ public sealed class CrashOperatorCommands(ICrashMaintenanceStore store, CrashRet
         if (args is ["cleanup"])
         {
             long removed = await retention.SweepAsync(ct);
-            await output.WriteLineAsync($"Deleted {removed.ToString(CultureInfo.InvariantCulture)} expired reports.");
+            await output.WriteLineAsync($"Deleted {removed.ToString(CultureInfo.InvariantCulture)} expired reports.", ct);
             return 0;
         }
         if (args is ["retry", "--report-id", string value] && Guid.TryParse(value, out Guid id))
         {
             RetryResult result = await store.RetryFailedAsync(new CrashReportId(id), time.GetUtcNow(), ct);
-            await output.WriteLineAsync(result == RetryResult.Retried ? "Retried." : "Not eligible.");
+            await output.WriteLineAsync(result == RetryResult.Retried ? "Retried." : "Not eligible.", ct);
             return result == RetryResult.Retried ? 0 : 1;
         }
         if (args.Length > 0 && args[0] == "list-failures")
@@ -36,10 +36,10 @@ public sealed class CrashOperatorCommands(ICrashMaintenanceStore store, CrashRet
             if (page < 1 || size is < 1 or > 100 || (long)(page - 1) * size > int.MaxValue)
                 return 2;
             FailurePage result = await store.ListFailuresAsync(page, size, ct);
-            await output.WriteLineAsync(JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+            await output.WriteLineAsync(JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }), ct);
             return 0;
         }
-        await output.WriteLineAsync("Invalid command.");
+        await output.WriteLineAsync("Invalid command.", ct);
         return 2;
     }
 }

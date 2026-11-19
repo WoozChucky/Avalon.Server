@@ -9,8 +9,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets"/>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
   </ItemGroup>
 

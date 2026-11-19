@@ -40,7 +40,7 @@ public static partial class ExportComposer
         if (TitleIssue(title) is { } titleIssue)
             issues.Add(titleIssue);
 
-        Dictionary<string, JsonElement> given = request.Overrides ?? [];
+        Dictionary<string, JsonElement> given = request.Overrides ?? new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         OverrideReport report = ApplyOverrides(host, given, issues);
 
         BalanceConfig config = host.Defaults;

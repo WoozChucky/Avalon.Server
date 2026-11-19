@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Testing;
