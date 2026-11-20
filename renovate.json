@@ -3,6 +3,10 @@
   "extends": [
     "config:recommended"
   ],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "platformAutomerge": false,
+  "automergeStrategy": "squash",
   "ignorePaths": [
     "**/node_modules/**",
     "vendor/**"
@@ -37,6 +41,11 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "Non-major updates merge themselves once every check on the PR passes. Renovate merges them itself rather than through GitHub's auto-merge, whose branch protection only requires the PR check.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true
+    },
     {
       "description": "A .NET major moves the runtime images, TargetFramework, the SDK and the packages on the .NET release train in one PR. Packages that ship later (the Npgsql EF provider usually lags) join the same PR; until then its CI fails, which is the signal it is not ready.",
       "matchUpdateTypes": [
