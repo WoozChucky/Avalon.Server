@@ -26,7 +26,7 @@ Account recovery, bans/deactivation, role changes and consolidation remain enfor
 
 Store authentication, Steam sign-in, account links and game admission are the REST API's identity service (`Avalon.Api.Identity`, [API services](api-services.md)). The publisher key, the store settings and the workload certificates below go only to a process, or a chart release, that runs identity; commerce reads only `Application:StoreAuthentication:Environment` and `SteamIdentityPrefix`, and no other service reads the section. In production identity runs in the `avalon-api` release (#802).
 
-Supply `Application:StoreAuthentication:SteamPublisherKey` through the backend's private secret provider (`Application__StoreAuthentication__SteamPublisherKey` for environment injection). Do not put its plaintext in appsettings, source control, chat, client packages or CI logs. Homelab stores only a SOPS-encrypted Secret using its existing age recipient. Set `Application:StoreAuthentication:SteamAppId` explicitly and keep it consistent with the game/depot identity and environment/product settings. The API chart requires `storeAuthentication.steamAppId` in a release that runs identity; homelab owns its actual value. The supplied publisher key is configured in the encrypted homelab Secret; controlled Steam accounts and actual publisher authorization still require live provider verification.
+Supply `Application:StoreAuthentication:SteamPublisherKey` through the backend's private secret provider (`Application__StoreAuthentication__SteamPublisherKey` for environment injection). Do not put its plaintext in appsettings, source control, chat, client packages or CI logs. Homelab keeps it only in OpenBao (`k8s/avalon/avalon-store-authentication`), from which an ExternalSecret makes the Kubernetes Secret; see homelab `docs/secrets.md`. Set `Application:StoreAuthentication:SteamAppId` explicitly and keep it consistent with the game/depot identity and environment/product settings. The API chart requires `storeAuthentication.steamAppId` in a release that runs identity; homelab owns its actual value. The supplied publisher key is configured in that OpenBao entry; controlled Steam accounts and actual publisher authorization still require live provider verification.
 
 Configure the workload client certificate, world TLS private key and API certificate bindings described in [game server admission configuration](steam-authentication-workloads.md). Required certificate secrets are mounted read-only. Client `netconfig.json` supplies the trusted HTTPS API and website locations; a local override is excluded from packages. Steam depots use `--channel steam`, contain the Steam runtime DLL and exclude `steam_appid.txt`. Avalon packages use `--channel avalon` and omit the Steam DLL; the runtime delay-loads it only on the Steam route.
 
@@ -108,10 +108,10 @@ values. Shared wire values and client/server versions were checked for agreement
 All four API/world charts rendered from the actual homelab HelmRelease values. Negative render checks
 refused missing publisher Secret references or workload assignments. Existing homelab release versions were
 retained. The authorized follow-up configured the supplied publisher key and seven independent private
-certificates/PFX passwords plus matching DER-leaf pins in six SOPS-encrypted homelab Secrets. Each
-encrypted file passed MAC and exact value verification after decryption in memory; SAN, EKU, validity,
-RSA key independence and matching pins were checked without logging plaintext. No machine trust roots,
-certificate stores, Windows users or live workloads were changed.
+certificates/PFX passwords plus matching DER-leaf pins in six homelab Secrets, whose values now live in
+OpenBao under `k8s/avalon/` (homelab `docs/secrets.md`). Each value passed exact verification; SAN, EKU,
+validity, RSA key independence and matching pins were checked without logging plaintext. No machine
+trust roots, certificate stores, Windows users or live workloads were changed.
 
 World-to-internal-API trust now requires an exact API leaf SHA-256 pin. TLS verifies the API hostname,
 validity, server-auth EKU and digital-signature usage; only chain errors for the pinned leaf are accepted.
