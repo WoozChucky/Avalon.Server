@@ -138,7 +138,8 @@ The world chart requires `server.transport.existingSecret`, `server.admission.ap
 `server.admission.apiCertificateKey` (default `api-tls-sha256`). The latter Secret/key supplies the API
 leaf pin; no optional reference or unpinned fallback is available. The transport Secret holds `world-tls.pfx` and `workload.pfx`; optional
 `world-tls-password` and `workload-password` keys provide their passwords. PFX files mount read-only
-under `/run/avalon-auth`. These are deployment credentials; only SOPS-encrypted copies belong in source control.
+under `/run/avalon-auth`. These are deployment credentials and never belong in source control; homelab keeps
+them in OpenBao at `k8s/avalon/avalon-world-<world>-transport`, the `.pfx` values base64-encoded.
 
 Updated clients use CGameAdmissionPacket/SGameAdmissionPacket (0x201E/0x301E) inside TLS, then the
 version handshake, sealed only on a world with `Network:PacketEncryption` on (a world with it off exchanges no key,
@@ -214,7 +215,9 @@ Missing required references/assignments refuse chart rendering.
 The sibling homelab repository prepares these settings for worlds 1, 2 and 3, plus the production
 Steam OpenID callback and website origin, on `feature/steam-authentication`. Its existing release
 versions remain pinned pending coordinated staging. See homelab `docs/avalon.md` for Secret keys,
-certificate DNS/trust requirements, rotation and cutover instructions. The authorized follow-up
-created SOPS-encrypted publisher-key, seven independent private leaves, PFX passwords and all
-matching leaf pins using homelab's existing age recipient. No machine trust roots or live workloads
-were changed. Real provider and coordinated staging checks remain required.
+certificate DNS/trust requirements, rotation and cutover instructions, and homelab `docs/secrets.md`
+for changing a value. The authorized follow-up created the publisher key, seven independent private
+leaves, PFX passwords and all matching leaf pins; their values now live in OpenBao under
+`k8s/avalon/<secret-name>`, from which ExternalSecrets make the Kubernetes Secrets (for example
+`avalon-store-authentication` and `avalon-game-workload-bindings`). No machine trust roots or live
+workloads were changed. Real provider and coordinated staging checks remain required.
