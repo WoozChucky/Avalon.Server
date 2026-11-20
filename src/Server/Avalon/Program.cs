@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
+using Aspire.Hosting.Dotnet;
 using Avalon.LocalDevelopment;
-using Projects;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
 
@@ -26,8 +26,9 @@ IResourceBuilder<ParameterResource> balanceSecret = builder.AddParameter(
     secret: true,
     persist: true);
 
-IResourceBuilder<ProjectResource> balanceService = builder
-    .AddProject<Avalon_Balance_Service>("balance")
+// The servers by path, relative to this project's directory: Aspire builds and starts each one.
+IResourceBuilder<DotnetProjectResource> balanceService = builder
+    .AddDotnetProject("balance", "../Avalon.Balance.Service/Avalon.Balance.Service.csproj")
     .WithEnvironment("Balance__SharedSecret", balanceSecret);
 
 // The local Development world (#523): the id the api's world databases below are keyed by, and the one world
@@ -62,8 +63,8 @@ const int ApiHttpsPort = 7166;
 const string ApiHttpUrl = "http://localhost:5210";
 const string ApiHttpsUrl = "https://localhost:7166";
 
-IResourceBuilder<ProjectResource> apiProject = builder
-    .AddProject<Avalon_Api>("api")
+IResourceBuilder<DotnetProjectResource> apiProject = builder
+    .AddDotnetProject("api", "../Avalon.Api/Avalon.Api.csproj")
     .WithEndpoint("http", endpoint => endpoint.IsProxied = false)
     .WithHttpsEndpoint(port: ApiHttpsPort, name: "https", isProxied: false)
     .WithEndpoint(port: LocalCertificates.GameInternalPort, scheme: "https", name: "game-internal", isProxied: false)
@@ -103,7 +104,7 @@ IResourceBuilder<ProjectResource> apiProject = builder
 // too. It creates its own World and Characters databases; the api found them missing at its start on a fresh
 // Postgres and picks them up by itself once they exist (WorldDatabaseRecheck), with no restart.
 builder
-    .AddProject<Avalon_Server_World>("world")
+    .AddDotnetProject("world", "../Avalon.Server.World/Avalon.Server.World.csproj")
     .WithEndpoint(21001, 21001, "tcp", "tcp", isProxied: false, isExternal: true)
     .WithEnvironment("Hosting__Security__CertificatePath", certificates.WorldTls.Path)
     .WithEnvironment("Hosting__Security__CertificatePassword", certificates.WorldTls.Password)
