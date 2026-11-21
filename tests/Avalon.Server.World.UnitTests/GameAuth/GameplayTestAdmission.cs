@@ -10,17 +10,34 @@ namespace Avalon.Server.World.UnitTests.GameAuth;
 
 internal static class GameplayTestAdmission
 {
-    public static WorldTlsTransport TlsTransport()
+    private static readonly Lazy<WorldTlsTransport> s_transport = new(BuildTransport);
+
+    /// <summary>
+    /// The one transport the whole test process shares (a context persists its CA in the Windows CA store, so each build
+    /// costs the machine something). Its holders live until the process exits, where they are disposed.
+    /// </summary>
+    public static WorldTlsTransport TlsTransport() => s_transport.Value;
+
+    private static WorldTlsTransport BuildTransport()
     {
-        using X509Certificate2 ca = TestCertificates.CreateCa("avalon-ca");
+        using X509Certificate2 ca = TestCertificates.CreateCa(TestCertificates.UniqueName("avalon-ca"));
         using X509Certificate2 leaf = TestCertificates.CreateLeaf(ca, "localhost", serverAuth: true);
         string directory = Directory.CreateTempSubdirectory("world-tls").FullName;
-        (string certPath, string keyPath) = TestCertificates.WritePem(leaf, directory, "tls");
-        string caPath = Path.Combine(directory, "ca.crt");
-        File.WriteAllText(caPath, ca.ExportCertificatePem());
-        // Never polled: the files are read once and the test host is short-lived.
-        return new(ReloadingCertificate.Load(certPath, keyPath, NullLogger.Instance, TimeProvider.System, Timeout.InfiniteTimeSpan),
-            ReloadingCertificate.Load(caPath, null, NullLogger.Instance, TimeProvider.System, Timeout.InfiniteTimeSpan));
+        try
+        {
+            (string certPath, string keyPath) = TestCertificates.WritePem(leaf, directory, "tls");
+            string caPath = Path.Combine(directory, "ca.crt");
+            File.WriteAllText(caPath, ca.ExportCertificatePem());
+            // Never polled: the files are read once, here, and deleted below.
+            var leafHolder = ReloadingCertificate.Load(certPath, keyPath, NullLogger.Instance, TimeProvider.System, Timeout.InfiniteTimeSpan);
+            var caHolder = ReloadingCertificate.Load(caPath, null, NullLogger.Instance, TimeProvider.System, Timeout.InfiniteTimeSpan);
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => { leafHolder.Dispose(); caHolder.Dispose(); };
+            return new(leafHolder, caHolder);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
     public static GameSessionLease Admit(Avalon.World.WorldConnection connection, AccountId? account = null, TimeProvider? clock = null)
     {

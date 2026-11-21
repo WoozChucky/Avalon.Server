@@ -318,7 +318,7 @@ public class WorldHostGraphShould
         string certificates = Directory.CreateTempSubdirectory("avalon-workload-").FullName;
         try
         {
-            using X509Certificate2 ca = TestCertificates.CreateCa("avalon-ca");
+            using X509Certificate2 ca = TestCertificates.CreateCa(TestCertificates.UniqueName("avalon-ca"));
             using X509Certificate2 workload = TestCertificates.CreateLeaf(ca, "world-one", serverAuth: false);
             (string workloadCert, string workloadKey) = TestCertificates.WritePem(workload, certificates, "workload");
             string caPath = Path.Combine(certificates, "ca.crt");

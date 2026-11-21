@@ -9,6 +9,13 @@ public static class TestCertificates
     private const string ServerAuthEku = "1.3.6.1.5.5.7.3.1";
     private const string ClientAuthEku = "1.3.6.1.5.5.7.3.2";
 
+    /// <summary>
+    /// A CA name no earlier run has used. <c>SslStreamCertificateContext.Create</c> on Windows persists the CA it is given
+    /// into the CurrentUser\CA store, and the next chain build for a CA of the same subject then fails with "unknown chain
+    /// building error" while stale same-named CAs sit there. Anything that builds a context takes its CA's name from here.
+    /// </summary>
+    public static string UniqueName(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
+
     public static X509Certificate2 CreateCa(string name)
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);

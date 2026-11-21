@@ -15,7 +15,7 @@ public sealed class WorldTlsTransportShould
     private sealed class Pki : IDisposable
     {
         private readonly string _directory = Directory.CreateTempSubdirectory("world-tls").FullName;
-        public X509Certificate2 Ca { get; } = TestCertificates.CreateCa("avalon-ca");
+        public X509Certificate2 Ca { get; } = TestCertificates.CreateCa(TestCertificates.UniqueName("avalon-ca"));
         public ReloadingCertificate LeafHolder { get; }
         public ReloadingCertificate CaHolder { get; }
         public WorldTlsTransport Transport { get; }
