@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
@@ -21,6 +20,7 @@ using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
+using Avalon.World.Testing;
 using Avalon.World.Trading;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Configuration;
@@ -314,25 +314,26 @@ public class WorldHostGraphShould
     public async Task Build_every_packet_handler_from_the_production_container()
     {
         string workingDirectory = Directory.GetCurrentDirectory();
-        // The admission handler's client loads its workload certificate when it is built, as a deployment mounts it.
-        string workloadCertificate = Path.Combine(Path.GetTempPath(), $"avalon-workload-{Guid.NewGuid():N}.pfx");
+        // The admission handler's client loads its workload leaf and the CA when it is built, as a deployment mounts them.
+        string certificates = Directory.CreateTempSubdirectory("avalon-workload-").FullName;
         try
         {
-            using (var key = RSA.Create(2048))
-            {
-                var request = new CertificateRequest("CN=world-one", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-                using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1),
-                    DateTimeOffset.UtcNow.AddMinutes(10));
-                await File.WriteAllBytesAsync(workloadCertificate, certificate.Export(X509ContentType.Pfx));
-            }
+            using X509Certificate2 ca = TestCertificates.CreateCa("avalon-ca");
+            using X509Certificate2 workload = TestCertificates.CreateLeaf(ca, "world-one", serverAuth: false);
+            (string workloadCert, string workloadKey) = TestCertificates.WritePem(workload, certificates, "workload");
+            string caPath = Path.Combine(certificates, "ca.crt");
+            await File.WriteAllTextAsync(caPath, ca.ExportCertificatePem());
 
             HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["World:Admission:ApiUrl"] = "https://internal.avalon.example/",
                 ["World:Admission:ServerId"] = "world-one",
-                ["World:Admission:ClientCertificatePath"] = workloadCertificate,
-                ["World:Admission:ApiCertificateSha256"] = new string('A', 64)
+                ["World:Admission:ClientCertificatePath"] = workloadCert,
+                ["World:Admission:ClientKeyPath"] = workloadKey,
+                ["Hosting:Security:CertificatePath"] = workloadCert,
+                ["Hosting:Security:KeyPath"] = workloadKey,
+                ["Hosting:Security:CaCertificatePath"] = caPath
             });
             builder.Services
                 .AddWorldServices()
@@ -386,7 +387,7 @@ public class WorldHostGraphShould
         finally
         {
             Directory.SetCurrentDirectory(workingDirectory);
-            File.Delete(workloadCertificate);
+            Directory.Delete(certificates, true);
         }
     }
 

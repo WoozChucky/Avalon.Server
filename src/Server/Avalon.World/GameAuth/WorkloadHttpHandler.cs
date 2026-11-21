@@ -1,39 +1,47 @@
+using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Infrastructure.GameAuth;
 
 namespace Avalon.World.GameAuth;
 
 public sealed class WorkloadHttpHandler : DelegatingHandler
 {
-    private readonly X509Certificate2 _certificate;
     private readonly TimeProvider _clock;
     private long _apiNotBefore;
     private long _apiNotAfter;
 
-    public WorkloadHttpHandler(X509Certificate2 certificate, string apiCertificateSha256, TimeProvider clock)
+    public WorkloadHttpHandler(ReloadingCertificate clientLeaf, ApiCertificateTrust trust, TimeProvider clock)
     {
-        var trust = new ApiCertificateTrust(apiCertificateSha256, clock);
-        _certificate = certificate;
         _clock = clock;
-        var handler = new HttpClientHandler
+        var handler = new SocketsHttpHandler
         {
             AllowAutoRedirect = false,
-            SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-            // Deployment explicitly trusts one private API leaf, including hostname, validity,
-            // server-auth EKU and key usage. This is not an unconditional TLS validation bypass.
-#pragma warning disable MA0039 // Exact certificate pin is the approved private trust anchor.
-            ServerCertificateCustomValidationCallback = (_, peer, _, errors) =>
+            // A renewed client leaf is presented on new connections; recycling bounds how long an old one stays in use.
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            SslOptions =
             {
-                if (!trust.Validate(peer, errors)) return false;
-                // The pinned leaf cannot change on another pooled connection. Check these dates
-                // on every send as well: TLS callbacks run only when establishing a connection.
-                Interlocked.Exchange(ref _apiNotBefore, peer!.NotBefore.ToUniversalTime().Ticks);
-                Interlocked.Exchange(ref _apiNotAfter, peer.NotAfter.ToUniversalTime().Ticks);
-                return true;
-            }
+                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                LocalCertificateSelectionCallback = (_, _, _, _, _) => clientLeaf.Current,
+                // Trust is the Avalon CA alone, including hostname, validity, server-auth EKU and key usage.
+                // This is not an unconditional TLS validation bypass.
+#pragma warning disable MA0039 // The Avalon CA is the approved private trust anchor.
+                RemoteCertificateValidationCallback = (sender, peer, _, errors) =>
+                {
+                    // The platform does not report a name mismatch once the chain is untrusted, and the private CA
+                    // always is, so the host name is matched here against the DNS names only (no CN, no wildcard).
+                    if (peer is null || sender is not SslStream { TargetHostName: { Length: > 0 } host }) return false;
+                    using var leaf = new X509Certificate2(peer);
+                    if (!leaf.MatchesHostname(host, allowWildcards: false, allowCommonName: false) || !trust.Validate(leaf, errors)) return false;
+                    // TLS callbacks run only when a connection is established, so these dates are checked
+                    // again on every send as well.
+                    Interlocked.Exchange(ref _apiNotBefore, leaf.NotBefore.ToUniversalTime().Ticks);
+                    Interlocked.Exchange(ref _apiNotAfter, leaf.NotAfter.ToUniversalTime().Ticks);
+                    return true;
+                }
 #pragma warning restore MA0039
+            }
         };
-        handler.ClientCertificates.Add(certificate);
         InnerHandler = handler;
     }
 
@@ -42,7 +50,7 @@ public sealed class WorkloadHttpHandler : DelegatingHandler
         long now = _clock.GetUtcNow().UtcDateTime.Ticks;
         long notAfter = Interlocked.Read(ref _apiNotAfter);
         if (notAfter != 0 && (now < Interlocked.Read(ref _apiNotBefore) || now >= notAfter))
-            throw new HttpRequestException("The pinned API certificate is outside its validity period.");
+            throw new HttpRequestException("The API certificate is outside its validity period.");
     }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -55,11 +63,5 @@ public sealed class WorkloadHttpHandler : DelegatingHandler
     {
         RequireCurrentApiCertificate();
         return base.Send(request, cancellationToken);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        base.Dispose(disposing);
-        if (disposing) _certificate.Dispose();
     }
 }

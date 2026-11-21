@@ -8,12 +8,12 @@ namespace Avalon.Server.World.UnitTests.GameAuth;
 
 public sealed class GameAdmissionClientShould
 {
-    private static GameAdmissionOptions Options() => new() { ApiUrl = "https://internal.avalon.example/", ServerId = "world-one", WorldId = 1, ClientCertificatePath = "mounted-workload.pfx", ApiCertificateSha256 = new string('A', 64) };
+    private static GameAdmissionOptions Options() => new() { ApiUrl = "https://internal.avalon.example/", ServerId = "world-one", WorldId = 1, ClientCertificatePath = "mounted-workload.crt", ClientKeyPath = "mounted-workload.key" };
     [Fact]
-    public void Refuse_admission_configuration_without_an_explicit_API_certificate_pin()
+    public void Refuse_admission_configuration_without_a_workload_certificate_and_key()
     {
         GameAdmissionOptions options = Options();
-        options.ApiCertificateSha256 = string.Empty;
+        options.ClientKeyPath = string.Empty;
         Assert.False(options.IsValid());
     }
 

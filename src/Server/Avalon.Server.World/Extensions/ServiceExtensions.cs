@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using Avalon.Combat;
 using Avalon.Common.Telemetry;
 using Avalon.Configuration;
@@ -57,7 +56,7 @@ public static class ServiceExtensions
                 "The world TLS certificate, its key and the Avalon CA certificate are required.").ValidateOnStart();
         services.AddOptions<GameAdmissionOptions>().BindConfiguration(GameAdmissionOptions.Section)
             .PostConfigure<IConfiguration>((admission, config) => admission.WorldId = ushort.TryParse(config["Game:WorldId"], out ushort id) ? id : (ushort)0)
-            .Validate(a => a.IsValid(), "World admission requires a fixed HTTPS API origin, server identity, workload certificate and API certificate SHA-256 pin.").ValidateOnStart();
+            .Validate(a => a.IsValid(), "World admission requires a fixed HTTPS API origin, server identity, workload certificate and key.").ValidateOnStart();
         // The per-source budget on admissions (#1052): World:Admission:MaxInFlightPerSource, MaxInFlightPerIPv6Block,
         // MaxPerSourcePerMinute, MaxPerIPv6BlockPerMinute and ExemptSources.
         services.AddOptions<AdmissionSourceOptions>().BindConfiguration(AdmissionSourceOptions.Section)
@@ -78,14 +77,17 @@ public static class ServiceExtensions
                 sp.GetRequiredService<TimeProvider>(), ReloadingCertificateDefaults.PollInterval));
         services.AddSingleton(sp => new WorldTlsTransport(
             sp.GetRequiredKeyedService<ReloadingCertificate>("world-tls"), sp.GetRequiredKeyedService<ReloadingCertificate>("avalon-ca")));
-        services.AddHttpClient("AvalonGameWorkload").ConfigurePrimaryHttpMessageHandler(sp =>
+        services.AddKeyedSingleton("workload-client", (sp, _) =>
         {
             GameAdmissionOptions admission = sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value;
-            X509Certificate2 certificate = X509CertificateLoader.LoadPkcs12FromFile(admission.ClientCertificatePath, admission.ClientCertificatePassword);
-            if (!certificate.HasPrivateKey || certificate.NotBefore.ToUniversalTime() > DateTime.UtcNow || certificate.NotAfter.ToUniversalTime() <= DateTime.UtcNow)
-                throw new InvalidOperationException("A current workload client certificate with a private key is required.");
-            return new WorkloadHttpHandler(certificate, admission.ApiCertificateSha256, sp.GetRequiredService<TimeProvider>());
-        }).RemoveAllLoggers();
+            return ReloadingCertificate.Load(admission.ClientCertificatePath, admission.ClientKeyPath,
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger<ReloadingCertificate>(),
+                sp.GetRequiredService<TimeProvider>(), ReloadingCertificateDefaults.PollInterval);
+        });
+        services.AddHttpClient("AvalonGameWorkload").ConfigurePrimaryHttpMessageHandler(sp =>
+            new WorkloadHttpHandler(sp.GetRequiredKeyedService<ReloadingCertificate>("workload-client"),
+                new ApiCertificateTrust(sp.GetRequiredKeyedService<ReloadingCertificate>("avalon-ca"), sp.GetRequiredService<TimeProvider>()),
+                sp.GetRequiredService<TimeProvider>())).RemoveAllLoggers();
         // The game layer's packets, which WorldServer dispatches itself, so PacketManager does not warn about them.
         services.AddSingleton<IPacketHandlerLayer, GamePacketHandlerLayer>();
         services.AddSingleton<IGameAdmissionClient>(sp => new GameAdmissionClient(
