@@ -202,6 +202,30 @@ public sealed class GameWorkloadListenerShould
         Assert.Contains("server ID world-1", warnings.Lines[1], StringComparison.Ordinal);
     }
 
+    /// <summary>A certificate from another CA naming world-1 does not take world-1's log line; a real world-1 leaf, even expired, does.</summary>
+    [Fact]
+    public void Give_a_configured_servers_log_line_only_to_certificates_of_the_avalon_ca()
+    {
+        using X509Certificate2 ca = TestCertificates.CreateCa("Avalon CA");
+        using X509Certificate2 otherCa = TestCertificates.CreateCa("Other CA");
+        using X509Certificate2 forged = TestCertificates.CreateLeaf(otherCa, "world-1", serverAuth: false, WorldUri);
+        using X509Certificate2 expired = TestCertificates.CreateLeaf(ca, "world-1", serverAuth: false, WorldUri, DateTimeOffset.UtcNow.AddMinutes(-1));
+        var configuration = new GameWorkloadConfiguration();
+        configuration.Servers.Add(new GameServerDefinition { ServerId = "world-1", WorldId = 1 });
+        var warnings = new WarningCapture();
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.AddProvider(warnings));
+        var log = new RefusedWorkloadCertificateLog(factory.CreateLogger<RefusedWorkloadCertificateLog>(), TimeProvider.System);
+
+        string? forgedId = GameWorkloadHosting.TrustedServerIdOf(forged, ca, configuration);
+        string? expiredId = GameWorkloadHosting.TrustedServerIdOf(expired, ca, configuration);
+        log.Refused("not issued by the Avalon CA", forged.Subject, forgedId, forgedId is not null);
+        log.Refused("outside its validity period", expired.Subject, expiredId, expiredId is not null);
+
+        Assert.Null(forgedId);
+        Assert.Equal("world-1", expiredId);
+        Assert.Equal(2, warnings.Lines.Count);
+    }
+
     private sealed class WarningCapture : ILoggerProvider, ILogger
     {
         public List<string> Lines { get; } = [];

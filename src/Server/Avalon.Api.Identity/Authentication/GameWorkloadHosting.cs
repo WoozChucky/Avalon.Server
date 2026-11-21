@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Configuration;
 using Avalon.Infrastructure.GameAuth;
@@ -52,8 +53,8 @@ public static class GameWorkloadHosting
                     // Kestrel logs a refused handshake at Debug only (#1051): say why, rate-limited.
                     if (refusal is not null)
                     {
-                        string? serverId = AvalonCaTrust.ServerIdOf(certificate);
-                        services.GetService<RefusedWorkloadCertificateLog>()?.Refused(refusal, certificate.Subject, serverId, IsAssigned(serverId, configuration));
+                        string? serverId = TrustedServerIdOf(certificate, ca.Current, configuration);
+                        services.GetService<RefusedWorkloadCertificateLog>()?.Refused(refusal, certificate.Subject, serverId, serverId is not null);
                     }
                     return refusal is null;
                 };
@@ -73,10 +74,29 @@ public static class GameWorkloadHosting
             return "without the client authentication usage";
         if (!AvalonCaTrust.Chains(certificate, ca, now))
             return "not issued by the Avalon CA";
-        string? serverId = AvalonCaTrust.ServerIdOf(certificate);
+        string? serverId = ServerIdOf(certificate);
         if (serverId is null)
             return "naming no game server";
         return IsAssigned(serverId, configuration) ? null : "assigned to no game server";
+    }
+
+    /// <summary>
+    /// The configured server ID <paramref name="certificate"/> names, for attributing a refusal in the log: only when it
+    /// chains to <paramref name="ca"/> (checked as of its own start, so an expired real leaf still counts), because an
+    /// unproven certificate can write any URI and must not take a real world's log limit. Null otherwise.
+    /// </summary>
+    public static string? TrustedServerIdOf(X509Certificate2 certificate, X509Certificate2 ca, GameWorkloadConfiguration configuration)
+    {
+        string? serverId = ServerIdOf(certificate);
+        return IsAssigned(serverId, configuration) && AvalonCaTrust.Chains(certificate, ca, certificate.NotBefore.ToUniversalTime())
+            ? serverId : null;
+    }
+
+    /// <summary><see cref="AvalonCaTrust.ServerIdOf"/>, where a malformed SAN in a peer's certificate names no server instead of throwing.</summary>
+    private static string? ServerIdOf(X509Certificate2 certificate)
+    {
+        try { return AvalonCaTrust.ServerIdOf(certificate); }
+        catch (CryptographicException) { return null; }
     }
 
     /// <summary>Whether a configured game server has the ID <paramref name="serverId"/>.</summary>

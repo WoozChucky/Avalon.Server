@@ -22,7 +22,8 @@ public sealed class RefusedWorkloadCertificateLog(ILogger<RefusedWorkloadCertifi
 
     /// <summary>
     /// A refusal of the certificate with <paramref name="subject"/> naming <paramref name="serverId"/> (null when it names
-    /// none); <paramref name="assigned"/> when a configured game server has that ID.
+    /// none or is not proven to be the Avalon CA's); <paramref name="assigned"/> only for a certificate that chains to the CA
+    /// and names a configured game server (<see cref="GameWorkloadHosting.TrustedServerIdOf"/>).
     /// </summary>
     public void Refused(string reason, string subject, string? serverId, bool assigned)
     {
