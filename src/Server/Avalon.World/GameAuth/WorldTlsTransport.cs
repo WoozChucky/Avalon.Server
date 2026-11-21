@@ -2,28 +2,65 @@ using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.GameAuth;
+using Avalon.Infrastructure.GameAuth;
 
 namespace Avalon.World.GameAuth;
 
 public sealed class WorldHostingSecurity
 {
+    /// <summary>The world TLS leaf (PEM), issued by the Avalon CA and renewed in place.</summary>
     public string CertificatePath { get; set; } = string.Empty;
-    public string? CertificatePassword { get; set; }
+    public string KeyPath { get; set; } = string.Empty;
+    /// <summary>The Avalon CA certificate (PEM).</summary>
+    public string CaCertificatePath { get; set; } = string.Empty;
 }
 
-/// <summary>Loaded before listening. World and workload credentials have separate identities.</summary>
-public sealed class WorldTlsTransport : IDisposable
+/// <summary>
+/// Loaded before listening. The leaf is sent alone: the game client trusts only the CA from the join reply, .NET trims a
+/// self-signed root from the sent chain anyway, and on Windows every CA passed in would be added to CurrentUser\CA. The context a handshake uses is rebuilt when the leaf or the CA file is renewed, so new
+/// connections see the renewed certificate while open ones keep theirs.
+/// </summary>
+public sealed class WorldTlsTransport
 {
-    public WorldTlsTransport(WorldHostingSecurity security)
-        : this(X509CertificateLoader.LoadPkcs12FromFile(security.CertificatePath, security.CertificatePassword)) { }
-    public WorldTlsTransport(X509Certificate2 certificate)
+    private sealed record Built(X509Certificate2 Leaf, X509Certificate2 Ca, SslStreamCertificateContext Context);
+
+    private readonly ReloadingCertificate _leaf;
+    private readonly ReloadingCertificate _ca;
+    private readonly Lock _gate = new();
+    private Built _built;
+
+    public WorldTlsTransport(ReloadingCertificate leaf, ReloadingCertificate ca)
     {
-        Certificate = certificate;
-        if (!Certificate.HasPrivateKey || Certificate.NotBefore.ToUniversalTime() > DateTime.UtcNow || Certificate.NotAfter.ToUniversalTime() <= DateTime.UtcNow)
+        _leaf = leaf;
+        _ca = ca;
+        X509Certificate2 certificate = leaf.Current;
+        if (!certificate.HasPrivateKey || certificate.NotBefore.ToUniversalTime() > DateTime.UtcNow || certificate.NotAfter.ToUniversalTime() <= DateTime.UtcNow)
             throw new InvalidOperationException("A current world TLS certificate with a private key is required.");
+        _built = Build(certificate, ca.Current);
     }
-    public X509Certificate2 Certificate { get; }
-    public static async Task<SslStream> AuthenticateAsync(Stream network, X509Certificate2 certificate, CancellationToken cancellationToken = default)
+
+    public SslStreamCertificateContext CurrentContext
+    {
+        get
+        {
+            // The two holders swap independently, so the context is paired with the references it was built from.
+            X509Certificate2 leaf = _leaf.Current, ca = _ca.Current;
+            Built built = Volatile.Read(ref _built);
+            if (ReferenceEquals(built.Leaf, leaf) && ReferenceEquals(built.Ca, ca)) return built.Context;
+            lock (_gate)
+            {
+                leaf = _leaf.Current; ca = _ca.Current;
+                if (!ReferenceEquals(_built.Leaf, leaf) || !ReferenceEquals(_built.Ca, ca))
+                    Volatile.Write(ref _built, Build(leaf, ca));
+                return _built.Context;
+            }
+        }
+    }
+
+    private static Built Build(X509Certificate2 leaf, X509Certificate2 ca)
+        => new(leaf, ca, SslStreamCertificateContext.Create(leaf, additionalCertificates: null, offline: true));
+
+    public static async Task<SslStream> AuthenticateAsync(Stream network, SslStreamCertificateContext context, CancellationToken cancellationToken = default)
     {
         var stream = new SslStream(network, leaveInnerStreamOpen: false);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -32,7 +69,7 @@ public sealed class WorldTlsTransport : IDisposable
         {
             await stream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions
             {
-                ServerCertificate = certificate,
+                ServerCertificateContext = context,
                 ClientCertificateRequired = false,
                 EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck
@@ -41,5 +78,4 @@ public sealed class WorldTlsTransport : IDisposable
         }
         catch { await stream.DisposeAsync(); throw; }
     }
-    public void Dispose() => Certificate.Dispose();
 }

@@ -896,7 +896,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
         catch (AuthenticationException error)
         {
-            throw new BotStepException(step, $"{step}:tls", $"TLS failed (is the certificate the pinned one?): {error.Message}");
+            throw new BotStepException(step, $"{step}:tls", $"TLS failed (does the certificate chain to the CA the join reply names?): {error.Message}");
         }
         catch (Exception error) when (error is IOException or SocketException or ObjectDisposedException
             or InvalidDataException or CryptographicException or ProtoBuf.ProtoException)

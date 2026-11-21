@@ -21,15 +21,16 @@ server:
     enabled: false
     trustedProxies: []
     headerTimeoutSeconds: 5
-  # Required transport credentials supplied by an externally managed Kubernetes Secret.
-  # Keys: world-tls.pfx, workload.pfx; optional world-tls-password, workload-password.
+  # Game-port TLS: a kubernetes.io/tls Secret (tls.crt, tls.key, ca.crt) issued and renewed by cert-manager
+  # from the Avalon CA. Mounted by items, so a renewal reaches the running pod. Required.
   transport:
-    existingSecret: ""
+    tlsSecret: ""
   admission:
     apiUrl: ""  # HTTPS origin of the API GameInternal endpoint, ending in /.
     serverId: ""  # Must match the API workload assignment for game.worldId.
-    apiCertificateSecret: ""  # Required Secret containing the exact API leaf SHA-256 pin.
-    apiCertificateKey: api-tls-sha256
+    # Workload identity presented to the API: a kubernetes.io/tls Secret (tls.crt, tls.key) from the Avalon CA,
+    # renewed by cert-manager. Required.
+    clientCertificateSecret: ""
     # The per-source budget at the world's door (#1052): one past any of these is answered ServiceUnavailable
     # before its ticket is redeemed. Whole numbers; each renders only when set, and empty is the world's default.
     # World:Admission:MaxInFlightPerSource: admissions one source (an IPv4 address, an IPv6 /64) may have in

@@ -77,7 +77,6 @@ steamWebLink:
 gameAdmission:
   port: 9443
   tlsExistingSecret: test-api-tls
-  bindingsExistingSecret: test-workload-bindings
   servers:
     - serverId: world-dev
       worldId: 1

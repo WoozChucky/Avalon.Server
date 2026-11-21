@@ -10,20 +10,31 @@ public sealed class GameWorkloadConfiguration
     /// <c>gameAdmission.minClientVersion</c>), and identity refuses to start without a usable value.
     /// </summary>
     public string MinClientVersion { get; set; } = "";
+    /// <summary>
+    /// <c>Application:GameWorkloads:CertificatePath</c> and <c>KeyPath</c>: the PEM server certificate (and its key) the
+    /// workload listener presents, issued by the Avalon CA and renewed in place by cert-manager.
+    /// </summary>
+    public string CertificatePath { get; set; } = "";
+    public string KeyPath { get; set; } = "";
+    /// <summary><c>Application:GameWorkloads:CaCertificatePath</c>: the PEM Avalon CA a world's client certificate must chain to.</summary>
+    public string CaCertificatePath { get; set; } = "";
     public List<GameServerDefinition> Servers { get; set; } = [];
     public void Validate()
     {
         if (Servers.Count > 256 || Servers.Any(s => s.WorldId == 0 || s.ServerId.Length is < 1 or > 64 ||
             !s.ServerId.All(c => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '-' or '_' or '.') ||
-            Uri.CheckHostName(s.TlsServerName) == UriHostNameType.Unknown || !Digest(s.TlsCertificateSha256) || !Digest(s.ClientCertificateSha256)) ||
+            Uri.CheckHostName(s.TlsServerName) == UriHostNameType.Unknown) ||
             Servers.Select(s => s.ServerId).Distinct(StringComparer.Ordinal).Count() != Servers.Count ||
-            Servers.Select(s => s.WorldId).Distinct().Count() != Servers.Count ||
-            Servers.Select(s => s.ClientCertificateSha256).Distinct(StringComparer.OrdinalIgnoreCase).Count() != Servers.Count)
+            Servers.Select(s => s.WorldId).Distinct().Count() != Servers.Count)
         {
-            throw new InvalidOperationException("Invalid Application:GameWorkloads server, world, TLS name or certificate bindings.");
+            throw new InvalidOperationException("Invalid Application:GameWorkloads server, world or TLS name bindings.");
+        }
+        if (Servers.Count > 0 && (string.IsNullOrWhiteSpace(CertificatePath) || string.IsNullOrWhiteSpace(KeyPath) || string.IsNullOrWhiteSpace(CaCertificatePath)))
+        {
+            throw new InvalidOperationException(
+                "Application:GameWorkloads:CertificatePath, KeyPath and CaCertificatePath are required when game servers are configured.");
         }
     }
-    private static bool Digest(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
 }
 
 public sealed class GameServerDefinition
@@ -31,6 +42,4 @@ public sealed class GameServerDefinition
     public string ServerId { get; set; } = "";
     public ushort WorldId { get; set; }
     public string TlsServerName { get; set; } = "";
-    public string TlsCertificateSha256 { get; set; } = "";
-    public string ClientCertificateSha256 { get; set; } = "";
 }

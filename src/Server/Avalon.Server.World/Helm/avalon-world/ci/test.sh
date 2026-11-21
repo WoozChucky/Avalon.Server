@@ -185,15 +185,18 @@ if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-
 fi
 
 # Each required transport setting refuses omission for its own reason.
-for setting in server.transport.existingSecret server.admission.apiUrl server.admission.serverId server.admission.apiCertificateSecret server.admission.apiCertificateKey; do
+for setting in server.transport.tlsSecret server.admission.apiUrl server.admission.serverId server.admission.clientCertificateSecret; do
   if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-string "$setting=" 2>&1); then
     echo "missing $setting must fail"; exit 1
   fi
   grep -Fq "$setting is required" <<<"$message" || { echo "missing $setting must name the setting"; exit 1; }
 done
-grep -A5 'name: World__Admission__ApiCertificateSha256' <<<"$out" | grep -q 'name: "test-workload-bindings"' || { echo "API certificate pin must use its Secret reference"; exit 1; }
-grep -A5 'name: World__Admission__ApiCertificateSha256' <<<"$out" | grep -q 'key: "api-tls-sha256"' || { echo "API certificate pin must use its Secret key"; exit 1; }
-grep -A4 'name: Hosting__Security__CertificatePassword' <<<"$out" | grep -q 'name: "test-world-transport"' || { echo "world TLS must use its transport Secret"; exit 1; }
+grep -A4 'name: world-tls' <<<"$out" | grep -q 'secretName: "test-world-tls"' || { echo "world TLS must use its tls Secret"; exit 1; }
+grep -A4 'name: workload-identity' <<<"$out" | grep -q 'secretName: "test-world-workload"' || { echo "workload identity must use its tls Secret"; exit 1; }
+! grep -Eq 'subPath|\.pfx|CertificatePassword|ApiCertificateSha256' <<<"$out" || { echo "no subPath, PFX, password or pin may render"; exit 1; }
+for v in Hosting__Security__CertificatePath Hosting__Security__KeyPath Hosting__Security__CaCertificatePath World__Admission__ClientCertificatePath World__Admission__ClientKeyPath; do
+  grep -q "name: $v\$" <<<"$out" || { echo "$v must render"; exit 1; }
+done
 
 # Log levels (#834): unset renders nothing, a level and per-category overrides render Serilog settings, bad ones fail.
 ! grep -q "Serilog__" <<<"$off"                                                                     || { echo "log level env rendered without a value"; exit 1; }

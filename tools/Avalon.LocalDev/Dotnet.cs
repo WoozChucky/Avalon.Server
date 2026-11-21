@@ -31,6 +31,22 @@ public static class Dotnet
         if (exitCode != 0) throw new LocalDevException($"dotnet user-secrets set failed for {project}: {error}");
     }
 
+    /// <summary>Removes <paramref name="keys"/> from the project's user-secrets; keys it does not hold are skipped.</summary>
+    public static async Task<IReadOnlyList<string>> RemoveSecretsAsync(string project, IEnumerable<string> keys,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<string, string> held = await ListSecretsAsync(project, cancellationToken);
+        var removed = new List<string>();
+        foreach (string key in keys.Where(held.ContainsKey))
+        {
+            (int exitCode, _, string error) = await RunAsync(["user-secrets", "remove", key, "--project", project], null, cancellationToken);
+            if (exitCode != 0) throw new LocalDevException($"dotnet user-secrets remove {key} failed for {project}: {error}");
+            removed.Add(key);
+        }
+
+        return removed;
+    }
+
     /// <summary>Whether this machine trusts the ASP.NET Core development certificate the API's https endpoint uses.</summary>
     public static async Task<bool> DevelopmentCertificateTrustedAsync(CancellationToken cancellationToken) =>
         (await RunAsync(["dev-certs", "https", "--check", "--trust"], null, cancellationToken)).ExitCode == 0;

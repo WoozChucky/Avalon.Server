@@ -113,7 +113,9 @@ OpenBao under `k8s/avalon/` (homelab `docs/secrets.md`). Each value passed exact
 validity, RSA key independence and matching pins were checked without logging plaintext. No machine
 trust roots, certificate stores, Windows users or live workloads were changed.
 
-World-to-internal-API trust now requires an exact API leaf SHA-256 pin. TLS verifies the API hostname,
+(Dated record: this verification predates the Avalon CA, which replaced the leaf pins and PFX files described in this paragraph and the next; see [workloads](steam-authentication-workloads.md).)
+
+World-to-internal-API trust then required an exact API leaf SHA-256 pin. TLS verifies the API hostname,
 validity, server-auth EKU and digital-signature usage; only chain errors for the pinned leaf are accepted.
 The mandatory-pin refusal test failed before implementation. Real mTLS tests cover correct private leaves,
 wrong pin, wrong name, expiry and pooled-connection expiry. Review identified a LOW synchronous-send

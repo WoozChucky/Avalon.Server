@@ -10,7 +10,6 @@ storeAuthentication:
   existingSecret: test-steam-credentials
 gameAdmission:
   tlsExistingSecret: test-api-tls
-  bindingsExistingSecret: test-workload-bindings
   servers:
     - serverId: world-test
       worldId: 1

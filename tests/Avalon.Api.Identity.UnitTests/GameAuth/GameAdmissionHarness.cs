@@ -35,6 +35,7 @@ namespace Avalon.Api.Identity.UnitTests.GameAuth;
 /// </summary>
 internal sealed class GameAdmissionHarness
 {
+    private readonly WorkloadCaServices _ca = new();
     private const string Subject = "76561198000000001";
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero));
     private readonly GameSessionFenceService _fences;
@@ -80,7 +81,7 @@ internal sealed class GameAdmissionHarness
     public GameWorkloadConfiguration Workloads { get; } = new()
     {
         MinClientVersion = GameClientTestData.MinClientVersion,
-        Servers = [new GameServerDefinition { ServerId = "world-3", WorldId = 3, TlsServerName = "ptr.example.test", TlsCertificateSha256 = new string('A', 64) }],
+        Servers = [new GameServerDefinition { ServerId = "world-3", WorldId = 3, TlsServerName = "ptr.example.test" }],
     };
     /// <summary>World 3's characters: none until a test adds one.</summary>
     public ICharacterRepository Characters { get; } = Substitute.For<ICharacterRepository>();
@@ -143,7 +144,7 @@ internal sealed class GameAdmissionHarness
         repositories.Characters(world.Id).Returns(Characters);
         IOptions<GameWorkloadConfiguration> workloads = Options.Create(Workloads);
         Allocator = new(WorldRows, accounts, Databases, Readiness, repositories, workloads, _clock, applications, NullLogger<GameServerAllocator>.Instance,
-            Substitute.For<IWorldOccupancy>());
+            Substitute.For<IWorldOccupancy>(), _ca.Services);
 
         IGameSessionRepository sessions = Substitute.For<IGameSessionRepository>();
         sessions.FindAsync(Account.Id, Arg.Any<CancellationToken>()).Returns(_ => _head);

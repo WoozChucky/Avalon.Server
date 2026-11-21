@@ -186,7 +186,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
                 Required(destination, "host", Step),
                 destination["port"]?.GetValue<int>() ?? throw new ApiException(Step, 200, "the destination has no port"),
                 Required(destination, "tlsServerName", Step),
-                Required(destination, "tlsCertificateSha256", Step));
+                Required(destination, "tlsCaCertificate", Step));
         }
         catch (Exception error) when (error is InvalidOperationException or FormatException)
         {

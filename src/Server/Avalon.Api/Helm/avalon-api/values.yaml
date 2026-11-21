@@ -361,8 +361,8 @@ storeAuthentication:
   steamIdentityPrefix: avalon-auth-prod
   policyVersion: 1
 
-# Direct mTLS listener, separate from public ingress. Pins are read from the binding Secret,
-# using <serverId>-tls-sha256 and <serverId>-client-sha256 keys. Supply one entry per served world.
+# Direct mTLS listener, separate from public ingress. Worlds are trusted by the Avalon CA, not by pins: each
+# connects with a workload certificate whose URI SAN is urn:avalon:server:<serverId>. Supply one entry per served world.
 gameAdmission:
   # The oldest client version game sign-in and world allocation accept (Application:GameWorkloads:MinClientVersion,
   # #949): major.minor.patch, e.g. "0.4.0"; a client at or above it signs in. Left empty, the API's default applies
@@ -371,8 +371,11 @@ gameAdmission:
   # world and gets no join ticket.
   minClientVersion: ""
   port: 9443
+  # A kubernetes.io/tls Secret (tls.crt, tls.key, ca.crt) issued and renewed by cert-manager from the Avalon CA:
+  # the listener's certificate and the CA that the worlds' client certificates are validated against (it is also handed to
+  # game clients in the world destination).
+  # Mounted read-only by items at /run/avalon-auth/api-workload. Required where identity runs.
   tlsExistingSecret: ""
-  bindingsExistingSecret: ""
   servers: [] # {serverId: world-dev, worldId: 1, tlsServerName: dev.example.test}
 
 # Identity alone consumes these settings. Disabled by default; no S3 keys belong in this API.

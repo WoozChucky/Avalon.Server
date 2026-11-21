@@ -49,10 +49,9 @@ IResourceBuilder<ParameterResource> gameAuthHostKey = builder.AddParameter(
     secret: true,
     persist: true);
 
-// The world's three private TLS leaves (docs/development-setup.md), made afresh on every run like the token keys, into
-// the temp folder: the world's own (players pin it from the join reply, so a new one each run costs nothing), the
-// world's client leaf on the api's game workload listener, and that listener's. The api and the world get each other's
-// pins below.
+// The private Avalon CA and the world's three TLS leaves it issues (docs/development-setup.md), made afresh on every
+// run like the token keys, into the temp folder: the world's own (players verify it against the CA the join reply
+// carries), the world's client leaf on the api's game workload listener, and that listener's.
 LocalCertificates certificates = await LocalCertificates.CreateAsync(
     Path.Combine(Path.GetTempPath(), "avalon-apphost"), TimeSpan.FromDays(30), CancellationToken.None);
 
@@ -71,14 +70,14 @@ IResourceBuilder<DotnetProjectResource> apiProject = builder
     .WithEnvironment("Kestrel__Endpoints__PublicHttp__Url", ApiHttpUrl)
     .WithEnvironment("Kestrel__Endpoints__Public__Url", ApiHttpsUrl)
     .WithEnvironment("Kestrel__Endpoints__GameInternal__Url", LocalCertificates.GameInternalUrl)
-    .WithEnvironment("Kestrel__Endpoints__GameInternal__Certificate__Path", certificates.ApiInternal.Path)
-    .WithEnvironment("Kestrel__Endpoints__GameInternal__Certificate__Password", certificates.ApiInternal.Password)
-    // The one world the game admission allocates: its server, the name its TLS leaf is for, and the two pins.
+    // The listener's leaf, the CA the world's client leaf chains to.
+    .WithEnvironment("Application__GameWorkloads__CertificatePath", certificates.ApiInternal.CertPath)
+    .WithEnvironment("Application__GameWorkloads__KeyPath", certificates.ApiInternal.KeyPath!)
+    .WithEnvironment("Application__GameWorkloads__CaCertificatePath", certificates.Ca.CertPath)
+    // The one world the game admission allocates: its server and the name its TLS leaf is for.
     .WithEnvironment("Application__GameWorkloads__Servers__0__ServerId", LocalCertificates.ServerId)
     .WithEnvironment("Application__GameWorkloads__Servers__0__WorldId", DevWorldId.ToString(CultureInfo.InvariantCulture))
     .WithEnvironment("Application__GameWorkloads__Servers__0__TlsServerName", LocalCertificates.TlsServerName)
-    .WithEnvironment("Application__GameWorkloads__Servers__0__TlsCertificateSha256", certificates.WorldTls.Sha256)
-    .WithEnvironment("Application__GameWorkloads__Servers__0__ClientCertificateSha256", certificates.Workload.Sha256)
     .WithEnvironment("Application__Authentication__SigningKey", Convert.ToBase64String(jwtKey.ExportPkcs8PrivateKey()))
     .WithEnvironment("Application__Authentication__SigningKeyId", JwtKeyId)
     .WithEnvironment($"Application__Authentication__ValidationKeys__{JwtKeyId}",
@@ -106,13 +105,13 @@ IResourceBuilder<DotnetProjectResource> apiProject = builder
 builder
     .AddDotnetProject("world", "../Avalon.Server.World/Avalon.Server.World.csproj")
     .WithEndpoint(21001, 21001, "tcp", "tcp", isProxied: false, isExternal: true)
-    .WithEnvironment("Hosting__Security__CertificatePath", certificates.WorldTls.Path)
-    .WithEnvironment("Hosting__Security__CertificatePassword", certificates.WorldTls.Password)
+    .WithEnvironment("Hosting__Security__CertificatePath", certificates.WorldTls.CertPath)
+    .WithEnvironment("Hosting__Security__KeyPath", certificates.WorldTls.KeyPath!)
+    .WithEnvironment("Hosting__Security__CaCertificatePath", certificates.Ca.CertPath)
     .WithEnvironment("World__Admission__ApiUrl", LocalCertificates.GameInternalUrl + "/")
     .WithEnvironment("World__Admission__ServerId", LocalCertificates.ServerId)
-    .WithEnvironment("World__Admission__ClientCertificatePath", certificates.Workload.Path)
-    .WithEnvironment("World__Admission__ClientCertificatePassword", certificates.Workload.Password)
-    .WithEnvironment("World__Admission__ApiCertificateSha256", certificates.ApiInternal.Sha256)
+    .WithEnvironment("World__Admission__ClientCertificatePath", certificates.Workload.CertPath)
+    .WithEnvironment("World__Admission__ClientKeyPath", certificates.Workload.KeyPath!)
     .WaitFor(redis)
     .WaitFor(postgresql)
     .WaitFor(apiProject);

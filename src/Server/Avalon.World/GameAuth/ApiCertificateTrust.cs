@@ -1,37 +1,31 @@
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Infrastructure.GameAuth;
 
 namespace Avalon.World.GameAuth;
 
-/// <summary>The exact API leaf is the trust anchor; chain errors alone are permitted for private leaves.</summary>
-public sealed class ApiCertificateTrust
+/// <summary>
+/// The API's certificate must chain to exactly the Avalon CA (read from the reloading holder on every handshake, so a renewed
+/// CA is honoured) and carry the server-authentication EKU and digital-signature usage. Chain errors alone are permitted
+/// because the platform stores do not know the private CA. The host-name guarantee does not rest on the name-mismatch flag
+/// (Windows Schannel does not set it for an untrusted chain): it is <c>MatchesHostname</c> in the validation callback of
+/// <c>WorkloadHttpHandler</c>, which runs before this check.
+/// </summary>
+public sealed class ApiCertificateTrust(ReloadingCertificate ca, TimeProvider clock)
 {
-    public const int Sha256HexLength = 64;
     public const string ServerAuthenticationEku = "1.3.6.1.5.5.7.3.1";
-    private readonly byte[] _pin;
-    private readonly TimeProvider _clock;
 
-    public ApiCertificateTrust(string sha256, TimeProvider clock)
+    public bool Validate(X509Certificate2? peer, SslPolicyErrors errors)
     {
-        if (!IsValidPin(sha256)) throw new ArgumentException("An exact API leaf SHA-256 pin is required.", nameof(sha256));
-        _pin = Convert.FromHexString(sha256);
-        _clock = clock;
-    }
-
-    public static bool IsValidPin(string? value) => value is { Length: Sha256HexLength } && value.All(Uri.IsHexDigit);
-
-    public bool Validate(X509Certificate2? certificate, SslPolicyErrors errors)
-    {
-        if (certificate is null || (errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != SslPolicyErrors.None) return false;
+        if (peer is null || (errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != SslPolicyErrors.None) return false;
         try
         {
-            DateTime now = _clock.GetUtcNow().UtcDateTime;
-            return certificate.NotBefore.ToUniversalTime() <= now && now < certificate.NotAfter.ToUniversalTime() &&
-                CryptographicOperations.FixedTimeEquals(SHA256.HashData(certificate.RawData), _pin) &&
-                certificate.Extensions.OfType<X509EnhancedKeyUsageExtension>().Any(extension =>
+            // Chains sets no EKU policy, so the server-auth EKU and key usage are checked here.
+            return AvalonCaTrust.Chains(peer, ca.Current, clock.GetUtcNow().UtcDateTime) &&
+                peer.Extensions.OfType<X509EnhancedKeyUsageExtension>().Any(extension =>
                     extension.EnhancedKeyUsages.Cast<Oid>().Any(oid => oid.Value == ServerAuthenticationEku)) &&
-                certificate.Extensions.OfType<X509KeyUsageExtension>().Any(extension =>
+                peer.Extensions.OfType<X509KeyUsageExtension>().Any(extension =>
                     (extension.KeyUsages & X509KeyUsageFlags.DigitalSignature) != 0);
         }
         catch (CryptographicException) { return false; }

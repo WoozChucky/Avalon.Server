@@ -219,7 +219,7 @@ must_refuse_authentication() {
   fi
   grep -Fq "$expected" <<<"$message" || { echo "missing $setting must name the setting"; exit 1; }
 }
-for setting in storeAuthentication.steamAppId storeAuthentication.existingSecret storeAuthentication.publisherKeyKey gameAdmission.tlsExistingSecret gameAdmission.bindingsExistingSecret; do
+for setting in storeAuthentication.steamAppId storeAuthentication.existingSecret storeAuthentication.publisherKeyKey gameAdmission.tlsExistingSecret; do
   must_refuse_authentication "$setting" "$setting is required"
 done
 for field in serverId worldId tlsServerName; do
@@ -240,7 +240,11 @@ for value in 123456 2499461 4294967295; do
   grep -A1 'name: Application__StoreAuthentication__SteamAppId' <<<"$configured" | grep -Fq "value: \"$value\"" || { echo "application ID must render as canonical decimal"; exit 1; }
 done
 grep -A4 'name: Application__StoreAuthentication__SteamPublisherKey' <<<"$out" | grep -q 'name: "test-steam-credentials"' || { echo "publisher key must use its Secret reference"; exit 1; }
-grep -A4 'name: Application__GameWorkloads__Servers__0__ClientCertificateSha256' <<<"$out" | grep -q 'key: "world-test-client-sha256"' || { echo "client certificate binding must use its Secret key"; exit 1; }
+for v in CertificatePath KeyPath CaCertificatePath; do
+  grep -q "name: Application__GameWorkloads__$v\$" <<<"$out" || { echo "GameWorkloads $v must render"; exit 1; }
+done
+grep -A3 'name: api-admission-credentials' <<<"$out" | grep -q 'secretName: "test-api-tls"' || { echo "workload listener must use its tls Secret"; exit 1; }
+! grep -Eq 'subPath|\.pfx|tls-password|Sha256' <<<"$out" || { echo "no subPath, PFX, password or pin may render"; exit 1; }
 grep -q 'containerPort: 9443' <<<"$out" || { echo "internal HTTPS port missing"; exit 1; }
 
 # Separate Playtest authority, disabled by default, with indexed allowed world configuration.

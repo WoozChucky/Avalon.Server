@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
-using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Identity.Authentication;
 using Avalon.Api.Testing;
@@ -9,6 +8,8 @@ using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure.GameAuth;
+using Avalon.World.Testing;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Http;
@@ -90,21 +91,20 @@ public class CrashAuthorizationShould
     [Fact]
     public async Task Refuse_a_valid_workload_certificate_without_an_account_session()
     {
-        using var key = ECDsa.Create();
-        var request = new CertificateRequest("CN=crash-test-workload", key, HashAlgorithmName.SHA256);
-        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection { new("1.3.6.1.5.5.7.3.2") }, true));
-        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
+        using X509Certificate2 ca = TestCertificates.CreateCa("Avalon CA");
+        using X509Certificate2 certificate = TestCertificates.CreateLeaf(ca, "crash-test-workload", serverAuth: false,
+            AvalonCaTrust.ServerIdUriPrefix + "crash-test-world");
+        string directory = Directory.CreateTempSubdirectory("avalon-crash-ca-").FullName;
+        string caPath = Path.Combine(directory, "ca.crt");
+        File.WriteAllText(caPath, ca.ExportCertificatePem());
         await using ApiTestHost host = await ApiTestHost.StartAsync([IdentityApi.Service], new ApiTestHostOptions
         {
-            Configure = services => services.Configure<GameWorkloadConfiguration>(options => options.Servers =
-            [new GameServerDefinition
+            Configure = services => services.Configure<GameWorkloadConfiguration>(options =>
             {
-                ServerId = "crash-test-world",
-                WorldId = 1,
-                TlsServerName = "localhost",
-                TlsCertificateSha256 = new string('A', 64),
-                ClientCertificateSha256 = Convert.ToHexString(SHA256.HashData(certificate.RawData)),
-            }]),
+                options.CaCertificatePath = caPath;
+                options.CertificatePath = options.KeyPath = "unused-by-this-test";
+                options.Servers = [new GameServerDefinition { ServerId = "crash-test-world", WorldId = 1, TlsServerName = "localhost" }];
+            }),
         });
         using (IServiceScope scope = host.Services.CreateScope())
         {
@@ -124,5 +124,6 @@ public class CrashAuthorizationShould
         });
         Assert.Equal(401, response.Response.StatusCode);
         Assert.Equal("no-store", response.Response.Headers.CacheControl);
+        Directory.Delete(directory, true);
     }
 }
