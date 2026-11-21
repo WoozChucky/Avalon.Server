@@ -20,6 +20,7 @@ public static class AvalonCaTrust
         chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
         chain.ChainPolicy.CustomTrustStore.Add(ca);
         chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        chain.ChainPolicy.DisableCertificateDownloads = true;
         chain.ChainPolicy.VerificationTime = nowUtc;
         chain.ChainPolicy.VerificationTimeIgnored = false;
         if (!chain.Build(leaf)) return false;

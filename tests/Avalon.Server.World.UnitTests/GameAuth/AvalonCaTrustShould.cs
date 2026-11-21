@@ -23,7 +23,8 @@ public sealed class AvalonCaTrustShould
     public void Refuse_a_leaf_not_issued_by_the_ca_or_not_current(string kind)
     {
         using X509Certificate2 ca = TestCertificates.CreateCa("avalon-ca");
-        using X509Certificate2 otherCa = TestCertificates.CreateCa("other-ca");
+        // The impostor has the trusted CA's name, so refusal has to come from the signature, not the issuer name.
+        using X509Certificate2 otherCa = TestCertificates.CreateCa("avalon-ca");
         using X509Certificate2 leaf = kind switch
         {
             "other-ca" => TestCertificates.CreateLeaf(otherCa, "world", serverAuth: true),
