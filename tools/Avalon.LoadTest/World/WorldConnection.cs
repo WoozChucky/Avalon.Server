@@ -18,8 +18,8 @@ using Org.BouncyCastle.Crypto;
 namespace Avalon.LoadTest.World;
 
 /// <summary>
-/// One bot's connection to a world server, as the game client makes it: TCP, TLS pinned to the certificate the join
-/// reply names, admission with a join ticket and the client's session key, then the version handshake. A read loop on
+/// One bot's connection to a world server, as the game client makes it: TCP, TLS to a world whose certificate chains to the CA
+/// the join reply names, admission with a join ticket and the client's session key, then the version handshake. A read loop on
 /// its own task drains the socket the whole time, so the server's outbox never backs up behind a busy bot: it raises
 /// <see cref="Ack"/> for each <c>SMSG_PLAYER_STATE_ACK</c>, answers pings, queues the few packets the entry and leave
 /// code waits for on <see cref="Inbound"/>, applies the world-state packets to <see cref="State"/> when the bot keeps
@@ -35,6 +35,7 @@ public sealed class WorldConnection : IAsyncDisposable
 {
     /// <summary>How many awaited packets <see cref="Inbound"/> holds before it drops the oldest.</summary>
     private const int InboundCapacity = 1024;
+    private const string ServerAuthenticationUsage = "1.3.6.1.5.5.7.3.1";
 
     private readonly Socket _socket;
     private readonly SslStream _stream;
@@ -153,9 +154,9 @@ public sealed class WorldConnection : IAsyncDisposable
 
     /// <summary>
     /// Dials <paramref name="dialHost"/> (or the destination's host) at the destination's port and completes TLS with
-    /// the destination's server name as SNI. The certificate is trusted by its pin, the SHA-256 of the complete DER
-    /// leaf, not by a chain: an untrusted issuer is tolerated, a wrong name, an expired certificate or a wrong usage is
-    /// not, as the game client checks it.
+    /// the destination's server name as SNI. The certificate is trusted only when it chains to the CA the join reply
+    /// names (no system store is consulted), is valid now, is for server authentication and carries the server name as
+    /// a DNS name, as the game client checks it; every other complaint refuses it.
     /// </summary>
     /// <param name="proxyHeader">
     /// Write a PROXY v2 header (<see cref="ProxyHeaderV2"/>) as the stream's first bytes, before TLS, naming this socket's
@@ -164,7 +165,7 @@ public sealed class WorldConnection : IAsyncDisposable
     public static async Task<WorldConnection> ConnectAsync(WorldDestination destination, string? dialHost,
         bool proxyHeader, CancellationToken ct)
     {
-        byte[] pin = Pin(destination.TlsCertificateSha256);
+        using X509Certificate2 ca = ParseCa(destination.TlsCaCertificate);
         string? refusal = null;
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
         try
@@ -184,10 +185,10 @@ public sealed class WorldConnection : IAsyncDisposable
                 {
                     TargetHost = destination.TlsServerName,
                     EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-                    // The pin is the trust anchor: there is no chain whose revocation could be asked about.
+                    // The CA is the trust anchor and is private: its revocation cannot be asked about.
                     CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                     RemoteCertificateValidationCallback = (_, certificate, chain, errors) =>
-                        (refusal = Refusal(certificate, chain, errors, pin)) is null,
+                        (refusal = Refusal(certificate, errors, ca, destination.TlsServerName)) is null,
                 }, ct);
             }
             catch (AuthenticationException) when (refusal is not null)
@@ -444,45 +445,61 @@ public sealed class WorldConnection : IAsyncDisposable
         }
     }
 
-    /// <summary>The pin as bytes: the destination names it as 64 hex digits.</summary>
-    private static byte[] Pin(string sha256Hex)
+    /// <summary>The CA as the destination names it: the base64 of its DER.</summary>
+    private static X509Certificate2 ParseCa(string base64Der)
     {
-        if (sha256Hex.Length != 64 || !sha256Hex.All(Uri.IsHexDigit))
-            throw new WorldRefusedException("the destination's certificate pin is not a SHA-256 digest in hex", "bad-pin");
-
-        return Convert.FromHexString(sha256Hex);
+        try
+        {
+            return X509CertificateLoader.LoadCertificate(Convert.FromBase64String(base64Der));
+        }
+        catch (Exception error) when (error is FormatException or CryptographicException)
+        {
+            throw new WorldRefusedException("the destination's CA certificate is not base64 DER", "bad-ca");
+        }
     }
 
     /// <summary>
-    /// Null for the exact certificate pinned, with its name, validity and usage intact (of the chain's complaints only
-    /// an untrusted or unknown issuer, a self-signed or privately issued certificate, is tolerated); otherwise why it
-    /// is refused: the policy errors, the chain status flags, or the presented certificate's (public) digest.
+    /// Null for a certificate that chains to <paramref name="ca"/> alone, is valid now, for server authentication and
+    /// for <paramref name="serverName"/>; otherwise why it is refused. The only policy error tolerated is the chain's,
+    /// the platform not knowing the private CA: the chain is rebuilt here against the CA. The platform does not report a
+    /// name mismatch for such a chain, so the name is matched here, against the DNS names only (no CN, no wildcard).
     /// </summary>
-    private static string? Refusal(X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors, byte[] pin)
+    private static string? Refusal(X509Certificate? certificate, SslPolicyErrors errors, X509Certificate2 ca, string serverName)
     {
         if (certificate is null) return "the world presented no certificate";
         if ((errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != 0)
             return $"policy errors {errors & ~SslPolicyErrors.RemoteCertificateChainErrors}";
 
-        byte[] presented = SHA256.HashData(certificate.GetRawCertData());
-        if (!CryptographicOperations.FixedTimeEquals(presented, pin))
-            return $"the certificate presented (SHA-256 {Convert.ToHexString(presented)}) is not the pinned one";
+        using var leaf = new X509Certificate2(certificate);
+        if (!leaf.MatchesHostname(serverName, allowWildcards: false, allowCommonName: false))
+            return $"the certificate is not for {serverName}";
 
-        if ((errors & SslPolicyErrors.RemoteCertificateChainErrors) == 0) return null;
-        if (chain is null) return "the certificate's chain could not be built";
+        using var chain = new X509Chain();
+        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+        chain.ChainPolicy.CustomTrustStore.Add(ca);
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        chain.ChainPolicy.DisableCertificateDownloads = true;
+        chain.ChainPolicy.ApplicationPolicy.Add(new Oid(ServerAuthenticationUsage));
+        if (!chain.Build(leaf))
+        {
+            X509ChainStatusFlags status = X509ChainStatusFlags.NoError;
+            foreach (X509ChainStatus element in chain.ChainStatus) status |= element.Status;
+            return $"the certificate does not chain to the CA: {status}";
+        }
 
-        const X509ChainStatusFlags Tolerated = X509ChainStatusFlags.UntrustedRoot | X509ChainStatusFlags.PartialChain;
-        X509ChainStatusFlags refused = X509ChainStatusFlags.NoError;
-        foreach (X509ChainStatus status in chain.ChainStatus) refused |= status.Status & ~Tolerated;
-        return refused == X509ChainStatusFlags.NoError ? null : $"chain status {refused}";
+        X509ChainElementCollection elements = chain.ChainElements;
+        if (elements.Count < 2 || !elements[^1].Certificate.RawData.AsSpan().SequenceEqual(ca.RawData))
+            return "the certificate does not chain to the CA";
+
+        return null;
     }
 }
 
 /// <summary>
-/// The world refused a step, or the tool refused the world: a version it does not verify, a certificate that is not
-/// the pinned one, an unusable session key, a destination the tool cannot pin.
+/// The world refused a step, or the tool refused the world: a version it does not verify, a certificate that does not
+/// chain to the destination's CA, an unusable session key, a destination whose CA the tool cannot read.
 /// </summary>
-/// <param name="code">One word for the failure counts: <c>refused</c>, <c>tls</c>, <c>bad-key</c>, <c>bad-pin</c>, or an admission result.</param>
+/// <param name="code">One word for the failure counts: <c>refused</c>, <c>tls</c>, <c>bad-key</c>, <c>bad-ca</c>, or an admission result.</param>
 public class WorldRefusedException(string message, string code = "refused") : Exception(message)
 {
     public string Code { get; } = code;

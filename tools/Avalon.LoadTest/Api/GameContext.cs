@@ -66,9 +66,9 @@ public sealed record GameContextTokens(string Credential, string RefreshToken, D
 }
 
 /// <summary>The world server a join ticket is for, as the join reply names it.</summary>
-/// <param name="TlsServerName">The name the world's certificate carries, sent as SNI.</param>
-/// <param name="TlsCertificateSha256">The SHA-256 of the world's complete DER leaf certificate, the pin.</param>
-public sealed record WorldDestination(ushort WorldId, string Host, int Port, string TlsServerName, string TlsCertificateSha256);
+/// <param name="TlsServerName">The DNS name the world's certificate carries, sent as SNI and matched.</param>
+/// <param name="TlsCaCertificate">The base64 of the DER of the CA the world's certificate must chain to.</param>
+public sealed record WorldDestination(ushort WorldId, string Host, int Port, string TlsServerName, string TlsCaCertificate);
 
 /// <summary>A join's answer (#967): a ticket, or the bot's place in a full world's line and when to check in.</summary>
 public sealed record JoinAnswer(JoinTicket? Ticket, int Position, TimeSpan CheckInAfter);

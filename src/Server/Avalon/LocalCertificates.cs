@@ -4,24 +4,26 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Avalon.LocalDevelopment;
 
-/// <summary>A PFX file a local run made, the password it is sealed with, and the SHA-256 of its DER leaf (its pin).</summary>
-public sealed record LocalCertificate(string Path, string Password, string Sha256);
+/// <summary>A PEM certificate a local run made and, for a leaf, the PEM file of its private key.</summary>
+public sealed record LocalPem(string CertPath, string? KeyPath);
 
 /// <summary>
-/// The three private TLS leaves a local run of the world needs (docs/development-setup.md), each self-signed for
-/// <see cref="TlsServerName"/> (and 127.0.0.1, ::1), RSA 2048, digital signature and key encipherment:
+/// The private Avalon CA of a local run and the three TLS leaves it issues (docs/development-setup.md), each for
+/// <see cref="TlsServerName"/> (and 127.0.0.1, ::1), RSA 2048, all PEM:
 /// <list type="bullet">
-/// <item><see cref="WorldTls"/>: the world server's own TLS leaf (server authentication), which players pin from the
-/// join reply (<c>Hosting:Security</c> on the world, <c>TlsCertificateSha256</c> on the API).</item>
-/// <item><see cref="Workload"/>: the world's client leaf on the API's game workload listener (client authentication;
-/// <c>World:Admission:ClientCertificatePath</c>, <c>ClientCertificateSha256</c> on the API).</item>
+/// <item><see cref="Ca"/>: the CA, a self-signed certificate with no key file (<c>Hosting:Security:CaCertificatePath</c>
+/// on the world, <c>Application:GameWorkloads:CaCertificatePath</c> on the API).</item>
+/// <item><see cref="WorldTls"/>: the world server's own TLS leaf (server authentication) players verify against the CA
+/// from the join reply (<c>Hosting:Security:CertificatePath</c>, <c>KeyPath</c> on the world).</item>
+/// <item><see cref="Workload"/>: the world's client leaf on the API's game workload listener (client authentication),
+/// carrying the URI SAN <c>urn:avalon:server:world-1</c> that names the server
+/// (<c>World:Admission:ClientCertificatePath</c>, <c>ClientKeyPath</c>).</item>
 /// <item><see cref="ApiInternal"/>: the API's game workload listener (server authentication;
-/// <c>Kestrel:Endpoints:GameInternal:Certificate</c>, <c>World:Admission:ApiCertificateSha256</c> on the world).</item>
+/// <c>Application:GameWorkloads:CertificatePath</c>, <c>KeyPath</c>).</item>
 /// </list>
-/// Each pin is the SHA-256 of the whole DER leaf, the form the API and the world compare. Shared, as source, by the
-/// Aspire AppHost and tools/Avalon.LocalDev; never used outside a local run.
+/// Shared, as source, by the Aspire AppHost and tools/Avalon.LocalDev; never used outside a local run.
 /// </summary>
-public sealed record LocalCertificates(LocalCertificate WorldTls, LocalCertificate Workload, LocalCertificate ApiInternal)
+public sealed record LocalCertificates(LocalPem Ca, LocalPem WorldTls, LocalPem Workload, LocalPem ApiInternal)
 {
     /// <summary>The name every leaf is issued for, and the TLS server name the API gives players for the world.</summary>
     public const string TlsServerName = "localhost";
@@ -37,25 +39,47 @@ public sealed record LocalCertificates(LocalCertificate WorldTls, LocalCertifica
 
     public const string GameInternalUrl = "https://localhost:9443";
 
+    private static readonly Uri s_serverIdUri = new("urn:avalon:server:" + ServerId);
+
     private const string ServerAuthentication = "1.3.6.1.5.5.7.3.1";
     private const string ClientAuthentication = "1.3.6.1.5.5.7.3.2";
 
-    /// <summary>Makes the three leaves, valid from now for <paramref name="lifetime"/>, into <paramref name="directory"/>.</summary>
+    /// <summary>Makes the CA and the three leaves, valid from now for <paramref name="lifetime"/>, into <paramref name="directory"/>.</summary>
     public static async Task<LocalCertificates> CreateAsync(string directory, TimeSpan lifetime,
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(directory);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset notBefore = now.AddMinutes(-5);
+        DateTimeOffset notAfter = now.Add(lifetime);
+
+        // Windows keeps every CA a chain was built through in the current user's store, and several with one subject
+        // name break chain building there, so each CA gets a name of its own.
+        string subject = $"CN=Avalon local CA {Convert.ToHexString(RandomNumberGenerator.GetBytes(6))}";
+        using var caKey = RSA.Create(2048);
+        var caRequest = new CertificateRequest(subject, caKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        caRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, true, 0, true));
+        caRequest.CertificateExtensions.Add(new X509KeyUsageExtension(
+            X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, true));
+        caRequest.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(caRequest.PublicKey, false));
+        using X509Certificate2 ca = caRequest.CreateSelfSigned(notBefore, notAfter);
+
+        string caPath = System.IO.Path.Combine(directory, "ca.pem");
+        await File.WriteAllTextAsync(caPath, ca.ExportCertificatePem(), cancellationToken);
+
         return new(
-            await WriteAsync(directory, "world-tls.pfx", "CN=Avalon local world TLS", ServerAuthentication, lifetime,
-                cancellationToken),
-            await WriteAsync(directory, "workload.pfx", "CN=Avalon local world workload", ClientAuthentication, lifetime,
-                cancellationToken),
-            await WriteAsync(directory, "api-game-internal.pfx", "CN=Avalon local API game workload listener",
-                ServerAuthentication, lifetime, cancellationToken));
+            new LocalPem(caPath, null),
+            await WriteAsync(directory, "world-tls", "CN=Avalon local world TLS", ServerAuthentication, null, ca,
+                notBefore, notAfter, cancellationToken),
+            await WriteAsync(directory, "workload", "CN=Avalon local world workload", ClientAuthentication,
+                s_serverIdUri, ca, notBefore, notAfter, cancellationToken),
+            await WriteAsync(directory, "api-game-internal", "CN=Avalon local API game workload listener",
+                ServerAuthentication, null, ca, notBefore, notAfter, cancellationToken));
     }
 
-    private static async Task<LocalCertificate> WriteAsync(string directory, string fileName, string subject, string usage,
-        TimeSpan lifetime, CancellationToken cancellationToken)
+    private static async Task<LocalPem> WriteAsync(string directory, string name, string subject, string usage,
+        Uri? serverId, X509Certificate2 ca, DateTimeOffset notBefore, DateTimeOffset notAfter,
+        CancellationToken cancellationToken)
     {
         using var key = RSA.Create(2048);
         var request = new CertificateRequest(subject, key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -67,17 +91,19 @@ public sealed record LocalCertificates(LocalCertificate WorldTls, LocalCertifica
         names.AddDnsName(TlsServerName);
         names.AddIpAddress(IPAddress.Loopback);
         names.AddIpAddress(IPAddress.IPv6Loopback);
+        if (serverId is not null) names.AddUri(serverId);
         request.CertificateExtensions.Add(names.Build());
         request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+        request.CertificateExtensions.Add(X509AuthorityKeyIdentifierExtension.CreateFromCertificate(ca, true, false));
 
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        using X509Certificate2 certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.Add(lifetime));
-        string password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
-        string path = System.IO.Path.Combine(directory, fileName);
-        await File.WriteAllBytesAsync(path, certificate.Export(X509ContentType.Pfx, password), cancellationToken);
+        using X509Certificate2 certificate = request.Create(ca, notBefore, notAfter, RandomNumberGenerator.GetBytes(16));
+        string certPath = System.IO.Path.Combine(directory, name + ".pem");
+        string keyPath = System.IO.Path.Combine(directory, name + ".key.pem");
+        await File.WriteAllTextAsync(certPath, certificate.ExportCertificatePem(), cancellationToken);
+        await File.WriteAllTextAsync(keyPath, key.ExportPkcs8PrivateKeyPem(), cancellationToken);
         if (!OperatingSystem.IsWindows())
-            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            File.SetUnixFileMode(keyPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
 
-        return new(path, password, Convert.ToHexString(SHA256.HashData(certificate.RawData)));
+        return new(certPath, keyPath);
     }
 }
