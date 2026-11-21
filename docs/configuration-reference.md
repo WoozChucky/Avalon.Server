@@ -22,8 +22,8 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | _(no class)_                | `Avalon.Api.Hosting.Worlds`        | `Database:Worlds:<id>:World` and `Database:Worlds:<id>:Characters`, read by `WorldDatabaseSettings` for the parts a process reads | API (worlds both, identity Characters) | By hand in `ApiStartup`, right after the options. See [REST API Worlds](#rest-api-worlds) |
 | `CacheConfiguration`        | `Avalon.Infrastructure.Configuration` | `Cache` (World); `Application:Cache` (API) | API (identity, worlds, commerce), World | `ValidateOnStart` (`Host` required) in the API and world hosts; in the API only in a process whose services need Redis |
 | `HostingConfiguration`      | `Avalon.Configuration`             | `Hosting` (with `Hosting:ProxyProtocol` and `Hosting:Telemetry`). `Hosting:Telemetry:NoSpanPacketTypes` lists the packet types, by `NetworkPacketType` name, whose handlers open no span and no log scope (their duration and errors are still recorded); default `CMSG_PLAYER_INPUT`, `CMSG_PONG`, and a configured list replaces it. The default types' handlers write `{ConnectionId}` and `{PacketType}` into their own lines (`HighRatePacketLog`); a type added to the list loses its handlers' log scope with nothing in its place. See [instrumentation](instrumentation.md#packet-handlers) | World | `ValidateOnStart` on its own properties. The nested `ProxyProtocol` is not annotation-checked: a trusted network that is not valid CIDR throws when the TCP server is built; a `NoSpanPacketTypes` entry that is not an exact `NetworkPacketType` name throws when the server is built |
-| `WorldHostingSecurity`      | `Avalon.World.GameAuth`            | `Hosting:Security` | World | `ValidateOnStart` (`CertificatePath` required: the world's TLS certificate, a current leaf with its private key, loaded before it listens) |
-| `GameAdmissionOptions`      | `Avalon.World.GameAuth`            | `World:Admission` (`ApiUrl`, `ServerId`, `ClientCertificatePath`, `ClientCertificatePassword`, `ApiCertificateSha256`; `WorldId` from `Game:WorldId`) | World | `ValidateOnStart`: a fixed HTTPS origin, a server id, the workload client certificate and the API leaf's SHA-256 pin. See [game server admission](steam-authentication-workloads.md#world-transport-and-coordinated-protocol-cutover) |
+| `WorldHostingSecurity`      | `Avalon.World.GameAuth`            | `Hosting:Security` | World | `ValidateOnStart` (`CertificatePath` and `KeyPath` required: the world's TLS leaf and its private key, PEM, issued by the Avalon CA; `CaCertificatePath` required: the Avalon CA, PEM. All three are loaded before it listens and reloaded when the files change) |
+| `GameAdmissionOptions`      | `Avalon.World.GameAuth`            | `World:Admission` (`ApiUrl`, `ServerId`, `ClientCertificatePath`, `ClientKeyPath`; `WorldId` from `Game:WorldId`) | World | `ValidateOnStart`: a fixed HTTPS origin, a server id and the workload client certificate with its key (PEM, issued by the Avalon CA; the API's certificate is checked against the CA in `Hosting:Security:CaCertificatePath`). See [game server admission](steam-authentication-workloads.md#world-transport-and-coordinated-protocol-cutover) |
 | `AdmissionSourceOptions`    | `Avalon.World.GameAuth`            | `World:Admission` (`MaxInFlightPerSource`, `MaxInFlightPerIPv6Block`, `MaxPerSourcePerMinute`, `MaxPerIPv6BlockPerMinute`, `ExemptSources`), the per-source budget on admissions (#1052) | World | `ValidateOnStart`: the caps 1 to 128, the rates 1 to 60,000 and 240,000, each IPv6 block limit at least the source's; each exempt entry by `AdmissionSourceValidation`. See [World Admission Budget](#world-admission-budget) |
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
 | `RegenConfiguration`        | `Avalon.Combat`                    | `Regen` | World | `ValidateOnStart` (each key in its range). See [Regeneration and Ward](#regeneration-and-ward-regenconfiguration) |
@@ -74,8 +74,9 @@ Section in `appsettings.json`: `"Hosting"` (world server)
   "Port": 21001,
   "PacketReaderBufferSize": 4096,
   "Security": {
-    "CertificatePath": "<path-to-generated-world-tls.pfx>",
-    "CertificatePassword": "<certificate-password>"
+    "CertificatePath": "<path-to-world-tls.crt>",
+    "KeyPath": "<path-to-world-tls.key>",
+    "CaCertificatePath": "<path-to-avalon-ca.crt>"
   }
 }
 ```
@@ -86,8 +87,10 @@ Section in `appsettings.json`: `"Hosting"` (world server)
 - `InboundFrameTimeoutSeconds`: minimum `1`, maximum `300`, checked at startup. There is no value that turns it off: the largest frame a client sends is under a kilobyte.
 - `TcpKeepAliveTimeSeconds`, `TcpKeepAliveIntervalSeconds`: minimum `1`, maximum `32767`; `TcpKeepAliveRetryCount`: minimum `1`, maximum `127`. Checked at startup, which names the setting. An option the platform cannot set is skipped with one Warning, and the connection is still served.
 - Keepalive covers the TCP connection the server accepted. Behind a proxy that terminates TCP it covers only the proxy-to-server leg; the client-to-proxy leg needs the proxy's own keepalive or idle timeout.
-- `Security:CertificatePath`: required on the world server (its TLS certificate, which
-  must be current and carry its private key). `Security:CertificatePassword` is optional.
+- `Security:CertificatePath`, `Security:KeyPath`, `Security:CaCertificatePath`: required on the world server
+  (its PEM TLS leaf, the leaf's private key, and the Avalon CA the API's certificate is checked against). The leaf
+  must be current. There is no password: the files are PEM, as a cert-manager `kubernetes.io/tls` Secret holds them.
+  The files are reloaded when cert-manager renews them in place.
 
 ---
 

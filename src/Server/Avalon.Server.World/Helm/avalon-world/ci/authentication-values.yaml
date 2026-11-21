@@ -1,9 +1,8 @@
 # Rendering-only test configuration: no real credentials or deployed resources.
 server:
   transport:
-    existingSecret: test-world-transport
+    tlsSecret: test-world-tls
   admission:
     apiUrl: https://api.example.test:9443/
     serverId: world-test
-    apiCertificateSecret: test-workload-bindings
-    apiCertificateKey: api-tls-sha256
+    clientCertificateSecret: test-world-workload

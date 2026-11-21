@@ -44,19 +44,16 @@ env Application__Email__VerificationSiteOrigin="https://avalon.example.test"
 env Application__ForwardedHeaders__ForwardLimit="2"
 env Application__ForwardedHeaders__KnownNetworks__0="10.42.0.0/16"
 env Application__GameAuth__HostKey <- avalon-api/game-auth-host-key
-env Application__GameWorkloads__Servers__0__ClientCertificateSha256 <- "test-workload-bindings"/"world-dev-client-sha256"
+env Application__GameWorkloads__CaCertificatePath=/run/avalon-auth/api-workload/ca.crt
+env Application__GameWorkloads__CertificatePath=/run/avalon-auth/api-workload/tls.crt
+env Application__GameWorkloads__KeyPath=/run/avalon-auth/api-workload/tls.key
 env Application__GameWorkloads__Servers__0__ServerId="world-dev"
-env Application__GameWorkloads__Servers__0__TlsCertificateSha256 <- "test-workload-bindings"/"world-dev-tls-sha256"
 env Application__GameWorkloads__Servers__0__TlsServerName="dev.example.test"
 env Application__GameWorkloads__Servers__0__WorldId="1"
-env Application__GameWorkloads__Servers__1__ClientCertificateSha256 <- "test-workload-bindings"/"world-live-client-sha256"
 env Application__GameWorkloads__Servers__1__ServerId="world-live"
-env Application__GameWorkloads__Servers__1__TlsCertificateSha256 <- "test-workload-bindings"/"world-live-tls-sha256"
 env Application__GameWorkloads__Servers__1__TlsServerName="live.example.test"
 env Application__GameWorkloads__Servers__1__WorldId="2"
-env Application__GameWorkloads__Servers__2__ClientCertificateSha256 <- "test-workload-bindings"/"world-ptr-client-sha256"
 env Application__GameWorkloads__Servers__2__ServerId="world-ptr"
-env Application__GameWorkloads__Servers__2__TlsCertificateSha256 <- "test-workload-bindings"/"world-ptr-tls-sha256"
 env Application__GameWorkloads__Servers__2__TlsServerName="ptr.example.test"
 env Application__GameWorkloads__Servers__2__WorldId="3"
 env Application__MapAssets__ChunkAssetRoot="/app/Maps"
@@ -86,9 +83,6 @@ env Database__Worlds__2__Characters__ConnectionString <- avalon-api/"database-ch
 env Database__Worlds__2__World__ConnectionString <- avalon-api/"database-world-2-connection-string"
 env Database__Worlds__3__Characters__ConnectionString <- avalon-api/"database-characters-3-connection-string"
 env Database__Worlds__3__World__ConnectionString <- avalon-api/"database-world-3-connection-string"
-env Kestrel__Endpoints__GameInternal__Certificate__Password <- "test-api-tls"/tls-password
-env Kestrel__Endpoints__GameInternal__Certificate__Password optional
-env Kestrel__Endpoints__GameInternal__Certificate__Path=/run/avalon-auth/api-workload.pfx
 env Kestrel__Endpoints__GameInternal__Url="https://0.0.0.0:9443"
 env Kestrel__Endpoints__Public__Url="http://0.0.0.0:8080"
 env OTEL_EXPORTER_OTLP_ENDPOINT="http://otel-collector.monitoring:4317"
@@ -96,7 +90,7 @@ env OTEL_RESOURCE_ATTRIBUTES="deployment.environment=test"
 env OTEL_SERVICE_NAME="t-avalon-api"
 kind Deployment
 kind Service
-mount /run/avalon-auth
+mount /run/avalon-auth/api-workload
 port game-internal 9443
 port http 8080
 probe livenessProbe /alive 3

@@ -41,21 +41,17 @@ spec:
               value: {{ .Values.environment | quote }}
             - name: Hosting__Host
               value: {{ .Values.server.hosting.host | quote }}
+            {{- /* cert-manager kubernetes.io/tls Secrets, mounted by items so a renewed Secret reaches the running pod. */}}
+            {{- $_ := required "server.transport.tlsSecret is required" .Values.server.transport.tlsSecret }}
+            {{- $_ = required "server.admission.clientCertificateSecret is required" .Values.server.admission.clientCertificateSecret }}
             - name: Hosting__Security__CertificatePath
-              value: "/run/avalon-auth/world-tls.pfx"
-            - name: Hosting__Security__CertificatePassword
-              valueFrom:
-                secretKeyRef:
-                  name: {{ required "server.transport.existingSecret is required" .Values.server.transport.existingSecret | quote }}
-                  key: world-tls-password
-                  optional: true
+              value: "/run/avalon-auth/world-tls/tls.crt"
+            - name: Hosting__Security__KeyPath
+              value: "/run/avalon-auth/world-tls/tls.key"
+            - name: Hosting__Security__CaCertificatePath
+              value: "/run/avalon-auth/world-tls/ca.crt"
             - name: World__Admission__ApiUrl
               value: {{ required "server.admission.apiUrl is required" .Values.server.admission.apiUrl | quote }}
-            - name: World__Admission__ApiCertificateSha256
-              valueFrom:
-                secretKeyRef:
-                  name: {{ required "server.admission.apiCertificateSecret is required" .Values.server.admission.apiCertificateSecret | quote }}
-                  key: {{ required "server.admission.apiCertificateKey is required" .Values.server.admission.apiCertificateKey | quote }}
             - name: World__Admission__ServerId
               value: {{ required "server.admission.serverId is required" .Values.server.admission.serverId | quote }}
             {{- range $setting := list "MaxInFlightPerSource" "MaxInFlightPerIPv6Block" "MaxPerSourcePerMinute" "MaxPerIPv6BlockPerMinute" }}
@@ -74,13 +70,9 @@ spec:
               value: {{ $source | quote }}
             {{- end }}
             - name: World__Admission__ClientCertificatePath
-              value: "/run/avalon-auth/workload.pfx"
-            - name: World__Admission__ClientCertificatePassword
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.server.transport.existingSecret | quote }}
-                  key: workload-password
-                  optional: true
+              value: "/run/avalon-auth/workload/tls.crt"
+            - name: World__Admission__ClientKeyPath
+              value: "/run/avalon-auth/workload/tls.key"
             - name: Hosting__Port
               value: {{ .Values.service.port | quote }}
             {{- if .Values.server.proxyProtocol.enabled }}
@@ -218,8 +210,11 @@ spec:
               value: {{ $level | quote }}
             {{- end }}
           volumeMounts:
-            - name: admission-credentials
-              mountPath: /run/avalon-auth
+            - name: world-tls
+              mountPath: /run/avalon-auth/world-tls
+              readOnly: true
+            - name: workload-identity
+              mountPath: /run/avalon-auth/workload
               readOnly: true
           ports:
             - name: server-tcp
@@ -244,11 +239,21 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
-        - name: admission-credentials
+        - name: world-tls
           secret:
-            secretName: {{ .Values.server.transport.existingSecret | quote }}
+            secretName: {{ .Values.server.transport.tlsSecret | quote }}
             items:
-              - key: world-tls.pfx
-                path: world-tls.pfx
-              - key: workload.pfx
-                path: workload.pfx
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+              - key: ca.crt
+                path: ca.crt
+        - name: workload-identity
+          secret:
+            secretName: {{ .Values.server.admission.clientCertificateSecret | quote }}
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key

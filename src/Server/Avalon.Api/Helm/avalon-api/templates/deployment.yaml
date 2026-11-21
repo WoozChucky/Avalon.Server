@@ -176,16 +176,16 @@ spec:
             {{- /* Kestrel binds every endpoint under Kestrel:Endpoints, so the workload listener exists only with identity (#794). */}}
             - name: Kestrel__Endpoints__GameInternal__Url
               value: {{ printf "https://0.0.0.0:%v" .Values.gameAdmission.port | quote }}
-            - name: Kestrel__Endpoints__GameInternal__Certificate__Path
-              value: /run/avalon-auth/api-workload.pfx
-            - name: Kestrel__Endpoints__GameInternal__Certificate__Password
-              valueFrom:
-                secretKeyRef:
-                  name: {{ required "gameAdmission.tlsExistingSecret is required" .Values.gameAdmission.tlsExistingSecret | quote }}
-                  key: tls-password
-                  optional: true
+            {{- /* A cert-manager kubernetes.io/tls Secret (tls.crt, tls.key, ca.crt), mounted by items so a renewal reaches the pod. */}}
+            {{- $_ := required "gameAdmission.tlsExistingSecret is required" .Values.gameAdmission.tlsExistingSecret }}
+            - name: Application__GameWorkloads__CertificatePath
+              value: /run/avalon-auth/api-workload/tls.crt
+            - name: Application__GameWorkloads__KeyPath
+              value: /run/avalon-auth/api-workload/tls.key
+            - name: Application__GameWorkloads__CaCertificatePath
+              value: /run/avalon-auth/api-workload/ca.crt
             {{- if not .Values.gameAdmission.servers }}
-            {{- fail "gameAdmission.servers is required: bind each world to its TLS/workload certificates" }}
+            {{- fail "gameAdmission.servers is required: name each world and its TLS server name" }}
             {{- end }}
             {{- range $i, $server := .Values.gameAdmission.servers }}
             - name: Application__GameWorkloads__Servers__{{ $i }}__ServerId
@@ -194,16 +194,6 @@ spec:
               value: {{ required "gameAdmission worldId is required" $server.worldId | quote }}
             - name: Application__GameWorkloads__Servers__{{ $i }}__TlsServerName
               value: {{ required "gameAdmission tlsServerName is required" $server.tlsServerName | quote }}
-            - name: Application__GameWorkloads__Servers__{{ $i }}__TlsCertificateSha256
-              valueFrom:
-                secretKeyRef:
-                  name: {{ required "gameAdmission.bindingsExistingSecret is required" $.Values.gameAdmission.bindingsExistingSecret | quote }}
-                  key: {{ printf "%s-tls-sha256" $server.serverId | quote }}
-            - name: Application__GameWorkloads__Servers__{{ $i }}__ClientCertificateSha256
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $.Values.gameAdmission.bindingsExistingSecret | quote }}
-                  key: {{ printf "%s-client-sha256" $server.serverId | quote }}
             {{- end }}
             {{- /* Only when set, so the API's appsettings.json default applies otherwise (#949); checked at the top. */}}
             {{- with .Values.gameAdmission.minClientVersion }}
@@ -452,7 +442,7 @@ spec:
           {{- if $identity }}
           volumeMounts:
             - name: api-admission-credentials
-              mountPath: /run/avalon-auth
+              mountPath: /run/avalon-auth/api-workload
               readOnly: true
           {{- end }}
           ports:
@@ -499,7 +489,11 @@ spec:
           secret:
             secretName: {{ .Values.gameAdmission.tlsExistingSecret | quote }}
             items:
-              - key: tls.pfx
-                path: api-workload.pfx
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+              - key: ca.crt
+                path: ca.crt
       {{- end }}
 {{- end }}

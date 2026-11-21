@@ -46,11 +46,13 @@ Stripe is not a game identity provider.
 
 ## Deployment bindings
 
-Configure one workload for each served world under `Application:GameWorkloads:Servers`. Each entry supplies `ServerId`, `WorldId`, `TlsServerName`, `TlsCertificateSha256`, and `ClientCertificateSha256`. Digests are 64 hexadecimal characters: SHA-256 of the complete DER leaf certificate, not the certificate thumbprint property. `TlsServerName` must match the world server certificate's DNS/IP identity. The world host/port and existing access, maintenance, database availability, readiness and version information come from the world repository.
+Configure one workload for each served world under `Application:GameWorkloads:Servers`. Each entry supplies `ServerId`, `WorldId` and `TlsServerName`. There are no certificate pins: trust is the private Avalon CA (below). `TlsServerName` must match the world server certificate's DNS/IP identity. The world host/port and existing access, maintenance, database availability, readiness and version information come from the world repository.
 
-The world process holds the private key for its client certificate. Its leaf must be current and have the TLS client authentication EKU (`1.3.6.1.5.5.7.3.2`). The API maps its pinned leaf to exactly one server ID. Never distribute a workload private key or publisher key to the game client.
+The Avalon CA is a private CA; cert-manager issues the leaves and renews them. The API listener's certificate, the CA (`ca.crt`) and the world's workload leaf are all PEM and come from `kubernetes.io/tls` Secrets. The API process that runs identity reads its certificate, key and the CA from `Application:GameWorkloads:CertificatePath`, `KeyPath` and `CaCertificatePath`, and reloads them when the files change.
 
-Game admission and this listener are the REST API's identity service (`Avalon.Api.Identity`, [API services](api-services.md)): a process without identity maps no `/internal/game/*` route, and the chart renders the listener's settings only into a release that runs identity. In a process that runs identity, `/internal/game/*` exists on this listener only: a request for it that arrives on any other port, the public one behind the ingress included, is answered 404 before it is authenticated, judged by the port the connection was accepted on (`GameInternalRoutes`). Configure `Kestrel:Endpoints:GameInternal:Url` as a direct HTTPS listener, with its API server certificate supplied through the usual Kestrel certificate configuration/secret mount. It requires a TLS client certificate during the handshake. Keep this port reachable by world servers through direct TLS or TLS passthrough. Also configure the public API listener explicitly: named Kestrel endpoints replace `ASPNETCORE_URLS`. Preserve its existing HTTPS/ingress setup. A TLS-terminating proxy and forwarded certificate headers cannot authenticate a workload.
+The world process holds the private key for its client certificate. Its leaf must be current, chain to the Avalon CA and have the TLS client authentication EKU (`1.3.6.1.5.5.7.3.2`). A world is identified by a single `urn:avalon:server:<serverId>` URI SAN on that leaf; the API maps it to exactly one configured server ID, and refuses a leaf with no such URI, more than one, or one naming a server that is not configured. Never distribute a workload private key or publisher key to the game client.
+
+Game admission and this listener are the REST API's identity service (`Avalon.Api.Identity`, [API services](api-services.md)): a process without identity maps no `/internal/game/*` route, and the chart renders the listener's settings only into a release that runs identity. In a process that runs identity, `/internal/game/*` exists on this listener only: a request for it that arrives on any other port, the public one behind the ingress included, is answered 404 before it is authenticated, judged by the port the connection was accepted on (`GameInternalRoutes`). Configure `Kestrel:Endpoints:GameInternal:Url` as a direct HTTPS listener, with its server certificate taken from `Application:GameWorkloads:CertificatePath`/`KeyPath` (not from a Kestrel `Certificate` entry). It requires a TLS client certificate during the handshake. Keep this port reachable by world servers through direct TLS or TLS passthrough. Also configure the public API listener explicitly: named Kestrel endpoints replace `ASPNETCORE_URLS`. Preserve its existing HTTPS/ingress setup. A TLS-terminating proxy and forwarded certificate headers cannot authenticate a workload.
 
 Example structure (replace every placeholder through deployment configuration):
 
@@ -62,30 +64,28 @@ Example structure (replace every placeholder through deployment configuration):
         {
           "ServerId": "world-1",
           "WorldId": 1,
-          "TlsServerName": "world-1.example.test",
-          "TlsCertificateSha256": "<64 hex characters from the world TLS leaf>",
-          "ClientCertificateSha256": "<64 hex characters from the world's client-auth leaf>"
+          "TlsServerName": "world-1.example.test"
         }
-      ]
+      ],
+      "CertificatePath": "/run/avalon-auth/api-workload/tls.crt",
+      "KeyPath": "/run/avalon-auth/api-workload/tls.key",
+      "CaCertificatePath": "/run/avalon-auth/api-workload/ca.crt"
     }
   },
   "Kestrel": {
     "Endpoints": {
       "Public": { "Url": "http://0.0.0.0:8080" },
-      "GameInternal": {
-        "Url": "https://0.0.0.0:9443",
-        "Certificate": { "Path": "/run/secrets/api-workload.pfx" }
-      }
+      "GameInternal": { "Url": "https://0.0.0.0:9443" }
     }
   }
 }
 ```
 
-A local run gets every one of these settings, with throwaway self-signed leaves for `localhost`, from the Aspire AppHost or from `tools/Avalon.LocalDev setup` ([Development setup](development-setup.md#from-clone-to-client-in-world)).
+A local run gets every one of these settings, with a throwaway local CA and the PEM leaves it issues for `localhost`, from the Aspire AppHost or from `tools/Avalon.LocalDev setup` ([Development setup](development-setup.md#from-clone-to-client-in-world)).
 
-Use a secret configuration provider for certificate passwords. Certificate pins and server assignments are a startup snapshot; deploy new assignments and restart the API process that runs identity for rotation. An empty workload assignment grants no world allocation or internal authentication. It is not a bypass or an optional authentication mode.
+Certificates need no secret password. Server assignments are a startup snapshot: deploy new assignments and restart the API process that runs identity. Certificate renewal needs no restart: cert-manager renews the Secrets in place and the processes reload them. An empty workload assignment grants no world allocation or internal authentication. It is not a bypass or an optional authentication mode.
 
-The internal endpoint ignores player/launcher JWTs and server IDs in headers or request bodies. Its authentication policy is separate from account role authorization. The pinned leaf is the deployment trust anchor, so private leaves can be used without installing a machine-wide trust root. TLS verifies private-key possession; the API also verifies pin, validity and EKU on every request. A client certificate the listener refuses in the handshake is logged as a Warning (`RefusedWorkloadCertificateLog`, #1051: at most one a minute for each configured server's pin, and one a minute shared by every unknown pin, each with the count of those left out since, so junk handshakes cannot hide a real world's refusal) naming why (outside its validity period, without the client authentication usage, or assigned to no game server) and the leaf's SHA-256 pin, the value `ClientCertificateSha256` holds, never the certificate: Kestrel reports the failed handshake at Debug only, which production does not write.
+The internal endpoint ignores player/launcher JWTs and server IDs in headers or request bodies. Its authentication policy is separate from account role authorization. The Avalon CA is the deployment trust anchor, so no machine-wide trust root is installed; a leaf is accepted only if it chains to exactly that CA. TLS verifies private-key possession; the API also verifies the chain, validity, EKU and the `urn:avalon:server:` identity on every request. A client certificate the listener refuses in the handshake is logged as a Warning (`RefusedWorkloadCertificateLog`, #1051: at most one a minute for each configured server a certificate of the Avalon CA names, and one a minute shared by everything else, each with the count of those left out since, so junk handshakes cannot hide a real world's refusal) naming why (outside its validity period, without the client authentication usage, not issued by the Avalon CA, naming no game server, or assigned to no game server) and the certificate's subject, never the certificate: Kestrel reports the failed handshake at Debug only, which production does not write.
 
 Kestrel listener configuration follows [Microsoft's endpoint documentation](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints?view=aspnetcore-10.0).
 
@@ -122,24 +122,23 @@ A session that never became active ends too (#1013), for the world workload that
 ## World transport and coordinated protocol cutover
 
 The world host requires a current TLS leaf with its private key before it listens. Configure
-`Hosting:Security:CertificatePath` and its secret password. `World:Admission:ApiUrl` is the fixed
-HTTPS origin of the API's GameInternal listener. `World:Admission:ApiCertificateSha256` is mandatory:
-SHA-256 of the complete DER API server leaf, exactly 64 hexadecimal characters. This explicit leaf
-is the private trust anchor; there is no system-CA fallback. TLS still checks the origin hostname,
-leaf validity, server-auth EKU and digital-signature key usage. Only chain errors are allowed for the
-exact pinned leaf; name mismatch, unavailable certificate, missing usage, wrong pin and expiry fail.
-Every request also checks the cached leaf validity, including an already pooled TLS connection. `World:Admission:ServerId` matches the API assignment for `Game:WorldId`.
-`World:Admission:ClientCertificatePath` and its secret password supply the pinned client-auth PFX.
-Never share the world TLS private key with clients; clients receive only the assigned leaf SHA-256
-pin and TLS server name from the authenticated join response.
+`Hosting:Security:CertificatePath` and `KeyPath` (PEM) and `Hosting:Security:CaCertificatePath`, the Avalon CA.
+`World:Admission:ApiUrl` is the fixed HTTPS origin of the API's GameInternal listener. The API's
+certificate is accepted only if it chains to the Avalon CA; there is no system-CA fallback and no pin. TLS still
+checks the origin hostname, validity, server-auth EKU and digital-signature key usage. Every request also
+checks the cached certificate's validity, including an already pooled TLS connection. `World:Admission:ServerId`
+matches the API assignment for `Game:WorldId`. `World:Admission:ClientCertificatePath` and `ClientKeyPath` supply the
+workload client leaf (PEM), whose `urn:avalon:server:<serverId>` URI SAN identifies the world to the API. The
+files are reloaded when cert-manager renews them. Never share the world TLS private key with clients; the
+authenticated join response gives the client the world's host, TLS server name and the Avalon CA certificate, and
+the client checks the world's leaf against that CA.
 
-The world chart requires `server.transport.existingSecret`, `server.admission.apiUrl`, and
-`server.admission.serverId`, `server.admission.apiCertificateSecret`, and
-`server.admission.apiCertificateKey` (default `api-tls-sha256`). The latter Secret/key supplies the API
-leaf pin; no optional reference or unpinned fallback is available. The transport Secret holds `world-tls.pfx` and `workload.pfx`; optional
-`world-tls-password` and `workload-password` keys provide their passwords. PFX files mount read-only
-under `/run/avalon-auth`. These are deployment credentials and never belong in source control; homelab keeps
-them in OpenBao at `k8s/avalon/avalon-world-<world>-transport`, the `.pfx` values base64-encoded.
+The world chart requires `server.transport.tlsSecret`, `server.admission.clientCertificateSecret`,
+`server.admission.apiUrl` and `server.admission.serverId`. Both Secrets are `kubernetes.io/tls` Secrets (`tls.crt`,
+`tls.key`; the transport Secret also needs `ca.crt`) issued by cert-manager from the Avalon CA. They mount
+read-only, by items and never `subPath` so a renewal reaches the running pod, under
+`/run/avalon-auth/world-tls` and `/run/avalon-auth/workload`. They are deployment credentials and never belong in
+source control.
 
 Updated clients use CGameAdmissionPacket/SGameAdmissionPacket (0x201E/0x301E) inside TLS, then the
 version handshake, sealed only on a world with `Network:PacketEncryption` on (a world with it off exchanges no key,
@@ -205,19 +204,14 @@ update and delete also validate the current owner and lease inside their databas
 
 A release of the API chart that runs identity (one that names no `services` runs all four) requires
 `storeAuthentication.existingSecret` (key `steam-publisher-key` by default),
-`gameAdmission.tlsExistingSecret` (`tls.pfx`, optional `tls-password`), and
-`gameAdmission.bindingsExistingSecret`; a release without identity renders none of them, and no port 9443. `gameAdmission.servers` supplies each `serverId`, `worldId`
-and `tlsServerName`; the binding Secret has `<serverId>-tls-sha256` and `<serverId>-client-sha256`.
-The chart mounts the API PFX read-only and exposes a separate direct mTLS service port (default 9443).
+and `gameAdmission.tlsExistingSecret` (a cert-manager `kubernetes.io/tls` Secret with `tls.crt`, `tls.key` and `ca.crt`); a release without identity renders none of them, and no port 9443. `gameAdmission.servers` supplies each `serverId`, `worldId`
+and `tlsServerName`; there are no per-world pin Secrets.
+The chart mounts the Secret read-only at `/run/avalon-auth/api-workload` (by items, never `subPath`) and exposes a separate direct mTLS service port (default 9443).
 Publisher keys are only Secret references; there is no plaintext Helm publisher-key setting.
 Missing required references/assignments refuse chart rendering.
 
 The sibling homelab repository prepares these settings for worlds 1, 2 and 3, plus the production
 Steam OpenID callback and website origin, on `feature/steam-authentication`. Its existing release
 versions remain pinned pending coordinated staging. See homelab `docs/avalon.md` for Secret keys,
-certificate DNS/trust requirements, rotation and cutover instructions, and homelab `docs/secrets.md`
-for changing a value. The authorized follow-up created the publisher key, seven independent private
-leaves, PFX passwords and all matching leaf pins; their values now live in OpenBao under
-`k8s/avalon/<secret-name>`, from which ExternalSecrets make the Kubernetes Secrets (for example
-`avalon-store-authentication` and `avalon-game-workload-bindings`). No machine trust roots or live
-workloads were changed. Real provider and coordinated staging checks remain required.
+certificate DNS/trust requirements and the operational side of the Avalon CA (cert-manager issues and
+renews; there is no rotation step in this repository), and homelab `docs/secrets.md` for changing a value.

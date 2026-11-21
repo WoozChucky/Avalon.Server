@@ -31,8 +31,7 @@ no compression flag, and nothing compresses a payload. `schema/opcodes.json` lis
 declares.
 
 Transport: the client signs in over the identity REST API (HTTPS), then connects directly to a world over TCP inside
-TLS 1.2 or 1.3. The world uses `Hosting:Security:CertificatePath`, and the client pins the world's leaf named in its
-join reply. Ordering is guaranteed by TCP.
+TLS 1.2 or 1.3. The world uses the PEM leaf at `Hosting:Security:CertificatePath` (issued by the private Avalon CA), and the client checks it against the Avalon CA certificate that its join reply carries. Ordering is guaranteed by TCP.
 Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages; on the
 world server the per-packet session layer is a per-world setting, `Network:PacketEncryption`, off by default (#875),
 and a world with it off runs no key exchange (#878).  
@@ -571,7 +570,7 @@ sequenceDiagram
     Client->>Api: redeem game ticket for game context
     Api-->>Client: game context
     Client->>Api: world discovery and POST /game/join-tickets
-    Api-->>Client: join ticket, world host, TLS name and pin
+    Api-->>Client: join ticket, world host, TLS name and Avalon CA
     Client->>World: TLS connect
     Client->>World: CGameAdmission(joinTicket, publicKey)
     World->>Api: POST /internal/game/join-tickets/redeem, sessions/activate (mTLS)
