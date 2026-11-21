@@ -8,11 +8,14 @@ using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.LoadTest;
 using Avalon.Api.Identity.Services;
 using Avalon.Api.Identity.Services.Email;
+using Avalon.Configuration;
+using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Infrastructure.Login;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Avalon.Api.Identity;
@@ -165,6 +168,15 @@ public static class IdentityServiceRegistration
         services.AddIdentityAuthentication();
     }
 
+    private static ReloadingCertificate LoadWorkloadCertificate(IServiceProvider services,
+        Func<GameWorkloadConfiguration, string> certificate, Func<GameWorkloadConfiguration, string>? key)
+    {
+        GameWorkloadConfiguration workloads = services.GetRequiredService<IOptions<GameWorkloadConfiguration>>().Value;
+        return ReloadingCertificate.Load(certificate(workloads), key?.Invoke(workloads),
+            services.GetRequiredService<ILoggerFactory>().CreateLogger<ReloadingCertificate>(),
+            services.GetRequiredService<TimeProvider>(), ReloadingCertificateDefaults.PollInterval);
+    }
+
     /// <summary>
     /// What identity adds to the shared token validation: the game workload scheme, its policy and its rate-limit
     /// partition, and the resource authorization handlers for accounts and personal access tokens. The worlds service
@@ -178,6 +190,10 @@ public static class IdentityServiceRegistration
             .AddAuthenticationSchemes(GameServerAuthHandler.Scheme).RequireAuthenticatedUser()
             .RequireClaim(GameServerAuthHandler.ServerIdClaim)));
         services.AddSingleton<IRateLimitWorkloads, GameServerRateLimitWorkloads>();
+        // The workload listener's server leaf and the Avalon CA world client certificates must chain to: PEM files
+        // cert-manager renews in place, re-read on a timer. Resolved on first use, so none is read with no game server.
+        services.AddKeyedSingleton(GameWorkloadHosting.LeafKey, (sp, _) => LoadWorkloadCertificate(sp, w => w.CertificatePath, w => w.KeyPath));
+        services.AddKeyedSingleton(GameWorkloadHosting.CaKey, (sp, _) => LoadWorkloadCertificate(sp, w => w.CaCertificatePath, null));
         // The workload listener's refused certificates, logged with their reason (#1051).
         services.TryAddSingleton<RefusedWorkloadCertificateLog>();
         // A successful lease heartbeat's request line is Debug (#1051): one per player every 15 seconds. So is a queue

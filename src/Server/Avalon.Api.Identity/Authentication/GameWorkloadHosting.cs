@@ -1,6 +1,6 @@
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Configuration;
+using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 
 namespace Avalon.Api.Identity.Authentication;
@@ -19,6 +19,12 @@ public static class GameWorkloadHosting
             ? url.Port
             : DefaultPort;
 
+    /// <summary>Keyed-service key of the <see cref="ReloadingCertificate"/> the workload listener presents as its server certificate.</summary>
+    public const string LeafKey = "game-workload-leaf";
+
+    /// <summary>Keyed-service key of the <see cref="ReloadingCertificate"/> holding the Avalon CA a world's client certificate must chain to.</summary>
+    public const string CaKey = "game-workload-ca";
+
     public static void ConfigureGameWorkloadListener(this WebApplicationBuilder builder)
     {
         GameWorkloadConfiguration configuration = builder.Configuration.GetSection("Application:GameWorkloads").Get<GameWorkloadConfiguration>() ?? new();
@@ -31,38 +37,49 @@ public static class GameWorkloadHosting
             .Endpoint(EndpointName, listener =>
             {
                 if (!listener.IsHttps) throw new InvalidOperationException("The game workload listener must use HTTPS.");
+                IServiceProvider services = options.ApplicationServices;
+                // Resolved here, when the listener starts, so an unreadable certificate refuses startup.
+                ReloadingCertificate leaf = services.GetRequiredKeyedService<ReloadingCertificate>(LeafKey);
+                ReloadingCertificate ca = services.GetRequiredKeyedService<ReloadingCertificate>(CaKey);
+                TimeProvider clock = services.GetService<TimeProvider>() ?? TimeProvider.System;
+                listener.HttpsOptions.ServerCertificateSelector = (_, _) => leaf.Current;
                 listener.HttpsOptions.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
-                // The pinned leaf is the deployment trust anchor, including for a private/self-signed leaf.
-                // TLS verifies possession of its private key; each HTTP request repeats expiry/EKU/pin checks.
+                // The Avalon CA is the only trust anchor. TLS verifies possession of the leaf's private key; each HTTP
+                // request repeats the validity, usage, CA and identity checks against the current CA.
                 listener.HttpsOptions.ClientCertificateValidation = (certificate, _, _) =>
                 {
-                    IServiceProvider? services = options.ApplicationServices;
-                    DateTime now = (services?.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow().UtcDateTime;
-                    string pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
-                    string? refusal = RefusalOf(certificate, pin, now, configuration);
-                    // Kestrel logs a refused handshake at Debug only (#1051): say why, rate-limited, with the pin alone.
+                    string? refusal = RefusalOf(certificate, clock.GetUtcNow().UtcDateTime, ca.Current, configuration);
+                    // Kestrel logs a refused handshake at Debug only (#1051): say why, rate-limited.
                     if (refusal is not null)
-                        services?.GetService<RefusedWorkloadCertificateLog>()?.Refused(refusal, pin, IsAssigned(pin, configuration));
+                    {
+                        string? serverId = AvalonCaTrust.ServerIdOf(certificate);
+                        services.GetService<RefusedWorkloadCertificateLog>()?.Refused(refusal, certificate.Subject, serverId, IsAssigned(serverId, configuration));
+                    }
                     return refusal is null;
                 };
             }));
     }
 
     /// <summary>
-    /// Why the workload listener refuses <paramref name="certificate"/>, whose SHA-256 is <paramref name="pin"/>, at
-    /// <paramref name="now"/>: outside its validity period, without the client authentication usage, or assigned to no
-    /// game server. Null when it accepts it.
+    /// Why the workload listener refuses <paramref name="certificate"/> at <paramref name="now"/>: outside its validity
+    /// period, without the client authentication usage, not issued by <paramref name="ca"/>, naming no game server (no
+    /// single <c>urn:avalon:server:</c> URI), or naming one no configured game server has. Null when it accepts it.
     /// </summary>
-    public static string? RefusalOf(X509Certificate2 certificate, string pin, DateTime now, GameWorkloadConfiguration configuration)
+    public static string? RefusalOf(X509Certificate2 certificate, DateTime now, X509Certificate2 ca, GameWorkloadConfiguration configuration)
     {
         if (certificate.NotBefore.ToUniversalTime() > now || certificate.NotAfter.ToUniversalTime() <= now)
             return "outside its validity period";
         if (!GameServerAuthHandler.IsClientCertificate(certificate, now))
             return "without the client authentication usage";
-        return IsAssigned(pin, configuration) ? null : "assigned to no game server";
+        if (!AvalonCaTrust.Chains(certificate, ca, now))
+            return "not issued by the Avalon CA";
+        string? serverId = AvalonCaTrust.ServerIdOf(certificate);
+        if (serverId is null)
+            return "naming no game server";
+        return IsAssigned(serverId, configuration) ? null : "assigned to no game server";
     }
 
-    /// <summary>Whether a configured game server holds <paramref name="pin"/> as its client certificate's SHA-256.</summary>
-    private static bool IsAssigned(string pin, GameWorkloadConfiguration configuration) =>
-        configuration.Servers.Any(s => string.Equals(s.ClientCertificateSha256, pin, StringComparison.OrdinalIgnoreCase));
+    /// <summary>Whether a configured game server has the ID <paramref name="serverId"/>.</summary>
+    public static bool IsAssigned(string? serverId, GameWorkloadConfiguration configuration) =>
+        serverId is not null && configuration.Servers.Any(s => string.Equals(s.ServerId, serverId, StringComparison.Ordinal));
 }

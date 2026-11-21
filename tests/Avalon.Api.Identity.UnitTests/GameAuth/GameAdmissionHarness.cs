@@ -80,7 +80,7 @@ internal sealed class GameAdmissionHarness
     public GameWorkloadConfiguration Workloads { get; } = new()
     {
         MinClientVersion = GameClientTestData.MinClientVersion,
-        Servers = [new GameServerDefinition { ServerId = "world-3", WorldId = 3, TlsServerName = "ptr.example.test", TlsCertificateSha256 = new string('A', 64) }],
+        Servers = [new GameServerDefinition { ServerId = "world-3", WorldId = 3, TlsServerName = "ptr.example.test" }],
     };
     /// <summary>World 3's characters: none until a test adds one.</summary>
     public ICharacterRepository Characters { get; } = Substitute.For<ICharacterRepository>();

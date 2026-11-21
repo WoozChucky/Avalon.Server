@@ -47,6 +47,8 @@
   <ItemGroup>
     <!-- The client version the tools state, checked against the API's default floor (#949, ToolClientVersionShould). -->
     <Compile Include="..\..\tools\Shared\ToolClientVersion.cs" Link="GameAuth\ToolClientVersion.cs"/>
+    <!-- The throwaway Avalon CA and the leaves it issues, as the world's tests use them (BCL only, so it links). -->
+    <Compile Include="..\Avalon.World.Testing\TestCertificates.cs" Link="GameAuth\TestCertificates.cs"/>
   </ItemGroup>
 
 </Project>

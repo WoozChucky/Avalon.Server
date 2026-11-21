@@ -123,7 +123,7 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
         }
 
         var destination = new GameWorldDestination(worldId, server.ServerId, world.Name, world.Host, world.Port, server.TlsServerName,
-            server.TlsCertificateSha256, world.MinVersion, world.Version,
+            "" /* Task 5 replaces this with the CA */, world.MinVersion, world.Version,
             Status: (cutoff ? WorldStatus.Maintenance : WorldStatus.Online).ToString(), PlayerLimit: world.PlayerLimit,
             Staff: admin);
         // The API floor above has already read the context's version.

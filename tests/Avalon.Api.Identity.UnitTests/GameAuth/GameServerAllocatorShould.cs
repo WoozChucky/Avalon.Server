@@ -81,7 +81,7 @@ public sealed class GameServerAllocatorShould
         _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(true);
         _repositories.Characters(_world.Id).Returns(_characters);
         _allocator = new(_worlds, _accounts, _databases, _readiness, _repositories,
-            GameClientTestData.Workloads(new GameServerDefinition { ServerId = "world-1", WorldId = 1, TlsServerName = "world.example.test", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = new string('B', 64) }), _clock, new GameApplicationAccessPolicy(Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480 })),
+            GameClientTestData.Workloads(new GameServerDefinition { ServerId = "world-1", WorldId = 1, TlsServerName = "world.example.test" }), _clock, new GameApplicationAccessPolicy(Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480 })),
             NullLogger<GameServerAllocator>.Instance, Substitute.For<IWorldOccupancy>());
     }
     private async Task<GameWorldRefusal?> Find(GameContextRecord? context = null, uint? character = null) =>
@@ -96,7 +96,6 @@ public sealed class GameServerAllocatorShould
         Assert.NotNull(destination);
         Assert.Equal("world-1", destination!.ServerId);
         Assert.Equal("world.example.test", destination.TlsServerName);
-        Assert.Equal(new string('A', 64), destination.TlsCertificateSha256);
         Assert.Equal("0.2.0", destination.MinVersion);
         Assert.Single(await _allocator.ListAsync(_context, CancellationToken.None));
         Assert.Equal(GameWorldRefusal.NotAllowed, Refused(await _allocator.FindAsync(_context, 2, null, CancellationToken.None)));

@@ -20,13 +20,14 @@ public static class TestCertificates
         return X509CertificateLoader.LoadPkcs12(temporary.Export(X509ContentType.Pfx), null);
     }
 
-    public static X509Certificate2 CreateLeaf(X509Certificate2 ca, string dnsName, bool serverAuth, string? serverIdUri = null, DateTimeOffset? notAfter = null)
+    public static X509Certificate2 CreateLeaf(X509Certificate2 ca, string dnsName, bool serverAuth, string? serverIdUri = null, DateTimeOffset? notAfter = null, string? secondServerIdUri = null)
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var request = new CertificateRequest($"CN={dnsName}", key, HashAlgorithmName.SHA256);
         var names = new SubjectAlternativeNameBuilder();
         names.AddDnsName(dnsName);
         if (serverIdUri is not null) names.AddUri(new Uri(serverIdUri));
+        if (secondServerIdUri is not null) names.AddUri(new Uri(secondServerIdUri));
         request.CertificateExtensions.Add(names.Build());
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
