@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Identity.Authentication;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
@@ -20,7 +21,8 @@ namespace Avalon.Api.Identity.Services;
 /// </summary>
 public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccountRepository accounts, IWorldDatabases databases,
     IWorldReadiness readiness, IWorldRepositories repositories, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock,
-    GameApplicationAccessPolicy applications, ILogger<GameServerAllocator> logger, IWorldOccupancy occupancy) : IGameServerAllocator
+    GameApplicationAccessPolicy applications, ILogger<GameServerAllocator> logger, IWorldOccupancy occupancy,
+    IServiceProvider services) : IGameServerAllocator
 {
     /// <summary>The unreadable <c>MinVersion</c> last reported per world, so each is logged once, not per request.</summary>
     private static readonly ConcurrentDictionary<ushort, string> s_unreadableMinVersions = new();
@@ -123,7 +125,7 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
         }
 
         var destination = new GameWorldDestination(worldId, server.ServerId, world.Name, world.Host, world.Port, server.TlsServerName,
-            "" /* Task 5 replaces this with the CA */, world.MinVersion, world.Version,
+            CurrentCa(), world.MinVersion, world.Version,
             Status: (cutoff ? WorldStatus.Maintenance : WorldStatus.Online).ToString(), PlayerLimit: world.PlayerLimit,
             Staff: admin);
         // The API floor above has already read the context's version.
@@ -138,6 +140,13 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
 
         return new(GameWorldAllocation.Admit(destination));
     }
+
+    /// <summary>
+    /// The CA the API trusts now, base64 of its DER, read per destination so a rotation reaches the next one. The holder
+    /// is resolved only here, with a world configured, so a host without game workloads needs no CA.
+    /// </summary>
+    private string CurrentCa() => Convert.ToBase64String(
+        services.GetRequiredKeyedService<ReloadingCertificate>(GameWorkloadHosting.CaKey).Current.RawData);
 
     private static Checked Refuse(GameWorldRefusal refusal) => new(GameWorldAllocation.Refuse(refusal));
 

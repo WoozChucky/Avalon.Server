@@ -13,13 +13,16 @@ using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using System.Security.Cryptography.X509Certificates;
+using Avalon.World.Testing;
 using NSubstitute;
 using Xunit;
 
 namespace Avalon.Api.Identity.UnitTests.GameAuth;
 
-public sealed class GameServerAllocatorShould
+public sealed class GameServerAllocatorShould : IDisposable
 {
+    private readonly WorkloadCaServices _ca = new();
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero));
     private readonly IWorldRepository _worlds = Substitute.For<IWorldRepository>();
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
@@ -41,7 +44,7 @@ public sealed class GameServerAllocatorShould
         _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
         IOptions<GameWorkloadConfiguration> workload = GameClientTestData.Workloads(new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 });
         var config = new StoreAuthenticationConfiguration { SteamAppId = 480, SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
-        var allocator = new GameServerAllocator(_worlds, _accounts, _databases, _readiness, _repositories, workload, _clock, new GameApplicationAccessPolicy(Options.Create(config)), NullLogger<GameServerAllocator>.Instance, Substitute.For<IWorldOccupancy>());
+        var allocator = new GameServerAllocator(_worlds, _accounts, _databases, _readiness, _repositories, workload, _clock, new GameApplicationAccessPolicy(Options.Create(config)), NullLogger<GameServerAllocator>.Instance, Substitute.For<IWorldOccupancy>(), _ca.Services);
         GameContextRecord context = _context with { SteamAppId = 2514590, ApplicationKey = "steam.playtest" };
         _account.AccessLevel |= AccountAccessLevel.Admin;
         Assert.Equal((ushort)3, Assert.Single(await allocator.ListAsync(context, default)).WorldId);
@@ -82,7 +85,7 @@ public sealed class GameServerAllocatorShould
         _repositories.Characters(_world.Id).Returns(_characters);
         _allocator = new(_worlds, _accounts, _databases, _readiness, _repositories,
             GameClientTestData.Workloads(new GameServerDefinition { ServerId = "world-1", WorldId = 1, TlsServerName = "world.example.test" }), _clock, new GameApplicationAccessPolicy(Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480 })),
-            NullLogger<GameServerAllocator>.Instance, Substitute.For<IWorldOccupancy>());
+            NullLogger<GameServerAllocator>.Instance, Substitute.For<IWorldOccupancy>(), _ca.Services);
     }
     private async Task<GameWorldRefusal?> Find(GameContextRecord? context = null, uint? character = null) =>
         Refused(await _allocator.FindAsync(context ?? _context, 1, character, CancellationToken.None));
@@ -100,6 +103,16 @@ public sealed class GameServerAllocatorShould
         Assert.Single(await _allocator.ListAsync(_context, CancellationToken.None));
         Assert.Equal(GameWorldRefusal.NotAllowed, Refused(await _allocator.FindAsync(_context, 2, null, CancellationToken.None)));
     }
+    [Fact]
+    public async Task Hand_out_the_ca_it_currently_trusts()
+    {
+        Assert.Equal(Convert.ToBase64String(_ca.Ca.RawData), (await _allocator.FindAsync(_context, 1, null, CancellationToken.None)).Destination!.TlsCaCertificate);
+        using X509Certificate2 next = TestCertificates.CreateCa("Avalon next CA");
+        _ca.Swap(next);
+        Assert.Equal(Convert.ToBase64String(next.RawData), (await _allocator.FindAsync(_context, 1, null, CancellationToken.None)).Destination!.TlsCaCertificate);
+        Assert.Equal(Convert.ToBase64String(next.RawData), Assert.Single(await _allocator.ListAsync(_context, CancellationToken.None)).TlsCaCertificate);
+    }
+    public void Dispose() => _ca.Dispose();
     [Fact]
     public async Task Gate_current_account_world_access_readiness_protocol_and_database_availability()
     {
