@@ -147,6 +147,8 @@ public class WorldStartupValidationShould
     [InlineData("World:Admission:ApiCertificateSha256", "")]
     [InlineData("World:Admission:ApiCertificateSha256", "not-a-pin")]
     [InlineData("Hosting:Security:CertificatePath", "")]
+    [InlineData("Hosting:Security:KeyPath", "")]
+    [InlineData("Hosting:Security:CaCertificatePath", "")]
     public async Task Refuse_to_start_without_authenticated_admission_configuration(string setting, string value)
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
@@ -165,7 +167,9 @@ public class WorldStartupValidationShould
             HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Hosting:Security:CertificatePath"] = "mounted-world.pfx",
+                ["Hosting:Security:CertificatePath"] = "mounted-world.crt",
+                ["Hosting:Security:KeyPath"] = "mounted-world.key",
+                ["Hosting:Security:CaCertificatePath"] = "mounted-ca.crt",
                 ["World:Admission:ApiUrl"] = "https://internal.avalon.example/",
                 ["World:Admission:ServerId"] = "world-one",
                 ["World:Admission:ClientCertificatePath"] = "mounted-workload.pfx",

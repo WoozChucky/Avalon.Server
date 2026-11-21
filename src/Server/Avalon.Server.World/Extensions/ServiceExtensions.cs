@@ -10,6 +10,7 @@ using Avalon.Database.Extensions;
 using Avalon.Database.World.Extensions;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure.Extensions;
+using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.WorldMaintenance;
 using Avalon.World;
 using Avalon.World.Auras;
@@ -52,7 +53,8 @@ public static class ServiceExtensions
     public static IServiceCollection AddWorldServices(this IServiceCollection services)
     {
         services.AddOptions<WorldHostingSecurity>().BindConfiguration("Hosting:Security")
-            .Validate(s => !string.IsNullOrWhiteSpace(s.CertificatePath), "A world TLS certificate is required.").ValidateOnStart();
+            .Validate(s => !string.IsNullOrWhiteSpace(s.CertificatePath) && !string.IsNullOrWhiteSpace(s.KeyPath) && !string.IsNullOrWhiteSpace(s.CaCertificatePath),
+                "The world TLS certificate, its key and the Avalon CA certificate are required.").ValidateOnStart();
         services.AddOptions<GameAdmissionOptions>().BindConfiguration(GameAdmissionOptions.Section)
             .PostConfigure<IConfiguration>((admission, config) => admission.WorldId = ushort.TryParse(config["Game:WorldId"], out ushort id) ? id : (ushort)0)
             .Validate(a => a.IsValid(), "World admission requires a fixed HTTPS API origin, server identity, workload certificate and API certificate SHA-256 pin.").ValidateOnStart();
@@ -63,7 +65,19 @@ public static class ServiceExtensions
         services.AddSingleton<IValidateOptions<AdmissionSourceOptions>, AdmissionSourceValidation>();
         services.AddSingleton(sp => new AdmissionSourceBudget(
             sp.GetRequiredService<IOptions<AdmissionSourceOptions>>().Value, sp.GetRequiredService<TimeProvider>()));
-        services.AddSingleton(sp => new WorldTlsTransport(sp.GetRequiredService<IOptions<WorldHostingSecurity>>().Value));
+        // The Avalon CA holder is keyed so the world's API trust can read the same instance.
+        services.AddKeyedSingleton("world-tls", (sp, _) =>
+        {
+            WorldHostingSecurity security = sp.GetRequiredService<IOptions<WorldHostingSecurity>>().Value;
+            return ReloadingCertificate.Load(security.CertificatePath, security.KeyPath, sp.GetRequiredService<ILoggerFactory>().CreateLogger<ReloadingCertificate>(),
+                sp.GetRequiredService<TimeProvider>(), ReloadingCertificateDefaults.PollInterval);
+        });
+        services.AddKeyedSingleton("avalon-ca", (sp, _) =>
+            ReloadingCertificate.Load(sp.GetRequiredService<IOptions<WorldHostingSecurity>>().Value.CaCertificatePath, null,
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger<ReloadingCertificate>(),
+                sp.GetRequiredService<TimeProvider>(), ReloadingCertificateDefaults.PollInterval));
+        services.AddSingleton(sp => new WorldTlsTransport(
+            sp.GetRequiredKeyedService<ReloadingCertificate>("world-tls"), sp.GetRequiredKeyedService<ReloadingCertificate>("avalon-ca")));
         services.AddHttpClient("AvalonGameWorkload").ConfigurePrimaryHttpMessageHandler(sp =>
         {
             GameAdmissionOptions admission = sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value;

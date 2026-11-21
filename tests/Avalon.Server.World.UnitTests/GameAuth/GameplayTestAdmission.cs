@@ -1,8 +1,10 @@
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.ValueObjects;
+using Avalon.Infrastructure.GameAuth;
 using Avalon.World.GameAuth;
+using Avalon.World.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.GameAuth;
 
@@ -10,10 +12,15 @@ internal static class GameplayTestAdmission
 {
     public static WorldTlsTransport TlsTransport()
     {
-        using var key = RSA.Create(2048);
-        var request = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using X509Certificate2 temporary = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
-        return new(X509CertificateLoader.LoadPkcs12(temporary.Export(X509ContentType.Pfx), null));
+        using X509Certificate2 ca = TestCertificates.CreateCa("avalon-ca");
+        using X509Certificate2 leaf = TestCertificates.CreateLeaf(ca, "localhost", serverAuth: true);
+        string directory = Directory.CreateTempSubdirectory("world-tls").FullName;
+        (string certPath, string keyPath) = TestCertificates.WritePem(leaf, directory, "tls");
+        string caPath = Path.Combine(directory, "ca.crt");
+        File.WriteAllText(caPath, ca.ExportCertificatePem());
+        // Never polled: the files are read once and the test host is short-lived.
+        return new(ReloadingCertificate.Load(certPath, keyPath, NullLogger.Instance, TimeProvider.System, Timeout.InfiniteTimeSpan),
+            ReloadingCertificate.Load(caPath, null, NullLogger.Instance, TimeProvider.System, Timeout.InfiniteTimeSpan));
     }
     public static GameSessionLease Admit(Avalon.World.WorldConnection connection, AccountId? account = null, TimeProvider? clock = null)
     {

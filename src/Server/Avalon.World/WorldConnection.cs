@@ -703,7 +703,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     protected override async Task<PacketStream> GetStream(TcpClient client)
     {
         WorldTlsTransport transport = ((WorldServer)Server).TlsTransport;
-        SslStream stream = await GameAuth.WorldTlsTransport.AuthenticateAsync(new NetworkStream(client.Client, true), transport.Certificate);
+        SslStream stream = await GameAuth.WorldTlsTransport.AuthenticateAsync(new NetworkStream(client.Client, true), transport.CurrentContext);
         _transportReadyTicks = _time.GetTimestamp();
         _tlsAuthenticated = true;
         return new PacketStream(stream);
