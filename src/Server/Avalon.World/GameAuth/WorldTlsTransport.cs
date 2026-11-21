@@ -16,7 +16,8 @@ public sealed class WorldHostingSecurity
 }
 
 /// <summary>
-/// Loaded before listening. The context a handshake uses is rebuilt when the leaf or the CA file is renewed, so new
+/// Loaded before listening. The leaf is sent alone: the game client trusts only the CA from the join reply, .NET trims a
+/// self-signed root from the sent chain anyway, and on Windows every CA passed in would be added to CurrentUser\CA. The context a handshake uses is rebuilt when the leaf or the CA file is renewed, so new
 /// connections see the renewed certificate while open ones keep theirs.
 /// </summary>
 public sealed class WorldTlsTransport
@@ -57,7 +58,7 @@ public sealed class WorldTlsTransport
     }
 
     private static Built Build(X509Certificate2 leaf, X509Certificate2 ca)
-        => new(leaf, ca, SslStreamCertificateContext.Create(leaf, [ca], offline: true));
+        => new(leaf, ca, SslStreamCertificateContext.Create(leaf, additionalCertificates: null, offline: true));
 
     public static async Task<SslStream> AuthenticateAsync(Stream network, SslStreamCertificateContext context, CancellationToken cancellationToken = default)
     {

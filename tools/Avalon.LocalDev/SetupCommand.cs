@@ -10,7 +10,7 @@ namespace Avalon.LocalDev;
 /// writes, to each project's user-secrets (read in Development only): for the API, its listeners (http, https and the
 /// game workload listener), its workload certificate and the CA, the one world it allocates, and its signing keys and
 /// game-auth host key when it has none yet; for the world server, its TLS leaf, the CA and its admission settings. Run
-/// again, it makes a new CA and new leaves and rewrites those settings; the API's keys stay. Restart the API and the world server after it.
+/// again, it makes a new CA and new leaves, rewrites those settings and removes the retired ones (leaf pins, the .pfx path and passwords); the API's keys stay. Restart the API and the world server after it.
 /// </summary>
 public static class SetupCommand
 {
@@ -20,6 +20,23 @@ public static class SetupCommand
     private const string SigningKeySetting = "Application:Authentication:SigningKey";
     private const string HostKeySetting = "Application:GameAuth:HostKey";
     private const string LocalKeyId = "dev";
+
+    // Settings of older setups (leaf pins, the .pfx password and path). Kestrel reads the endpoint certificate before the
+    // code's selector does, so a stale path to a deleted .pfx stops the API from starting.
+    private static readonly string[] s_retiredApiSecrets =
+    [
+        "Kestrel:Endpoints:GameInternal:Certificate:Path",
+        "Kestrel:Endpoints:GameInternal:Certificate:Password",
+        "Application:GameWorkloads:Servers:0:TlsCertificateSha256",
+        "Application:GameWorkloads:Servers:0:ClientCertificateSha256",
+    ];
+
+    private static readonly string[] s_retiredWorldSecrets =
+    [
+        "Hosting:Security:CertificatePassword",
+        "World:Admission:ClientCertificatePassword",
+        "World:Admission:ApiCertificateSha256",
+    ];
 
     public static async Task<int> RunAsync(CancellationToken cancellationToken)
     {
@@ -63,6 +80,7 @@ public static class SetupCommand
 
         await Dotnet.SetSecretsAsync(api, apiSecrets, cancellationToken);
         Console.Error.WriteLine("Wrote the API's user-secrets (src/Server/Avalon.Api)");
+        await ReportRemovedAsync(api, s_retiredApiSecrets, cancellationToken);
 
         await Dotnet.SetSecretsAsync(world, new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -75,6 +93,7 @@ public static class SetupCommand
             ["World:Admission:ClientKeyPath"] = certificates.Workload.KeyPath!,
         }, cancellationToken);
         Console.Error.WriteLine("Wrote the world server's user-secrets (src/Server/Avalon.Server.World)");
+        await ReportRemovedAsync(world, s_retiredWorldSecrets, cancellationToken);
 
         if (!await Dotnet.DevelopmentCertificateTrustedAsync(cancellationToken))
         {
@@ -85,6 +104,13 @@ public static class SetupCommand
 
         Console.Error.WriteLine($"Done. Restart the API and the world server. The API answers on {ApiHttpsUrl} and {ApiHttpUrl}.");
         return 0;
+    }
+
+    private static async Task ReportRemovedAsync(string project, string[] retired, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> removed = await Dotnet.RemoveSecretsAsync(project, retired, cancellationToken);
+        if (removed.Count > 0)
+            Console.Error.WriteLine($"Removed retired user-secrets from {Path.GetFileName(project)}: {string.Join(", ", removed)}");
     }
 }
 

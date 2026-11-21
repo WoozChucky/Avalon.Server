@@ -372,7 +372,8 @@ gameAdmission:
   minClientVersion: ""
   port: 9443
   # A kubernetes.io/tls Secret (tls.crt, tls.key, ca.crt) issued and renewed by cert-manager from the Avalon CA:
-  # the listener's certificate and the CA that worlds and the dialled world certificates are checked against.
+  # the listener's certificate and the CA that the worlds' client certificates are validated against (it is also handed to
+  # game clients in the world destination).
   # Mounted read-only by items at /run/avalon-auth/api-workload. Required where identity runs.
   tlsExistingSecret: ""
   servers: [] # {serverId: world-dev, worldId: 1, tlsServerName: dev.example.test}

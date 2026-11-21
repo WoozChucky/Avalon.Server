@@ -23,9 +23,16 @@ public static class AvalonCaTrust
         chain.ChainPolicy.DisableCertificateDownloads = true;
         chain.ChainPolicy.VerificationTime = nowUtc;
         chain.ChainPolicy.VerificationTimeIgnored = false;
-        if (!chain.Build(leaf)) return false;
-        X509ChainElementCollection elements = chain.ChainElements;
-        return elements.Count >= 2 && elements[^1].Certificate.RawData.AsSpan().SequenceEqual(ca.RawData);
+        try
+        {
+            if (!chain.Build(leaf)) return false;
+            X509ChainElementCollection elements = chain.ChainElements;
+            return elements.Count >= 2 && elements[^1].Certificate.RawData.AsSpan().SequenceEqual(ca.RawData);
+        }
+        finally
+        {
+            foreach (X509ChainElement element in chain.ChainElements) element.Certificate.Dispose();
+        }
     }
 
     public static string? ServerIdOf(X509Certificate2 leaf)
