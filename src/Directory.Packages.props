@@ -14,7 +14,7 @@
     <PackageVersion Include="AWSSDK.S3" Version="4.1.2" />
     <PackageVersion Include="StackExchange.Redis" Version="3.4.35" />
     <PackageVersion Include="Stripe.net" Version="53.2.0" />
-    <PackageVersion Include="Dapper" Version="2.1.89" />
+    <PackageVersion Include="Dapper" Version="2.1.100" />
     <PackageVersion Include="WebPush" Version="1.0.13" />
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="17.0.0" />
     <PackageVersion Include="Aspire.Hosting.Dotnet" Version="17.0.0" />
