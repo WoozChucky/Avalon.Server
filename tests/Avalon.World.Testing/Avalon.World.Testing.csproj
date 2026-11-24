@@ -17,7 +17,7 @@
   <ItemGroup>
     <!-- The reference data's in-memory World database (ScenarioReferenceData). -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15"/>
-    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0"/>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.1"/>
   </ItemGroup>
 
   <ItemGroup>
