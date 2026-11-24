@@ -8,7 +8,7 @@
     <PackageVersion Include="AspNet.Security.OpenId.Steam" Version="11.0.0" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.341" />
     <PackageVersion Include="LinqKit" Version="1.4.2" />
-    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="10.0.4" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Scalar.AspNetCore" Version="3.1.0" />
     <PackageVersion Include="AWSSDK.S3" Version="4.1.2" />
