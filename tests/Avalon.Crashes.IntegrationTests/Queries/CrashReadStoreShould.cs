@@ -303,7 +303,9 @@ public sealed class CrashReadStoreShould : IAsyncLifetime
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Read.ListGroupsAsync(new(), s_now, cancel.Token));
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4));
         watch.Restart();
-        InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(() => Read.ListGroupsAsync(new(), s_now, default));
+        // Npgsql's EF provider 11 no longer wraps transient failures in InvalidOperationException; the timeout
+        // surfaces as the provider's DbException (CrashProblemMapper answers it as unavailable).
+        System.Data.Common.DbException failure = await Assert.ThrowsAnyAsync<System.Data.Common.DbException>(() => Read.ListGroupsAsync(new(), s_now, default));
         Assert.IsType<TimeoutException>(failure.GetBaseException());
         Assert.InRange(watch.Elapsed.TotalSeconds, 4, 10);
     }
