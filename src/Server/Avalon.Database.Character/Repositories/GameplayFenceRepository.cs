@@ -111,7 +111,7 @@ public sealed class GameplayFenceRepository(IDbContextFactory<CharacterDbContext
     internal static async Task<AccountGameplayFence> LockAsync(CharacterDbContext db, AccountId accountId, CancellationToken cancellationToken)
     {
         // A neutral guard also serializes first saves/first barrier insertion; no missing-row lock is assumed.
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO \"AccountGameplayFences\" (\"AccountId\", \"GameSessionId\", \"FencingToken\", \"Mode\", \"LeaseUntil\", \"ConsolidationId\") VALUES ({accountId.Value}, {Guid.Empty}, {0L}, {(int)GameplayFenceMode.Blocked}, {DateTime.UnixEpoch}, NULL) ON CONFLICT (\"AccountId\") DO NOTHING", cancellationToken);
+        await db.Database.ExecuteSqlAsync($"INSERT INTO \"AccountGameplayFences\" (\"AccountId\", \"GameSessionId\", \"FencingToken\", \"Mode\", \"LeaseUntil\", \"ConsolidationId\") VALUES ({accountId.Value}, {Guid.Empty}, {0L}, {(int)GameplayFenceMode.Blocked}, {DateTime.UnixEpoch}, NULL) ON CONFLICT (\"AccountId\") DO NOTHING", cancellationToken);
         await db.AccountGameplayFences.Where(f => f.AccountId == accountId)
             .ExecuteUpdateAsync(u => u.SetProperty(f => f.FencingToken, f => f.FencingToken), cancellationToken);
         return await db.AccountGameplayFences.SingleAsync(f => f.AccountId == accountId, cancellationToken);
